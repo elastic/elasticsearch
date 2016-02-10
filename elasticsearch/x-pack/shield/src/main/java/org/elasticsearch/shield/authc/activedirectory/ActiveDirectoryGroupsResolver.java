@@ -83,7 +83,8 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
 
     /**
      * To better understand what the sid is and how its string representation looks like, see
-     * http://blogs.msdn.com/b/alextch/archive/2007/06/18/sample-java-application-that-retrieves-group-membership-of-an-active-directory-user-account.aspx
+     * http://blogs.msdn.com/b/alextch/archive/2007/06/18/sample-java-application-that-retrieves-group-membership-of-an-active-directory
+     * -user-account.aspx
      *
      * @param SID byte encoded security ID
      */

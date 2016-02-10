@@ -81,13 +81,16 @@ public class ActionWrapper implements ToXContent {
             try {
                 transformResult = transform.execute(ctx, payload);
                 if (transformResult.status() == Transform.Result.Status.FAILURE) {
-                    action.logger().error("failed to execute action [{}/{}]. failed to transform payload. {}", ctx.watch().id(), id, transformResult.reason());
-                    return new ActionWrapper.Result(id, transformResult, new Action.Result.Failure(action.type(), "Failed to transform payload"));
+                    action.logger().error("failed to execute action [{}/{}]. failed to transform payload. {}", ctx.watch().id(), id,
+                            transformResult.reason());
+                    String msg = "Failed to transform payload";
+                    return new ActionWrapper.Result(id, transformResult, new Action.Result.Failure(action.type(), msg));
                 }
                 payload = transformResult.payload();
             } catch (Exception e) {
                 action.logger().error("failed to execute action [{}/{}]. failed to transform payload.", e, ctx.watch().id(), id);
-                return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), "Failed to transform payload. error: " + ExceptionsHelper.detailedMessage(e)));
+                return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), "Failed to transform payload. error: " +
+                        ExceptionsHelper.detailedMessage(e)));
             }
         }
         try {
@@ -157,13 +160,15 @@ public class ActionWrapper implements ToXContent {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD.toString());
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse action [{}/{}]. failed to parse field [{}] as time value", pe, watchId, actionId, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse action [{}/{}]. failed to parse field [{}] as time value",
+                                pe, watchId, actionId, currentFieldName);
                     }
                 } else {
                     // it's the type of the action
                     ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
                     if (actionFactory == null) {
-                        throw new ElasticsearchParseException("could not parse action [{}/{}]. unknown action type [{}]", watchId, actionId, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse action [{}/{}]. unknown action type [{}]", watchId,
+                                actionId, currentFieldName);
                     }
                     action = actionFactory.parseExecutable(watchId, actionId, parser);
                 }

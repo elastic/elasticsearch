@@ -43,9 +43,10 @@ public abstract class AbstractSSLService extends AbstractComponent {
     public static final String CIPHERS_SETTING = "shield.ssl.ciphers";
     public static final String SUPPORTED_PROTOCOLS_SETTING = "shield.ssl.supported_protocols";
 
-    public static final String[] DEFAULT_SUPPORTED_PROTOCOLS = new String[] { "TLSv1", "TLSv1.1", "TLSv1.2" };
+    public static final String[] DEFAULT_SUPPORTED_PROTOCOLS = new String[]{"TLSv1", "TLSv1.1", "TLSv1.2"};
 
-    static final String[] DEFAULT_CIPHERS = new String[] { "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
+    static final String[] DEFAULT_CIPHERS = new String[]{"TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"};
     static final TimeValue DEFAULT_SESSION_CACHE_TIMEOUT = TimeValue.timeValueHours(24);
     static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
     static final String DEFAULT_PROTOCOL = "TLSv1.2";
@@ -64,7 +65,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
      */
     public SSLSocketFactory sslSocketFactory() {
         SSLSocketFactory socketFactory = sslContext().getSocketFactory();
-        return new ShieldSSLSocketFactory(socketFactory, supportedProtocols(), supportedCiphers(socketFactory.getSupportedCipherSuites(), ciphers()));
+        return new ShieldSSLSocketFactory(socketFactory, supportedProtocols(), supportedCiphers(socketFactory.getSupportedCipherSuites(),
+                ciphers()));
     }
 
     public String[] supportedProtocols() {
@@ -96,14 +98,14 @@ public abstract class AbstractSSLService extends AbstractComponent {
     protected SSLContext sslContext(Settings settings) {
         SSLSettings sslSettings = sslSettings(settings);
         return sslContexts.computeIfAbsent(sslSettings, (theSettings) ->
-            cacheLoader.load(theSettings));
+                cacheLoader.load(theSettings));
     }
 
     /**
      * @return The list of sensitive settings. (these settings shouldnot be exposed via rest API for example)
      */
     public static String[] sensitiveSettings() {
-        return new String[] {
+        return new String[]{
                 CIPHERS_SETTING,
                 SUPPORTED_PROTOCOLS_SETTING,
                 "protocol",
@@ -175,17 +177,23 @@ public abstract class AbstractSSLService extends AbstractComponent {
         return env.configFile().resolve(location);
     }
 
-    private class SSLContextCacheLoader  {
+    private class SSLContextCacheLoader {
 
         public SSLContext load(SSLSettings sslSettings) {
             if (logger.isDebugEnabled()) {
-                logger.debug("using keystore[{}], key_algorithm[{}], truststore[{}], truststore_algorithm[{}], tls_protocol[{}], session_cache_size[{}], session_cache_timeout[{}]",
-                        sslSettings.keyStorePath, sslSettings.keyStoreAlgorithm, sslSettings.trustStorePath, sslSettings.trustStoreAlgorithm, sslSettings.sslProtocol, sslSettings.sessionCacheSize, sslSettings.sessionCacheTimeout);
+                logger.debug("using keystore[{}], key_algorithm[{}], truststore[{}], truststore_algorithm[{}], tls_protocol[{}], " +
+                        "session_cache_size[{}], session_cache_timeout[{}]",
+                        sslSettings.keyStorePath, sslSettings.keyStoreAlgorithm, sslSettings.trustStorePath,
+                        sslSettings.trustStoreAlgorithm, sslSettings.sslProtocol, sslSettings.sessionCacheSize,
+                        sslSettings.sessionCacheTimeout);
             }
 
-            TrustManager[] trustManagers = trustManagers(sslSettings.trustStorePath, sslSettings.trustStorePassword, sslSettings.trustStoreAlgorithm);
-            KeyManager[] keyManagers = keyManagers(sslSettings.keyStorePath, sslSettings.keyStorePassword, sslSettings.keyStoreAlgorithm, sslSettings.keyPassword);
-            return createSslContext(keyManagers, trustManagers, sslSettings.sslProtocol, sslSettings.sessionCacheSize, sslSettings.sessionCacheTimeout);
+            TrustManager[] trustManagers = trustManagers(sslSettings.trustStorePath, sslSettings.trustStorePassword,
+                    sslSettings.trustStoreAlgorithm);
+            KeyManager[] keyManagers = keyManagers(sslSettings.keyStorePath, sslSettings.keyStorePassword, sslSettings.keyStoreAlgorithm,
+                    sslSettings.keyPassword);
+            return createSslContext(keyManagers, trustManagers, sslSettings.sslProtocol, sslSettings.sessionCacheSize,
+                    sslSettings.sessionCacheTimeout);
         }
 
 
@@ -207,7 +215,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
             }
         }
 
-        private SSLContext createSslContext(KeyManager[] keyManagers, TrustManager[] trustManagers, String sslProtocol, int sessionCacheSize, TimeValue sessionCacheTimeout) {
+        private SSLContext createSslContext(KeyManager[] keyManagers, TrustManager[] trustManagers, String sslProtocol,
+                                            int sessionCacheSize, TimeValue sessionCacheTimeout) {
             // Initialize sslContext
             try {
                 SSLContext sslContext = SSLContext.getInstance(sslProtocol);
@@ -265,19 +274,28 @@ public abstract class AbstractSSLService extends AbstractComponent {
         TimeValue sessionCacheTimeout;
 
         SSLSettings(Settings settings, Settings sslServiceSettings) {
-            keyStorePath = settings.get("keystore.path", sslServiceSettings.get("shield.ssl.keystore.path", System.getProperty("javax.net.ssl.keyStore")));
-            keyStorePassword = settings.get("keystore.password", sslServiceSettings.get("shield.ssl.keystore.password", System.getProperty("javax.net.ssl.keyStorePassword")));
-            keyStoreAlgorithm = settings.get("keystore.algorithm", sslServiceSettings.get("shield.ssl.keystore.algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
-            keyPassword = settings.get("keystore.key_password", sslServiceSettings.get("shield.ssl.keystore.key_password", keyStorePassword));
+            keyStorePath = settings.get("keystore.path", sslServiceSettings.get("shield.ssl.keystore.path",
+                    System.getProperty("javax.net.ssl.keyStore")));
+            keyStorePassword = settings.get("keystore.password", sslServiceSettings.get("shield.ssl.keystore.password",
+                    System.getProperty("javax.net.ssl.keyStorePassword")));
+            keyStoreAlgorithm = settings.get("keystore.algorithm", sslServiceSettings.get("shield.ssl.keystore.algorithm",
+                    System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
+            keyPassword = settings.get("keystore.key_password",
+                    sslServiceSettings.get("shield.ssl.keystore.key_password", keyStorePassword));
 
             // Truststore settings
-            trustStorePath = settings.get("truststore.path", sslServiceSettings.get("shield.ssl.truststore.path", System.getProperty("javax.net.ssl.trustStore")));
-            trustStorePassword = settings.get("truststore.password", sslServiceSettings.get("shield.ssl.truststore.password", System.getProperty("javax.net.ssl.trustStorePassword")));
-            trustStoreAlgorithm = settings.get("truststore.algorithm", sslServiceSettings.get("shield.ssl.truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
+            trustStorePath = settings.get("truststore.path", sslServiceSettings.get("shield.ssl.truststore.path",
+                    System.getProperty("javax.net.ssl.trustStore")));
+            trustStorePassword = settings.get("truststore.password", sslServiceSettings.get("shield.ssl.truststore.password",
+                    System.getProperty("javax.net.ssl.trustStorePassword")));
+            trustStoreAlgorithm = settings.get("truststore.algorithm", sslServiceSettings.get("shield.ssl.truststore.algorithm",
+                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
 
             sslProtocol = settings.get("protocol", sslServiceSettings.get("shield.ssl.protocol", DEFAULT_PROTOCOL));
-            sessionCacheSize = settings.getAsInt("session.cache_size", sslServiceSettings.getAsInt("shield.ssl.session.cache_size", DEFAULT_SESSION_CACHE_SIZE));
-            sessionCacheTimeout = settings.getAsTime("session.cache_timeout", sslServiceSettings.getAsTime("shield.ssl.session.cache_timeout", DEFAULT_SESSION_CACHE_TIMEOUT));
+            sessionCacheSize = settings.getAsInt("session.cache_size",
+                    sslServiceSettings.getAsInt("shield.ssl.session.cache_size", DEFAULT_SESSION_CACHE_SIZE));
+            sessionCacheTimeout = settings.getAsTime("session.cache_timeout",
+                    sslServiceSettings.getAsTime("shield.ssl.session.cache_timeout", DEFAULT_SESSION_CACHE_TIMEOUT));
 
             if (trustStorePath == null) {
                 if (logger.isDebugEnabled()) {

@@ -44,14 +44,16 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
         Files.delete(tempFile2);
         assertThat(Files.exists(tempFile2), equalTo(false));
 
-        Command command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, new String[] {"--privateKeyPath", tempFile.toAbsolutePath().toString(),
+        Command command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, new String[] {
+                    "--privateKeyPath", tempFile.toAbsolutePath().toString(),
                     "--publicKeyPath", nonExistentFilePath });
 
         assertThat(command, instanceOf(Command.Exit.class));
         Command.Exit exitCommand = (Command.Exit) command;
         assertThat(exitCommand.status(), equalTo(ExitStatus.USAGE));
 
-        command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, new String[] {"--publicKeyPath", tempFile.toAbsolutePath().toString(),
+        command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, new String[] {
+                "--publicKeyPath", tempFile.toAbsolutePath().toString(),
                 "--privateKeyPath", nonExistentFilePath });
 
         assertThat(command, instanceOf(Command.Exit.class));
@@ -70,7 +72,8 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
         assertThat(Files.exists(publicKeyFilePath), equalTo(false));
         assertThat(Files.exists(privateKeyFilePath), equalTo(false));
 
-        Command command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, new String[] { "--privateKeyPath", privateKeyFilePath.toString(),
+        Command command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, new String[] {
+                "--privateKeyPath", privateKeyFilePath.toString(),
                 "--publicKeyPath", publicKeyFilePath.toString() });
 
         assertThat(command, instanceOf(KeyGenerator.class));

@@ -47,18 +47,20 @@ public class AnalyzeTests extends ShieldIntegTestCase {
     }
 
     public void testAnalyzeWithIndices() {
-        //this test tries to execute different analyze api variants from a user that has analyze privileges only on a specific index namespace
+        // this test tries to execute different analyze api variants from a user that has analyze privileges only on a specific index
+        // namespace
 
         createIndex("test_1");
         ensureGreen();
 
         //ok: user has permissions for analyze on test_*
-        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))))
+        SecuredString passwd = new SecuredString("test123".toCharArray());
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
                 .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
 
         try {
             //fails: user doesn't have permissions for analyze on index non_authorized
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
                     .admin().indices().prepareAnalyze("this is my text").setIndex("non_authorized").setAnalyzer("standard").get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/analyze] is unauthorized for user [analyze_indices]"));
@@ -66,7 +68,7 @@ public class AnalyzeTests extends ShieldIntegTestCase {
 
         try {
             //fails: user doesn't have permissions for cluster level analyze
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", new SecuredString("test123".toCharArray()))))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
                     .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard").get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [cluster:admin/analyze] is unauthorized for user [analyze_indices]"));
@@ -76,15 +78,16 @@ public class AnalyzeTests extends ShieldIntegTestCase {
     public void testAnalyzeWithoutIndices() {
         //this test tries to execute different analyze api variants from a user that has analyze privileges only at cluster level
 
+        SecuredString passwd = new SecuredString("test123".toCharArray());
         try {
             //fails: user doesn't have permissions for analyze on index test_1
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", new SecuredString("test123".toCharArray()))))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", passwd)))
                     .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/analyze] is unauthorized for user [analyze_cluster]"));
         }
 
-        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", new SecuredString("test123".toCharArray()))))
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", passwd)))
                 .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard").get();
     }
 }

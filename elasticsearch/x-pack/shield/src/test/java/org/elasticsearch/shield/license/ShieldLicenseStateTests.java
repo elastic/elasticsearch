@@ -27,7 +27,8 @@ public class ShieldLicenseStateTests extends ESTestCase {
 
     public void testBasic() {
         ShieldLicenseState licenseState = new ShieldLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.BASIC, randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.BASIC,
+                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
 
         assertThat(licenseState.securityEnabled(), is(false));
         assertThat(licenseState.statsAndHealthEnabled(), is(true));
@@ -47,7 +48,8 @@ public class ShieldLicenseStateTests extends ESTestCase {
 
     public void testGold() {
         ShieldLicenseState licenseState = new ShieldLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.GOLD, randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.GOLD,
+                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
 
         assertThat(licenseState.securityEnabled(), is(true));
         assertThat(licenseState.statsAndHealthEnabled(), is(true));
@@ -67,7 +69,8 @@ public class ShieldLicenseStateTests extends ESTestCase {
 
     public void testPlatinum() {
         ShieldLicenseState licenseState = new ShieldLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.PLATINUM, randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.PLATINUM,
+                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
 
         assertThat(licenseState.securityEnabled(), is(true));
         assertThat(licenseState.statsAndHealthEnabled(), is(true));

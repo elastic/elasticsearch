@@ -11,7 +11,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * A delete document action request builder.
  */
-public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteWatchRequest, DeleteWatchResponse, DeleteWatchRequestBuilder> {
+public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteWatchRequest, DeleteWatchResponse,
+        DeleteWatchRequestBuilder> {
 
     public DeleteWatchRequestBuilder(ElasticsearchClient client) {
         super(client, DeleteWatchAction.INSTANCE, new DeleteWatchRequest());

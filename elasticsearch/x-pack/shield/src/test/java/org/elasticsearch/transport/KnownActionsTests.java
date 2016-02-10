@@ -9,7 +9,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -77,7 +77,8 @@ public class KnownActionsTests extends ShieldIntegTestCase {
     public void testAllKnownTransportHandlersAreValid() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String knownHandler : knownHandlers) {
-            assertThat("shield known handler [" + knownHandler + "] is unknown to core", transportService.requestHandlers.keySet(), hasItems(knownHandler));
+            assertThat("shield known handler [" + knownHandler + "] is unknown to core", transportService.requestHandlers.keySet(),
+                    hasItems(knownHandler));
         }
     }
 
@@ -109,7 +110,7 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         loadActions(collectSubClasses(Action.class, ShieldActionModule.class), actions);
 
         // also loading all actions from the licensing plugin
-        loadActions(collectSubClasses(Action.class, LicensePlugin.class), actions);
+        loadActions(collectSubClasses(Action.class, Licensing.class), actions);
 
         return unmodifiableSet(actions);
     }
@@ -133,7 +134,8 @@ public class KnownActionsTests extends ShieldIntegTestCase {
     /**
      * finds all subclasses extending {@code subClass}, recursively from the package and codesource of {@code prototype}
      */
-    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException, ReflectiveOperationException, URISyntaxException {
+    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException,
+            ReflectiveOperationException, URISyntaxException {
         URL codeLocation = prototype.getProtectionDomain().getCodeSource().getLocation();
         final FileSystem fileSystem;
         final Path root;
@@ -165,7 +167,8 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         return clazzes;
     }
 
-    private static void collectClassesForPackage(Class<?> subclass, Path root, ClassLoader cld, String pckgname, List<Class<?>> classes) throws IOException, ReflectiveOperationException {
+    private static void collectClassesForPackage(Class<?> subclass, Path root, ClassLoader cld, String pckgname, List<Class<?>> classes)
+            throws IOException, ReflectiveOperationException {
         String pathName = pckgname.replace('.', '/');
         Path directory = root.resolve(pathName);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {

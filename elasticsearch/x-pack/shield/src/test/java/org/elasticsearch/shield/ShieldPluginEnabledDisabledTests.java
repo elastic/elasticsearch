@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.integration.LicensingTests;
 import org.elasticsearch.license.core.License.OperationMode;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
@@ -67,7 +66,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
         logger.info("******* shield is " + (enabled ? "enabled" : "disabled"));
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
+                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), enabled)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
@@ -76,7 +75,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
     protected Settings transportClientSettings() {
         return Settings.settingsBuilder()
                 .put(super.transportClientSettings())
-                .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
+                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), enabled)
                 .build();
     }
 
@@ -109,8 +108,12 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
         }
 
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
+            HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
+                    .method("GET")
+                    .path("/_shield")
+                    .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                    basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));
 
             String expectedValue;
@@ -127,8 +130,12 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
 
             if (enabled) {
                 LicensingTests.disableLicensing();
-                response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
+                response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
+                        .method("GET")
+                        .path("/_shield")
+                        .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
                 assertThat(response.getStatusCode(), is(OK.getStatus()));
                 assertThat(new JsonPath(response.getBody()).evaluate("status").toString(), equalTo("unlicensed"));
             }

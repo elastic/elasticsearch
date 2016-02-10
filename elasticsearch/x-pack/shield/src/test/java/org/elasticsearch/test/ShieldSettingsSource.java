@@ -10,8 +10,9 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -21,6 +22,7 @@ import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
+import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.net.URISyntaxException;
@@ -102,7 +104,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, ESIntegTestCase.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder,
+                                ESIntegTestCase.Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
@@ -118,8 +121,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
 
                 //TODO: for now isolate shield tests from watcher & marvel (randomize this later)
-                .put("watcher.enabled", false)
-                .put("marvel.enabled", false)
+                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
 
                 .put("shield.audit.enabled", randomBoolean())
                 .put("shield.audit.logfile.prefix.emit_node_host_address", randomBoolean())
@@ -135,7 +138,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 // Test framework sometimes randomly selects the 'index' or 'none' cache and that makes the
                 // validation in ShieldPlugin fail.
-                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE)
+                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE)
                 .put(getNodeSSLSettings());
 
         return builder.build();
@@ -148,7 +151,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         if (randomBoolean()) {
             builder.put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()));
         } else {
-            builder.put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()));
+            builder.put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(transportClientUsername(),
+                    transportClientPassword()));
         }
         return builder.build();
     }
@@ -208,11 +212,13 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     public Settings getNodeSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode",
+                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 
     public Settings getClientSSLSettings() {
-        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
+        return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient",
+                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 
     /**
@@ -226,7 +232,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         return getSSLSettingsForStore(resourcePathToStore, password, true, true, true);
     }
 
-    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled, boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled) {
+    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled,
+                                                   boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled) {
         Path store;
         try {
             store = PathUtils.get(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());

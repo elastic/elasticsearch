@@ -89,7 +89,8 @@ public class WatcherScheduleEngineBenchmark {
             }
         }
         System.out.println("Running schedule benchmark with:");
-        System.out.println("numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval + " engines=" + Arrays.toString(engines));
+        System.out.println("numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval +
+                " engines=" + Arrays.toString(engines));
         System.out.println("and heap_max=" + JvmInfo.jvmInfo().getMem().getHeapMax());
 
 
@@ -150,7 +151,8 @@ public class WatcherScheduleEngineBenchmark {
                     }
                     long actualLoadedWatches = watcherClient.prepareWatcherStats().get().getWatchesCount();
                     if (actualLoadedWatches != numWatches) {
-                        throw new IllegalStateException("Expected [" + numWatches + "] watched to be loaded, but only [" + actualLoadedWatches + "] watches were actually loaded");
+                        throw new IllegalStateException("Expected [" + numWatches + "] watched to be loaded, but only [" +
+                                actualLoadedWatches + "] watches were actually loaded");
                     }
                     long startTime = clock.millis();
                     System.out.println("==> watcher started, waiting [" + benchTime + "] seconds now...");
@@ -187,15 +189,17 @@ public class WatcherScheduleEngineBenchmark {
                         }
                     }
                     client.admin().indices().prepareRefresh(HistoryStore.INDEX_PREFIX + "*").get();
+                    Script script = new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule" +
+                            ".scheduled_time'].value");
                     SearchResponse searchResponse = client.prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                             .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
                             .addAggregation(terms("state").field("state"))
                             .addAggregation(histogram("delay")
-                                            .script(new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value"))
+                                            .script(script)
                                             .interval(10)
                             )
                             .addAggregation(percentiles("percentile_delay")
-                                            .script(new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value"))
+                                            .script(script)
                                             .percentiles(1.0, 20.0, 50.0, 80.0, 99.0)
                             )
                             .get();

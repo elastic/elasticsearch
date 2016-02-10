@@ -42,7 +42,8 @@ public class HipChatActionFactory extends ActionFactory<HipChatAction, Executabl
         HipChatAction action = HipChatAction.parse(watchId, actionId, parser);
         HipChatAccount account = hipchatService.getAccount(action.account);
         if (account == null) {
-            throw new ElasticsearchParseException("could not parse [hipchat] action [{}]. unknown hipchat account [{}]", watchId, action.account);
+            throw new ElasticsearchParseException("could not parse [hipchat] action [{}]. unknown hipchat account [{}]", watchId,
+                    action.account);
         }
         account.validateParsedTemplate(watchId, actionId, action.message);
         return action;

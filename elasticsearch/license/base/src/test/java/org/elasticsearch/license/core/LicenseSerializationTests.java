@@ -32,7 +32,7 @@ public class LicenseSerializationTests extends ESTestCase {
     }
 
     public void testLicensesFields() throws Exception {
-        TestUtils.LicenseSpec randomLicenseSpec = TestUtils.generateRandomLicenseSpec(License.VERSION_START);//randomIntBetween(License.VERSION_START, License.VERSION_CURRENT));
+        TestUtils.LicenseSpec randomLicenseSpec = TestUtils.generateRandomLicenseSpec(License.VERSION_START);
         String licenseSpecsSource = TestUtils.generateLicenseSpecString(randomLicenseSpec);
         final License fromSource = License.fromSource(licenseSpecsSource.getBytes(StandardCharsets.UTF_8));
         TestUtils.assertLicenseSpec(randomLicenseSpec, fromSource);

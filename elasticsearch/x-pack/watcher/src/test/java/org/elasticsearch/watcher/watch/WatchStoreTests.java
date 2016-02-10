@@ -90,7 +90,8 @@ public class WatchStoreTests extends ESTestCase {
         final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, null, true, ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
+                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, null, true,
+                        ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
                 .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());

@@ -21,7 +21,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public abstract class AbstractExecutableCompareCondition<C extends Condition, R extends Condition.Result> extends ExecutableCondition<C, R> {
+public abstract class AbstractExecutableCompareCondition<C extends Condition, R extends Condition.Result>
+        extends ExecutableCondition<C, R> {
     static final Pattern DATE_MATH_PATTERN = Pattern.compile("<\\{(.+)\\}>");
     static final Pattern PATH_PATTERN = Pattern.compile("\\{\\{(.+)\\}\\}");
 

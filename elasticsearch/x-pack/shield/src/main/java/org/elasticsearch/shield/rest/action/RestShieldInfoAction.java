@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.ShieldBuild;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -32,11 +32,12 @@ public class RestShieldInfoAction extends BaseRestHandler {
     private final boolean shieldEnabled;
 
     @Inject
-    public RestShieldInfoAction(Settings settings, RestController controller, Client client, ClusterName clusterName, @Nullable ShieldLicenseState licenseState) {
+    public RestShieldInfoAction(Settings settings, RestController controller, Client client, ClusterName clusterName,
+                                @Nullable ShieldLicenseState licenseState) {
         super(settings, client);
         this.clusterName = clusterName;
         this.shieldLicenseState = licenseState;
-        this.shieldEnabled = ShieldPlugin.shieldEnabled(settings);
+        this.shieldEnabled = Shield.enabled(settings);
         controller.registerHandler(GET, "/_shield", this);
         controller.registerHandler(HEAD, "/_shield", this);
     }

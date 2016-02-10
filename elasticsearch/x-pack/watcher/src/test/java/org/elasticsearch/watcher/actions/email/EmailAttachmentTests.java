@@ -171,8 +171,10 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         DataAttachment dataAttachment = DataAttachment.builder("my-id").dataAttachment(dataFormat).build();
         attachments.add(dataAttachment);
 
-        HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", webServer.getPort()).path("/").scheme(Scheme.HTTP).build();
-        HttpRequestAttachment httpRequestAttachment = HttpRequestAttachment.builder("other-id").httpRequestTemplate(requestTemplate).build();
+        HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", webServer.getPort())
+                .path("/").scheme(Scheme.HTTP).build();
+        HttpRequestAttachment httpRequestAttachment = HttpRequestAttachment.builder("other-id")
+                .httpRequestTemplate(requestTemplate).build();
 
         attachments.add(httpRequestAttachment);
         EmailAttachments emailAttachments = new EmailAttachments(attachments);

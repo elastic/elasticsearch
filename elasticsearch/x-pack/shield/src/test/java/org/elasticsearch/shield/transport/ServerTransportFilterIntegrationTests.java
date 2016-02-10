@@ -33,6 +33,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
+import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -73,7 +74,8 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("transport.profiles.default.shield.type", "node")
                 .put("transport.profiles.client.shield.type", "client")
                 .put("transport.profiles.client.port", randomClientPortRange)
-                .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+                // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+                .put("transport.profiles.client.bind_host", "localhost")
                 .put("shield.audit.enabled", false)
                 .build();
     }
@@ -90,7 +92,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
-                .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
+                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
@@ -122,7 +124,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
                 .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
-                .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
+                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("shield.user", "test_user:changeme")
@@ -150,7 +152,8 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                         .setTransientSettings(singletonMap("key", "value"))
                         .setMasterNodeTimeout(TimeValue.timeValueSeconds(2))
                         .get();
-                fail("Expected to fail update settings as the node should not be able to connect to the cluster, and therefore there should be no master");
+                fail("Expected to fail update settings as the node should not be able to connect to the cluster, cause there should be no" +
+                        " master");
             } catch (MasterNotDiscoveredException e) {
                 // expected
                 logger.error("expected:  " + e);

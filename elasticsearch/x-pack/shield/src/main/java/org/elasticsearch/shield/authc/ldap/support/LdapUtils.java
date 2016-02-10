@@ -54,8 +54,9 @@ public final class LdapUtils {
             results = ldap.search(searchRequest);
         } catch (LDAPSearchException e) {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null) {
-                if (logger.isDebugEnabled()){
-                    logger.debug("a referral could not be followed for request [{}] so some results may not have been retrieved", e, searchRequest);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("a referral could not be followed for request [{}] so some results may not have been retrieved", e,
+                            searchRequest);
                 }
                 results = e.getSearchResult();
             } else {
@@ -75,8 +76,9 @@ public final class LdapUtils {
             entry = ldap.searchForEntry(searchRequest);
         } catch (LDAPSearchException e) {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null && e.getSearchResult().getEntryCount() > 0) {
-                if (logger.isDebugEnabled()){
-                    logger.debug("a referral could not be followed for request [{}] so some results may not have been retrieved", e, searchRequest);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("a referral could not be followed for request [{}] so some results may not have been retrieved", e,
+                            searchRequest);
                 }
                 entry = e.getSearchResult().getSearchEntries().get(0);
             } else {
@@ -87,11 +89,12 @@ public final class LdapUtils {
     }
 
     public static Filter createFilter(String filterTemplate, String... arguments) throws LDAPException {
-        return Filter.create(new MessageFormat(filterTemplate, Locale.ROOT).format((Object[]) encodeFilterValues(arguments), new StringBuffer(), null).toString());
+        return Filter.create(new MessageFormat(filterTemplate, Locale.ROOT).format((Object[]) encodeFilterValues(arguments),
+                new StringBuffer(), null).toString());
     }
 
     static String[] encodeFilterValues(String... arguments) {
-        for(int i = 0; i < arguments.length; i++) {
+        for (int i = 0; i < arguments.length; i++) {
             arguments[i] = Filter.encodeValue(arguments[i]);
         }
         return arguments;

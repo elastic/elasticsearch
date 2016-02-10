@@ -82,7 +82,8 @@ public class ESUsersTool extends CliTool {
             case Roles.NAME:
                 return Roles.parse(terminal, cli);
             default:
-                assert false : "should never get here, if the user enters an unknown command, an error message should be shown before parse is called";
+                assert false : "should never get here, if the user enters an unknown command, an error message should be shown before " +
+                        "parse is called";
                 return null;
         }
     }
@@ -102,7 +103,8 @@ public class ESUsersTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
             } else if (cli.getArgs().length != 1) {
                 String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure all special characters are escaped");
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure " +
+                        "all special characters are escaped");
             }
 
             String username = cli.getArgs()[0];
@@ -181,7 +183,7 @@ public class ESUsersTool extends CliTool {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
             Path userPath = FileUserPasswdStore.resolveFile(esusersSettings, env);
             Path userRolesPath = FileUserRolesStore.resolveFile(esusersSettings, env);
-            return new Path[] {userPath, userRolesPath};
+            return new Path[]{userPath, userRolesPath};
         }
     }
 
@@ -196,7 +198,8 @@ public class ESUsersTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
             } else if (cli.getArgs().length != 1) {
                 String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. userdel only supports deleting one user at a time");
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. userdel only " +
+                        "supports deleting one user at a time");
             }
 
             String username = cli.getArgs()[0];
@@ -217,9 +220,9 @@ public class ESUsersTool extends CliTool {
             Path userRolesPath = FileUserRolesStore.resolveFile(esusersSettings, env);
 
             if (Files.exists(userRolesPath)) {
-                return new Path[] { userPath, userRolesPath };
+                return new Path[]{userPath, userRolesPath};
             }
-            return new Path[] { userPath };
+            return new Path[]{userPath};
         }
 
         @Override
@@ -299,7 +302,7 @@ public class ESUsersTool extends CliTool {
         protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
             Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            return new Path[] { path };
+            return new Path[]{path};
         }
 
         @Override
@@ -334,7 +337,8 @@ public class ESUsersTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
             } else if (cli.getArgs().length != 1) {
                 String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure all special characters are escaped");
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure " +
+                        "all special characters are escaped");
             }
 
             String username = cli.getArgs()[0];
@@ -362,7 +366,7 @@ public class ESUsersTool extends CliTool {
         protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
             Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            return new Path[] { path } ;
+            return new Path[]{path};
         }
 
         @Override
@@ -378,7 +382,8 @@ public class ESUsersTool extends CliTool {
             String[] allRoles = ArrayUtils.concat(addRoles, removeRoles, String.class);
             for (String role : allRoles) {
                 if (!ROLE_PATTERN.matcher(role).matches()) {
-                    terminal.println(String.format(Locale.ROOT, "Role name [%s] is not valid. Please use lowercase and numbers only", role));
+                    terminal.println(String.format(Locale.ROOT, "Role name [%s] is not valid. Please use lowercase and numbers only",
+                            role));
                     return ExitStatus.DATA_ERROR;
                 }
             }
@@ -428,7 +433,8 @@ public class ESUsersTool extends CliTool {
                 username = cli.getArgs()[0];
             } else if (cli.getArgs().length > 1) {
                 String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. list can be used without a user or with a single user");
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. list can be " +
+                        "used without a user or with a single user");
             }
             return new ListUsersAndRoles(terminal, username);
         }
@@ -459,12 +465,14 @@ public class ESUsersTool extends CliTool {
                     String[] roles = userRoles.get(username);
                     Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println(String.format(Locale.ROOT, "%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ? "-" : s).collect(Collectors.joining(","))));
+                    terminal.println(String.format(Locale.ROOT, "%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ?
+                            "-" : s).collect(Collectors.joining(","))));
                     if (!unknownRoles.isEmpty()) {
                         // at least one role is marked... so printing the legend
                         Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
                         terminal.println("");
-                        terminal.println(String.format(Locale.ROOT, " [*]   An unknown role. Please check [%s] to see available roles", rolesFile.toAbsolutePath()));
+                        terminal.println(String.format(Locale.ROOT, " [*]   An unknown role. Please check [%s] to see available roles",
+                                rolesFile.toAbsolutePath()));
                     }
                 } else {
                     terminal.println(String.format(Locale.ROOT, "%-15s: -", username));
@@ -497,7 +505,8 @@ public class ESUsersTool extends CliTool {
                     // at least one role is marked... so printing the legend
                     Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
                     terminal.println("");
-                    terminal.println(String.format(Locale.ROOT, " [*]   An unknown role. Please check [%s] to see available roles", rolesFile.toAbsolutePath()));
+                    terminal.println(String.format(Locale.ROOT, " [*]   An unknown role. Please check [%s] to see available roles",
+                            rolesFile.toAbsolutePath()));
                 }
             }
 
@@ -511,7 +520,8 @@ public class ESUsersTool extends CliTool {
             return FileRolesStore.parseFileForRoleNames(rolesFile, null);
         } catch (Throwable t) {
             // if for some reason, parsing fails (malformatted perhaps) we just warn
-            terminal.println(String.format(Locale.ROOT, "Warning:  Could not parse [%s] for roles verification. Please revise and fix it. Nonetheless, the user will still be associated with all specified roles", rolesFile.toAbsolutePath()));
+            terminal.println(String.format(Locale.ROOT, "Warning:  Could not parse [%s] for roles verification. Please revise and fix it." +
+                    " Nonetheless, the user will still be associated with all specified roles", rolesFile.toAbsolutePath()));
         }
         return null;
     }
@@ -536,9 +546,9 @@ public class ESUsersTool extends CliTool {
         Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
         if (!unknownRoles.isEmpty()) {
             Path rolesFile = FileRolesStore.resolveFile(settings, env);
-            terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are unknown. Make sure to add them to the [%s] file. " +
-                    "Nonetheless the user will still be associated with all specified roles",
-                Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath()));
+            terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are unknown. Make sure to add them to the [%s]" +
+                    " file. Nonetheless the user will still be associated with all specified roles",
+                    Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath()));
         }
     }
 }

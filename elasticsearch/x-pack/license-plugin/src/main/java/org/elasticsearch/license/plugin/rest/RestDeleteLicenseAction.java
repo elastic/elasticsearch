@@ -10,7 +10,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -29,6 +28,6 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        client.admin().cluster().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest(), new AcknowledgedRestListener<DeleteLicenseResponse>(channel));
+        client.admin().cluster().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest(), new AcknowledgedRestListener<>(channel));
     }
 }

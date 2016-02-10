@@ -200,10 +200,12 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
             }
         }
         if (watchSource != null && id != null) {
-            validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline watch source but not both", validationException);
+            validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline " +
+                    "watch source but not both", validationException);
         }
         if (watchSource != null && recordExecution) {
-            validationException = ValidateActions.addValidationError("the execution of an inline watch cannot be recorded", validationException);
+            validationException = ValidateActions.addValidationError("the execution of an inline watch cannot be recorded",
+                    validationException);
         }
         return validationException;
     }

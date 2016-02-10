@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -41,7 +41,7 @@ public class RestClearRealmCacheAction extends BaseRestHandler {
 
         ClearRealmCacheRequest req = new ClearRealmCacheRequest().realms(realms).usernames(usernames);
 
-        new ShieldClient(client).clearRealmCache(req, new RestBuilderListener<ClearRealmCacheResponse>(channel) {
+        new SecurityClient(client).clearRealmCache(req, new RestBuilderListener<ClearRealmCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearRealmCacheResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -166,7 +166,8 @@ public class MonthTimes implements Times {
                         daysSet.add(parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid month day value for [{}] field. expected string/number value or an array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("invalid month day value for [{}] field. expected string/number value or an " +
+                            "array of string/number values, but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TIME_FIELD)) {
                 if (token != XContentParser.Token.START_ARRAY) {

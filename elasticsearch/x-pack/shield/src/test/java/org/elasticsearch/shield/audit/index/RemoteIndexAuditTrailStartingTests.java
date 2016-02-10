@@ -96,7 +96,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
                         .put("shield.audit.outputs", randomFrom("index", "index,logfile"))
                         .putArray("shield.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
                         .put("shield.audit.index.client.cluster.name", clusterName)
-                        .put("shield.audit.index.client.shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD);
+                        .put("shield.audit.index.client.shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 
                 if (useSSL) {
                     for (Map.Entry<String, String> entry : getClientSSLSettings().getAsMap().entrySet()) {

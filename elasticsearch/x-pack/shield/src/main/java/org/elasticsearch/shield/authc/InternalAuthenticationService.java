@@ -122,7 +122,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                     runAsUser = lookupUser(runAsUsername);
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("lookup of run as user failed for principal [{}], uri [{}], run as username [{}]", e, token.principal(), request.uri(), runAsUsername);
+                        logger.debug("lookup of run as user failed for principal [{}], uri [{}], run as username [{}]", e,
+                                token.principal(), request.uri(), runAsUsername);
                     }
                     auditTrail.authenticationFailed(token, request);
                     throw failureHandler.exceptionProcessingRequest(request, e);
@@ -133,12 +134,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                     if (runAsUser != null) {
                         user = new User(user.principal(), user.roles(), runAsUser);
                     } else {
-                        // the requested run as user does not exist, but we don't throw an error here otherwise this could let information leak about users in the system... instead we'll just let the authz service fail throw an authorization error
+                        // the requested run as user does not exist, but we don't throw an error here otherwise this could let
+                        // information leak about users in the system... instead we'll just let the authz service fail throw an
+                        // authorization error
                         user = new User(user.principal(), user.roles(), new User(runAsUsername, Strings.EMPTY_ARRAY));
                     }
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("user creation failed for principal [{}], uri [{}], run as username [{}]", e, token.principal(), request.uri(), runAsUsername);
+                        logger.debug("user creation failed for principal [{}], uri [{}], run as username [{}]", e, token.principal(),
+                                request.uri(), runAsUsername);
                     }
                     auditTrail.authenticationFailed(token, request);
                     throw failureHandler.exceptionProcessingRequest(request, e);
@@ -206,7 +210,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     void putUserInContext(User user) {
         if (threadContext.getTransient(USER_KEY) != null) {
             User ctxUser = threadContext.getTransient(USER_KEY);
-            throw new IllegalArgumentException("context already has user [" + ctxUser.principal() + "]. trying to set user [" + user.principal() + "]");
+            throw new IllegalArgumentException("context already has user [" + ctxUser.principal() + "]. trying to set user [" + user
+                    .principal() + "]");
         }
         threadContext.putTransient(USER_KEY, user);
     }
@@ -251,11 +256,9 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      * @param action       The executed action
      * @param message      The executed request
      * @param fallbackUser The user to assume if there is not other user attached to the message
-     *
      * @return The authenticated user
-     *
-     * @throws ElasticsearchSecurityException   If none of the configured realms successfully authenticated the
-     *                                          request
+     * @throws ElasticsearchSecurityException If none of the configured realms successfully authenticated the
+     *                                        request
      */
     User authenticateWithRealms(String action, TransportMessage<?> message, User fallbackUser) throws ElasticsearchSecurityException {
         AuthenticationToken token;
@@ -310,7 +313,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                     runAsUser = lookupUser(runAsUsername);
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("lookup of run as user failed for principal [{}], action [{}], run as username [{}]", e, token.principal(), action, runAsUsername);
+                        logger.debug("lookup of run as user failed for principal [{}], action [{}], run as username [{}]", e,
+                                token.principal(), action, runAsUsername);
                     }
                     auditTrail.authenticationFailed(token, action, message);
                     throw failureHandler.exceptionProcessingRequest(message, e);
@@ -321,12 +325,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                     if (runAsUser != null) {
                         user = new User(user.principal(), user.roles(), runAsUser);
                     } else {
-                        // the requested run as user does not exist, but we don't throw an error here otherwise this could let information leak about users in the system... instead we'll just let the authz service fail throw an authorization error
+                        // the requested run as user does not exist, but we don't throw an error here otherwise this could let
+                        // information leak about users in the system... instead we'll just let the authz service fail throw an
+                        // authorization error
                         user = new User(user.principal(), user.roles(), new User(runAsUsername, Strings.EMPTY_ARRAY));
                     }
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("user creation failed for principal [{}], action [{}], run as username [{}]", e, token.principal(), action, runAsUsername);
+                        logger.debug("user creation failed for principal [{}], action [{}], run as username [{}]", e, token.principal(),
+                                action, runAsUsername);
                     }
                     auditTrail.authenticationFailed(token, action, message);
                     throw failureHandler.exceptionProcessingRequest(message, e);
@@ -397,7 +404,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (token != null) {
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("realm [{}] resolved authentication token [{}] from transport request with action [{}]", realm, token.principal(), action);
+                    logger.trace("realm [{}] resolved authentication token [{}] from transport request with action [{}]", realm,
+                            token.principal(), action);
                 }
 
                 threadContext.putTransient(TOKEN_KEY, token);

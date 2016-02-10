@@ -14,7 +14,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
-import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -27,13 +26,12 @@ import static org.mockito.Mockito.mock;
 /**
  */
 public class HttpReadTimeoutTests extends ESTestCase {
+
     private MockWebServer webServer;
-    private SecretService secretService;
     private int webPort;
 
     @Before
     public void init() throws Exception {
-        secretService = new SecretService.PlainText();
         for (webPort = 9200; webPort < 9300; webPort++) {
             try {
                 webServer = new MockWebServer();

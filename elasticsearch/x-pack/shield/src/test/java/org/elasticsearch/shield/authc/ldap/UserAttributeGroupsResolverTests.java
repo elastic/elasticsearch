@@ -53,7 +53,8 @@ public class UserAttributeGroupsResolverTests extends ESTestCase {
         options.setAllowConcurrentSocketFactoryUse(true);
         options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
-        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
+        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(),
+                BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
     }
 
     @Override

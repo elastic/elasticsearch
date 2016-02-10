@@ -25,7 +25,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.XPackUser;
@@ -42,6 +42,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -63,6 +64,8 @@ import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.MO
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.WEEKLY;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
+import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
+import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -158,21 +161,27 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             final boolean useShield = randomBoolean();
             final boolean useSSL = useShield && randomBoolean();
             logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}]", useShield, useSSL);
-            ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
+            ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(),
+                    Scope.SUITE) {
                     @Override
                     public Settings nodeSettings(int nodeOrdinal) {
                         Settings.Builder builder = Settings.builder()
                                 .put(super.nodeSettings(nodeOrdinal))
-                                .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield);
-                        // For tests we forcefully configure Shield's custom query cache because the test framework randomizes the query cache impl,
-                        // but if shield is disabled then we don't need to forcefully set the query cache
+                                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), useShield);
+
+                        // For tests we forcefully configure Shield's custom query cache because the test framework
+                        // randomizes the query cache impl but if shield is disabled then we don't need to forcefully
+                        // set the query cache
                         if (useShield == false) {
                             builder.remove(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
                         }
+
                         return builder.build();
                     }
             };
-            cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), Function.identity());
+            cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name,
+                    cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+                    useShield ? getClientWrapper() : Function.identity());
             cluster2.beforeTest(getRandom(), 0.5);
             remoteClient = cluster2.client();
 
@@ -182,9 +191,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
             Settings.Builder builder = Settings.builder()
                     .put(settings)
-                    .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield)
+                    .put(XPackPlugin.featureEnabledSetting(Shield.NAME), useShield)
                     .put(remoteSettings(NetworkAddress.formatAddress(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
-                    .put("shield.audit.index.client.shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD);
+                    .put("shield.audit.index.client.shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 
             if (useSSL) {
                 for (Map.Entry<String, String> entry : cluster2SettingsSource.getClientSSLSettings().getAsMap().entrySet()) {
@@ -193,18 +202,23 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             }
             settings = builder.build();
 
-            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(eq(XPackUser.INSTANCE));
+            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely"))
+                    .when(authService).attachUserHeaderIfMissing(eq(XPackUser.INSTANCE));
         }
 
         settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         when(authService.authenticate(mock(RestRequest.class))).thenThrow(new UnsupportedOperationException(""));
-        when(authService.authenticate("_action", new LocalHostMockMessage(), XPackUser.INSTANCE)).thenThrow(new UnsupportedOperationException(""));
+        when(authService.authenticate("_action", new LocalHostMockMessage(), XPackUser.INSTANCE))
+                .thenThrow(new UnsupportedOperationException(""));
         Transport transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
+        BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE},
+                DummyTransportAddress.INSTANCE);
+        when(transport.boundAddress()).thenReturn(boundTransportAddress);
 
         threadPool = new ThreadPool("index audit trail tests");
-        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class));
+        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(internalClient()), threadPool,
+                mock(ClusterService.class));
         auditor.start(true);
     }
 

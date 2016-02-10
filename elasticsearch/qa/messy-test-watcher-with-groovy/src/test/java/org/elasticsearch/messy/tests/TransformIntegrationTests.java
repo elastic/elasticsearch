@@ -78,7 +78,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
-            client().preparePutIndexedScript("groovy", "_id", "{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}").get();
+            client().preparePutIndexedScript("groovy", "_id", "{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}")
+                    .get();
             script = Script.indexed("_id").lang("groovy").build();
         } else {
             logger.info("testing script transform with a file script");
@@ -135,8 +136,10 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         index("my-payload-index", "payload", "mytestresult");
         refresh();
 
-        SearchRequest inputRequest = WatcherTestUtils.newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
-        SearchRequest transformRequest = WatcherTestUtils.newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest inputRequest = WatcherTestUtils.newInputSearchRequest("my-condition-index")
+                .source(searchSource().query(matchAllQuery()));
+        SearchRequest transformRequest = WatcherTestUtils.newInputSearchRequest("my-payload-index")
+                .source(searchSource().query(matchAllQuery()));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
                 .setSource(watchBuilder()
@@ -194,7 +197,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
                         .condition(alwaysCondition())
-                        .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)), indexAction("output2", "type")))
+                        .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)),
+                                indexAction("output2", "type")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 

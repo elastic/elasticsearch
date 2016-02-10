@@ -84,7 +84,8 @@ public enum DataAttachment implements ToXContent {
             return parser.booleanValue() ? DEFAULT : null;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse data attachment. expected either a boolean value or an object but found [{}] instead", token);
+            throw new ElasticsearchParseException("could not parse data attachment. expected either a boolean value or an object but " +
+                    "found [{}] instead", token);
         }
 
         DataAttachment dataAttachment = DEFAULT;
@@ -94,12 +95,14 @@ public enum DataAttachment implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead", Field.FORMAT.getPreferredName(), token);
+                throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead",
+                        Field.FORMAT.getPreferredName(), token);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FORMAT)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but " +
+                            "found [{}] instead", currentFieldName, token);
                 }
             } else {
                 throw new ElasticsearchParseException("could not parse data attachment. unexpected field [{}]", currentFieldName);

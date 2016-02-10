@@ -19,7 +19,8 @@ public class ExecutionModule extends AbstractModule {
         this(InternalWatchExecutor.class, AsyncTriggerListener.class);
     }
 
-    protected ExecutionModule(Class<? extends WatchExecutor> executorClass, Class<? extends TriggerEngine.Listener> triggerEngineListenerClass) {
+    protected ExecutionModule(Class<? extends WatchExecutor> executorClass,
+                              Class<? extends TriggerEngine.Listener> triggerEngineListenerClass) {
         this.executorClass = executorClass;
         this.triggerEngineListenerClass = triggerEngineListenerClass;
     }

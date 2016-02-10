@@ -107,7 +107,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         logger.debug("quantifier [{}]", quantifier);
         logger.debug("met [{}]", met);
 
-        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier), logger, SystemClock.INSTANCE);
+        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(new ArrayCompareCondition("ctx.payload.value", "",
+                op, value, quantifier), logger, SystemClock.INSTANCE);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -136,7 +137,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         logger.debug("quantifier [{}]", quantifier);
         logger.debug("met [{}]", met);
 
-        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(new ArrayCompareCondition("ctx.payload.value", "doc_count", op, value, quantifier), logger, SystemClock.INSTANCE);
+        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(new ArrayCompareCondition("ctx.payload.value",
+                "doc_count", op, value, quantifier), logger, SystemClock.INSTANCE);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -144,8 +146,12 @@ public class ArrayCompareConditionTests extends ESTestCase {
     public void testExecuteDateMath() {
         ClockMock clock = new ClockMock();
         boolean met = randomBoolean();
-        ArrayCompareCondition.Op op = met ? randomFrom(ArrayCompareCondition.Op.GT, ArrayCompareCondition.Op.GTE, ArrayCompareCondition.Op.NOT_EQ) : randomFrom(ArrayCompareCondition.Op.LT, ArrayCompareCondition.Op.LTE, ArrayCompareCondition.Op.EQ);
-        ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.ALL, ArrayCompareCondition.Quantifier.SOME);
+        ArrayCompareCondition.Op op = met ?
+                randomFrom(ArrayCompareCondition.Op.GT, ArrayCompareCondition.Op.GTE, ArrayCompareCondition.Op.NOT_EQ) :
+                randomFrom(ArrayCompareCondition.Op.LT, ArrayCompareCondition.Op.LTE, ArrayCompareCondition.Op.EQ);
+
+        ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.ALL,
+                ArrayCompareCondition.Quantifier.SOME);
         String value = "<{now-1d}>";
         int numberOfValues = randomIntBetween(1, 10);
         List<Object> values = new ArrayList<>(numberOfValues);
@@ -154,7 +160,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
             values.add(clock.nowUTC());
         }
 
-        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier), logger, clock);
+        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(
+                new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier), logger, clock);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }

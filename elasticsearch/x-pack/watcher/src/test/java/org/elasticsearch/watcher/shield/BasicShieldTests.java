@@ -75,11 +75,11 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
 
         // stats and get watch are allowed by role monitor:
         token = basicAuthHeaderValue("monitor", new SecuredString("changeme".toCharArray()));
-        WatcherStatsResponse statsResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareWatcherStats()
-                .get();
+        WatcherStatsResponse statsResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .prepareWatcherStats().get();
         assertThat(statsResponse.getWatcherState(), equalTo(WatcherState.STARTED));
-        GetWatchResponse getWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareGetWatch("_id")
-                .get();
+        GetWatchResponse getWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .prepareGetWatch("_id").get();
         assertThat(getWatchResponse.isFound(), is(false));
 
         // but put watch isn't allowed by monitor:

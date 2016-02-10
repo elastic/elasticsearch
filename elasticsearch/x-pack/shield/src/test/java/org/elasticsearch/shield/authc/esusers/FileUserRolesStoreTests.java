@@ -16,6 +16,8 @@ import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -224,7 +226,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
             Path usersRoles = writeUsersRoles("role1:admin");
 
             Settings settings = Settings.builder()
-                    .put("watcher.enabled", "false")
+                    .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), "false")
                     .put("path.home", createTempDir())
                     .build();
 
@@ -284,6 +286,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Path file = createTempFile();
         Files.write(file, input.getBytes(StandardCharsets.UTF_8));
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, null);
-        assertThat(String.format(Locale.ROOT, "Expected userRoles to be empty, but was %s", usersRoles.keySet()), usersRoles.keySet(), hasSize(0));
+        String reason = String.format(Locale.ROOT, "Expected userRoles to be empty, but was %s", usersRoles.keySet());
+        assertThat(reason, usersRoles.keySet(), hasSize(0));
     }
 }

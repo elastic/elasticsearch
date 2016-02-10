@@ -67,7 +67,8 @@ public class TestUtils {
         if (datesInMillis) {
             long issueDateInMillis = dateMath("now", now);
             long expiryDateInMillis = dateMath("now+10d/d", now);
-            return new LicenseSpec(version, uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer, maxNodes);
+            return new LicenseSpec(version, uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer,
+                    maxNodes);
         } else {
             String issueDate = dateMathString("now", now);
             String expiryDate = dateMathString("now+10d/d", now);
@@ -161,7 +162,8 @@ public class TestUtils {
         public final int maxNodes;
 
         public LicenseSpec(String issueDate, String expiryDate) {
-            this(License.VERSION_CURRENT, UUID.randomUUID().toString(), "feature", issueDate, expiryDate, "trial", "none", "customer", "elasticsearch", 5);
+            this(License.VERSION_CURRENT, UUID.randomUUID().toString(), "feature", issueDate, expiryDate, "trial", "none", "customer",
+                    "elasticsearch", 5);
         }
 
         public LicenseSpec(int version, String uid, String feature, long issueDateInMillis, long expiryDateInMillis, String type,

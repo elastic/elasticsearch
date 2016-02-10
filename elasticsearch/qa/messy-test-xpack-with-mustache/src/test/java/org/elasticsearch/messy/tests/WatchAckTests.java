@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.transport.action.ack;
+package org.elasticsearch.messy.tests;
 
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
@@ -13,6 +13,9 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockMustacheScriptEngine;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.compare.CompareCondition;
@@ -29,6 +32,10 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -52,6 +59,24 @@ import static org.hamcrest.core.IsEqual.equalTo;
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.nodePlugins());
+        // TODO remove dependency on mustache
+        types.add(MustachePlugin.class);
+        return types;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
+        // remove the mock because we use mustache here...
+        plugins.remove(MockMustacheScriptEngine.TestPlugin.class);
+        return plugins;
+    }
+
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");
         ensureGreen("actions", "events");
@@ -128,8 +153,10 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.isFound(), is(true));
 
         Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true, getWatchResponse.getSource().getBytes());
-        assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(), is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
-        assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(), is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(),
+                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
+                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
 
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
                 matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
@@ -208,8 +235,10 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.isFound(), is(true));
 
         Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true, getWatchResponse.getSource().getBytes());
-        assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(), is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
-        assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(), is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(),
+                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
+                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
 
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
                 matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
@@ -264,7 +293,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         GetResponse getResponse = client().get(new GetRequest(WatchStore.INDEX, WatchStore.DOC_TYPE, "_name")).actionGet();
         Watch indexedWatch = watchParser().parse("_name", true, getResponse.getSourceAsBytesRef());
-        assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(), Matchers.equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));
+        assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(),
+                equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));
 
         if (timeWarped()) {
             timeWarp().scheduler().trigger("_name", 4, TimeValue.timeValueSeconds(5));

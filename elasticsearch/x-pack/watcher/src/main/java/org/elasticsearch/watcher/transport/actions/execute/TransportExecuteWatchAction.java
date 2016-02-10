@@ -56,10 +56,12 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
 
     @Inject
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
+                                       ThreadPool threadPool, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
                                        Clock clock, WatcherLicensee watcherLicensee, WatchStore watchStore, TriggerService triggerService,
                                        Watch.Parser watchParser) {
-        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, ExecuteWatchRequest::new);
+        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                watcherLicensee, ExecuteWatchRequest::new);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;
@@ -78,7 +80,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     }
 
     @Override
-    protected void masterOperation(ExecuteWatchRequest request, ClusterState state, ActionListener<ExecuteWatchResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(ExecuteWatchRequest request, ClusterState state, ActionListener<ExecuteWatchResponse> listener)
+            throws ElasticsearchException {
         try {
             Watch watch;
             boolean knownWatch;
@@ -100,7 +103,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             String triggerType = watch.trigger().type();
             TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
 
-            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
+            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch,
+                    new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
             DateTime executionTime = clock.now(DateTimeZone.UTC);
             ctxBuilder.executionTime(executionTime);

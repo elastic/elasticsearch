@@ -73,7 +73,8 @@ public class TriggeredWatchStore extends AbstractComponent {
         IndexMetaData indexMetaData = state.getMetaData().index(INDEX_NAME);
         if (indexMetaData != null) {
             if (!state.routingTable().index(INDEX_NAME).allPrimaryShardsActive()) {
-                logger.debug("not all primary shards of the [{}] index are started, so we cannot load previous triggered watches", INDEX_NAME);
+                logger.debug("not all primary shards of the [{}] index are started, so we cannot load previous triggered watches",
+                        INDEX_NAME);
                 return false;
             }
         } else {
@@ -166,7 +167,8 @@ public class TriggeredWatchStore extends AbstractComponent {
                     for (int i = 0; i < response.getItems().length; i++) {
                         BulkItemResponse itemResponse = response.getItems()[i];
                         if (itemResponse.isFailed()) {
-                            logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(), itemResponse.getFailureMessage());
+                            logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(),
+                                    itemResponse.getFailureMessage());
                         } else {
                             IndexResponse indexResponse = itemResponse.getResponse();
                             successFullSlots.add(i);
@@ -200,7 +202,8 @@ public class TriggeredWatchStore extends AbstractComponent {
             for (int i = 0; i < response.getItems().length; i++) {
                 BulkItemResponse itemResponse = response.getItems()[i];
                 if (itemResponse.isFailed()) {
-                    logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(), itemResponse.getFailureMessage());
+                    logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(),
+                            itemResponse.getFailureMessage());
                 } else {
                     IndexResponse indexResponse = itemResponse.getResponse();
                     successFullSlots.add(i);
@@ -239,7 +242,8 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
         RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX_NAME));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            throw illegalState("refresh was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, refreshResponse.getSuccessfulShards());
+            throw illegalState("refresh was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards,
+                    refreshResponse.getSuccessfulShards());
         }
 
         SearchRequest searchRequest = createScanSearchRequest();
@@ -247,7 +251,8 @@ public class TriggeredWatchStore extends AbstractComponent {
         List<TriggeredWatch> triggeredWatches = new ArrayList<>();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
-                throw illegalState("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, response.getSuccessfulShards());
+                throw illegalState("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards,
+                        response.getSuccessfulShards());
             }
 
             while (response.getHits().hits().length != 0) {

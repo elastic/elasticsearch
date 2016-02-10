@@ -178,7 +178,8 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
             if (failureCause.get() != null) {
                 failureCause.get().printStackTrace(new PrintWriter(writer));
             }
-            assertThat("Expected this test to always pass with the HandshakeWaitingHandler in pipeline\n" + writer.toString(), failureCause.get(), nullValue());
+            assertThat("Expected this test to always pass with the HandshakeWaitingHandler in pipeline\n" + writer.toString(),
+                    failureCause.get(), nullValue());
         }
     }
 

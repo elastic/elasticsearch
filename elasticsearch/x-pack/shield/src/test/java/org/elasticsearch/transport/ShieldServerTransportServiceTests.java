@@ -6,9 +6,10 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.test.ShieldIntegTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Map;
 
@@ -21,7 +22,7 @@ public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
     protected Settings transportClientSettings() {
         return Settings.settingsBuilder()
                 .put(super.transportClientSettings())
-                .put(ShieldPlugin.ENABLED_SETTING_NAME, true)
+                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), true)
                 .build();
     }
 
@@ -30,7 +31,8 @@ public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
             assertThat(transportService, instanceOf(ShieldServerTransportService.class));
             for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
                 assertThat(
-                        "handler not wrapped by " + ShieldServerTransportService.ProfileSecuredRequestHandler.class + "; do all the handler registration methods have overrides?",
+                        "handler not wrapped by " + ShieldServerTransportService.ProfileSecuredRequestHandler.class +
+                                "; do all the handler registration methods have overrides?",
                         entry.getValue().toString(),
                         startsWith(ShieldServerTransportService.ProfileSecuredRequestHandler.class.getName() + "@")
                 );

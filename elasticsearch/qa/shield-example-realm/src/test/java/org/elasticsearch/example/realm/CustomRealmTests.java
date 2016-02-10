@@ -20,7 +20,8 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticate() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings));
-        UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, new SecuredString(CustomRealm.KNOWN_PW.toCharArray()));
+        SecuredString password = new SecuredString(CustomRealm.KNOWN_PW.toCharArray());
+        UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, password);
         User user = realm.authenticate(token);
         assertThat(user, notNullValue());
         assertThat(user.roles(), equalTo(CustomRealm.ROLES));
@@ -30,7 +31,8 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticateBadUser() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings));
-        UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", new SecuredString(CustomRealm.KNOWN_PW.toCharArray()));
+        SecuredString password = new SecuredString(CustomRealm.KNOWN_PW.toCharArray());
+        UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", password);
         User user = realm.authenticate(token);
         assertThat(user, nullValue());
     }

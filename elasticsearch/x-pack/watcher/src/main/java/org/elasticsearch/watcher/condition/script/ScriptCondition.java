@@ -60,7 +60,8 @@ public class ScriptCondition implements Condition {
             Script script = Script.parse(parser);
             return new ScriptCondition(script);
         } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE, watchId);
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,
+                    watchId);
         }
     }
 

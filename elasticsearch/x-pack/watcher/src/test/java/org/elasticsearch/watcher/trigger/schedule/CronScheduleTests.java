@@ -80,7 +80,8 @@ public class CronScheduleTests extends ScheduleTestCase {
             new CronSchedule.Parser().parse(parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [null]"));
+            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron " +
+                    "string values, but found [null]"));
         }
     }
 
@@ -93,7 +94,8 @@ public class CronScheduleTests extends ScheduleTestCase {
             new CronSchedule.Parser().parse(parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [START_OBJECT]"));
+            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron " +
+                    "string values, but found [START_OBJECT]"));
         }
     }
 

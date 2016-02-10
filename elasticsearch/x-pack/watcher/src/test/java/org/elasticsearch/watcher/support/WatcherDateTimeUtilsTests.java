@@ -67,7 +67,8 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
             WatcherDateTimeUtils.parseTimeValue(parser, "test");
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead"));
+            assertThat(e.getMessage(),
+                    is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead"));
         }
     }
 

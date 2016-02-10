@@ -79,7 +79,8 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
     public void testSendTriggerEvent() throws Exception {
         PagerDutyService service = getInstanceFromMaster(PagerDutyService.class);
 
-        IncidentEvent event = new IncidentEvent("#testIncidentEvent()", null, null, "PagerDutyServiceTests", "_client_url", "_account", true, new IncidentEventContext[] {
+        IncidentEvent event = new IncidentEvent("#testIncidentEvent()", null, null, "PagerDutyServiceTests", "_client_url", "_account",
+                true, new IncidentEventContext[] {
                 IncidentEventContext.link("_href", "_text"),
                 IncidentEventContext.image("_src", "_href", "_alt")
         });

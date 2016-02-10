@@ -61,7 +61,8 @@ public class ScriptTransform implements Transform {
             Script script = Script.parse(parser);
             return new ScriptTransform(script);
         } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse script", pe, TYPE, watchId);
+            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse script", pe, TYPE,
+                    watchId);
         }
     }
 

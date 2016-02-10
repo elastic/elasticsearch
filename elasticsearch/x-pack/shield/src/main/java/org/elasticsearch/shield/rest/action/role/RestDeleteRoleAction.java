@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.role.DeleteRoleRequest;
 import org.elasticsearch.shield.action.role.DeleteRoleResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest endpoint to delete a Role from the shield index
@@ -37,7 +37,7 @@ public class RestDeleteRoleAction extends BaseRestHandler {
         String role = request.param("id");
         DeleteRoleRequest delRoleRequest = new DeleteRoleRequest(role);
 
-        new ShieldClient(client).deleteRole(delRoleRequest, new RestBuilderListener<DeleteRoleResponse>(channel) {
+        new SecurityClient(client).deleteRole(delRoleRequest, new RestBuilderListener<DeleteRoleResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,

@@ -70,7 +70,7 @@ public abstract class WatchExecutionContext {
     public abstract boolean skipThrottling(String actionId);
 
     /**
-     * @return true if this execution should be recorded in the .watch_history index
+     * @return true if this execution should be recorded in the .watcher-history index
      */
     public abstract boolean recordExecution();
 

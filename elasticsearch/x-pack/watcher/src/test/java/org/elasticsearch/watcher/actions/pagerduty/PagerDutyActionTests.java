@@ -105,7 +105,8 @@ public class PagerDutyActionTests extends ESTestCase {
 
         when(templateEngine.render(description, expectedModel)).thenReturn(description.getTemplate());
 
-        IncidentEvent event = new IncidentEvent(description.getTemplate(), null, wid.watchId(), null, null, accountName, attachPayload, null);
+        IncidentEvent event = new IncidentEvent(description.getTemplate(), null, wid.watchId(), null, null, accountName,
+                attachPayload, null);
         PagerDutyAccount account = mock(PagerDutyAccount.class);
         when(account.getDefaults()).thenReturn(new IncidentEventDefaults(Settings.EMPTY));
         HttpResponse response = mock(HttpResponse.class);
@@ -169,7 +170,8 @@ public class PagerDutyActionTests extends ESTestCase {
         if (randomBoolean()) {
             contexts = new IncidentEventContext.Template[] {
                     IncidentEventContext.Template.link(TextTemplate.inline("_href").build(), TextTemplate.inline("_text").build()),
-                    IncidentEventContext.Template.image(TextTemplate.inline("_src").build(), TextTemplate.inline("_href").build(), TextTemplate.inline("_alt").build())
+                    IncidentEventContext.Template.image(TextTemplate.inline("_src").build(), TextTemplate.inline("_href").build(),
+                            TextTemplate.inline("_alt").build())
             };
             builder.array("context", (Object) contexts);
         }
@@ -187,7 +189,8 @@ public class PagerDutyActionTests extends ESTestCase {
         assertThat(action.event.account, is(accountName));
         assertThat(action.event, notNullValue());
         assertThat(action.event, instanceOf(IncidentEvent.Template.class));
-        assertThat(action.event, is(new IncidentEvent.Template(description, eventType, incidentKey, client, clientUrl, accountName, attachPayload, contexts)));
+        assertThat(action.event, is(new IncidentEvent.Template(description, eventType, incidentKey, client, clientUrl, accountName,
+                attachPayload, contexts)));
     }
 
     public void testParserSelfGenerated() throws Exception {
@@ -206,10 +209,12 @@ public class PagerDutyActionTests extends ESTestCase {
             event.setAttachPayload(randomBoolean());
         }
         if (randomBoolean()) {
-            event.addContext(IncidentEventContext.Template.link(TextTemplate.inline("_href").build(), TextTemplate.inline("_text").build()));
+            event.addContext(IncidentEventContext.Template.link(TextTemplate.inline("_href").build(),
+                    TextTemplate.inline("_text").build()));
         }
         if (randomBoolean()) {
-            event.addContext(IncidentEventContext.Template.image(TextTemplate.inline("_src").build(), TextTemplate.inline("_href").build(), TextTemplate.inline("_alt").build()));
+            event.addContext(IncidentEventContext.Template.image(TextTemplate.inline("_src").build(),
+                    TextTemplate.inline("_href").build(), TextTemplate.inline("_alt").build()));
         }
         if (randomBoolean()) {
             event.setEventType(TextTemplate.inline(randomAsciiOfLength(50)).build());

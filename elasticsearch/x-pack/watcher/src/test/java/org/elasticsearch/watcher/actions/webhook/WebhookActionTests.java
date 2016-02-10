@@ -113,7 +113,8 @@ public class WebhookActionTests extends ESTestCase {
         scenario.assertResult(httpClient, actionResult);
     }
 
-    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, TextTemplate path, TextTemplate body, Map<String, TextTemplate> params) {
+    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, TextTemplate path, TextTemplate body,
+                                                       Map<String, TextTemplate> params) {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, port);
         if (path != null) {
             builder.path(path);
@@ -242,7 +243,8 @@ public class WebhookActionTests extends ESTestCase {
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAsciiOfLength(10);
             Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
-            WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+            WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
+                    new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
             executable.execute("_id", ctx, new Payload.Simple());
 
             assertThat(proxyServer.getRequestCount(), is(1));
@@ -267,7 +269,8 @@ public class WebhookActionTests extends ESTestCase {
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
         Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
+                new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
     }

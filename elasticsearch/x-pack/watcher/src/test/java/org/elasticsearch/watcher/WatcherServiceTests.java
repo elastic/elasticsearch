@@ -66,7 +66,8 @@ public class WatcherServiceTests extends ESTestCase {
         watchLockService = mock(WatchLockService.class);
         clock = new ClockMock();
         WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = mock(WatcherIndexTemplateRegistry.class);
-        watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService, watcherIndexTemplateRegistry);
+        watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService,
+                watchLockService, watcherIndexTemplateRegistry);
         AtomicReference<WatcherState> state = watcherService.state;
         state.set(WatcherState.STARTED);
     }
@@ -87,7 +88,8 @@ public class WatcherServiceTests extends ESTestCase {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire(any(String.class), eq(timeout))).thenReturn(lock);
-        when(watchParser.parseWithSecrets(any(String.class), eq(false), any(BytesReference.class), any(DateTime.class))).thenReturn(newWatch);
+        when(watchParser.parseWithSecrets(any(String.class), eq(false), any(BytesReference.class), any(DateTime.class)))
+                .thenReturn(newWatch);
         when(watchStore.put(newWatch)).thenReturn(watchPut);
         IndexResponse response = watcherService.putWatch("_id", new BytesArray("{}"), timeout, activeByDefault);
         assertThat(response, sameInstance(indexResponse));

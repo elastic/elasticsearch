@@ -32,6 +32,9 @@ import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 
+import static org.elasticsearch.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
+import static org.elasticsearch.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
+
 /**
  */
 public class RestExecuteWatchAction extends WatcherRestHandler {
@@ -74,8 +77,8 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
             return builder.request();
         }
 
-        builder.setRecordExecution(request.paramAsBoolean(Field.RECORD_EXECUTION.getPreferredName(), builder.request().isRecordExecution()));
-        builder.setIgnoreCondition(request.paramAsBoolean(Field.IGNORE_CONDITION.getPreferredName(), builder.request().isIgnoreCondition()));
+        builder.setRecordExecution(request.paramAsBoolean(RECORD_EXECUTION.getPreferredName(), builder.request().isRecordExecution()));
+        builder.setIgnoreCondition(request.paramAsBoolean(IGNORE_CONDITION.getPreferredName(), builder.request().isIgnoreCondition()));
 
         XContentParser parser = XContentHelper.createParser(request.content());
         parser.nextToken();
@@ -86,12 +89,13 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.IGNORE_CONDITION)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, IGNORE_CONDITION)) {
                     builder.setIgnoreCondition(parser.booleanValue());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.RECORD_EXECUTION)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, RECORD_EXECUTION)) {
                     builder.setRecordExecution(parser.booleanValue());
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]",
+                            currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ALTERNATIVE_INPUT)) {
@@ -114,11 +118,13 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
                                 throw new ElasticsearchParseException("could not parse watch execution request", iae);
                             }
                         } else {
-                            throw new ElasticsearchParseException("could not parse watch execution request. unexpected array field [{}]", currentFieldName);
+                            throw new ElasticsearchParseException("could not parse watch execution request. unexpected array field [{}]",
+                                    currentFieldName);
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]",
+                            currentFieldName);
                 }
             } else {
                 throw new ElasticsearchParseException("could not parse watch execution request. unexpected token [{}]", token);

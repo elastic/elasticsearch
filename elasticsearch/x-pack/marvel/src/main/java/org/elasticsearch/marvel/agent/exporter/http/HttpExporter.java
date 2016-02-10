@@ -122,7 +122,8 @@ public class HttpExporter extends Exporter {
         auth = resolveAuth(config.settings());
 
         connectionTimeout = config.settings().getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
-        connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING, TimeValue.timeValueMillis(connectionTimeout.millis() * 10));
+        connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
+                TimeValue.timeValueMillis(connectionTimeout.millis() * 10));
 
         // HORRIBLE!!! We can't use settings.getAsTime(..) !!!
         // WE MUST FIX THIS IN CORE...
@@ -241,7 +242,8 @@ public class HttpExporter extends Exporter {
                     for (String actionKey : actions.keySet()) {
                         Map<String, Object> action = (Map<String, Object>) actions.get(actionKey);
                         if (action.get("error") != null) {
-                            logger.error("{} failure (index:[{}] type: [{}]): {}", actionKey, action.get("_index"), action.get("_type"), action.get("error"));
+                            logger.error("{} failure (index:[{}] type: [{}]): {}", actionKey, action.get("_index"), action.get("_type"),
+                                    action.get("error"));
                         }
                     }
                 }
@@ -269,7 +271,8 @@ public class HttpExporter extends Exporter {
                         }
                         supportedClusterVersion = remoteVersion.onOrAfter(MIN_SUPPORTED_CLUSTER_VERSION);
                         if (!supportedClusterVersion) {
-                            logger.error("remote cluster version [" + remoteVersion + "] is not supported, please use a cluster with minimum version [" + MIN_SUPPORTED_CLUSTER_VERSION + "]");
+                            logger.error("remote cluster version [{}] is not supported, please use a cluster with minimum version [{}]",
+                                    remoteVersion, MIN_SUPPORTED_CLUSTER_VERSION);
                             continue;
                         }
                     } catch (ElasticsearchException e) {
@@ -447,7 +450,8 @@ public class HttpExporter extends Exporter {
                 return true;
             }
         } catch (Exception e) {
-            logger.error("http exporter [{}] - failed to verify the marvel template [{}] on [{}]:\n{}", name(), templateName, host, e.getMessage());
+            logger.error("http exporter [{}] - failed to verify the marvel template [{}] on [{}]:\n{}", name(), templateName, host,
+                    e.getMessage());
             return false;
         } finally {
             if (connection != null) {
@@ -481,7 +485,8 @@ public class HttpExporter extends Exporter {
             logger.info("http exporter [{}] - marvel template [{}] updated to version [{}]", name(), template, templateVersion);
             return true;
         } catch (IOException e) {
-            logger.error("http exporter [{}] - failed to update marvel template [{}] on host [{}]:\n{}", name(), template, host, e.getMessage());
+            logger.error("http exporter [{}] - failed to update marvel template [{}] on host [{}]:\n{}", name(), template, host,
+                    e.getMessage());
             return false;
         } finally {
             if (connection != null) {
@@ -546,8 +551,10 @@ public class HttpExporter extends Exporter {
         try {
             String protocol = settings.get(SSL_PROTOCOL_SETTING, "TLS");
             String trustStore = settings.get(SSL_TRUSTSTORE_SETTING, System.getProperty("javax.net.ssl.trustStore"));
-            String trustStorePassword = settings.get(SSL_TRUSTSTORE_PASSWORD_SETTING, System.getProperty("javax.net.ssl.trustStorePassword"));
-            String trustStoreAlgorithm = settings.get(SSL_TRUSTSTORE_ALGORITHM_SETTING, System.getProperty("ssl.TrustManagerFactory.algorithm"));
+            String trustStorePassword = settings.get(SSL_TRUSTSTORE_PASSWORD_SETTING,
+                    System.getProperty("javax.net.ssl.trustStorePassword"));
+            String trustStoreAlgorithm = settings.get(SSL_TRUSTSTORE_ALGORITHM_SETTING,
+                    System.getProperty("ssl.TrustManagerFactory.algorithm"));
 
             if (trustStore == null) {
                 throw new SettingsException("missing required setting [" + SSL_TRUSTSTORE_SETTING + "]");
@@ -647,8 +654,8 @@ public class HttpExporter extends Exporter {
                 } catch (InterruptedException e) {
                     // ignore, if closed, good....
                 } catch (Throwable t) {
-                    logger.debug("error in keep alive thread, shutting down (will be restarted after a successful connection has been made) {}",
-                            ExceptionsHelper.detailedMessage(t));
+                    logger.debug("error in keep alive thread, shutting down (will be restarted after a successful connection has been " +
+                            "made) {}", ExceptionsHelper.detailedMessage(t));
                     return;
                 }
             }

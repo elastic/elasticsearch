@@ -24,6 +24,7 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -93,7 +94,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         logger.debug("--> ensure that the 'nodes' attributes of the cluster state document is not indexed");
         assertHitCount(client().prepareSearch().setSize(0)
                 .setTypes(ClusterStateCollector.TYPE)
-                .setQuery(QueryBuilders.matchQuery("cluster_state.nodes." + nodes.masterNodeId() + ".name", nodes.masterNode().name())).get(), 0L);
+                .setQuery(matchQuery("cluster_state.nodes." + nodes.masterNodeId() + ".name", nodes.masterNode().name())).get(), 0L);
     }
 
     public void testClusterStateNodes() throws Exception {
@@ -113,7 +114,8 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                 AbstractRenderer.Fields.TIMESTAMP.underscore().toString(),
                 ClusterStateNodeRenderer.Fields.STATE_UUID.underscore().toString(),
                 ClusterStateNodeRenderer.Fields.NODE.underscore().toString(),
-                ClusterStateNodeRenderer.Fields.NODE.underscore().toString() + "." + ClusterStateNodeRenderer.Fields.ID.underscore().toString(),
+                ClusterStateNodeRenderer.Fields.NODE.underscore().toString() + "." +
+                        ClusterStateNodeRenderer.Fields.ID.underscore().toString(),
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {
@@ -134,7 +136,8 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODE_TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.NODE_TYPE);
-        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + "*").setTypes(ClusterStateCollector.NODE_TYPE).get();
+        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + "*")
+                .setTypes(ClusterStateCollector.NODE_TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -144,8 +147,10 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                 DiscoveryNodeRenderer.Fields.NODE.underscore().toString(),
                 DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.ID.underscore().toString(),
                 DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.NAME.underscore().toString(),
-                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.ATTRIBUTES.underscore().toString(),
-                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.TRANSPORT_ADDRESS.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." +
+                        DiscoveryNodeRenderer.Fields.ATTRIBUTES.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." +
+                        DiscoveryNodeRenderer.Fields.TRANSPORT_ADDRESS.underscore().toString(),
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {
@@ -168,8 +173,8 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                     .setIndices(dataIndex)
                     .setTypes(ClusterStateCollector.NODE_TYPE)
                     .setQuery(QueryBuilders.boolQuery()
-                            .should(QueryBuilders.matchQuery("node.id", nodeId))
-                            .should(QueryBuilders.matchQuery("node.name", nodeName))).get(), 0);
+                            .should(matchQuery("node.id", nodeId))
+                            .should(matchQuery("node.name", nodeName))).get(), 0);
         }
 
         logger.debug("--> cluster state nodes successfully collected");

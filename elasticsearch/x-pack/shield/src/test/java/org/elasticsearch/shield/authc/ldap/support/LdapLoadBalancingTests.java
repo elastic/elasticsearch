@@ -20,7 +20,8 @@ public class LdapLoadBalancingTests extends ESTestCase {
 
     public void testBadTypeThrowsException() {
         String badType = randomAsciiOfLengthBetween(3, 12);
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, badType).build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, badType).build();
         try {
             LdapLoadBalancing.serverSet(null, null, settings, null, null);
             fail("using type [" + badType + "] should have thrown an exception");
@@ -30,7 +31,8 @@ public class LdapLoadBalancingTests extends ESTestCase {
     }
 
     public void testFailoverServerSet() {
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "failover").build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "failover").build();
         String[] address = new String[] { "localhost" };
         int[] ports = new int[] { 26000 };
         ServerSet serverSet = LdapLoadBalancing.serverSet(address, ports, settings, null, null);
@@ -39,7 +41,8 @@ public class LdapLoadBalancingTests extends ESTestCase {
     }
 
     public void testDnsFailover() {
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_failover").build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_failover").build();
         String[] address = new String[] { "foo.bar" };
         int[] ports = new int[] { 26000 };
         ServerSet serverSet = LdapLoadBalancing.serverSet(address, ports, settings, null, null);
@@ -48,7 +51,8 @@ public class LdapLoadBalancingTests extends ESTestCase {
     }
 
     public void testDnsFailoverBadArgs() {
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_failover").build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_failover").build();
         String[] addresses = new String[] { "foo.bar", "localhost" };
         int[] ports = new int[] { 26000, 389 };
         try {
@@ -67,7 +71,8 @@ public class LdapLoadBalancingTests extends ESTestCase {
     }
 
     public void testRoundRobin() {
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "round_robin").build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "round_robin").build();
         String[] address = new String[] { "localhost", "foo.bar" };
         int[] ports = new int[] { 389, 389 };
         ServerSet serverSet = LdapLoadBalancing.serverSet(address, ports, settings, null, null);
@@ -75,16 +80,19 @@ public class LdapLoadBalancingTests extends ESTestCase {
     }
 
     public void testDnsRoundRobin() {
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_round_robin").build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_round_robin").build();
         String[] address = new String[] { "foo.bar" };
         int[] ports = new int[] { 26000 };
         ServerSet serverSet = LdapLoadBalancing.serverSet(address, ports, settings, null, null);
         assertThat(serverSet, instanceOf(RoundRobinDNSServerSet.class));
-        assertThat(((RoundRobinDNSServerSet)serverSet).getAddressSelectionMode(), is(RoundRobinDNSServerSet.AddressSelectionMode.ROUND_ROBIN));
+        assertThat(((RoundRobinDNSServerSet)serverSet).getAddressSelectionMode(),
+                is(RoundRobinDNSServerSet.AddressSelectionMode.ROUND_ROBIN));
     }
 
     public void testDnsRoundRobinBadArgs() {
-        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_round_robin").build();
+        Settings settings = Settings.builder().put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." +
+                LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, "dns_round_robin").build();
         String[] addresses = new String[] { "foo.bar", "localhost" };
         int[] ports = new int[] { 26000, 389 };
         try {

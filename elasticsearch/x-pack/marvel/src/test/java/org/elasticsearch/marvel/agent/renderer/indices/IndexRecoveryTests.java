@@ -84,7 +84,8 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
                 AbstractRenderer.Fields.CLUSTER_UUID.underscore().toString(),
                 AbstractRenderer.Fields.TIMESTAMP.underscore().toString(),
                 IndexRecoveryRenderer.Fields.INDEX_RECOVERY.underscore().toString(),
-                IndexRecoveryRenderer.Fields.INDEX_RECOVERY.underscore().toString() + "." + IndexRecoveryRenderer.Fields.SHARDS.underscore().toString(),
+                IndexRecoveryRenderer.Fields.INDEX_RECOVERY.underscore().toString() + "." +
+                        IndexRecoveryRenderer.Fields.SHARDS.underscore().toString(),
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {

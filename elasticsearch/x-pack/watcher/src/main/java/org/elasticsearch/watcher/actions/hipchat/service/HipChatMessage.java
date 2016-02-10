@@ -269,14 +269,16 @@ public class HipChatMessage implements ToXContent {
                             try {
                                 templates.add(TextTemplate.parse(parser));
                             } catch (ElasticsearchParseException epe) {
-                                throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.ROOM.getPreferredName());
+                                throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe,
+                                        Field.ROOM.getPreferredName());
                             }
                         }
                     } else {
                         try {
                             templates.add(TextTemplate.parse(parser));
                         } catch (ElasticsearchParseException epe) {
-                            throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.ROOM.getPreferredName());
+                            throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe,
+                                    Field.ROOM.getPreferredName());
                         }
                     }
                     rooms = templates.toArray(new TextTemplate[templates.size()]);
@@ -287,14 +289,16 @@ public class HipChatMessage implements ToXContent {
                             try {
                                 templates.add(TextTemplate.parse(parser));
                             } catch (ElasticsearchParseException epe) {
-                                throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.USER.getPreferredName());
+                                throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe,
+                                        Field.USER.getPreferredName());
                             }
                         }
                     } else {
                         try {
                             templates.add(TextTemplate.parse(parser));
                         } catch (ElasticsearchParseException epe) {
-                            throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.USER.getPreferredName());
+                            throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe,
+                                    Field.USER.getPreferredName());
                         }
                     }
                     users = templates.toArray(new TextTemplate[templates.size()]);
@@ -302,25 +306,29 @@ public class HipChatMessage implements ToXContent {
                     try {
                         color = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException | IllegalArgumentException e) {
-                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", e, Field.COLOR.getPreferredName());
+                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", e,
+                                Field.COLOR.getPreferredName());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.NOTIFY)) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         notify = parser.booleanValue();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field, expected a boolean value but found [{}]",  Field.NOTIFY.getPreferredName(), token);
+                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field, expected a " +
+                                "boolean value but found [{}]", Field.NOTIFY.getPreferredName(), token);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                     try {
                         body = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", pe, Field.BODY.getPreferredName());
+                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", pe,
+                                Field.BODY.getPreferredName());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FORMAT)) {
                     try {
                         messageFormat = HipChatMessage.Format.parse(parser);
                     } catch (IllegalArgumentException ilae) {
-                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", ilae, Field.FORMAT.getPreferredName());
+                        throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", ilae,
+                                Field.FORMAT.getPreferredName());
                     }
                 } else {
                     throw new ElasticsearchParseException("failed to parse hipchat message. unexpected field [{}]", currentFieldName);
@@ -328,7 +336,8 @@ public class HipChatMessage implements ToXContent {
             }
 
             if (body == null) {
-                throw new ElasticsearchParseException("failed to parse hipchat message. missing required [{}] field", Field.BODY.getPreferredName());
+                throw new ElasticsearchParseException("failed to parse hipchat message. missing required [{}] field",
+                        Field.BODY.getPreferredName());
             }
 
             return new HipChatMessage.Template(body, rooms, users, from, messageFormat, color, notify);

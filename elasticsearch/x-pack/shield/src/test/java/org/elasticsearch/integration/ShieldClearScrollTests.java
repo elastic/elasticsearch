@@ -107,7 +107,8 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
         headers.put(BASIC_AUTH_HEADER, basicAuth);
         assertThrows(internalCluster().transportClient().filterWithHeader(headers)
                 .prepareClearScroll()
-                .addScrollId("_all"), ElasticsearchSecurityException.class, "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
+                .addScrollId("_all"), ElasticsearchSecurityException.class,
+                "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
 
         // deletion of scroll ids should work
         ClearScrollResponse clearByIdScrollResponse = client().prepareClearScroll().setScrollIds(scrollIds).get();

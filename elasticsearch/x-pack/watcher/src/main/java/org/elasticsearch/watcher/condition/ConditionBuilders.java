@@ -44,7 +44,8 @@ public final class ConditionBuilders {
         return CompareCondition.builder(path, op, value);
     }
 
-    public static ArrayCompareCondition.Builder arrayCompareCondition(String arrayPath, String path, ArrayCompareCondition.Op op, Object value, ArrayCompareCondition.Quantifier quantifier) {
+    public static ArrayCompareCondition.Builder arrayCompareCondition(String arrayPath, String path, ArrayCompareCondition.Op op,
+                                                                      Object value, ArrayCompareCondition .Quantifier quantifier) {
         return ArrayCompareCondition.builder(arrayPath, path, op, value, quantifier);
     }
 }

@@ -87,17 +87,23 @@ public class TransportFilterTests extends ESIntegTestCase {
         TransportService targetService = internalCluster().getInstance(TransportService.class, target);
 
         CountDownLatch latch = new CountDownLatch(2);
-        targetService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME, new RequestHandler(new Response("trgt_to_src"), latch));
-        sourceService.sendRequest(targetNode, "_action", new Request("src_to_trgt"), new ResponseHandler(new Response("trgt_to_src"), latch));
+        targetService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME,
+                new RequestHandler(new Response("trgt_to_src"), latch));
+        sourceService.sendRequest(targetNode, "_action", new Request("src_to_trgt"),
+                new ResponseHandler(new Response("trgt_to_src"), latch));
         await(latch);
 
         latch = new CountDownLatch(2);
-        sourceService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME, new RequestHandler(new Response("src_to_trgt"), latch));
-        targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
+        sourceService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME,
+                new RequestHandler(new Response("src_to_trgt"), latch));
+        targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"),
+                new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-        ServerTransportFilter sourceServerFilter = ((InternalPluginServerTransportService) sourceService).transportFilter(TransportSettings.DEFAULT_PROFILE);
-        ServerTransportFilter targetServerFilter = ((InternalPluginServerTransportService) targetService).transportFilter(TransportSettings.DEFAULT_PROFILE);
+        ServerTransportFilter sourceServerFilter =
+                ((InternalPluginServerTransportService) sourceService).transportFilter(TransportSettings.DEFAULT_PROFILE);
+        ServerTransportFilter targetServerFilter =
+                ((InternalPluginServerTransportService) targetService).transportFilter(TransportSettings.DEFAULT_PROFILE);
 
         ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
         ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
@@ -311,7 +317,8 @@ public class TransportFilterTests extends ESIntegTestCase {
 
         @Override
         protected Map<String, ServerTransportFilter> initializeProfileFilters() {
-            return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE, mock(ServerTransportFilter.NodeProfile.class));
+            return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE,
+                    mock(ServerTransportFilter.NodeProfile.class));
         }
     }
 }

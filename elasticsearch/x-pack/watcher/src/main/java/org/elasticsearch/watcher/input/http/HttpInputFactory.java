@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
@@ -24,15 +23,14 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
 
     private final HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
-    private final HttpRequest.Parser requestParser;
     private final HttpRequestTemplate.Parser requestTemplateParser;
 
     @Inject
-    public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine, HttpRequest.Parser requestParser, HttpRequestTemplate.Parser requestTemplateParser) {
+    public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine,
+                            HttpRequestTemplate.Parser requestTemplateParser) {
         super(Loggers.getLogger(ExecutableHttpInput.class, settings));
         this.templateEngine = templateEngine;
         this.httpClient = httpClient;
-        this.requestParser = requestParser;
         this.requestTemplateParser = requestTemplateParser;
     }
 

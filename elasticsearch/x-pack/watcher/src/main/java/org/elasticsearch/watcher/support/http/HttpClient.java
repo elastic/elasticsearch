@@ -98,7 +98,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             proxy = new HttpProxy(proxyHost, proxyPort);
         } else {
             if (proxyPort == null && Strings.hasText(proxyHost) || proxyPort != null && !Strings.hasText(proxyHost)) {
-                logger.error("disabling proxy. Watcher HTTP HttpProxy requires both settings: [{}] and [{}]", SETTINGS_PROXY_HOST, SETTINGS_PROXY_PORT);
+                logger.error("disabling proxy. Watcher HTTP HttpProxy requires both settings: [{}] and [{}]", SETTINGS_PROXY_HOST,
+                        SETTINGS_PROXY_PORT);
             }
         }
 
@@ -212,7 +213,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         logger.debug("http status code [{}]", statusCode);
         if (statusCode < 400) {
             final byte[] body;
-            try (InputStream inputStream = urlConnection.getInputStream();ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            try (InputStream inputStream = urlConnection.getInputStream();
+                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
                 Streams.copy(inputStream, outputStream);
                 body = outputStream.toByteArray();
             }
@@ -225,13 +227,21 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
     private SSLSocketFactory createSSLSocketFactory(Settings settings) {
         try {
             String sslContextProtocol = settings.get(SETTINGS_SSL_PROTOCOL, settings.get(SETTINGS_SSL_SHIELD_PROTOCOL, "TLS"));
-            String keyStore = settings.get(SETTINGS_SSL_KEYSTORE, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE, System.getProperty("javax.net.ssl.keyStore")));
-            String keyStorePassword = settings.get(SETTINGS_SSL_KEYSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, System.getProperty("javax.net.ssl.keyStorePassword")));
-            String keyPassword = settings.get(SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD, keyStorePassword));
-            String keyStoreAlgorithm = settings.get(SETTINGS_SSL_KEYSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_ALGORITHM, System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
-            String trustStore = settings.get(SETTINGS_SSL_TRUSTSTORE, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE, System.getProperty("javax.net.ssl.trustStore")));
-            String trustStorePassword = settings.get(SETTINGS_SSL_TRUSTSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD, System.getProperty("javax.net.ssl.trustStorePassword")));
-            String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM, System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
+            String keyStore = settings.get(SETTINGS_SSL_KEYSTORE, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE,
+                    System.getProperty("javax.net.ssl.keyStore")));
+            String keyStorePassword = settings.get(SETTINGS_SSL_KEYSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD,
+                    System.getProperty("javax.net.ssl.keyStorePassword")));
+            String keyPassword = settings.get(SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD,
+                    keyStorePassword));
+            String keyStoreAlgorithm = settings.get(SETTINGS_SSL_KEYSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_ALGORITHM,
+                    System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
+            String trustStore = settings.get(SETTINGS_SSL_TRUSTSTORE, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE,
+                    System.getProperty("javax.net.ssl.trustStore")));
+            String trustStorePassword = settings.get(SETTINGS_SSL_TRUSTSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD,
+                    System.getProperty("javax.net.ssl.trustStorePassword")));
+            String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM,
+                    settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM,
+                            System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
 
             if (keyStore != null) {
                 if (trustStore == null) {
@@ -247,7 +257,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             if (trustStoreAlgorithm == null) {
                 trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
             }
-            logger.debug("using protocol [{}], keyStore [{}], keyStoreAlgorithm [{}], trustStore [{}] and trustAlgorithm [{}]", sslContextProtocol, keyStore, keyStoreAlgorithm, trustStore, trustStoreAlgorithm);
+            logger.debug("using protocol [{}], keyStore [{}], keyStoreAlgorithm [{}], trustStore [{}] and trustAlgorithm [{}]",
+                    sslContextProtocol, keyStore, keyStoreAlgorithm, trustStore, trustStoreAlgorithm);
 
             SSLContext sslContext = SSLContext.getInstance(sslContextProtocol);
             KeyManager[] keyManagers = keyManagers(env, keyStore, keyStorePassword, keyStoreAlgorithm, keyPassword);
@@ -263,7 +274,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         return sslSocketFactory;
     }
 
-    private static KeyManager[] keyManagers(Environment env, String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
+    private static KeyManager[] keyManagers(Environment env, String keyStore, String keyStorePassword, String keyStoreAlgorithm,
+                                            String keyPassword) {
         if (keyStore == null) {
             return null;
         }

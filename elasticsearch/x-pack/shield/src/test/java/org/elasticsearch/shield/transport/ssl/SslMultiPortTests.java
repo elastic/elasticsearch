@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.BeforeClass;
@@ -23,6 +22,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
+import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 
@@ -66,7 +66,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 // client set up here
                 .put("transport.profiles.client.port", randomClientPortRange)
-                .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+                // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+                .put("transport.profiles.client.bind_host", "localhost")
                 .put("transport.profiles.client.shield.truststore.path", store.toAbsolutePath()) // settings for client truststore
                 .put("transport.profiles.client.shield.truststore.password", "testnode-client-profile")
                 .put("transport.profiles.no_ssl.port", randomNonSslPortRange)
@@ -111,7 +112,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      */
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         try(TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(),
+                    getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
         }
     }
@@ -154,7 +156,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * set to trust the testclient-client-profile certificate so the connection should always succeed
      */
     public void testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
-        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
+        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks",
+                "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             assertGreenClusterState(transportClient);
@@ -168,9 +171,11 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * authentication
      */
     public void testThatProfileTransportClientCanConnectToNoClientAuthProfile() throws Exception {
-        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
+        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks",
+                "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(),
+                    getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
         }
     }
@@ -182,7 +187,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * so the connection should always fail
      */
     public void testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
-        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
+        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks",
+                "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
@@ -199,7 +205,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
      * use SSL so the connection will never work
      */
     public void testThatProfileTransportClientCannotConnectToNoSslProfile() throws Exception {
-        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
+        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks",
+                "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
             transportClient.admin().cluster().prepareHealth().get();
@@ -269,7 +276,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalCluster().getClusterName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(),
+                    getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
@@ -287,11 +295,13 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.transport.ssl", true)
-                .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(),
+                    getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
         }
     }
@@ -307,7 +317,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.transport.ssl", true)
-                .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .build();
         try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
@@ -330,7 +341,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.transport.ssl", true)
-                .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .build();
         try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
@@ -352,7 +364,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.transport.ssl", true)
-                .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .build();
         try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
@@ -416,7 +429,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.transport.ssl", true)
                 .build();
         try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(),
+                    getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
@@ -445,7 +459,8 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
     }
 
     private static int getProfilePort(String profile) {
-        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
+        TransportAddress transportAddress =
+                randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
         assert transportAddress instanceof InetSocketTransportAddress;
         return ((InetSocketTransportAddress)transportAddress).address().getPort();
     }

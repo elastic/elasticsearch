@@ -236,7 +236,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             assertNotNull("Unable to start the second mock web server", secondWebServer);
 
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putArray("marvel.agent.exporters._http.host", secondWebServer.getHostName() + ":" + secondWebServer.getPort())).get());
+                    Settings.builder().putArray("marvel.agent.exporters._http.host",
+                            secondWebServer.getHostName() + ":" + secondWebServer.getPort())).get());
 
             // a new exporter is created on update, so we need to re-fetch it
             exporter = getExporter(agentNode);
@@ -429,7 +430,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         Version resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(Version.CURRENT));
 
-        final Version expected = randomFrom(Version.CURRENT, Version.V_0_18_0, Version.V_1_1_0, Version.V_1_2_5, Version.V_1_4_5, Version.V_1_6_0);
+        final Version expected = randomFrom(Version.CURRENT, Version.V_0_18_0, Version.V_1_1_0, Version.V_1_2_5,
+                Version.V_1_4_5, Version.V_1_6_0);
         enqueueGetClusterVersionResponse(expected);
         resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(expected));
@@ -472,7 +474,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
     }
 
     private void enqueueGetClusterVersionResponse(MockWebServer mockWebServer, Version v) throws IOException {
-        mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(jsonBuilder().startObject().startObject("version").field("number", v.number()).endObject().endObject().bytes().toUtf8()));
+        mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(
+                jsonBuilder().startObject().startObject("version").field("number", v.number()).endObject().endObject().bytes().toUtf8()));
     }
 
     private void enqueueResponse(int responseCode, String body) throws IOException {

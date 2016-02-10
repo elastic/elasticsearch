@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -56,7 +55,6 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
-import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
@@ -77,11 +75,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static java.util.Collections.emptyMap;
@@ -174,12 +170,14 @@ public final class WatcherTestUtils {
     }
 
 
-    public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {
+    public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
+                                        ESLogger logger) throws AddressException {
         return createTestWatch(watchName, ClientProxy.of(ESIntegTestCase.client()), httpClient, emailService, logger);
     }
 
 
-    public static Watch createTestWatch(String watchName, ClientProxy client, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {
+    public static Watch createTestWatch(String watchName, ClientProxy client, HttpClient httpClient, EmailService emailService,
+                                        ESLogger logger) throws AddressException {
 
         SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
@@ -198,7 +196,8 @@ public final class WatcherTestUtils {
 
         TextTemplateEngine engine = new MockTextTemplateEngine();
 
-        actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine)));
+        actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient,
+                engine)));
 
         String from = "from@test.com";
         String to = "to@test.com";
@@ -211,7 +210,8 @@ public final class WatcherTestUtils {
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
 
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null, null);
-        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine, new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
+        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine,
+                new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
 
         actions.add(new ActionWrapper("_email", executale));
 
@@ -248,7 +248,8 @@ public final class WatcherTestUtils {
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), Collections.emptySet(), new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), Collections.emptySet(),
+                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
     }
 
     public static SearchType getRandomSupportedSearchType() {

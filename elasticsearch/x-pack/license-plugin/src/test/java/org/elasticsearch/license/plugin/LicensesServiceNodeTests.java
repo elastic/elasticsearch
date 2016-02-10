@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -43,7 +42,8 @@ public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTestCas
     }
 
     public void testPluginStatus() throws Exception {
-        final Iterable<EagerLicenseRegistrationPluginService> testPluginServices = internalCluster().getDataNodeInstances(EagerLicenseRegistrationPluginService.class);
+        final Iterable<EagerLicenseRegistrationPluginService> testPluginServices =
+                internalCluster().getDataNodeInstances(EagerLicenseRegistrationPluginService.class);
         assertTrue(awaitBusy(() -> {
             for (EagerLicenseRegistrationPluginService pluginService : testPluginServices) {
                 if (pluginService.state() != LicenseState.ENABLED) {

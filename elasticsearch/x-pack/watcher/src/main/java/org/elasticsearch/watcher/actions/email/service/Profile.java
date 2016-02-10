@@ -38,7 +38,8 @@ public enum Profile implements ToXContent {
                 }
             }
             if (related == null) {
-                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find part content type with [multipart/related]");
+                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find " +
+                        "part content type with [multipart/related]");
             }
 
             MimeMultipart alternative = null;
@@ -50,7 +51,8 @@ public enum Profile implements ToXContent {
                 }
             }
             if (alternative == null) {
-                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find part content type with [multipart/alternative]");
+                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find " +
+                        "part content type with [multipart/alternative]");
             }
 
             for (int i = 0; i < alternative.getCount(); i++) {

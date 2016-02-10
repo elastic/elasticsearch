@@ -16,7 +16,8 @@ import java.util.Objects;
 
 public class EmailAttachments implements ToXContent {
 
-    public static final EmailAttachments EMPTY_ATTACHMENTS = new EmailAttachments(Collections.<EmailAttachmentParser.EmailAttachment>emptyList());
+    public static final EmailAttachments EMPTY_ATTACHMENTS = new EmailAttachments(
+            Collections.<EmailAttachmentParser.EmailAttachment>emptyList());
 
     public interface Fields {
         ParseField ATTACHMENTS = new ParseField("attachments");

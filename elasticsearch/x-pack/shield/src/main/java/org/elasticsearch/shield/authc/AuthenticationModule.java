@@ -25,9 +25,11 @@ import java.util.Map.Entry;
  */
 public class AuthenticationModule extends AbstractShieldModule.Node {
 
-    static final List<String> INTERNAL_REALM_TYPES = Arrays.asList(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
+    static final List<String> INTERNAL_REALM_TYPES = Arrays.asList(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE,
+            PkiRealm.TYPE);
 
-    private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms = new HashMap<>();
+    private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms = new
+            HashMap<>();
 
     private Class<? extends AuthenticationFailureHandler> authcFailureHandler = null;
 
@@ -43,7 +45,8 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
         mapBinder.addBinding(ActiveDirectoryRealm.TYPE).to(ActiveDirectoryRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(LdapRealm.TYPE).to(LdapRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(PkiRealm.TYPE).to(PkiRealm.Factory.class).asEagerSingleton();
-        for (Entry<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> entry : customRealms.entrySet()) {
+        for (Entry<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> entry : customRealms.entrySet
+                ()) {
             mapBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }
 
@@ -59,7 +62,8 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
 
     /**
      * Registers a custom realm type and factory for use as a authentication realm
-     * @param type the type of the realm that identifies it. Must not be null, empty, or the same value as one of the built-in realms
+     *
+     * @param type  the type of the realm that identifies it. Must not be null, empty, or the same value as one of the built-in realms
      * @param clazz the factory class that is used to create this type of realm. Must not be null
      */
     public void addCustomRealm(String type, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>> clazz) {

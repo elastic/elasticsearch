@@ -90,7 +90,8 @@ public class TestUtils {
         if (datesInMillis) {
             long issueDateInMillis = dateMath("now", now);
             long expiryDateInMillis = dateMath("now+10d/d", now);
-            return new LicenseSpec(version, uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer, maxNodes);
+            return new LicenseSpec(version, uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer,
+                    maxNodes);
         } else {
             String issueDate = dateMathString("now", now);
             String expiryDate = dateMathString("now+10d/d", now);

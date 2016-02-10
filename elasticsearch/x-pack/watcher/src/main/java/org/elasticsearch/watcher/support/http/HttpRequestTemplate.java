@@ -282,19 +282,22 @@ public class HttpRequestTemplate implements ToXContent {
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
+                                pe, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.READ_TIMEOUT)) {
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
+                                pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.AUTH)) {
                         builder.auth(httpAuthRegistry.parse(parser));
                     }  else {
-                        throw new ElasticsearchParseException("could not parse http request template. unexpected object field [{}]", currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. unexpected object field [{}]",
+                                currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEME)) {
@@ -304,24 +307,29 @@ public class HttpRequestTemplate implements ToXContent {
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HOST)) {
                         builder.host = parser.text();
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request template. unexpected string field [{}]", currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. unexpected string field [{}]",
+                                currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PORT)) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request template. unexpected numeric field [{}]", currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. unexpected numeric field [{}]",
+                                currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse http request template. unexpected token [{}] for field [{}]", token, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse http request template. unexpected token [{}] for field [{}]",
+                            token, currentFieldName);
                 }
             }
 
             if (builder.host == null) {
-                throw new ElasticsearchParseException("could not parse http request template. missing required [{}] string field", Field.HOST.getPreferredName());
+                throw new ElasticsearchParseException("could not parse http request template. missing required [{}] string field",
+                        Field.HOST.getPreferredName());
             }
             if (builder.port <= 0) {
-                throw new ElasticsearchParseException("could not parse http request template. wrong port for [{}]", Field.PORT.getPreferredName());
+                throw new ElasticsearchParseException("could not parse http request template. wrong port for [{}]",
+                        Field.PORT.getPreferredName());
             }
 
             return builder.build();
@@ -331,7 +339,8 @@ public class HttpRequestTemplate implements ToXContent {
             try {
                 return TextTemplate.parse(parser);
             } catch (ElasticsearchParseException pe) {
-                throw new ElasticsearchParseException("could not parse http request template. could not parse value for [{}] field", pe, field);
+                throw new ElasticsearchParseException("could not parse http request template. could not parse value for [{}] field", pe,
+                        field);
             }
         }
 

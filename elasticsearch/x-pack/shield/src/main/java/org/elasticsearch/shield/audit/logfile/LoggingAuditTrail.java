@@ -100,15 +100,19 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport, threadContext), action, indices);
+                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message,
+                        transport, threadContext), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message,
+                        transport, threadContext), action, message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}]", prefix, originAttributes(message, transport, threadContext), action);
+                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}]", prefix, originAttributes(message, transport,
+                        threadContext), action);
             }
         }
     }
@@ -116,7 +120,8 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     @Override
     public void anonymousAccessDenied(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(), restRequestContent(request));
+            logger.debug("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request
+                    .uri(), restRequestContent(request));
         } else {
             logger.warn("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
         }
@@ -127,15 +132,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), token.principal(), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]",
+                        prefix, originAttributes(message, transport, threadContext), token.principal(), action, indices, message.getClass
+                                ().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}]", prefix, originAttributes(message, transport, threadContext), token.principal(), action, indices);
+                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), token.principal(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), token.principal(), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), token.principal(), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}]", prefix, originAttributes(message, transport, threadContext), token.principal(), action);
+                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}]", prefix, originAttributes(message,
+                        transport, threadContext), token.principal(), action);
             }
         }
     }
@@ -143,7 +153,8 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     @Override
     public void authenticationFailed(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(), restRequestContent(request));
+            logger.debug("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request
+                    .uri(), restRequestContent(request));
         } else {
             logger.error("{}[rest] [authentication_failed]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
         }
@@ -154,15 +165,19 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport, threadContext), action, indices);
+                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message,
+                        transport, threadContext), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message,
+                        transport, threadContext), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}]", prefix, originAttributes(message, transport, threadContext), action);
+                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}]", prefix, originAttributes(message, transport,
+                        threadContext), action);
             }
         }
     }
@@ -170,9 +185,11 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     @Override
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", prefix, hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
+            logger.debug("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", prefix, hostAttributes
+                    (request), token.principal(), request.uri(), restRequestContent(request));
         } else {
-            logger.error("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]", prefix, hostAttributes(request), token.principal(), request.uri());
+            logger.error("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]", prefix, hostAttributes(request), token
+                    .principal(), request.uri());
         }
     }
 
@@ -181,9 +198,13 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         if (logger.isTraceEnabled()) {
             String indices = indicesString(message);
             if (indices != null) {
-                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, realm, originAttributes(message, transport, threadContext), token.principal(), action, indices, message.getClass().getSimpleName());
+                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], " +
+                        "request=[{}]", prefix, realm, originAttributes(message, transport, threadContext), token.principal(), action,
+                        indices, message.getClass().getSimpleName());
             } else {
-                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]", prefix, realm, originAttributes(message, transport, threadContext), token.principal(), action, message.getClass().getSimpleName());
+                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]", prefix,
+                        realm, originAttributes(message, transport, threadContext), token.principal(), action, message.getClass()
+                                .getSimpleName());
             }
         }
     }
@@ -191,7 +212,8 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
         if (logger.isTraceEnabled()) {
-            logger.trace("{}[rest] [authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]", prefix, realm, hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
+            logger.trace("{}[rest] [authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]", prefix, realm,
+                    hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
         }
     }
 
@@ -203,9 +225,13 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user)) {
             if (logger.isTraceEnabled()) {
                 if (indices != null) {
-                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, indices, message.getClass().getSimpleName());
+                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
+                            originAttributes(message, transport, threadContext), principal(user), action, indices,
+                            message.getClass().getSimpleName());
                 } else {
-                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
+                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix,
+                            originAttributes(message, transport, threadContext), principal(user), action,
+                            message.getClass().getSimpleName());
                 }
             }
             return;
@@ -213,15 +239,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
 
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action, indices,
+                        message.getClass().getSimpleName());
             } else {
-                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, indices);
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
             } else {
-                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action);
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action);
             }
         }
     }
@@ -231,15 +262,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action, indices,
+                        message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, indices);
+                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action);
+                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), principal(user), action);
             }
         }
     }
@@ -249,15 +285,19 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message, transport, threadContext), action, indices);
+                logger.error("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, action=[{}]", prefix, originAttributes(message, transport, threadContext), action);
+                logger.error("{}[transport] [tampered_request]\t{}, action=[{}]", prefix,
+                        originAttributes(message, transport, threadContext), action);
             }
         }
     }
@@ -267,15 +307,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(request);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(request, transport, threadContext), principal(user), action, indices, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
+                        originAttributes(request, transport, threadContext), principal(user), action, indices,
+                        request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", prefix, originAttributes(request, transport, threadContext), principal(user), action, indices);
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", prefix,
+                        originAttributes(request, transport, threadContext), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", prefix, originAttributes(request, transport, threadContext), principal(user), action, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", prefix,
+                        originAttributes(request, transport, threadContext), principal(user), action, request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", prefix, originAttributes(request, transport, threadContext), principal(user), action);
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", prefix,
+                        originAttributes(request, transport, threadContext), principal(user), action);
             }
         }
     }
@@ -283,30 +328,38 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         if (logger.isTraceEnabled()) {
-            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, NetworkAddress.formatAddress(inetAddress), profile, rule);
+            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
+                    NetworkAddress.formatAddress(inetAddress), profile, rule);
         }
     }
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
-        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, NetworkAddress.formatAddress(inetAddress), profile, rule);
+        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
+                NetworkAddress.formatAddress(inetAddress), profile, rule);
     }
 
     @Override
     public void runAsGranted(User user, String action, TransportMessage<?> message) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action, message.getClass().getSimpleName());
+            logger.debug("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix,
+                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action,
+                    message.getClass().getSimpleName());
         } else {
-            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix, originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action);
+            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix,
+                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action);
         }
     }
 
     @Override
     public void runAsDenied(User user, String action, TransportMessage<?> message) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action, message.getClass().getSimpleName());
+            logger.debug("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix,
+                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action,
+                    message.getClass().getSimpleName());
         } else {
-            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix, originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action);
+            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix,
+                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action);
         }
     }
 
@@ -327,7 +380,9 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         // first checking if the message originated in a rest call
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
-            builder.append("origin_type=[rest], origin_address=[").append(NetworkAddress.formatAddress(restAddress.getAddress())).append("]");
+            builder.append("origin_type=[rest], origin_address=[").
+                    append(NetworkAddress.formatAddress(restAddress.getAddress())).
+                    append("]");
             return builder.toString();
         }
 
@@ -336,7 +391,9 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         if (address != null) {
             builder.append("origin_type=[transport], ");
             if (address instanceof InetSocketTransportAddress) {
-                builder.append("origin_address=[").append(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress())).append("]");
+                builder.append("origin_address=[").
+                        append(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress())).
+                        append("]");
             } else {
                 builder.append("origin_address=[").append(address).append("]");
             }

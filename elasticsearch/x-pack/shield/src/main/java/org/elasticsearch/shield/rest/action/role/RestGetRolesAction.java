@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest endpoint to retrieve a Role from the shield index
@@ -38,7 +38,7 @@ public class RestGetRolesAction extends BaseRestHandler {
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
         String[] roles = Strings.splitStringByCommaToArray(request.param("id"));
 
-        new ShieldClient(client).prepareGetRoles().roles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
+        new SecurityClient(client).prepareGetRoles().roles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetRolesResponse getRolesResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();

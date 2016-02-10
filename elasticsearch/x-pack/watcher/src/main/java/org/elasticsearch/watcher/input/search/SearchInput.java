@@ -125,7 +125,8 @@ public class SearchInput implements Input {
                 try {
                     request = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context);
                 } catch (ElasticsearchParseException srpe) {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]", srpe, TYPE,
+                            watchId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.EXTRACT)) {
@@ -134,11 +135,13 @@ public class SearchInput implements Input {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             extract.add(parser.text());
                         } else {
-                            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected a string value in [{}] array, but found [{}] instead", TYPE, watchId, currentFieldName, token);
+                            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected a string value in " +
+                                    "[{}] array, but found [{}] instead", TYPE, watchId, currentFieldName, token);
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE,
+                            watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
@@ -146,15 +149,18 @@ public class SearchInput implements Input {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a " +
+                            "string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
+                throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId,
+                        token);
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
+            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. missing required [{}] field", TYPE,
+                    watchId, Field.REQUEST.getPreferredName());
         }
         return new SearchInput(request, extract, timeout, dynamicNameTimeZone);
     }

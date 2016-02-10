@@ -154,7 +154,8 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         registerAndAckSignedLicenses(licensesService, generateSignedLicense("gold", TimeValue.timeValueSeconds(2)), LicensesStatus.VALID);
         // second signed license enabled, grace and expired
         success = awaitBusy(() ->licensee.licenseStates.size() == 5);
-        assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
+        assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.GRACE_PERIOD,
+                LicenseState.DISABLED);
         assertTrue(dumpLicensingStates(licensee.licenseStates), success);
         licensesService.stop();
     }
@@ -177,7 +178,8 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         registerAndAckSignedLicenses(licensesService, generateSignedLicense("basic", TimeValue.timeValueSeconds(2)), LicensesStatus.VALID);
         // trial license: enabled, grace, disabled, signed license: enabled, grace, disabled
         success = awaitBusy(() -> licensee.licenseStates.size() == 6);
-        assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
+        assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED, LicenseState.ENABLED,
+                LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
         assertTrue(dumpLicensingStates(licensee.licenseStates), success);
         licensesService.stop();
     }

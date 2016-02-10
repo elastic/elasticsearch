@@ -26,7 +26,8 @@ public class PutLicenseResponse extends AcknowledgedResponse implements ToXConte
     PutLicenseResponse() {
     }
 
-    public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader, Map<String, String[]> acknowledgeMessages) {
+    public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader,
+                              Map<String, String[]> acknowledgeMessages) {
         super(acknowledged);
         this.status = status;
         this.acknowledgeHeader = acknowledgeHeader;

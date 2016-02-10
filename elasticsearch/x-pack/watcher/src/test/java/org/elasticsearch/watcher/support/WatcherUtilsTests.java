@@ -105,7 +105,8 @@ public class WatcherUtilsTests extends ESTestCase {
             expectedRequest.types(randomTypes);
         }
 
-        expectedRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS));
+        expectedRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS));
         expectedRequest.searchType(getRandomSupportedSearchType());
 
         SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
@@ -171,7 +172,8 @@ public class WatcherUtilsTests extends ESTestCase {
 
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         if (randomBoolean()) {
-            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS);
+            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                    randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS);
             builder.startObject("indices_options")
                     .field("allow_no_indices", indicesOptions.allowNoIndices())
                     .field("expand_wildcards", indicesOptions.expandWildcardsClosed() && indicesOptions.expandWildcardsOpen() ? "all" :
@@ -213,7 +215,8 @@ public class WatcherUtilsTests extends ESTestCase {
                     TextTemplate.indexed(text).params(params).build()
             );
             builder.field("template", template);
-            templateSource = new Template(template.getTemplate(), template.getType(), null, template.getContentType(), template.getParams());
+            templateSource = new Template(template.getTemplate(), template.getType(), null, template.getContentType(),
+                    template.getParams());
         }
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());

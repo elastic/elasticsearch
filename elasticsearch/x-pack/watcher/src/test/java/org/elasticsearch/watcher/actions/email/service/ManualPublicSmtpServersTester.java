@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -111,12 +109,7 @@ public class ManualPublicSmtpServersTester {
                     .textBody("_text_body")
                     .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo\"/>")
                     .attach(new Attachment.XContent.Yaml("test.yml", content))
-                    .inline(new Inline.Stream("logo", "logo.jpg", new Provider<InputStream>() {
-                        @Override
-                        public InputStream get() {
-                            return InternalEmailServiceTests.class.getResourceAsStream("logo.png");
-                        }
-                    }))
+                    .inline(new Inline.Stream("logo", "logo.jpg", () -> InternalEmailServiceTests.class.getResourceAsStream("logo.png")))
                     .build();
 
             EmailService.EmailSent sent = service.send(email, null, profile);
@@ -129,7 +122,8 @@ public class ManualPublicSmtpServersTester {
 
     static InternalEmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(), new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
+        InternalEmailService service = new InternalEmailService(settings, SecretService.Insecure.INSTANCE,
+                new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
         service.start();
         return service;
     }

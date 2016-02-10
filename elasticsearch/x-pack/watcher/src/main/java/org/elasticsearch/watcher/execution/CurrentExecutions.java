@@ -28,7 +28,8 @@ public class CurrentExecutions implements Iterable<ExecutionService.WatchExecuti
         try {
             if (seal) {
                 // We shouldn't get here, because, ExecutionService#started should have been set to false
-                throw illegalState("could not register execution [{}]. current executions are sealed and forbid registrations of additional executions.", id);
+                throw illegalState("could not register execution [{}]. current executions are sealed and forbid registrations of " +
+                        "additional executions.", id);
             }
             currentExecutions.put(id, execution);
         } finally {

@@ -89,7 +89,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                 assertThat(mappingsResponse, notNullValue());
                 assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
-                    if (!metadatas.key.startsWith(".watch_history")) {
+                    if (!metadatas.key.startsWith(".watcher-history")) {
                         continue;
                     }
                     MappingMetaData metadata = metadatas.value.get("watch_record");
@@ -97,8 +97,11 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                     try {
                         Map<String, Object> source = metadata.getSourceAsMap();
                         logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
-                        assertThat(extractValue("properties.result.properties.transform.properties.payload.enabled", source), is((Object) false));
-                        assertThat(extractValue("properties.result.properties.actions.properties.transform.properties.payload.enabled", source), is((Object) false));
+                        assertThat(extractValue("properties.result.properties.transform.properties.payload.enabled", source),
+                                is((Object) false));
+
+                        String path = "properties.result.properties.actions.properties.transform.properties.payload.enabled";
+                        assertThat(extractValue(path, source), is((Object) false));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

@@ -21,7 +21,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Result, ExecutableChainInput> implements InitializingService.Initializable {
+public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Result, ExecutableChainInput>
+        implements InitializingService.Initializable {
 
     private InputRegistry inputRegistry;
 

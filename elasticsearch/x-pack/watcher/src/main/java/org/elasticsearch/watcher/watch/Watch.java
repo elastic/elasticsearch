@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.watcher.support.Exceptions.ioException;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
@@ -73,7 +74,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private transient long version = Versions.NOT_SET;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
-                 @Nullable TimeValue throttlePeriod, ExecutableActions actions, @Nullable Map<String, Object> metadata, WatchStatus status) {
+                 @Nullable TimeValue throttlePeriod, ExecutableActions actions, @Nullable Map<String, Object> metadata,
+                 WatchStatus status) {
         this.id = id;
         this.trigger = trigger;
         this.input = input;
@@ -255,7 +257,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * Such that the returned watch will potentially hide this sensitive data behind a "secret". A secret
          * is an abstraction around sensitive data (text). There can be different implementations of how the
          * secret holds the data, depending on the wired up {@link SecretService}. When shield is installed, a
-         * {@link org.elasticsearch.watcher.shield.ShieldSecretService} is used, that potentially encrypts the data
+         * {@link SecretService.Secure} is used, that potentially encrypts the data
          * using Shield's configured system key.
          *
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
@@ -273,7 +275,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             }
             XContentParser parser = null;
             try {
-                parser = new WatcherXContentParser(XContentHelper.createParser(source), new HaltedClock(now), withSecrets ? secretService : null);
+                parser = new WatcherXContentParser(createParser(source), new HaltedClock(now), withSecrets ? secretService : null);
                 parser.nextToken();
                 return parse(id, includeStatus, parser);
             } catch (IOException ioe) {
@@ -316,7 +318,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
+                                pe, id, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
                     actions = actionRegistry.parseActions(id, parser);
@@ -333,14 +336,16 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 }
             }
             if (trigger == null) {
-                throw new ElasticsearchParseException("could not parse watch [{}]. missing required field [{}]", id, Field.TRIGGER.getPreferredName());
+                throw new ElasticsearchParseException("could not parse watch [{}]. missing required field [{}]", id,
+                        Field.TRIGGER.getPreferredName());
             }
 
             if (status != null) {
                 // verify the status is valid (that every action indeed has a status)
                 for (ActionWrapper action : actions) {
                     if (status.actionStatus(action.id()) == null) {
-                        throw new ElasticsearchParseException("could not parse watch [{}]. watch status in invalid state. action [{}] status is missing", id, action.id());
+                        throw new ElasticsearchParseException("could not parse watch [{}]. watch status in invalid state. action [{}] " +
+                                "status is missing", id, action.id());
                     }
                 }
             } else {

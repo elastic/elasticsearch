@@ -35,4 +35,9 @@ public class ExecutableAlwaysCondition extends ExecutableCondition<AlwaysConditi
         return obj instanceof ExecutableAlwaysCondition;
     }
 
+    @Override
+    public int hashCode() {
+        // All instances has to produce the same hashCode because they are all equal
+        return 0;
+    }
 }

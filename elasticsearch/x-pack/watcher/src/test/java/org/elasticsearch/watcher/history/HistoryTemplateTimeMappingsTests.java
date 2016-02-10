@@ -63,7 +63,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                 assertThat(mappingsResponse, notNullValue());
                 assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
-                    if (!metadatas.key.startsWith(".watch_history")) {
+                    if (!metadatas.key.startsWith(".watcher-history")) {
                         continue;
                     }
                     MappingMetaData metadata = metadatas.value.get("watch_record");
@@ -74,7 +74,8 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                         assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "string"));
                         assertThat(extractValue("properties.trigger_event.properties.type.index", source), is((Object) "not_analyzed"));
                         assertThat(extractValue("properties.trigger_event.properties.triggered_time.type", source), is((Object) "date"));
-                        assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source), is((Object) "date"));
+                        assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
+                                is((Object) "date"));
                         assertThat(extractValue("properties.result.properties.execution_time.type", source), is((Object) "date"));
                     } catch (IOException e) {
                         throw new RuntimeException(e);

@@ -26,7 +26,8 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
 /**
  * Framework to test licensing plugin integration for existing/new consumer plugins
- * see {@link org.elasticsearch.license.plugin.LicensesEagerConsumerPluginIntegrationTests} and {@link org.elasticsearch.license.plugin.LicensesLazyConsumerPluginIntegrationTests}
+ * see {@link org.elasticsearch.license.plugin.LicensesEagerConsumerPluginIntegrationTests}
+ * and {@link org.elasticsearch.license.plugin.LicensesLazyConsumerPluginIntegrationTests}
  * for example usage
  */
 @ClusterScope(scope = TEST, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)

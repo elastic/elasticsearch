@@ -90,7 +90,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
+        assertThat(recordedRequest.getPath(),
+                anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
 
         SearchResponse response = searchWatchRecords(new Callback<SearchRequestBuilder>() {
@@ -134,7 +135,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
+        assertThat(recordedRequest.getPath(),
+                anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
     }

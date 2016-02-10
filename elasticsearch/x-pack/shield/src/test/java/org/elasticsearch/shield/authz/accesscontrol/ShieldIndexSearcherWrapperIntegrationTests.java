@@ -34,10 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
-import java.util.Collection;
 import java.util.Collections;
 
 import static java.util.Collections.singleton;
@@ -55,22 +52,18 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
-        when(mapperService.simpleMatchToIndexNames(anyString())).then(new Answer<Collection<String>>() {
-            @Override
-            public Collection<String> answer(InvocationOnMock invocationOnMock) throws Throwable {
-                return Collections.singletonList((String) invocationOnMock.getArguments()[0]);
-            }
-        });
+        when(mapperService.simpleMatchToIndexNames(anyString()))
+                .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null, singleton(new BytesArray("{}")));
+        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null,
+                singleton(new BytesArray("{}")));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
-
             }
 
             @Override
@@ -80,7 +73,8 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         });
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
-        ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(indexSettings, queryShardContext, mapperService, bitsetFilterCache, threadContext, licenseState) {
+        ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(indexSettings, queryShardContext, mapperService,
+                bitsetFilterCache, threadContext, licenseState) {
 
             @Override
             protected QueryShardContext copyQueryShardContext(QueryShardContext context) {
@@ -108,7 +102,8 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
         int numDocs = scaledRandomIntBetween(32, 128);
         int commitAfter = scaledRandomIntBetween(1, numDocs);
-        logger.info("Going to index [{}] documents with [{}] unique values and commit after [{}] documents have been indexed", numDocs, numValues, commitAfter);
+        logger.info("Going to index [{}] documents with [{}] unique values and commit after [{}] documents have been indexed",
+                numDocs, numValues, commitAfter);
 
         for (int doc = 1; doc <= numDocs; doc++) {
             int valueIndex = (numValues - 1) % doc;

@@ -800,7 +800,8 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldSubsetReader.wrap(directoryReader, Collections.emptySet());
             fail("shouldn't be able to wrap FieldSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.shield.authz.accesscontrol.FieldSubsetReader$FieldSubsetDirectoryReader] twice"));
+            assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.shield.authz.accesscontrol" +
+                    ".FieldSubsetReader$FieldSubsetDirectoryReader] twice"));
         }
         directoryReader.close();
         dir.close();

@@ -102,7 +102,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
     }
 
     @SuppressWarnings("unchecked")
@@ -196,7 +197,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateNonExistentRestRequestUserThrowsAuthenticationException() throws Exception {
-        when(firstRealm.token(threadContext)).thenReturn(new UsernamePasswordToken("idonotexist", new SecuredString("passwd".toCharArray())));
+        when(firstRealm.token(threadContext)).thenReturn(new UsernamePasswordToken("idonotexist",
+                new SecuredString("passwd".toCharArray())));
         try {
             service.authenticate(restRequest);
             fail("Authentication was successful but should not");
@@ -340,9 +342,11 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         InternalMessage message1 = new InternalMessage();
         ThreadContext threadContext1 = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext1);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
-        threadContext1.putTransient(InternalAuthenticationService.USER_KEY, threadContext.getTransient(InternalAuthenticationService.USER_KEY));
+        threadContext1.putTransient(InternalAuthenticationService.USER_KEY,
+                threadContext.getTransient(InternalAuthenticationService.USER_KEY));
         User user = service.authenticate("_action", message1, SystemUser.INSTANCE);
         assertThat(user, sameInstance(user1));
         verifyZeroInteractions(firstRealm);
@@ -352,7 +356,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         // checking authentication from the user header
         threadContext1 = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext1);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
         threadContext1.putHeader(InternalAuthenticationService.USER_KEY, threadContext.getHeader(InternalAuthenticationService.USER_KEY));
         when(cryptoService.unsignAndVerify("_signed_user")).thenReturn(InternalAuthenticationService.encodeUser(user1, null));
 
@@ -363,7 +368,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         threadContext1.readHeaders(input);
 
         when(threadPool.getThreadContext()).thenReturn(threadContext1);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
         user = service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE);
         assertThat(user, equalTo(user1));
         verifyZeroInteractions(firstRealm);
@@ -371,7 +377,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     public void testAutheticateTransportContextAndHeaderNoSigning() throws Exception {
         Settings settings = Settings.builder().put(InternalAuthenticationService.SETTING_SIGN_USER_HEADER, false).build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.supports(token)).thenReturn(true);
@@ -381,15 +388,18 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         assertThat(user1, sameInstance(user2));
         User user3 = threadContext.getTransient(InternalAuthenticationService.USER_KEY);
         assertThat(user3, sameInstance(user2));
-        assertThat(threadContext.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) InternalAuthenticationService.encodeUser(user1, null)));
+        assertThat(threadContext.getHeader(InternalAuthenticationService.USER_KEY),
+                equalTo((Object) InternalAuthenticationService.encodeUser(user1, null)));
         reset(firstRealm);
 
         // checking authentication from the context
         InternalMessage message1 = new InternalMessage();
         ThreadContext threadContext1 = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext1);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
-        threadContext1.putTransient(InternalAuthenticationService.USER_KEY, threadContext.getTransient(InternalAuthenticationService.USER_KEY));
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
+        threadContext1.putTransient(InternalAuthenticationService.USER_KEY,
+                threadContext.getTransient(InternalAuthenticationService.USER_KEY));
         User user = service.authenticate("_action", message1, SystemUser.INSTANCE);
         assertThat(user, sameInstance(user1));
         verifyZeroInteractions(firstRealm);
@@ -407,7 +417,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         threadContext1.readHeaders(input);
 
         when(threadPool.getThreadContext()).thenReturn(threadContext1);
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService,
+                new DefaultAuthenticationFailureHandler(), threadPool);
         user = service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE);
         assertThat(user, equalTo(user1));
         verifyZeroInteractions(firstRealm);
@@ -418,7 +429,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     public void testAuthenticateTamperedUser() throws Exception {
         InternalMessage message = new InternalMessage();
         threadContext.putHeader(InternalAuthenticationService.USER_KEY, "_signed_user");
-        when(cryptoService.unsignAndVerify("_signed_user")).thenThrow(randomFrom(new RuntimeException(), new IllegalArgumentException(), new IllegalStateException()));
+        when(cryptoService.unsignAndVerify("_signed_user")).thenThrow(
+                randomFrom(new RuntimeException(), new IllegalArgumentException(), new IllegalStateException()));
 
         try {
             service.authenticate("_action", message, randomBoolean() ? SystemUser.INSTANCE : null);
@@ -464,7 +476,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         }
         Settings settings = builder.build();
         AnonymousService holder = new AnonymousService(settings);
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, holder, new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, holder,
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
         RestRequest request = new FakeRestRequest();
 
@@ -481,7 +494,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings), new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings),
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
         InternalMessage message = new InternalMessage();
 
@@ -495,7 +509,8 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings), new DefaultAuthenticationFailureHandler(), threadPool);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings),
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
         InternalMessage message = new InternalMessage();
 

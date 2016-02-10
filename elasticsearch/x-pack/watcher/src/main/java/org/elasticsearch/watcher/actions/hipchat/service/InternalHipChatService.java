@@ -19,7 +19,8 @@ public class InternalHipChatService extends AbstractLifecycleComponent<HipChatSe
 
     private final HttpClient httpClient;
     private volatile HipChatAccounts accounts;
-    public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING = Setting.groupSetting("watcher.actions.hipchat.service.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING =
+            Setting.groupSetting("watcher.actions.hipchat.service.", true, Setting.Scope.CLUSTER);
 
     @Inject
     public InternalHipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {

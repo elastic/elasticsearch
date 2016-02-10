@@ -35,9 +35,12 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
 
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                       ExecutionService executionService, WatcherLicensee watcherLicensee, WatcherLifeCycleService lifeCycleService) {
-        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, WatcherStatsRequest::new);
+                                       ThreadPool threadPool, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
+                                       ExecutionService executionService, WatcherLicensee watcherLicensee,
+                                       WatcherLifeCycleService lifeCycleService) {
+        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                watcherLicensee, WatcherStatsRequest::new);
         this.watcherService = watcherService;
         this.executionService = executionService;
         this.lifeCycleService = lifeCycleService;
@@ -55,7 +58,8 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     }
 
     @Override
-    protected void masterOperation(WatcherStatsRequest request, ClusterState state, ActionListener<WatcherStatsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(WatcherStatsRequest request, ClusterState state, ActionListener<WatcherStatsResponse> listener) throws
+            ElasticsearchException {
         WatcherStatsResponse statsResponse = new WatcherStatsResponse();
         statsResponse.setWatcherState(watcherService.state());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());

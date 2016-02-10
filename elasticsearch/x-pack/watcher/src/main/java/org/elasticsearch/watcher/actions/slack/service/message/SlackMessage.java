@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -124,7 +125,8 @@ public class SlackMessage implements MessageElement {
         final Attachment.Template[] attachments;
         final DynamicAttachments dynamicAttachments;
 
-        public Template(TextTemplate from, TextTemplate[] to, TextTemplate text, TextTemplate icon, Attachment.Template[] attachments, DynamicAttachments dynamicAttachments) {
+        public Template(TextTemplate from, TextTemplate[] to, TextTemplate text, TextTemplate icon, Attachment.Template[] attachments,
+                        DynamicAttachments dynamicAttachments) {
             this.from = from;
             this.to = to;
             this.text = text;
@@ -164,12 +166,12 @@ public class SlackMessage implements MessageElement {
 
             Template template = (Template) o;
 
-            if (from != null ? !from.equals(template.from) : template.from != null) return false;
-            if (!Arrays.equals(to, template.to)) return false;
-            if (text != null ? !text.equals(template.text) : template.text != null) return false;
-            if (icon != null ? !icon.equals(template.icon) : template.icon != null) return false;
-            if (!Arrays.equals(attachments, template.attachments)) return false;
-            return !(dynamicAttachments != null ? !dynamicAttachments.equals(template.dynamicAttachments) : template.dynamicAttachments != null);
+            return Objects.equals(from, template.from) &&
+                    Objects.equals(text, template.text) &&
+                    Objects.equals(icon, template.icon) &&
+                    Objects.equals(dynamicAttachments, template.dynamicAttachments) &&
+                    Arrays.equals(to, template.to) &&
+                    Arrays.equals(attachments, template.attachments);
         }
 
         @Override
@@ -183,7 +185,8 @@ public class SlackMessage implements MessageElement {
             return result;
         }
 
-        public SlackMessage render(String watchId, String actionId, TextTemplateEngine engine, Map<String, Object> model, SlackMessageDefaults defaults) {
+        public SlackMessage render(String watchId, String actionId, TextTemplateEngine engine, Map<String, Object> model,
+                                   SlackMessageDefaults defaults) {
             String from = this.from != null ? engine.render(this.from, model) :
                     defaults.from != null ? defaults.from : watchId;
             String[] to = defaults.to;
@@ -258,7 +261,8 @@ public class SlackMessage implements MessageElement {
                     try {
                         builder.setFrom(TextTemplate.parse(parser));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe, XField.FROM.getPreferredName());
+                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe,
+                                XField.FROM.getPreferredName());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TO)) {
                     if (token == XContentParser.Token.START_ARRAY) {
@@ -266,27 +270,31 @@ public class SlackMessage implements MessageElement {
                             try {
                                 builder.addTo(TextTemplate.parse(parser));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe, XField.TO.getPreferredName());
+                                throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe,
+                                        XField.TO.getPreferredName());
                             }
                         }
                     } else {
                         try {
                             builder.addTo(TextTemplate.parse(parser));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe, XField.TO.getPreferredName());
+                            throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe,
+                                    XField.TO.getPreferredName());
                         }
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TEXT)) {
                     try {
                         builder.setText(TextTemplate.parse(parser));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe, XField.TEXT.getPreferredName());
+                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe,
+                                XField.TEXT.getPreferredName());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ICON)) {
                     try {
                         builder.setIcon(TextTemplate.parse(parser));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe, XField.ICON.getPreferredName());
+                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe,
+                                XField.ICON.getPreferredName());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ATTACHMENTS)) {
                     if (token == XContentParser.Token.START_ARRAY) {
@@ -294,21 +302,24 @@ public class SlackMessage implements MessageElement {
                             try {
                                 builder.addAttachments(Attachment.Template.parse(parser));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe, XField.ATTACHMENTS.getPreferredName());
+                                throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe,
+                                        XField.ATTACHMENTS.getPreferredName());
                             }
                         }
                     } else {
                         try {
                             builder.addAttachments(Attachment.Template.parse(parser));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe, XField.ATTACHMENTS.getPreferredName());
+                            throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe,
+                                    XField.ATTACHMENTS.getPreferredName());
                         }
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.DYNAMIC_ATTACHMENTS)) {
                     try {
                         builder.setDynamicAttachments(DynamicAttachments.parse(parser));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe, XField.ICON.getPreferredName());
+                        throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe,
+                                XField.ICON.getPreferredName());
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse slack message. unknown field [{}].", currentFieldName);
@@ -411,7 +422,8 @@ public class SlackMessage implements MessageElement {
 
             public Template build() {
                 TextTemplate[] to = this.to.isEmpty() ? null : this.to.toArray(new TextTemplate[this.to.size()]);
-                Attachment.Template[] attachments = this.attachments.isEmpty() ? null : this.attachments.toArray(new Attachment.Template[this.attachments.size()]);
+                Attachment.Template[] attachments = this.attachments.isEmpty() ? null :
+                        this.attachments.toArray(new Attachment.Template[this.attachments.size()]);
                 return new Template(from, to, text, icon, attachments, dynamicAttachments);
             }
         }

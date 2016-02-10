@@ -31,10 +31,12 @@ public class WatchExecutionResult implements ToXContent {
     private final ExecutableActions.Results actionsResults;
 
     public WatchExecutionResult(WatchExecutionContext context, long executionDurationMs) {
-        this(context.executionTime(), executionDurationMs, context.inputResult(), context.conditionResult(), context.transformResult(), context.actionsResults());
+        this(context.executionTime(), executionDurationMs, context.inputResult(), context.conditionResult(), context.transformResult(),
+                context.actionsResults());
     }
 
-    WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult, Condition.Result conditionResult, @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
+    WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult, Condition.Result conditionResult,
+                         @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
         this.executionTime = executionTime;
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;

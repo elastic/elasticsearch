@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
@@ -59,7 +59,8 @@ public class WatcherExecutorServiceBenchmark {
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), Version.CURRENT, Arrays.asList(WatcherBenchmarkPlugin.class, XPackPlugin.class));
+        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), Version.CURRENT,
+                Arrays.asList(XPackBenchmarkPlugin.class));
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();
         Thread.sleep(5000);
@@ -201,36 +202,46 @@ public class WatcherExecutorServiceBenchmark {
 
     }
 
-    public static final class WatcherBenchmarkPlugin extends WatcherPlugin {
+    public static final class XPackBenchmarkPlugin extends XPackPlugin {
 
-        public WatcherBenchmarkPlugin(Settings settings) {
+
+        public XPackBenchmarkPlugin(Settings settings) {
             super(settings);
-            Loggers.getLogger(WatcherBenchmarkPlugin.class, settings).info("using watcher benchmark plugin");
+            watcher = new BenchmarkWatcher(settings);
         }
 
-        @Override
-        public Collection<Module> nodeModules() {
-            List<Module> modules = new ArrayList<>(super.nodeModules());
-            for (int i = 0; i < modules.size(); ++i) {
-                Module module = modules.get(i);
-                if (module instanceof TriggerModule) {
-                    // replacing scheduler module so we'll
-                    // have control on when it fires a job
-                    modules.set(i, new MockTriggerModule(settings));
-                }
-            }
-            return modules;
-        }
+        public static class BenchmarkWatcher extends Watcher {
 
-        public static class MockTriggerModule extends TriggerModule {
-
-            public MockTriggerModule(Settings settings) {
+            public BenchmarkWatcher(Settings settings) {
                 super(settings);
+                Loggers.getLogger(XPackBenchmarkPlugin.class, settings).info("using watcher benchmark plugin");
             }
 
             @Override
-            protected void registerStandardEngines() {
-                registerEngine(ScheduleTriggerEngineMock.class);
+            public Collection<Module> nodeModules() {
+                List<Module> modules = new ArrayList<>(super.nodeModules());
+                for (int i = 0; i < modules.size(); ++i) {
+                    Module module = modules.get(i);
+                    if (module instanceof TriggerModule) {
+                        // replacing scheduler module so we'll
+                        // have control on when it fires a job
+                        modules.set(i, new MockTriggerModule(settings));
+                    }
+                }
+                return modules;
+            }
+
+            public static class MockTriggerModule extends TriggerModule {
+
+                public MockTriggerModule(Settings settings) {
+                    super(settings);
+                }
+
+                @Override
+                protected void registerStandardEngines() {
+                    registerEngine(ScheduleTriggerEngineMock.class);
+                }
+
             }
 
         }

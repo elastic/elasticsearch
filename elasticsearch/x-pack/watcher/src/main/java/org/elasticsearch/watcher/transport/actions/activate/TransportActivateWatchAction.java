@@ -32,9 +32,11 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
     @Inject
     public TransportActivateWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        WatcherService watcherService, WatcherLicensee watcherLicensee) {
-        super(settings, ActivateWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, ActivateWatchRequest::new);
+                                        ThreadPool threadPool, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
+                                        WatcherLicensee watcherLicensee) {
+        super(settings, ActivateWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                watcherLicensee, ActivateWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -49,7 +51,8 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     }
 
     @Override
-    protected void masterOperation(ActivateWatchRequest request, ClusterState state, ActionListener<ActivateWatchResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(ActivateWatchRequest request, ClusterState state, ActionListener<ActivateWatchResponse> listener)
+            throws ElasticsearchException {
         try {
             WatchStatus watchStatus = request.isActivate() ?
                     watcherService.activateWatch(request.getWatchId(), request.masterNodeTimeout()) :

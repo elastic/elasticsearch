@@ -40,7 +40,8 @@ public class EmailAction implements Action {
     private final @Nullable DataAttachment dataAttachment;
     private final @Nullable EmailAttachments emailAttachments;
 
-    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable DataAttachment dataAttachment, @Nullable EmailAttachments emailAttachments) {
+    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile,
+                       @Nullable DataAttachment dataAttachment, @Nullable EmailAttachments emailAttachments) {
         this.email = email;
         this.account = account;
         this.auth = auth;
@@ -123,7 +124,8 @@ public class EmailAction implements Action {
         return builder.endObject();
     }
 
-    public static EmailAction parse(String watchId, String actionId, XContentParser parser, EmailAttachmentsParser emailAttachmentsParser) throws IOException {
+    public static EmailAction parse(String watchId, String actionId, XContentParser parser,
+                                    EmailAttachmentsParser emailAttachmentsParser) throws IOException {
         EmailTemplate.Parser emailParser = new EmailTemplate.Parser();
         String account = null;
         String user = null;
@@ -141,7 +143,8 @@ public class EmailAction implements Action {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
                 } catch (IOException ioe) {
-                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field [{}]", ioe, TYPE, watchId, actionId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field " +
+                            "[{}]", ioe, TYPE, watchId, actionId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ATTACHMENTS)) {
                 attachments = emailAttachmentsParser.parse(parser);
@@ -160,10 +163,12 @@ public class EmailAction implements Action {
                             throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]", TYPE, watchId, actionId, iae);
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE,
+                                watchId, actionId, currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
+                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
+                            actionId, token);
                 }
             }
         }

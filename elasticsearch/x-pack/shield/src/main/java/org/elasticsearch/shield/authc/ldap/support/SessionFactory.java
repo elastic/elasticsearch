@@ -26,14 +26,14 @@ import static java.util.Arrays.asList;
 /**
  * This factory holds settings needed for authenticating to LDAP and creating LdapConnections.
  * Each created LdapConnection needs to be closed or else connections will pill up consuming resources.
- *
+ * <p>
  * A standard looking usage pattern could look like this:
- <pre>
-    ConnectionFactory factory = ...
-    try (LdapConnection session = factory.session(...)) {
-        ...do stuff with the session
-    }
- </pre>
+ * <pre>
+ * ConnectionFactory factory = ...
+ * try (LdapConnection session = factory.session(...)) {
+ * ...do stuff with the session
+ * }
+ * </pre>
  */
 public abstract class SessionFactory {
 
@@ -59,7 +59,8 @@ public abstract class SessionFactory {
         this.connectionLogger = config.logger(getClass());
         TimeValue searchTimeout = config.settings().getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT);
         if (searchTimeout.millis() < 1000L) {
-            logger.warn("ldap_search timeout [{}] is less than the minimum supported search timeout of 1s. using 1s", searchTimeout.millis());
+            logger.warn("ldap_search timeout [{}] is less than the minimum supported search timeout of 1s. using 1s",
+                    searchTimeout.millis());
             searchTimeout = TimeValue.timeValueSeconds(1L);
         }
         this.timeout = searchTimeout;
@@ -70,8 +71,8 @@ public abstract class SessionFactory {
      * Authenticates the given user and opens a new connection that bound to it (meaning, all operations
      * under the returned connection will be executed on behalf of the authenticated user.
      *
-     * @param user      The name of the user to authenticate the connection with.
-     * @param password  The password of the user
+     * @param user     The name of the user to authenticate the connection with.
+     * @param password The password of the user
      * @return LdapSession representing a connection to LDAP as the provided user
      * @throws Exception if an error occurred when creating the session
      */
@@ -80,6 +81,7 @@ public abstract class SessionFactory {
     /**
      * Returns a flag to indicate if this session factory supports unauthenticated sessions. This means that a session can
      * be established without providing any credentials in a call to {@link SessionFactory#unauthenticatedSession(String)}
+     *
      * @return true if the factory supports unauthenticated sessions
      */
     public boolean supportsUnauthenticatedSession() {
@@ -88,6 +90,7 @@ public abstract class SessionFactory {
 
     /**
      * Returns an {@link LdapSession} for the user identified by the String parameter
+     *
      * @param username the identifier for the user
      * @return LdapSession representing a connection to LDAP for the provided user.
      * @throws Exception if an error occurs when creating the session or unauthenticated sessions are not supported
@@ -128,7 +131,8 @@ public abstract class SessionFactory {
                 logger.debug("using encryption for LDAP connections without hostname verification");
             }
         }
-        return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), settings, socketFactory, connectionOptions(settings));
+        return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), settings, socketFactory,
+                connectionOptions(settings));
     }
 
     // package private to use for testing
@@ -152,7 +156,7 @@ public abstract class SessionFactory {
                     addresses[i] = url.getHost();
                     ports[i] = url.getPort();
                 } catch (LDAPException e) {
-                    throw new IllegalArgumentException("unable to parse configured LDAP url [" + urls[i] +"]", e);
+                    throw new IllegalArgumentException("unable to parse configured LDAP url [" + urls[i] + "]", e);
                 }
             }
         }
@@ -182,8 +186,8 @@ public abstract class SessionFactory {
 
             if (!allSecure && !allClear) {
                 //No mixing is allowed because we use the same socketfactory
-                throw new IllegalArgumentException("configured LDAP protocols are not all equal " +
-                        "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
+                throw new IllegalArgumentException("configured LDAP protocols are not all equal (ldaps://.. and ldap://..): [" +
+                        Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
             }
 
             return allSecure;

@@ -104,7 +104,8 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
                 assertThat(response.getQueuedWatches().size(), greaterThanOrEqualTo(5));
                 DateTime previous = null;
                 for (QueuedWatch queuedWatch : response.getQueuedWatches()) {
-                    assertThat(queuedWatch.watchId(), anyOf(equalTo("_id0"), equalTo("_id1"), equalTo("_id2"), equalTo("_id3"), equalTo("_id4")));
+                    assertThat(queuedWatch.watchId(),
+                            anyOf(equalTo("_id0"), equalTo("_id1"), equalTo("_id2"), equalTo("_id3"), equalTo("_id4")));
                     if (previous != null) {
                         // older pending watch should be on top:
                         assertThat(previous.getMillis(), lessThanOrEqualTo(queuedWatch.executionTime().getMillis()));

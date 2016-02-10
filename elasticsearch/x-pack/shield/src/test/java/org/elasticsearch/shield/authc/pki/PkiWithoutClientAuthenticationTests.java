@@ -13,7 +13,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.SSLClientAuth;
@@ -65,7 +64,8 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, false)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, randomFrom(SSLClientAuth.NO.name(), false, "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT)))
+                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, randomFrom(SSLClientAuth.NO.name(), false, "false", "FALSE",
+                        SSLClientAuth.NO.name().toLowerCase(Locale.ROOT)))
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "0")
                 .build();
@@ -87,7 +87,9 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
                     .protocol("https")
                     .method("GET")
                     .path("/_nodes");
-            requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+            requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                    UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
             HttpResponse response = requestBuilder.execute();
             assertThat(response.getStatusCode(), is(200));
         }

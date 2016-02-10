@@ -12,7 +12,8 @@ import org.elasticsearch.index.VersionType;
 /**
  * A delete document action request builder.
  */
-public class GetWatchRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
+public class GetWatchRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetWatchRequest, GetWatchResponse,
+        GetWatchRequestBuilder> {
 
     public GetWatchRequestBuilder(ElasticsearchClient client, String id) {
         super(client, GetWatchAction.INSTANCE, new GetWatchRequest(id));

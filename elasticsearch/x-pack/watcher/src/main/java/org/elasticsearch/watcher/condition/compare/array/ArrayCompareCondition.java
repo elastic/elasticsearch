@@ -97,7 +97,8 @@ public class ArrayCompareCondition implements Condition {
 
     public static ArrayCompareCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] instead", TYPE, watchId, parser.currentToken());
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] " +
+                    "instead", TYPE, watchId, parser.currentToken());
         }
         String arrayPath = null;
         String path = null;
@@ -111,7 +112,8 @@ public class ArrayCompareCondition implements Condition {
             if (token == XContentParser.Token.FIELD_NAME) {
                 arrayPath = parser.currentName();
             } else if (arrayPath == null) {
-                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the compared path, but found [{}] instead", TYPE, watchId, token);
+                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the " +
+                        "compared path, but found [{}] instead", TYPE, watchId, token);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -120,12 +122,15 @@ public class ArrayCompareCondition implements Condition {
                             path = parser.text();
                         } else {
                             if (op != null) {
-                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. encountered duplicate comparison operator, but already saw [{}].", TYPE, watchId, parser.currentName(), op.id());
+                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. encountered " +
+                                        "duplicate comparison operator, but already saw [{}].", TYPE, watchId, parser.currentName(), op
+                                        .id());
                             }
                             try {
                                 op = Op.resolve(parser.currentName());
                             } catch (IllegalArgumentException iae) {
-                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. unknown comparison operator [{}]", TYPE, watchId, parser.currentName(), iae);
+                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. unknown comparison " +
+                                        "operator [{}]", TYPE, watchId, parser.currentName(), iae);
                             }
                             token = parser.nextToken();
                             if (token == XContentParser.Token.START_OBJECT) {
@@ -133,41 +138,56 @@ public class ArrayCompareCondition implements Condition {
                                     if (token == XContentParser.Token.FIELD_NAME) {
                                         if (ParseFieldMatcher.STRICT.match(parser.currentName(), Field.VALUE)) {
                                             if (haveValue) {
-                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. encountered duplicate field \"value\", but already saw value [{}].", TYPE, watchId, value);
+                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
+                                                        "encountered duplicate field \"value\", but already saw value [{}].", TYPE,
+                                                        watchId, value);
                                             }
                                             token = parser.nextToken();
                                             if (!op.supportsStructures() && !token.isValue() && token != XContentParser.Token.VALUE_NULL) {
-                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. compared value for [{}] with operation [{}] must either be a numeric, string, boolean or null value, but found [{}] instead", TYPE, watchId, path, op.name().toLowerCase(Locale.ROOT), token);
+                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
+                                                        "compared value for [{}] with operation [{}] must either be a numeric, string, " +
+                                                        "boolean or null value, but found [{}] instead", TYPE, watchId, path,
+                                                        op.name().toLowerCase(Locale.ROOT), token);
                                             }
                                             value = WatcherXContentUtils.readValue(parser, token);
                                             haveValue = true;
                                         } else if (ParseFieldMatcher.STRICT.match(parser.currentName(), Field.QUANTIFIER)) {
                                             if (quantifier != null) {
-                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. encountered duplicate field \"quantifier\", but already saw quantifier [{}].", TYPE, watchId, quantifier.id());
+                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
+                                                        "encountered duplicate field \"quantifier\", but already saw quantifier [{}].",
+                                                        TYPE, watchId, quantifier.id());
                                             }
                                             parser.nextToken();
                                             try {
                                                 quantifier = Quantifier.resolve(parser.text());
                                             } catch (IllegalArgumentException iae) {
-                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. unknown comparison quantifier [{}]", TYPE, watchId, parser.text(), iae);
+                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
+                                                        "unknown comparison quantifier [{}]", TYPE, watchId, parser.text(), iae);
                                             }
                                         } else {
-                                            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the comparison value or comparison quantifier, but found [{}] instead", TYPE, watchId, parser.currentName());
+                                            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
+                                                    "expected a field indicating the comparison value or comparison quantifier, but found" +
+                                                    " [{}] instead", TYPE, watchId, parser.currentName());
                                         }
                                     } else {
-                                        throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the comparison value or comparison quantifier, but found [{}] instead", TYPE, watchId, token);
+                                        throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a " +
+                                                "field indicating the comparison value or comparison quantifier, but found [{}] instead",
+                                                TYPE, watchId, token);
                                     }
                                 }
                             } else {
-                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object for field [{}] but found [{}] instead", TYPE, watchId, op.id(), token);
+                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object " +
+                                        "for field [{}] but found [{}] instead", TYPE, watchId, op.id(), token);
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the compared path or a comparison operator, but found [{}] instead", TYPE, watchId, token);
+                        throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating" +
+                                " the compared path or a comparison operator, but found [{}] instead", TYPE, watchId, token);
                     }
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object for field [{}] but found [{}] instead", TYPE, watchId, path, token);
+                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object for field [{}] " +
+                        "but found [{}] instead", TYPE, watchId, path, token);
             }
         }
 

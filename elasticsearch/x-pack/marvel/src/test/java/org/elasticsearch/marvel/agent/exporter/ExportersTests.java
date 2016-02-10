@@ -57,8 +57,10 @@ public class ExportersTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService, mock(RendererRegistry.class), mock(CleanerService.class)));
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS_SETTING, MarvelSettings.INTERVAL_SETTING, Exporters.EXPORTERS_SETTING)));
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService,
+                mock(RendererRegistry.class), mock(CleanerService.class)));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS_SETTING,
+                MarvelSettings.INTERVAL_SETTING, Exporters.EXPORTERS_SETTING)));
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, clusterSettings);
     }
 

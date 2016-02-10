@@ -91,7 +91,8 @@ public class ExecutionServiceTests extends ESTestCase {
         watchLockService = mock(WatchLockService.class);
         WatcherSettingsValidation settingsValidator = mock(WatcherSettingsValidation.class);
         clock = new ClockMock();
-        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore, watchLockService, clock, settingsValidator);
+        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore,
+                watchLockService, clock, settingsValidator);
 
         ClusterState clusterState = mock(ClusterState.class);
         when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<TriggeredWatch>());

@@ -10,7 +10,6 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
@@ -20,6 +19,7 @@ import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -98,7 +98,7 @@ public class FileUserPasswdStore {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.users");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, "users");
+            return XPackPlugin.resolveConfigFile(env, "users");
         }
         return env.binFile().getParent().resolve(location);
     }
@@ -157,15 +157,16 @@ public class FileUserPasswdStore {
             String username = line.substring(0, i);
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
-                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(), validationError);
+                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
+                        validationError);
                 continue;
             }
             String hash = line.substring(i + 1);
             users.put(username, hash.toCharArray());
         }
 
-        if (users.isEmpty()){
-            logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
+        if (users.isEmpty()) {
+            logger.warn("no users found in users file [{}]. use bin/xpack/esusers to add users and role mappings", path.toAbsolutePath());
         }
         return unmodifiableMap(users);
     }

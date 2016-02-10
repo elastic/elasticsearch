@@ -71,14 +71,16 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
 
                 // this is for the `test-watcher-integration` group level integration in HipChat
-                .put("watcher.actions.slack.service.account.test_account.url", "https://hooks.slack.com/services/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")
+                .put("watcher.actions.slack.service.account.test_account.url",
+                        "https://hooks.slack.com/services/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")
                 .build();
     }
 
     public void testSendMessage() throws Exception {
         SlackService service = getInstanceFromMaster(SlackService.class);
         Attachment[] attachments = new Attachment[] {
-                new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext", "author_name", null, null, "title", null, "_text", null, null, null)
+                new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext", "author_name", null, null,
+                        "title", null, "_text", null, null, null)
         };
         SlackMessage message = new SlackMessage(
                 "SlackServiceTests",

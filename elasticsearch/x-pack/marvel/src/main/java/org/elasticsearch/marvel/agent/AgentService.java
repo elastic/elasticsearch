@@ -177,7 +177,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                             if (collecting) {
                                 Collection<MarvelDoc> docs = collector.collect();
                                 if (docs != null) {
-                                    logger.trace("bulk [{}] - adding [{}] collected docs from [{}] collector", bulk, docs.size(), collector.name());
+                                    logger.trace("bulk [{}] - adding [{}] collected docs from [{}] collector", bulk, docs.size(),
+                                            collector.name());
                                     bulk.add(docs);
                                 } else {
                                     logger.trace("bulk [{}] - skipping collected docs from [{}] collector", bulk, collector.name());

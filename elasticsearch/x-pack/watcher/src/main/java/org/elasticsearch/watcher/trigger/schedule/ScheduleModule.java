@@ -36,7 +36,8 @@ public class ScheduleModule extends AbstractModule {
 
     public static Class<? extends TriggerEngine> triggerEngineType(Settings nodeSettings) {
         Engine engine = Engine.resolve(nodeSettings);
-        Loggers.getLogger(ScheduleModule.class, nodeSettings).info("using [{}] schedule trigger engine", engine.name().toLowerCase(Locale.ROOT));
+        Loggers.getLogger(ScheduleModule.class, nodeSettings).info("using [{}] schedule trigger engine",
+                engine.name().toLowerCase(Locale.ROOT));
         return engine.engineType();
     }
 

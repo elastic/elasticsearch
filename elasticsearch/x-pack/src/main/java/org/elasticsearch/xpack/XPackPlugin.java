@@ -7,21 +7,22 @@ package org.elasticsearch.xpack;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.marvel.MarvelPlugin;
+import org.elasticsearch.license.plugin.Licensing;
+import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.shield.Shield;
+import org.elasticsearch.watcher.Watcher;
 
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -29,9 +30,7 @@ import java.util.Collection;
 
 public class XPackPlugin extends Plugin {
 
-    public static final String NAME = "x-pack";
-
-    private final static ESLogger logger = Loggers.getLogger(XPackPlugin.class);
+    public static final String NAME = "xpack";
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -64,17 +63,18 @@ public class XPackPlugin extends Plugin {
     }
 
     protected final Settings settings;
-    protected LicensePlugin licensePlugin;
-    protected ShieldPlugin shieldPlugin;
-    protected MarvelPlugin marvelPlugin;
-    protected WatcherPlugin watcherPlugin;
+
+    protected Licensing licensing;
+    protected Shield shield;
+    protected Marvel marvel;
+    protected Watcher watcher;
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
-        this.licensePlugin = new LicensePlugin(settings);
-        this.shieldPlugin = new ShieldPlugin(settings);
-        this.marvelPlugin = new MarvelPlugin(settings);
-        this.watcherPlugin = new WatcherPlugin(settings);
+        this.licensing = new Licensing(settings);
+        this.shield = new Shield(settings);
+        this.marvel = new Marvel(settings);
+        this.watcher = new Watcher(settings);
     }
 
     @Override public String name() {
@@ -88,59 +88,81 @@ public class XPackPlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
-        modules.addAll(licensePlugin.nodeModules());
-        modules.addAll(shieldPlugin.nodeModules());
-        modules.addAll(watcherPlugin.nodeModules());
-        modules.addAll(marvelPlugin.nodeModules());
+        modules.addAll(licensing.nodeModules());
+        modules.addAll(shield.nodeModules());
+        modules.addAll(watcher.nodeModules());
+        modules.addAll(marvel.nodeModules());
         return modules;
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        services.addAll(licensePlugin.nodeServices());
-        services.addAll(shieldPlugin.nodeServices());
-        services.addAll(watcherPlugin.nodeServices());
-        services.addAll(marvelPlugin.nodeServices());
+        services.addAll(licensing.nodeServices());
+        services.addAll(shield.nodeServices());
+        services.addAll(watcher.nodeServices());
+        services.addAll(marvel.nodeServices());
         return services;
     }
 
     @Override
     public Settings additionalSettings() {
         Settings.Builder builder = Settings.builder();
-        builder.put(licensePlugin.additionalSettings());
-        builder.put(shieldPlugin.additionalSettings());
-        builder.put(watcherPlugin.additionalSettings());
-        builder.put(marvelPlugin.additionalSettings());
+        builder.put(shield.additionalSettings());
+        builder.put(watcher.additionalSettings());
         return builder.build();
     }
 
     public void onModule(ScriptModule module) {
-        watcherPlugin.onModule(module);
+        watcher.onModule(module);
     }
 
     public void onModule(SettingsModule module) {
-        shieldPlugin.onModule(module);
-        marvelPlugin.onModule(module);
-        watcherPlugin.onModule(module);
-        licensePlugin.onModule(module);
+        shield.onModule(module);
+        marvel.onModule(module);
+        watcher.onModule(module);
+        licensing.onModule(module);
     }
 
     public void onModule(NetworkModule module) {
-        licensePlugin.onModule(module);
-        shieldPlugin.onModule(module);
-        watcherPlugin.onModule(module);
+        licensing.onModule(module);
+        shield.onModule(module);
+        watcher.onModule(module);
     }
 
     public void onModule(ActionModule module) {
-        licensePlugin.onModule(module);
-        shieldPlugin.onModule(module);
-        watcherPlugin.onModule(module);
+        licensing.onModule(module);
+        shield.onModule(module);
+        watcher.onModule(module);
     }
 
     public void onIndexModule(IndexModule module) {
-        shieldPlugin.onIndexModule(module);
-        watcherPlugin.onIndexModule(module);
-        marvelPlugin.onIndexModule(module);
+        shield.onIndexModule(module);
+    }
+
+    public static boolean transportClientMode(Settings settings) {
+        return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+    }
+
+    public static Path resolveConfigFile(Environment env, String name) {
+        return env.configFile().resolve(NAME).resolve(name);
+    }
+
+    /**
+     * A consistent way to enable disable features using the following setting:
+     *
+     *          {@code "xpack.<feature>.enabled": true | false}
+     *
+     *  Also supports the following setting as a fallback (for BWC with 1.x/2.x):
+     *
+     *          {@code "<feature>.enabled": true | false}
+     */
+    public static boolean featureEnabled(Settings settings, String featureName, boolean defaultValue) {
+        return settings.getAsBoolean(featureEnabledSetting(featureName),
+                settings.getAsBoolean(featureName + ".enabled", defaultValue)); // for bwc
+    }
+
+    public static String featureEnabledSetting(String featureName) {
+        return NAME + "." + featureName + ".enabled";
     }
 }

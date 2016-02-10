@@ -52,11 +52,13 @@ public class WatcherTemplateIT extends ESTestCase {
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Arrays.asList(
-                        new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES)
+                        new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
+                                MustacheScriptEngineService.TYPES)
                 )
         );
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
-        ScriptService scriptService = new ScriptService(setting, environment, engines, resourceWatcherService, scriptEngineRegistry, registry, scriptSettings);
+        ScriptService scriptService = new ScriptService(setting, environment, engines, resourceWatcherService, scriptEngineRegistry,
+                registry, scriptSettings);
         engine = new DefaultTextTemplateEngine(Settings.EMPTY, ScriptServiceProxy.of(scriptService));
     }
 

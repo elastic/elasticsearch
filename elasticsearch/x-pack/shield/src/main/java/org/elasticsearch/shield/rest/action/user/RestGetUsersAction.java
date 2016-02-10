@@ -21,7 +21,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.user.GetUsersResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest action to retrieve a user from the shield index
@@ -39,7 +39,7 @@ public class RestGetUsersAction extends BaseRestHandler {
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
         String[] users = Strings.splitStringByCommaToArray(request.param("username"));
 
-        new ShieldClient(client).prepareGetUsers().users(users).execute(new RestBuilderListener<GetUsersResponse>(channel) {
+        new SecurityClient(client).prepareGetUsers().users(users).execute(new RestBuilderListener<GetUsersResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetUsersResponse getUsersResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();

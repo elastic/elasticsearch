@@ -11,7 +11,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Watcher stats request builder.
  */
-public class WatcherStatsRequestBuilder extends MasterNodeReadOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder> {
+public class WatcherStatsRequestBuilder extends MasterNodeReadOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse,
+        WatcherStatsRequestBuilder> {
 
     public WatcherStatsRequestBuilder(ElasticsearchClient client) {
         super(client, WatcherStatsAction.INSTANCE, new WatcherStatsRequest());
@@ -21,6 +22,7 @@ public class WatcherStatsRequestBuilder extends MasterNodeReadOperationRequestBu
         request().includeCurrentWatches(includeCurrentWatches);
         return this;
     }
+
     public WatcherStatsRequestBuilder setIncludeQueuedWatches(boolean includeQueuedWatches) {
         request().includeQueuedWatches(includeQueuedWatches);
         return this;

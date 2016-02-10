@@ -16,7 +16,8 @@ import java.util.Collections;
 import java.util.List;
 
 @Singleton
-public class FoundLicensesService extends AbstractLifecycleComponent<FoundLicensesService> implements LicenseeRegistry, LicensesManagerService {
+public class FoundLicensesService extends AbstractLifecycleComponent<FoundLicensesService> implements LicenseeRegistry,
+        LicensesManagerService {
 
     @Inject
     public FoundLicensesService(Settings settings) {

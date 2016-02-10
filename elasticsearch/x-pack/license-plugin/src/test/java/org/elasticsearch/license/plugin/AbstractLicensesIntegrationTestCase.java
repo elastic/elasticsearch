@@ -23,9 +23,12 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
+import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -44,9 +47,9 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put("shield.enabled", false)
-                .put("marvel.enabled", false)
-                .put("watcher.enabled", false)
+                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
                 .build();
     }
 
@@ -92,7 +95,8 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     protected void putLicense(TimeValue expiryDuration) throws Exception {
         License license1 = generateSignedLicense(expiryDuration);
-        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(license1).get();
+        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster(),
+                PutLicenseAction.INSTANCE).setLicense(license1).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
     }
@@ -119,7 +123,8 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         assertConsumerPluginNotification(consumerPluginServices, state, timeoutInSec);
     }
 
-    protected void assertConsumerPluginNotification(final List<TestPluginServiceBase> consumerPluginServices, final LicenseState state, int timeoutInSec) throws InterruptedException {
+    protected void assertConsumerPluginNotification(final List<TestPluginServiceBase> consumerPluginServices, final LicenseState state,
+                                                    int timeoutInSec) throws InterruptedException {
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
         boolean success = awaitBusy(() -> {
             for (TestPluginServiceBase pluginService : consumerPluginServices) {

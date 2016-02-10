@@ -98,7 +98,8 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
 
         IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-        assertThat(indexStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indexStatsMarvelDoc.getClusterUUID(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(indexStatsMarvelDoc.getTimestamp(), greaterThan(0L));
         assertThat(indexStatsMarvelDoc.getType(), equalTo(IndexStatsCollector.TYPE));
         assertThat(indexStatsMarvelDoc.getSourceNode(), notNullValue());

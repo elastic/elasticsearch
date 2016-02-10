@@ -14,14 +14,14 @@ import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.marvel.MarvelPlugin;
+import org.elasticsearch.marvel.Marvel;
 
 
 public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> implements Licensee {
 
     @Inject
     public MarvelLicensee(Settings settings, LicenseeRegistry clientService) {
-        super(settings, MarvelPlugin.NAME, clientService);
+        super(settings, Marvel.NAME, clientService);
     }
 
     @Override

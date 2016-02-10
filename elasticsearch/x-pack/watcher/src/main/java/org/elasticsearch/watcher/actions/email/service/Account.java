@@ -114,8 +114,10 @@ public class Account {
                 // unprivileged code such as scripts do not have SpecialPermission
                 sm.checkPermission(new SpecialPermission());
             }
-            contextClassLoader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> Thread.currentThread().getContextClassLoader());
-            // if we cannot get the context class loader, changing does not make sense, as we run into the danger of not being able to change it back
+            contextClassLoader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () ->
+                    Thread.currentThread().getContextClassLoader());
+            // if we cannot get the context class loader, changing does not make sense, as we run into the danger of not being able to
+            // change it back
             if (contextClassLoader != null) {
                 setContextClassLoader(this.getClass().getClassLoader());
             }
@@ -160,7 +162,8 @@ public class Account {
             defaults = new EmailDefaults(name, settings.getAsSettings("email_defaults"));
             smtp = new Smtp(settings.getAsSettings(SMTP_PROTOCOL));
             if (smtp.host == null) {
-                throw new SettingsException("missing required email account setting for account [" + name + "]. 'smtp.host' must be configured");
+                String msg = "missing required email account setting for account [" + name + "]. 'smtp.host' must be configured";
+                throw new SettingsException(msg);
             }
         }
 

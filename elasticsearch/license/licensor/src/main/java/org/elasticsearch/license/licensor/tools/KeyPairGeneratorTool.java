@@ -75,7 +75,8 @@ public class KeyPairGeneratorTool extends CliTool {
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             KeyPair keyPair = generateKeyPair(privateKeyPath, publicKeyPath);
-            terminal.println(Terminal.Verbosity.VERBOSE, "generating key pair [public key: " + publicKeyPath + ", private key: " + privateKeyPath + "]");
+            terminal.println(Terminal.Verbosity.VERBOSE, "generating key pair [public key: " + publicKeyPath + ", private key: "
+                    + privateKeyPath + "]");
             return (keyPair != null) ? ExitStatus.OK : ExitStatus.CANT_CREATE;
         }
 

@@ -63,7 +63,8 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
 
         n = randomIntBetween(1, 2);
         logger.debug("--> starting {} client only nodes", n);
-        InternalTestCluster.Async<List<String>> clientNodes = internalCluster().startNodesAsync(n, settingsBuilder().put("node.client", true).build());
+        InternalTestCluster.Async<List<String>> clientNodes = internalCluster().startNodesAsync(n,
+                settingsBuilder().put("node.client", true).build());
         clientNodes.get();
         nodes += n;
 
@@ -101,7 +102,8 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
                     assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
                     for (String nodeName : internalCluster().getNodeNames()) {
-                        StringTerms.Bucket bucket = (StringTerms.Bucket) ((StringTerms) aggregation).getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
+                        StringTerms.Bucket bucket = (StringTerms.Bucket) ((StringTerms) aggregation)
+                                .getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
                         // At least 1 doc must exist per node, but it can be more than 1
                         // because the first node may have already collected many node stats documents
                         // whereas the last node just started to collect node stats.

@@ -97,7 +97,8 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
         }
 
         @Override
-        public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
+        public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
+                                                                              MetaData metaData) {
             // now... every index that is associated with the request, must be granted
             // by at least one indices permission group
 
@@ -167,7 +168,7 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
 
     }
 
-    public static class Globals implements IndicesPermission {
+    class Globals implements IndicesPermission {
 
         private final List<GlobalPermission> globals;
 
@@ -196,7 +197,8 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
         }
 
         @Override
-        public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData) {
+        public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
+                                                                              MetaData metaData) {
             if (isEmpty()) {
                 return emptyMap();
             }
@@ -204,7 +206,8 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
             // What this code does is just merge `IndexAccessControl` instances from the permissions this class holds:
             Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControl = null;
             for (GlobalPermission permission : globals) {
-                Map<String, IndicesAccessControl.IndexAccessControl> temp = permission.indices().authorize(action, requestedIndicesOrAliases, metaData);
+                Map<String, IndicesAccessControl.IndexAccessControl> temp = permission.indices().authorize(action,
+                        requestedIndicesOrAliases, metaData);
                 if (indicesAccessControl == null) {
                     indicesAccessControl = new HashMap<>(temp);
                 } else {
@@ -275,7 +278,7 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
         }
     }
 
-    public static class Group {
+    class Group {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
         private final String[] indices;

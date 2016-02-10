@@ -35,7 +35,8 @@ public class IndexRecoveryRendererTests extends ESTestCase {
         List<RecoveryState> shards = new ArrayList<>();
 
         // Shard 0
-        RecoveryState shard0 = new RecoveryState(new ShardId(indexName, "testUUID", 0), true, RecoveryState.Type.PRIMARY_RELOCATION, source, target);
+        RecoveryState shard0 = new RecoveryState(new ShardId(indexName, "testUUID", 0), true, RecoveryState.Type.PRIMARY_RELOCATION,
+                source, target);
         shards.add(shard0);
 
         // Shard 1

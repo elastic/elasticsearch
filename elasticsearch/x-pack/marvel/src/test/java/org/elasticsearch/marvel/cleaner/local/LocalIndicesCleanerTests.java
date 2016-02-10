@@ -52,8 +52,8 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
             @Override
             public void run() {
                 try {
-                    assertThat(client().admin().indices().prepareGetSettings(MarvelSettings.MARVEL_INDICES_PREFIX + "*").get().getIndexToSettings().size(),
-                            equalTo(count));
+                    assertThat(client().admin().indices().prepareGetSettings(MarvelSettings.MARVEL_INDICES_PREFIX + "*")
+                            .get().getIndexToSettings().size(), equalTo(count));
                 } catch (IndexNotFoundException e) {
                     if (shieldEnabled) {
                         assertThat(0, equalTo(count));

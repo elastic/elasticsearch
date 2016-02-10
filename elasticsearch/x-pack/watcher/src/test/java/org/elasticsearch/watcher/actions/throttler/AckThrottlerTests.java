@@ -45,7 +45,8 @@ public class AckThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_watch", EMPTY_PAYLOAD);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.ackStatus()).thenReturn(new ActionStatus.AckStatus(timestamp, ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        when(actionStatus.ackStatus()).thenReturn(new ActionStatus.AckStatus(timestamp,
+                ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         WatchStatus watchStatus = mock(WatchStatus.class);
         when(watchStatus.actionStatus("_action")).thenReturn(actionStatus);
         when(watch.status()).thenReturn(watchStatus);

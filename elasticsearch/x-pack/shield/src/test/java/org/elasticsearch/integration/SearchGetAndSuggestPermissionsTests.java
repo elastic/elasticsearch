@@ -19,8 +19,9 @@ import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
-import java.util.Collections;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
@@ -79,20 +80,22 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         Client client = internalCluster().transportClient();
 
-        SuggestResponse suggestResponse = client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("suggest_user", "passwd")))
+        Map<String, String> headers = singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("suggest_user", "passwd"));
+        SuggestResponse suggestResponse = client.filterWithHeader(headers)
                 .prepareSuggest("a")
                 .addSuggestion(SuggestBuilders.termSuggestion("name").field("name").text("val")).get();
         assertNoFailures(suggestResponse);
         assertThat(suggestResponse.getSuggest().size(), is(1));
 
-        suggestResponse = client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
+        suggestResponse = client
+                .filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
                 .prepareSuggest("a")
                 .addSuggestion(SuggestBuilders.termSuggestion("name").field("name").text("val")).get();
         assertNoFailures(suggestResponse);
         assertThat(suggestResponse.getSuggest().size(), is(1));
 
         try {
-            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("suggest_user", "passwd")))
+            client.filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("suggest_user", "passwd")))
                     .prepareSearch("a")
                     .get();
             fail("a user with only a suggest privilege cannot execute search");
@@ -117,7 +120,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
         Client client = internalCluster().transportClient();
 
         try {
-            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
+            client.filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
                     .prepareGet("a", "type", indexResponse.getId())
                     .get();
             fail("a user with only search privilege should not be authorized for a get request");
@@ -142,7 +145,8 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         Client client = internalCluster().transportClient();
 
-        MultiGetResponse response = client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("get_user", "passwd")))
+        MultiGetResponse response = client
+                .filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("get_user", "passwd")))
                 .prepareMultiGet().add("a", "type", indexResponse.getId())
                 .get();
         assertNotNull(response);
@@ -150,7 +154,7 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
         assertThat(response.getResponses()[0].getId(), equalTo(indexResponse.getId()));
 
         try {
-            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
+            client.filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
                     .prepareMultiGet().add("a", "type", indexResponse.getId())
                     .get();
             fail("a user with only a search privilege should not be able to execute the mget API");
@@ -175,7 +179,8 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
 
         Client client = internalCluster().transportClient();
 
-        MultiSearchResponse response = client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
+        MultiSearchResponse response = client
+                .filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
                 .prepareMultiSearch().add(searchRequest("a").types("type"))
                 .get();
         assertNotNull(response);

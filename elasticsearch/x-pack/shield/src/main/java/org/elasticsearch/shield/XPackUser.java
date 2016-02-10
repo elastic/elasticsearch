@@ -68,6 +68,11 @@ public class XPackUser extends User {
         return INSTANCE == o;
     }
 
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
+
     public static boolean is(User user) {
         return INSTANCE.equals(user);
     }

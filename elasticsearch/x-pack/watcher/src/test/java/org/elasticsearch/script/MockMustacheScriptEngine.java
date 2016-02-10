@@ -5,15 +5,13 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.lookup.SearchLookup;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A mock script engine that registers itself under the 'mustache' name so that {@link org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine}
+ * A mock script engine that registers itself under the 'mustache' name so that
+ * {@link org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine}
  * uses it and adds validation that watcher tests don't rely on mustache templating/
  */
 public class MockMustacheScriptEngine extends MockScriptEngine {
@@ -28,7 +26,8 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMustacheScriptEngine.class, Collections.singletonList(NAME)));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMustacheScriptEngine.class,
+                    Collections.singletonList(NAME)));
         }
 
     }

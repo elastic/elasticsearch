@@ -43,10 +43,12 @@ public class IntegrationAccount extends HipChatAccount {
         super(name, Profile.INTEGRATION, settings, defaultServer, httpClient, logger);
         String[] rooms = settings.getAsArray(ROOM_SETTING, null);
         if (rooms == null || rooms.length == 0) {
-            throw new SettingsException("invalid hipchat account [" + name + "]. missing required [" + ROOM_SETTING + "] setting for [" + TYPE + "] account profile");
+            throw new SettingsException("invalid hipchat account [" + name + "]. missing required [" + ROOM_SETTING + "] setting for [" +
+                    TYPE + "] account profile");
         }
         if (rooms.length > 1) {
-            throw new SettingsException("invalid hipchat account [" + name + "]. [" + ROOM_SETTING + "] setting for [" + TYPE + "] account must only be set with a single value");
+            throw new SettingsException("invalid hipchat account [" + name + "]. [" + ROOM_SETTING + "] setting for [" + TYPE + "] " +
+                    "account must only be set with a single value");
         }
         this.room = rooms[0];
         defaults = new Defaults(settings);
@@ -60,18 +62,22 @@ public class IntegrationAccount extends HipChatAccount {
     @Override
     public void validateParsedTemplate(String watchId, String actionId, HipChatMessage.Template template) throws SettingsException {
         if (template.rooms != null) {
-            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "] action. [" + name + "] hipchat account doesn't support custom rooms");
+            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "] " +
+                    "action. [" + name + "] hipchat account doesn't support custom rooms");
         }
         if (template.users != null) {
-            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "] action. [" + name + "] hipchat account doesn't support user private messages");
+            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "] " +
+                    "action. [" + name + "] hipchat account doesn't support user private messages");
         }
         if (template.from != null) {
-            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "] action. [" + name + "] hipchat account doesn't support custom `from` fields");
+            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "] " +
+                    "action. [" + name + "] hipchat account doesn't support custom `from` fields");
         }
     }
 
     @Override
-    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model) {
+    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template,
+                                 Map<String, Object> model) {
         String message = engine.render(template.body, model);
         Color color = template.color != null ? Color.resolve(engine.render(template.color, model), defaults.color) : defaults.color;
         Boolean notify = template.notify != null ? template.notify : defaults.notify;
@@ -85,10 +91,12 @@ public class IntegrationAccount extends HipChatAccount {
         HttpRequest request = buildRoomRequest(room, message);
         try {
             HttpResponse response = httpClient.execute(request);
-            sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request, response));
+            sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request,
+                    response));
         } catch (Exception e) {
             logger.error("failed to execute hipchat api http request", e);
-            sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message, ExceptionsHelper.detailedMessage(e)));
+            sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message,
+                    ExceptionsHelper.detailedMessage(e)));
         }
         return new SentMessages(name, sentMessages);
     }

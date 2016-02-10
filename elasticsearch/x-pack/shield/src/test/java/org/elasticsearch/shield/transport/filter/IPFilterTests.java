@@ -76,7 +76,8 @@ public class IPFilterTests extends ESTestCase {
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         Map<String, BoundTransportAddress> profileBoundAddresses = Collections.singletonMap("client",
-                new BoundTransportAddress(new TransportAddress[]{ new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500) }, address));
+                new BoundTransportAddress(new TransportAddress[]{ new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500) },
+                        address));
         when(transport.profileBoundAddresses()).thenReturn(profileBoundAddresses);
     }
 
@@ -198,7 +199,8 @@ public class IPFilterTests extends ESTestCase {
 
         Settings settings;
         if (randomBoolean()) {
-            settings = settingsBuilder().putArray("shield.transport.filter.deny", addressStrings.toArray(new String[addressStrings.size()])).build();
+            settings = settingsBuilder().putArray("shield.transport.filter.deny",
+                    addressStrings.toArray(new String[addressStrings.size()])).build();
         } else {
             settings = settingsBuilder().put("shield.transport.filter.deny", "_all").build();
         }

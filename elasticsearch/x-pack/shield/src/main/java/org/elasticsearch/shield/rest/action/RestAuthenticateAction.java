@@ -27,8 +27,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAuthenticateAction extends BaseRestHandler {
 
     private final AuthenticationService authenticationService;
+
     @Inject
-    public RestAuthenticateAction(Settings settings, RestController controller, Client client, AuthenticationService authenticationService) {
+    public RestAuthenticateAction(Settings settings, RestController controller, Client client,
+                                  AuthenticationService authenticationService) {
         super(settings, client);
         this.authenticationService = authenticationService;
         controller.registerHandler(GET, "/_shield/authenticate", this);

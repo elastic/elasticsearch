@@ -15,7 +15,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 /**
  * A request interceptor that fails update request if field or document level security is enabled.
- *
+ * <p>
  * It can be dangerous for users if document where to be update via a role that has fls or dls enabled,
  * because only the fields that a role can see would be used to perform the update and without knowing the user may
  * remove the other fields, not visible for him, from the document being updated.
@@ -29,7 +29,8 @@ public class UpdateRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     protected void disableFeatures(UpdateRequest updateRequest) {
-        throw new ElasticsearchSecurityException("Can't execute an update request if field or document level security is enabled", RestStatus.BAD_REQUEST);
+        throw new ElasticsearchSecurityException("Can't execute an update request if field or document level security is enabled",
+                RestStatus.BAD_REQUEST);
     }
 
     @Override

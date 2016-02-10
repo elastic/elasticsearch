@@ -121,12 +121,14 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         LocalExporter exporter = getLocalExporter("_local");
 
         // first lets test that the index resolver works with time
-        String indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
+        String indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" +
+                DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
         assertThat(exporter.indexNameResolver().resolve(time), equalTo(indexName));
 
         // now lets test that the index name resolver works with a doc
         MarvelDoc doc = newRandomMarvelDoc();
-        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" +
+                DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
         assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
         logger.debug("--> exporting a random marvel document");
@@ -137,10 +139,12 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         timeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
         updateClusterSettings(Settings.builder().put("marvel.agent.exporters._local.index.name.time_format", timeFormat));
         exporter = getLocalExporter("_local"); // we need to get it again.. as it was rebuilt
-        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" +
+                DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
         assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
-        logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]", timeFormat, indexName);
+        logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]",
+                timeFormat, indexName);
         exporter.export(Collections.singletonList(doc));
         awaitIndexExists(indexName);
     }

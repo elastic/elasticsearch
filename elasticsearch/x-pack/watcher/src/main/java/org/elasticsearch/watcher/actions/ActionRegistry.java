@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  */
-public class ActionRegistry  {
+public class ActionRegistry {
 
     private final Map<String, ActionFactory> parsers;
     private final TransformRegistry transformRegistry;
@@ -28,7 +28,8 @@ public class ActionRegistry  {
     private final WatcherLicensee watcherLicensee;
 
     @Inject
-    public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry, Clock clock, WatcherLicensee watcherLicensee) {
+    public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry, Clock clock,
+                          WatcherLicensee watcherLicensee) {
         this.parsers = parsers;
         this.transformRegistry = transformRegistry;
         this.clock = clock;
@@ -41,7 +42,8 @@ public class ActionRegistry  {
 
     public ExecutableActions parseActions(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse actions for watch [{}]. expected an object but found [{}] instead", watchId, parser.currentToken());
+            throw new ElasticsearchParseException("could not parse actions for watch [{}]. expected an object but found [{}] instead",
+                    watchId, parser.currentToken());
         }
         List<ActionWrapper> actions = new ArrayList<>();
 

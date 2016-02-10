@@ -70,7 +70,8 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
                 .get();
 
         for (int seconds = 0; seconds < 60; seconds += 5) {
-            client().prepareIndex(".marvel", "cluster_stats").setTimestamp("2005-01-01T00:00:" + String.format(Locale.ROOT, "%02d", seconds)).setSource("status", randomFrom("green", "yellow")).get();
+            client().prepareIndex(".marvel", "cluster_stats").setTimestamp("2005-01-01T00:00:" +
+                    String.format(Locale.ROOT, "%02d", seconds)).setSource("status", randomFrom("green", "yellow")).get();
         }
 
         refresh();
@@ -78,7 +79,8 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
         SearchRequestBuilder builder = client().prepareSearch(".marvel")
                 .addAggregation(
                         AggregationBuilders
-                                .dateHistogram("minutes").field("_timestamp").interval(TimeUnit.MILLISECONDS.convert(5, TimeUnit.SECONDS)).order(Histogram.Order.COUNT_DESC)
+                                .dateHistogram("minutes").field("_timestamp").interval(TimeUnit.MILLISECONDS.convert(5, TimeUnit.SECONDS))
+                                .order(Histogram.Order.COUNT_DESC)
                                 .subAggregation(AggregationBuilders.terms("status").field("status").size(3)));
         SearchResponse unmetResponse = builder.get();
 
@@ -98,7 +100,8 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
         assertFalse(condition.execute(unmetContext).met());
 
         for (int seconds = 0; seconds < 60; seconds += 5) {
-            client().prepareIndex(".marvel", "cluster_stats").setTimestamp("2005-01-01T00:01:" + String.format(Locale.ROOT, "%02d", seconds)).setSource("status", randomFrom("red")).get();
+            client().prepareIndex(".marvel", "cluster_stats").setTimestamp("2005-01-01T00:01:" +
+                    String.format(Locale.ROOT, "%02d", seconds)).setSource("status", randomFrom("red")).get();
         }
 
         refresh();

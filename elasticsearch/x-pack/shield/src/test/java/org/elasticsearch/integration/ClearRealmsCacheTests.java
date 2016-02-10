@@ -21,7 +21,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -106,7 +106,8 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache", Collections.<String, String>emptyMap());
+                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
+                        Collections.<String, String>emptyMap());
             }
         },
 
@@ -139,11 +140,11 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         public abstract void executeRequest() throws Exception;
 
         static void executeTransportRequest(ClearRealmCacheRequest request) throws Exception {
-            ShieldClient shieldClient = new ShieldClient(client());
+            SecurityClient securityClient = securityClient(client());
 
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
-            shieldClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+            securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
                     assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));
@@ -175,7 +176,9 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
                 for (Map.Entry<String, String> entry : params.entrySet()) {
                     requestBuilder.addParam(entry.getKey(), entry.getValue());
                 }
-                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
                 HttpResponse response = requestBuilder.execute();
                 assertThat(response.hasBody(), is(true));
                 String body = response.getBody();

@@ -8,10 +8,11 @@ package org.elasticsearch.integration;
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,7 @@ import static org.hamcrest.Matchers.is;
 
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
+@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false)
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\"}";
@@ -94,8 +96,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "u11:" + USERS_PASSWD_HASHED + "\n" +
             "u12:" + USERS_PASSWD_HASHED + "\n" +
             "u13:" + USERS_PASSWD_HASHED + "\n" +
-            "u14:" + USERS_PASSWD_HASHED + "\n" +
-            "u15:" + USERS_PASSWD_HASHED + "\n";
+            "u14:" + USERS_PASSWD_HASHED + "\n";
 
     public static final String USERS_ROLES =
             "all_indices_role:admin,u8\n" +
@@ -120,7 +121,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("action.disable_shutdown", true)
                 .build();
     }
 
@@ -137,6 +137,17 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() + USERS_ROLES;
+    }
+
+    // we reduce the number of shards and replicas to help speed up this test since that is not the focus of this test
+    @Override
+    public int maximumNumberOfReplicas() {
+        return 1;
+    }
+
+    @Override
+    public int maximumNumberOfShards() {
+        return 2;
     }
 
     @Before
@@ -296,24 +307,13 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u14", "all", "c");
     }
 
-    public void testUserU15() throws Exception {
-        //u15 has access to manage and search a, so that adding warmer templates work
-        assertUserIsAllowed("u15", "manage", "a");
-        assertUserIsAllowed("u15", "search", "a");
-        assertAccessIsAllowed("u15", "PUT", "/a/_warmer/w1", "{ \"query\" : { \"match_all\" : {} } }");
-        assertAccessIsAllowed("u15", "DELETE", "/a/_warmer/w1");
-
-        assertUserIsDenied("u15", "all", "b");
-        assertUserIsDenied("u15", "all", "c");
-    }
-
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
         HttpResponse response = executeRequest("idonotexist", "GET", "/", null, new HashMap<>());
         assertThat(response.getStatusCode(), is(401));
     }
 
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {
-        Map<String, String> refreshParams = singletonMap("refresh", "true");
+        Map<String, String> refreshParams = Collections.emptyMap();//singletonMap("refresh", "true");
 
         switch (action) {
             case "all" :
@@ -353,10 +353,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc, refreshParams);
                     client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/foo/field/name");
-                    // putting warmers only works if the user is allowed to search as well, as the query gets validated, added an own test for this
-                    assertAccessIsAllowed("admin", "PUT", "/" + index + "/_warmer/w1", "{ \"query\" : { \"match_all\" : {} } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_warmer/w1");
-                    assertAccessIsAllowed(user, "DELETE", "/" + index + "/_warmer/w1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
                 } else {
                     assertAccessIsDenied(user, "DELETE", "/" + index);
@@ -371,9 +367,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsDenied(user, "POST", "/" + index + "/_open");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_cache/clear");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_mapping/foo/field/name");
-                    assertAccessIsDenied(user, "PUT", "/" + index + "/_warmer/w1", "{ \"query\" : { \"match_all\" : {} } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_warmer/w1");
-                    assertAccessIsDenied(user, "DELETE", "/" + index + "/_warmer/w1");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_settings");
                 }
                 break;
@@ -418,11 +411,15 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvector");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsAllowed(user, "GET",
+                            "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
+                    assertAccessIsAllowed(user, "GET",
+                            "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsAllowed(user, "GET",
+                            "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
 
-                    StringBuilder multiPercolate = new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
+                    StringBuilder multiPercolate =
+                            new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
                     multiPercolate.append("{\"doc\" : {\"message\" : \"some text\"}}\n");
                     multiPercolate.append("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\", \"id\" : \"1\"}}\n");
                     multiPercolate.append("{}\n");
@@ -435,11 +432,15 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvector");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
 
-                    StringBuilder multiPercolate = new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
+                    StringBuilder multiPercolate =
+                            new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
                     multiPercolate.append("{\"doc\" : {\"message\" : \"some text\"}}\n");
                     multiPercolate.append("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\", \"id\" : \"1\"}}\n");
                     multiPercolate.append("{}\n");
@@ -452,12 +453,16 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             case "search" :
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_search");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", \"term\" : { \"field\" : \"name\" } } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", " +
+                            "\"term\" : { \"field\" : \"name\" } } }");
+                    assertAccessIsAllowed(user,
+                            "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_search");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", \"term\" : { \"field\" : \"name\" } } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", " +
+                            "\"term\" : { \"field\" : \"name\" } } }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
                 }
                 break;
 
@@ -496,11 +501,13 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "index", index);
                     assertUserIsAllowed(user, "delete", index);
-                    assertAccessIsAllowed(user, "PUT", "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                    assertAccessIsAllowed(user, "PUT",
+                            "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
                 } else {
                     assertUserIsDenied(user, "index", index);
                     assertUserIsDenied(user, "delete", index);
-                    assertAccessIsDenied(user, "PUT", "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                    assertAccessIsDenied(user,
+                            "PUT", "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
                 }
                 break;
 

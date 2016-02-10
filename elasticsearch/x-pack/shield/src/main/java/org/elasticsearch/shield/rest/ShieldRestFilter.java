@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.rest;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -26,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
-
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 
@@ -48,8 +46,10 @@ public class ShieldRestFilter extends RestFilter {
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();
         controller.registerFilter(this);
-        boolean ssl = settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT);
-        extractClientCertificate = ssl && SSLClientAuth.parse(settings.get(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING), ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT).enabled();
+        boolean ssl = settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING,
+                ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT);
+        extractClientCertificate = ssl && SSLClientAuth.parse(settings.get(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING),
+                ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT).enabled();
         logger = Loggers.getLogger(getClass(), settings);
     }
 

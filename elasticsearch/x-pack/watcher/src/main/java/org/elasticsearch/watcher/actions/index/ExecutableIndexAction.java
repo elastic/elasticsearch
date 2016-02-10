@@ -79,7 +79,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         indexRequest.source(jsonBuilder().prettyPrint().map(data));
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Result.Simulated(indexRequest.index(), action.docType, new XContentSource(indexRequest.source(), XContentType.JSON));
+            return new IndexAction.Result.Simulated(indexRequest.index(), action.docType, new XContentSource(indexRequest.source(),
+                    XContentType.JSON));
         }
 
         IndexResponse response = client.index(indexRequest, timeout);

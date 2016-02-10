@@ -11,7 +11,6 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.support.NoOpLogger;
@@ -19,6 +18,7 @@ import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -91,7 +91,7 @@ public class FileUserRolesStore {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.users_roles");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, "users_roles");
+            return XPackPlugin.resolveConfigFile(env, "users_roles");
         }
         return env.binFile().getParent().resolve(location);
     }
@@ -148,17 +148,20 @@ public class FileUserRolesStore {
             String role = line.substring(0, i).trim();
             Validation.Error validationError = Validation.Roles.validateRoleName(role);
             if (validationError != null) {
-                logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",  path.toAbsolutePath(), lineNr, validationError);
+                logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...", path.toAbsolutePath(), lineNr,
+                        validationError);
                 continue;
             }
             String usersStr = line.substring(i + 1).trim();
             if (Strings.isEmpty(usersStr)) {
-                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
+                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role,
+                        path.toAbsolutePath(), lineNr);
                 continue;
             }
             String[] roleUsers = USERS_DELIM.split(usersStr);
             if (roleUsers.length == 0) {
-                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
+                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role,
+                        path.toAbsolutePath(), lineNr);
                 continue;
             }
 
@@ -177,8 +180,9 @@ public class FileUserRolesStore {
             usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
-        if (usersRoles.isEmpty()){
-            logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
+        if (usersRoles.isEmpty()) {
+            logger.warn("no entries found in users_roles file [{}]. use bin/xpack/esusers to add users and role mappings", path
+                    .toAbsolutePath());
         }
 
         return unmodifiableMap(usersRoles);
@@ -202,7 +206,8 @@ public class FileUserRolesStore {
 
         try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
             for (Map.Entry<String, List<String>> entry : roleToUsers.entrySet()) {
-                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()), System.lineSeparator());
+                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()),
+                        System.lineSeparator());
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);

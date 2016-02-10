@@ -26,7 +26,8 @@ public enum LdapLoadBalancing {
 
     FAILOVER() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory, @Nullable LDAPConnectionOptions options) {
+        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+                                 @Nullable LDAPConnectionOptions options) {
             FailoverServerSet serverSet = new FailoverServerSet(addresses, ports, socketFactory, options);
             serverSet.setReOrderOnFailover(true);
             return serverSet;
@@ -35,14 +36,16 @@ public enum LdapLoadBalancing {
 
     ROUND_ROBIN() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory, @Nullable LDAPConnectionOptions options) {
+        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+                                 @Nullable LDAPConnectionOptions options) {
             return new RoundRobinServerSet(addresses, ports, socketFactory, options);
         }
     },
 
     DNS_ROUND_ROBIN() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory, @Nullable LDAPConnectionOptions options) {
+        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+                                 @Nullable LDAPConnectionOptions options) {
             if (addresses.length != 1) {
                 throw new IllegalArgumentException(toString() + " can only be used with a single url");
             }
@@ -57,7 +60,8 @@ public enum LdapLoadBalancing {
 
     DNS_FAILOVER() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory, @Nullable LDAPConnectionOptions options) {
+        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+                                 @Nullable LDAPConnectionOptions options) {
             if (addresses.length != 1) {
                 throw new IllegalArgumentException(toString() + " can only be used with a single url");
             }
@@ -74,14 +78,16 @@ public enum LdapLoadBalancing {
     public static final String LOAD_BALANCE_TYPE_SETTING = "type";
     public static final String LOAD_BALANCE_TYPE_DEFAULT = LdapLoadBalancing.FAILOVER.toString();
 
-    abstract ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory, @Nullable LDAPConnectionOptions options);
+    abstract ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+                                      @Nullable LDAPConnectionOptions options);
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ENGLISH);
     }
 
-    public static ServerSet serverSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory, @Nullable LDAPConnectionOptions options) {
+    public static ServerSet serverSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+                                      @Nullable LDAPConnectionOptions options) {
         Settings loadBalanceSettings = settings.getAsSettings(LOAD_BALANCE_SETTINGS);
         String type = loadBalanceSettings.get(LOAD_BALANCE_TYPE_SETTING, LOAD_BALANCE_TYPE_DEFAULT);
         switch (type.toLowerCase(Locale.ENGLISH)) {
@@ -94,7 +100,8 @@ public enum LdapLoadBalancing {
             case "dns_round_robin":
                 return DNS_ROUND_ROBIN.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
             default:
-                throw new IllegalArgumentException("unknown server set type [" + type + "]. value must be one of " + Arrays.toString(LdapLoadBalancing.values()));
+                throw new IllegalArgumentException("unknown server set type [" + type + "]. value must be one of " +
+                        Arrays.toString(LdapLoadBalancing.values()));
         }
     }
 }

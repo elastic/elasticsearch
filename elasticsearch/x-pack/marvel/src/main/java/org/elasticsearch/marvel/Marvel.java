@@ -23,7 +23,6 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -33,30 +32,29 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class MarvelPlugin extends Plugin {
+public class Marvel {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
     public static final String NAME = "marvel";
-    public static final String ENABLED = NAME + ".enabled";
-    public static final Setting<String> INDEX_MARVEL_VERSION_SETTING = new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
-    public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING = new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_MARVEL_VERSION_SETTING =
+            new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING =
+            new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
     public static final String TRIBE_NAME_SETTING = "tribe.name";
 
     private final Settings settings;
     private final boolean enabled;
 
-    public MarvelPlugin(Settings settings) {
+    public Marvel(Settings settings) {
         this.settings = settings;
-        this.enabled = marvelEnabled(settings);
+        this.enabled = enabled(settings);
     }
 
-    @Override
     public String name() {
         return NAME;
     }
 
-    @Override
     public String description() {
         return "Elasticsearch Marvel";
     }
@@ -65,7 +63,6 @@ public class MarvelPlugin extends Plugin {
         return enabled;
     }
 
-    @Override
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
 
@@ -79,9 +76,8 @@ public class MarvelPlugin extends Plugin {
         return Collections.unmodifiableList(modules);
     }
 
-    @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (!enabled) {
+        if (enabled == false) {
             return Collections.emptyList();
         }
         return Arrays.<Class<? extends LifecycleComponent>>asList(MarvelLicensee.class,
@@ -89,13 +85,14 @@ public class MarvelPlugin extends Plugin {
                 CleanerService.class);
     }
 
-    public static boolean marvelEnabled(Settings settings) {
-        if (!"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()))) {
+    public static boolean enabled(Settings settings) {
+        if ("node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false) {
             logger.trace("marvel cannot be started on a transport client");
             return false;
         }
         // By default, marvel is disabled on tribe nodes
-        return settings.getAsBoolean(ENABLED, !isTribeNode(settings) && !isTribeClientNode(settings));
+        return settings.getAsBoolean(XPackPlugin.featureEnabledSetting(Marvel.NAME),
+                !isTribeNode(settings) && !isTribeClientNode(settings));
     }
 
     static boolean isTribeNode(Settings settings) {
@@ -132,7 +129,7 @@ public class MarvelPlugin extends Plugin {
         // TODO convert these settings to where they belong
         module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.password", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.path", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting("marvel.enabled", false, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Marvel.NAME), true, false, Setting.Scope.CLUSTER));
         module.registerSettingsFilter("marvel.agent.exporters.*.auth.password");
     }
 }

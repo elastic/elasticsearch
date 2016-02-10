@@ -299,7 +299,8 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
                     @Override
                     public void run() {
                         GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_id").get();
-                        assertThat(getWatchResponse.getStatus().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
+                        assertThat(getWatchResponse.getStatus().actionStatus("log").ackStatus().state(),
+                                equalTo(ActionStatus.AckStatus.State.ACKABLE));
                     }
                 });
             }

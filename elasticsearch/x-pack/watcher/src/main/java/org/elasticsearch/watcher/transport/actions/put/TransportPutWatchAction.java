@@ -32,9 +32,11 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   WatcherService watcherService, WatcherLicensee watcherLicensee) {
-        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, PutWatchRequest::new);
+                                   ThreadPool threadPool, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
+                                   WatcherLicensee watcherLicensee) {
+        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                watcherLicensee, PutWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -49,14 +51,16 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     }
 
     @Override
-    protected void masterOperation(PutWatchRequest request, ClusterState state, ActionListener<PutWatchResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(PutWatchRequest request, ClusterState state, ActionListener<PutWatchResponse> listener) throws
+            ElasticsearchException {
         if (!watcherLicensee.isPutWatchAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(WatcherLicensee.ID));
             return;
         }
 
         try {
-            IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(), request.isActive());
+            IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(),
+                    request.isActive());
             listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated()));
         } catch (Exception e) {
             listener.onFailure(e);

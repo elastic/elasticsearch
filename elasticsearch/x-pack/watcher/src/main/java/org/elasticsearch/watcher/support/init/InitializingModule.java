@@ -24,7 +24,8 @@ public class InitializingModule extends AbstractModule {
         bind(ScriptServiceProxy.class).asEagerSingleton();
         bind(ChainInputFactory.class).asEagerSingleton();
 
-        Multibinder<InitializingService.Initializable> mbinder = Multibinder.newSetBinder(binder(), InitializingService.Initializable.class);
+        Multibinder<InitializingService.Initializable> mbinder = Multibinder.newSetBinder(binder(),
+                InitializingService.Initializable.class);
         mbinder.addBinding().to(ClientProxy.class);
         mbinder.addBinding().to(ScriptServiceProxy.class);
         mbinder.addBinding().to(ChainTransformFactory.class);

@@ -21,9 +21,10 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
 
     @Inject
     public TransportDeleteUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                  ESNativeUsersStore usersStore, TransportService transportService) {
-        super(settings, DeleteUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, DeleteUserRequest::new);
+                                     IndexNameExpressionResolver indexNameExpressionResolver, ESNativeUsersStore usersStore,
+                                     TransportService transportService) {
+        super(settings, DeleteUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                DeleteUserRequest::new);
         this.usersStore = usersStore;
     }
 

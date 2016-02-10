@@ -75,7 +75,8 @@ public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessa
         final @Nullable HttpResponse response;
         final @Nullable String failureReason;
 
-        public static SentMessage responded(String targetName, TargetType targetType, HipChatMessage message, HttpRequest request, HttpResponse response) {
+        public static SentMessage responded(String targetName, TargetType targetType, HipChatMessage message, HttpRequest request,
+                                            HttpResponse response) {
             String failureReason = resolveFailureReason(response);
             return new SentMessage(targetName, targetType, message, request, response, failureReason);
         }
@@ -84,7 +85,8 @@ public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessa
             return new SentMessage(targetName, targetType, message, null, null, reason);
         }
 
-        private SentMessage(String targetName, TargetType targetType, HipChatMessage message, HttpRequest request, HttpResponse response, String failureReason) {
+        private SentMessage(String targetName, TargetType targetType, HipChatMessage message, HttpRequest request, HttpResponse response,
+                            String failureReason) {
             this.targetName = targetName;
             this.targetType = targetType;
             this.message = message;

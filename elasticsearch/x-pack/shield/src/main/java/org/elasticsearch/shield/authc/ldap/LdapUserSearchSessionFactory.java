@@ -65,7 +65,8 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
             connectionPool = createConnectionPool(config, serverSet, timeout, logger);
             // if it is still null throw an exception
             if (connectionPool == null) {
-                throw new IOException("failed to create a connection pool for realm [" + config.name() + "] as no LDAP servers are available");
+                String msg = "failed to create a connection pool for realm [" + config.name() + "] as no LDAP servers are available";
+                throw new IOException(msg);
             }
         }
 
@@ -84,13 +85,16 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
                 String entryDn = settings.get("user_search.pool.health_check.dn", (bindRequest == null) ? null : bindRequest.getBindDN());
                 if (entryDn == null) {
                     pool.close();
-                    throw new IllegalArgumentException("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false");
+                    throw new IllegalArgumentException("[bind_dn] has not been specified so a value must be specified for [user_search" +
+                            ".pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false");
                 }
-                long healthCheckInterval = settings.getAsTime("user_search.pool.health_check.interval", DEFAULT_HEALTH_CHECK_INTERVAL).millis();
+                long healthCheckInterval = settings.getAsTime("user_search.pool.health_check.interval", DEFAULT_HEALTH_CHECK_INTERVAL)
+                        .millis();
                 // Checks the status of the LDAP connection at a specified interval in the background. We do not check on
                 // on create as the LDAP server may require authentication to get an entry. We do not check on checkout
                 // as we always set retry operations and the pool will handle a bad connection without the added latency on every operation
-                GetEntryLDAPConnectionPoolHealthCheck healthCheck = new GetEntryLDAPConnectionPoolHealthCheck(entryDn, timeout.millis(), false, false, false, true, false);
+                GetEntryLDAPConnectionPoolHealthCheck healthCheck = new GetEntryLDAPConnectionPoolHealthCheck(entryDn, timeout.millis(),
+                        false, false, false, true, false);
                 pool.setHealthCheck(healthCheck);
                 pool.setHealthCheckIntervalMillis(healthCheckInterval);
             }
@@ -141,12 +145,14 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     private String findUserDN(String user) throws Exception {
-        SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
+        SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user))
+                , Strings.EMPTY_ARRAY);
         request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
         LDAPConnectionPool connectionPool = connectionPool();
         SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
         if (entry == null) {
-            throw Exceptions.authenticationError("failed to find user [{}] with search base [{}] scope [{}]", user, userSearchBaseDn, scope.toString().toLowerCase(Locale.ENGLISH));
+            throw Exceptions.authenticationError("failed to find user [{}] with search base [{}] scope [{}]", user, userSearchBaseDn,
+                    scope.toString().toLowerCase(Locale.ENGLISH));
         }
         return entry.getDN();
     }

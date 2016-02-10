@@ -48,7 +48,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     public Set<String> resolve(User user, String action, TransportRequest request, MetaData metaData) {
 
         boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
-        assert isIndicesRequest : "Request [" + request + "] is not an Indices request. The only requests passing the action matcher should be IndicesRequests";
+        assert isIndicesRequest : "Request [" + request + "] is not an Indices request, but should be.";
 
         // if for some reason we are missing an action... just for safety we'll reject
         if (!isIndicesRequest) {
@@ -71,15 +71,18 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
             if (indicesRequest instanceof IndicesRequest.Replaceable) {
                 List<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-                List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
+                List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(),
+                        metaData, authorizedIndices);
                 ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
             } else {
                 assert !containsWildcards(indicesRequest) :
                         "There are no external requests known to support wildcards that don't support replacing their indices";
 
-                //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing their indices.
+                //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing
+                // their indices.
                 //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-                //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for shard level requests.
+                //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
+                // shard level requests.
             }
         }
 
@@ -91,7 +94,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(), loadAuthorizedAliases(authorizedIndices, metaData));
+                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(), loadAuthorizedAliases
+                        (authorizedIndices, metaData));
                 aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
             }
             Collections.addAll(indices, aliasesRequest.aliases());
@@ -159,7 +163,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         return false;
     }
 
-    private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData, List<String> authorizedIndices) {
+    private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData,
+                                                               List<String> authorizedIndices) {
 
         if (IndexNameExpressionResolver.isAllIndices(indicesList(indices))) {
             List<String> visibleIndices = new ArrayList<>();
@@ -208,7 +213,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                     }
                 }
             } else {
-                //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on ignore_unavailable).
+                //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on
+                // ignore_unavailable).
                 //Do nothing as if the index is missing but the user is not authorized to it an AuthorizationException will be thrown.
                 //If the index is missing and the user is authorized to it, core will throw IndexNotFoundException later on.
                 //There is no problem with deferring this as we are dealing with an explicit name, not with wildcards.
@@ -230,7 +236,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         //If we can't replace because we got an empty set, we can only throw exception.
         //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
         if (resolvedIndices == null || resolvedIndices.isEmpty()) {
-            String indexName = IndexNameExpressionResolver.isAllIndices(indicesList(originalIndices)) ? MetaData.ALL : Arrays.toString(originalIndices);
+            String indexName = IndexNameExpressionResolver.isAllIndices(indicesList(originalIndices)) ? MetaData.ALL : Arrays.toString
+                    (originalIndices);
             throw new IndexNotFoundException(indexName);
         }
         return resolvedIndices;

@@ -54,7 +54,8 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
         options.setAllowConcurrentSocketFactoryUse(true);
         options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
-        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
+        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(),
+                BRUCE_BANNER_DN, ActiveDirectorySessionFactoryTests.PASSWORD);
     }
 
     @Override
@@ -107,7 +108,8 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
                     "S-1-5-32-545", //Default Users group
                     "S-1-5-21-3510024162-210737641-214529065-513" //Default Domain Users group
             };
-            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection,
+                    "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
 
@@ -117,7 +119,8 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
                     "S-1-5-32-545", //Default Users group
                     "S-1-5-21-3510024162-210737641-214529065-513",   //Default Domain Users group
                     "S-1-5-21-3510024162-210737641-214529065-1117"}; //Gods group
-            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection,
+                    "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
 
@@ -131,7 +134,9 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
                     "S-1-5-21-3510024162-210737641-214529065-1108", //Geniuses
                     "S-1-5-21-3510024162-210737641-214529065-1106", //SHIELD
                     "S-1-5-21-3510024162-210737641-214529065-1105"};//Avengers
-            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, "CN=Bruce Banner, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection,
+                    "CN=Bruce Banner, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10),
+                    NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
     }
@@ -139,7 +144,8 @@ public class ActiveDirectoryGroupsResolverTests extends ESTestCase {
     private void assertValidSidQuery(Filter query, String[] expectedSids) {
         String queryString = query.toString();
         Pattern sidQueryPattern = Pattern.compile("\\(\\|(\\(objectSid=S(-\\d+)+\\))+\\)");
-        assertThat("[" + queryString + "] didn't match the search filter pattern", sidQueryPattern.matcher(queryString).matches(), is(true));
+        assertThat("[" + queryString + "] didn't match the search filter pattern",
+                sidQueryPattern.matcher(queryString).matches(), is(true));
         for(String sid: expectedSids) {
             assertThat(queryString, containsString(sid));
         }

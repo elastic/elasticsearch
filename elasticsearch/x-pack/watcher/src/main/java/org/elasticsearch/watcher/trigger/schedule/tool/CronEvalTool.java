@@ -101,8 +101,8 @@ public class CronEvalTool extends CliTool {
                 long prevTime = time;
                 time = cron.getNextValidTimeAfter(time);
                 if (time < 0) {
-                    terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + (i + 1) + ".\t Could not compute future times since [" + formatter.print(prevTime) + "] " +
-                            "(perhaps the cron expression only points to times in the past?)");
+                    terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + (i + 1) + ".\t Could not compute future times since ["
+                            + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
                     return ExitStatus.OK;
                 }
                 terminal.println((i+1) + ".\t" + formatter.print(time));

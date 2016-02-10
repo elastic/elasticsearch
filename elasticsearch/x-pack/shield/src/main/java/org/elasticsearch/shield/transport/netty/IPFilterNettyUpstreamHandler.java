@@ -28,7 +28,8 @@ public class IPFilterNettyUpstreamHandler extends IpFilteringHandlerImpl {
     }
 
     @Override
-    protected boolean accept(ChannelHandlerContext channelHandlerContext, ChannelEvent channelEvent, InetSocketAddress inetSocketAddress) throws Exception {
+    protected boolean accept(ChannelHandlerContext channelHandlerContext, ChannelEvent channelEvent, InetSocketAddress inetSocketAddress)
+            throws Exception {
         // at this stage no auth has happened, so we do not have any principal anyway
         return filter.accept(profile, inetSocketAddress.getAddress());
     }

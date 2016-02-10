@@ -168,7 +168,8 @@ public class WatchStatus implements ToXContent, Streamable {
     }
 
     /**
-     * Notifies this status that the givne actions were acked. If the current state of one of these actions is {@link org.elasticsearch.watcher.actions.ActionStatus.AckStatus.State#ACKABLE ACKABLE},
+     * Notifies this status that the givne actions were acked. If the current state of one of these actions is
+     * {@link org.elasticsearch.watcher.actions.ActionStatus.AckStatus.State#ACKABLE ACKABLE},
      * then we'll it'll change to {@link org.elasticsearch.watcher.actions.ActionStatus.AckStatus.State#ACKED ACKED}
      * (when set to {@link org.elasticsearch.watcher.actions.ActionStatus.AckStatus.State#ACKED ACKED}, the {@link AckThrottler}
      * will throttle the execution of the action.
@@ -290,19 +291,22 @@ public class WatchStatus implements ToXContent, Streamable {
                 try {
                     state = State.parse(parser);
                 } catch (ElasticsearchParseException e) {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]", e, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]",
+                            e, watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_CHECKED)) {
                 if (token.isValue()) {
                     lastChecked = parseDate(currentFieldName, parser, DateTimeZone.UTC);
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
+                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
+                            "value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_MET_CONDITION)) {
                 if (token.isValue()) {
                     lastMetCondition = parseDate(currentFieldName, parser, DateTimeZone.UTC);
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
+                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
+                            "value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
                 actions = new HashMap<>();
@@ -316,7 +320,8 @@ public class WatchStatus implements ToXContent, Streamable {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to be an object, found [{}] instead", watchId, currentFieldName, token);
+                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to be an object, " +
+                            "found [{}] instead", watchId, currentFieldName, token);
                 }
             }
         }

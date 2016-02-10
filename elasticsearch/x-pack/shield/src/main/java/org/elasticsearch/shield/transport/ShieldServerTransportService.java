@@ -75,7 +75,8 @@ public class ShieldServerTransportService extends TransportService {
     }
 
     @Override
-    public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+    public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+                                                          TransportRequestOptions options, TransportResponseHandler<T> handler) {
         // Sometimes a system action gets executed like a internal create index request or update mappings request
         // which means that the user is copied over to system actions so we need to change the user
         if ((clientFilter instanceof ClientTransportFilter.Node) &&
@@ -100,14 +101,19 @@ public class ShieldServerTransportService extends TransportService {
     }
 
     @Override
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState, threadPool.getThreadContext());
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String
+            executor, TransportRequestHandler<Request> handler) {
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters,
+                licenseState, threadPool.getThreadContext());
         super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
     }
 
     @Override
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters, licenseState, threadPool.getThreadContext());
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor,
+                                                                          boolean forceExecution,
+                                                                          TransportRequestHandler<Request> handler) {
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters,
+                licenseState, threadPool.getThreadContext());
         super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
     }
 
@@ -122,24 +128,30 @@ public class ShieldServerTransportService extends TransportService {
 
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
-            final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT));
-            final boolean clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
+            final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING,
+                    settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT));
+            final boolean clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING,
+                    settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
                 case "client":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService, actionMapper,
+                            threadPool.getThreadContext(), extractClientCert));
                     break;
                 default:
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper,
+                            threadPool.getThreadContext(), extractClientCert));
             }
         }
 
         if (!profileFilters.containsKey(TransportSettings.DEFAULT_PROFILE)) {
             final boolean profileSsl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
-            final boolean clientAuth = SSLClientAuth.parse(settings.get(TRANSPORT_CLIENT_AUTH_SETTING), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
+            final boolean clientAuth =
+                    SSLClientAuth.parse(settings.get(TRANSPORT_CLIENT_AUTH_SETTING), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
-            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
+            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
+                    actionMapper, threadPool.getThreadContext(), extractClientCert));
         }
 
         return Collections.unmodifiableMap(profileFilters);
@@ -157,8 +169,9 @@ public class ShieldServerTransportService extends TransportService {
         private final ShieldLicenseState licenseState;
         private final ThreadContext threadContext;
 
-        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
-                                            ShieldLicenseState licenseState, ThreadContext threadContext) {
+        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
+                                            Map<String, ServerTransportFilter> profileFilters, ShieldLicenseState licenseState,
+                                            ThreadContext threadContext) {
             this.action = action;
             this.handler = handler;
             this.profileFilters = profileFilters;
@@ -178,7 +191,8 @@ public class ShieldServerTransportService extends TransportService {
                             // apply the default filter to local requests. We never know what the request is or who sent it...
                             filter = profileFilters.get("default");
                         } else {
-                            throw new IllegalStateException("transport profile [" + profile + "] is not associated with a transport filter");
+                            String msg = "transport profile [" + profile + "] is not associated with a transport filter";
+                            throw new IllegalStateException(msg);
                         }
                     }
                     assert filter != null;
@@ -208,6 +222,7 @@ public class ShieldServerTransportService extends TransportService {
     private final static class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
+
         private ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
             this.delegate = delegate;
             this.threadContext = threadContext;

@@ -10,6 +10,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -45,7 +46,8 @@ public class HistoryStoreTests extends ESTestCase {
         WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, null);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        IndexRequest indexRequest = indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE);
+        IndexRequest indexRequest = indexRequest(".watcher-history-1970.01.01", HistoryStore.DOC_TYPE, wid.value()
+                , IndexRequest.OpType.CREATE);
         when(clientProxy.index(indexRequest, Matchers.<TimeValue>any())).thenReturn(indexResponse);
         historyStore.put(watchRecord);
         verify(clientProxy).index(Matchers.<IndexRequest>any(), Matchers.<TimeValue>any());
@@ -68,9 +70,14 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testIndexNameGeneration() {
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)), equalTo(".watch_history-1970.01.01"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)), equalTo(".watch_history-1973.03.03"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)), equalTo(".watch_history-2014.11.21"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)), equalTo(".watch_history-2059.10.12"));
+        Integer indexTemplateVersion = WatcherModule.getHistoryIndexTemplateVersion();
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)),
+                equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)),
+                equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)),
+                equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)),
+                equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12"));
     }
 }

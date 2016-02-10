@@ -56,7 +56,8 @@ public class WatchLockService extends AbstractComponent {
         }
         try {
             if (!watchLocks.tryAcquire(name, timeout.millis(), TimeUnit.MILLISECONDS)) {
-                logger.warn("failed to acquire lock on watch [{}] (waited for [{}]). It is possible that for some reason this watch execution is stuck", name, timeout.format(PeriodType.seconds()));
+                logger.warn("failed to acquire lock on watch [{}] (waited for [{}]). It is possible that for some reason this watch " +
+                        "execution is stuck", name, timeout.format(PeriodType.seconds()));
                 return null;
             }
         } catch (InterruptedException ie) {
@@ -91,7 +92,8 @@ public class WatchLockService extends AbstractComponent {
             while (watchLocks.hasLockedKeys()) {
                 TimeValue timeWaiting = new TimeValue(System.currentTimeMillis() - startWait);
                 if (timeWaiting.getSeconds() > maxStopTimeout.getSeconds()) {
-                    throw new ElasticsearchTimeoutException("timed out waiting for watches to complete, after waiting for [{}]", timeWaiting);
+                    throw new ElasticsearchTimeoutException("timed out waiting for watches to complete, after waiting for [{}]",
+                            timeWaiting);
                 }
                 try {
                     Thread.sleep(100);

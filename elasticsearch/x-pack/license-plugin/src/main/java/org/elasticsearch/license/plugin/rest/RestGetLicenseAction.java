@@ -50,23 +50,24 @@ public class RestGetLicenseAction extends BaseRestHandler {
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
-        client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest, new RestBuilderListener<GetLicenseResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
-                // Default to pretty printing, but allow ?pretty=false to disable
-                if (!request.hasParam("pretty")) {
-                    builder.prettyPrint().lfAtEnd();
-                }
-                builder.startObject();
-                if (response.license() != null) {
-                    builder.startObject("license");
-                    response.license().toInnerXContent(builder, params);
-                    builder.endObject();
-                }
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest,
+                new RestBuilderListener<GetLicenseResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
+                        // Default to pretty printing, but allow ?pretty=false to disable
+                        if (!request.hasParam("pretty")) {
+                            builder.prettyPrint().lfAtEnd();
+                        }
+                        builder.startObject();
+                        if (response.license() != null) {
+                            builder.startObject("license");
+                            response.license().toInnerXContent(builder, params);
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        return new BytesRestResponse(OK, builder);
+                    }
+                });
     }
 
 }

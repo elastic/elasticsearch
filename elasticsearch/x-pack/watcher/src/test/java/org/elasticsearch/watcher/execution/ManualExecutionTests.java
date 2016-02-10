@@ -79,7 +79,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
 
         ManualExecutionContext.Builder ctxBuilder;
         Watch parsedWatch = null;
-        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
+        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
+                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
         if (recordExecution) {
             PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
             assertThat(putWatchResponse.getVersion(), greaterThan(0L));
@@ -131,7 +132,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         }
 
         if ((ignoreCondition || conditionAlwaysTrue) && action != null ) {
-            assertThat("The action should have run simulated", watchRecord.result().actionsResults().get("log").action(), instanceOf(LoggingAction.Result.Simulated.class));
+            assertThat("The action should have run simulated",
+                    watchRecord.result().actionsResults().get("log").action(), instanceOf(LoggingAction.Result.Simulated.class));
         }
 
         Watch testWatch = watchService().getWatch("_id");
@@ -142,10 +144,12 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 GetWatchResponse response =  watcherClient().getWatch(new GetWatchRequest("_id")).actionGet();
                 assertThat(response.getStatus().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
             } else {
-                assertThat(testWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+                assertThat(testWatch.status().actionStatus("log").ackStatus().state(),
+                        equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
             }
         } else {
-            assertThat(parsedWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+            assertThat(parsedWatch.status().actionStatus("log").ackStatus().state(),
+                    equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         }
     }
 
@@ -207,7 +211,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail();
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("a watch execution request must either have a watch id or an inline watch source but not both"));
+            assertThat(e.getMessage(),
+                    containsString("a watch execution request must either have a watch id or an inline watch source but not both"));
         }
     }
 
@@ -227,8 +232,10 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         Map<String, Object> map2 = new HashMap<>();
         map2.put("foo", map1);
 
-        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, timeValueSeconds(5));
+        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
+                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
+        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent,
+                timeValueSeconds(5));
         ctxBuilder1.actionMode("_all", ActionExecutionMode.SIMULATE);
 
         ctxBuilder1.withInput(new SimpleInput.Result(new Payload.Simple(map1)));
@@ -236,7 +243,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
 
         WatchRecord watchRecord1 = executionService().execute(ctxBuilder1.build());
 
-        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, timeValueSeconds(5));
+        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent,
+                timeValueSeconds(5));
         ctxBuilder2.actionMode("_all", ActionExecutionMode.SIMULATE);
 
         ctxBuilder2.withInput(new SimpleInput.Result(new Payload.Simple(map2)));
@@ -304,12 +312,14 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         final CountDownLatch startLatch;
         final ManualExecutionContext.Builder ctxBuilder;
 
-        public ExecutionRunner(WatcherService watcherService, ExecutionService executionService, String watchId, CountDownLatch startLatch) {
+        public ExecutionRunner(WatcherService watcherService, ExecutionService executionService, String watchId,
+                               CountDownLatch startLatch) {
             this.watcherService = watcherService;
             this.executionService = executionService;
             this.watchId = watchId;
             this.startLatch = startLatch;
-            ManualTriggerEvent triggerEvent = new ManualTriggerEvent(watchId, new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
+            ManualTriggerEvent triggerEvent = new ManualTriggerEvent(watchId,
+                    new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
             ctxBuilder = ManualExecutionContext.builder(watcherService.getWatch(watchId), true, triggerEvent, timeValueSeconds(5));
             ctxBuilder.recordExecution(true);
             ctxBuilder.actionMode("_all", ActionExecutionMode.FORCE_EXECUTE);

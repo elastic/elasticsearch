@@ -40,11 +40,11 @@ public class ShieldF {
         settings.put("http.cors.enabled", "true");
         settings.put("http.cors.allow-origin", "*");
         settings.put("script.inline", "true");
-        settings.put("shield.enabled", "true");
+        settings.put("xpack.shield.enabled", "true");
         settings.put("security.manager.enabled", "false");
         // Disable Marvel to prevent cluster activity
-        settings.put("marvel.enabled", "false");
-        settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE);
+        settings.put("xpack.marvel.enabled", "false");
+        settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE);
         settings.put("cluster.name", ShieldF.class.getSimpleName());
 
         String homeDir = System.getProperty("es.path.home");
@@ -56,7 +56,8 @@ public class ShieldF {
         settings.put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE);
         settings.put("shield.authc.realms.esusers.order", "0");
         settings.put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", ShieldSettingsSource.CONFIG_STANDARD_USER));
-        settings.put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", ShieldSettingsSource.CONFIG_STANDARD_USER_ROLES));
+        settings.put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles",
+                ShieldSettingsSource.CONFIG_STANDARD_USER_ROLES));
         settings.put("shield.authc.realms.esnative.type", ESNativeRealm.TYPE);
         settings.put("shield.authc.realms.esnative.order", "1");
         settings.put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ShieldSettingsSource.CONFIG_ROLE_ALLOW_ALL));

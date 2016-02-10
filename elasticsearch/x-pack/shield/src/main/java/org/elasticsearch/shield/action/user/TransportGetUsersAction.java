@@ -25,9 +25,10 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
     @Inject
     public TransportGetUsersAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                   ESNativeUsersStore usersStore, TransportService transportService) {
-        super(settings, GetUsersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetUsersRequest::new);
+                                   IndexNameExpressionResolver indexNameExpressionResolver, ESNativeUsersStore usersStore,
+                                   TransportService transportService) {
+        super(settings, GetUsersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                GetUsersRequest::new);
         this.usersStore = usersStore;
     }
 

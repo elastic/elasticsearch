@@ -21,7 +21,8 @@ import java.util.ArrayList;
 /**
  *
  */
-public class ChainTransformFactory extends TransformFactory<ChainTransform, ChainTransform.Result, ExecutableChainTransform> implements InitializingService.Initializable {
+public class ChainTransformFactory extends TransformFactory<ChainTransform, ChainTransform.Result, ExecutableChainTransform> implements
+        InitializingService.Initializable {
 
     private TransformRegistry registry;
 

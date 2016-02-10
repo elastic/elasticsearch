@@ -57,14 +57,15 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         String domainDN = buildDnFromDomain(domainName);
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
         userSearchScope = LdapSearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), LdapSearchScope.SUB_TREE);
-        userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName + ")))");
+        userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})" +
+                "(userPrincipalName={0}@" + domainName + ")))");
         groupResolver = new ActiveDirectoryGroupsResolver(settings.getAsSettings("group_search"), domainDN);
     }
 
 
     @Override
     protected LDAPServers ldapServers(Settings settings) {
-        String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[] { "ldap://" + domainName + ":389" });
+        String[] ldapUrls = settings.getAsArray(URLS_SETTING, new String[]{"ldap://" + domainName + ":389"});
         return new LDAPServers(ldapUrls);
     }
 
@@ -87,7 +88,8 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         String userPrincipal = userName + "@" + domainName;
         try {
             connection.bind(userPrincipal, new String(password.internalChars()));
-            SearchRequest searchRequest = new SearchRequest(userSearchDN, userSearchScope.scope(), createFilter(userSearchFilter, userName), Strings.EMPTY_ARRAY);
+            SearchRequest searchRequest = new SearchRequest(userSearchDN, userSearchScope.scope(),
+                    createFilter(userSearchFilter, userName), Strings.EMPTY_ARRAY);
             searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
             SearchResult results = search(connection, searchRequest, logger);
             int numResults = results.getEntryCount();

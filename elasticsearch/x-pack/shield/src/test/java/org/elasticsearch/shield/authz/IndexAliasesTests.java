@@ -89,7 +89,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
 
     public void testCreateIndexThenAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
+                new SecuredString("test123".toCharArray())));
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").get());
 
         try {
@@ -108,8 +109,10 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testCreateIndexAndAliasesCreateOnlyPermission() {
-        //user has create permission only: allows to create indices, manage_aliases is required to add aliases although they are part of the same create index request
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray())));
+        //user has create permission only: allows to create indices, manage_aliases is required to add aliases although they are part of
+        // the same create index request
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
+                new SecuredString("test123".toCharArray())));
         try {
             client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_2")).get();
             fail("create index should have failed due to missing manage_aliases privileges");
@@ -120,7 +123,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
 
     public void testDeleteAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
+                new SecuredString("test123".toCharArray())));
         try {
             client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_1").get();
             fail("remove alias should have failed due to missing manage_aliases privileges");
@@ -145,30 +149,35 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
 
     public void testGetAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
+                new SecuredString("test123".toCharArray())));
         try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1").setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1").setIndices("test_1")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
             fail("get alias should have failed due to missing manage_aliases privileges");
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_only]"));
         }
 
         try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("_all").setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+            client().filterWithHeader(headers).admin().indices().prepareGetAliases("_all").setIndices("test_1")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
             fail("get alias should have failed due to missing manage_aliases privileges");
         } catch(IndexNotFoundException e) {
             assertThat(e.toString(), containsString("[_all]"));
         }
 
         try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+            client().filterWithHeader(headers).admin().indices().prepareGetAliases().setIndices("test_1")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
             fail("get alias should have failed due to missing manage_aliases privileges");
         } catch(IndexNotFoundException e) {
             assertThat(e.toString(), containsString("[_all]"));
         }
 
         try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias").setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias").setIndices("test_*")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
             fail("get alias should have failed due to missing manage_aliases privileges");
         } catch(IndexNotFoundException e) {
             assertThat(e.toString(), containsString("[test_*]"));
@@ -183,8 +192,10 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission() {
-        //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and indices
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray())));
+        //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and
+        // indices
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray())));
 
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").get());
 
@@ -196,34 +207,43 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
 
         try {
             //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_1", "alias_1").addAlias("test_1", "test_alias").get();
+            client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_1", "alias_1")
+                    .addAlias("test_1", "test_alias").get();
             fail("add alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission() {
-        //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and indices
+        //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and
+        // indices
         //ok: user has manage_aliases on test_*
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test",
+                new SecuredString("test123".toCharArray())));
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get());
 
         try {
             //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareCreate("test_2").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_2")).get();
+            client().filterWithHeader(headers).admin().indices().prepareCreate("test_2").addAlias(new Alias("test_alias"))
+                    .addAlias(new Alias("alias_2")).get();
             fail("create index should have failed due to missing manage_aliases privileges on alias_2");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
     public void testDeleteAliasesCreateAndAliasesPermission() {
-        //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and indices
+        //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and
+        // indices
         //ok: user has manage_aliases on test_*
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test",
+                new SecuredString("test123".toCharArray())));
 
-        assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias_1")).addAlias(new Alias("test_alias_2"))
+        assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias_1"))
+                .addAlias(new Alias("test_alias_2"))
                 .addAlias(new Alias("test_alias_3")).addAlias(new Alias("test_alias_4")).get());
         //ok: user has manage_aliases on test_*
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "test_alias_1").get());
@@ -253,21 +273,26 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_1").get();
             fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
 
         try {
             //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", new String[]{"_all", "alias_1"}).get();
+            client().filterWithHeader(headers).admin().indices().prepareAliases()
+                    .removeAlias("test_1", new String[]{"_all", "alias_1"}).get();
             fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
     public void testGetAliasesCreateAndAliasesPermission() {
-        //user has create and manage_aliases permission on test_*. manage_aliases is required to retrieve aliases on both aliases and indices
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray())));
+        //user has create and manage_aliases permission on test_*. manage_aliases is required to retrieve aliases on both aliases and
+        // indices
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get());
 
@@ -283,15 +308,18 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_alias"),
                 "test_1", "test_alias");
 
-        //ok: user has manage_aliases on test_*, _all aliases gets resolved to test_alias and empty indices gets resolved to  _all indices (thus test_1)
+        //ok: user has manage_aliases on test_*, _all aliases gets resolved to test_alias and empty indices gets resolved to  _all
+        // indices (thus test_1)
         assertAliases(client.admin().indices().prepareGetAliases().setAliases("_all").setIndices("test_1"),
                 "test_1", "test_alias");
 
-        //ok: user has manage_aliases on test_*, empty aliases gets resolved to test_alias and empty indices gets resolved to  _all indices (thus test_1)
+        //ok: user has manage_aliases on test_*, empty aliases gets resolved to test_alias and empty indices gets resolved to  _all
+        // indices (thus test_1)
         assertAliases(client.admin().indices().prepareGetAliases().setIndices("test_1"),
                 "test_1", "test_alias");
 
-        //ok: user has manage_aliases on test_*, test_* aliases gets resolved to test_alias and empty indices gets resolved to  _all indices (thus test_1)
+        //ok: user has manage_aliases on test_*, test_* aliases gets resolved to test_alias and empty indices gets resolved to  _all
+        // indices (thus test_1)
         assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_*").setIndices("test_1"),
                 "test_1", "test_alias");
 
@@ -304,11 +332,13 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
                 "test_1", "test_alias");
 
         try {
-            //fails: user has manage_aliases on test_*, although _all aliases and empty indices can be resolved, the explicit non authorized alias (alias_1) causes the request to fail
+            //fails: user has manage_aliases on test_*, although _all aliases and empty indices can be resolved, the explicit non
+            // authorized alias (alias_1) causes the request to fail
             client.admin().indices().prepareGetAliases().setAliases("_all", "alias_1").get();
             fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
         }
 
         try {
@@ -316,15 +346,18 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareGetAliases().setAliases("alias_1").get();
             fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission2() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
-        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases on both aliases and indices
+        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
+        // on both aliases and indices
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
         try {
@@ -332,7 +365,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareAliases().addAlias("test_1", "test_alias").get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -340,7 +374,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareAliases().addAlias("test_1", "alias_1").get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -353,16 +388,20 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission2() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_alias", new
+                SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
-        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases on both aliases and indices
+        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
+        // on both aliases and indices
         try {
             //fails: user doesn't have manage_aliases on test_1, create index is rejected as a whole
             client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get();
             fail("create index should have failed due to missing manage_aliases privileges on test_1 and test_alias");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -370,21 +409,25 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1")).get();
             fail("create index should have failed due to missing manage_aliases privileges on test_1 and test_alias");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
     }
 
     public void testDeleteAliasesCreateAndAliasesPermission2() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
-        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases on both aliases and indices
+        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
+        // on both aliases and indices
         try {
             //fails: user doesn't have manage_aliases on test_1
             client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias").get();
             fail("remove alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -392,7 +435,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1").get();
             fail("remove alias should have failed due to missing manage_aliases privileges on test_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -405,10 +449,12 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testGetAliasesCreateAndAliasesPermission2() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
-        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to retrieve aliases on both aliases and indices
+        //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to retrieve aliases
+        // on both aliases and indices
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
         try {
@@ -416,7 +462,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1").get();
             fail("get alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -469,7 +516,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission3() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -483,7 +531,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission3() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -493,7 +542,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testDeleteAliasesCreateAndAliasesPermission3() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -505,7 +555,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
             client.admin().indices().prepareAliases().removeAlias("test_1", "non_authorized").removeAlias("test_1", "test_alias").get();
             fail("remove alias should have failed due to missing manage_aliases privileges on non_authorized");
         } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test_alias]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test_alias]"));
         }
 
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1"));
@@ -522,7 +573,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testGetAliasesCreateAndAliasesPermission3() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -557,7 +609,8 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
 
     public void testCreateIndexAliasesOnlyPermission() {
         try {
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER,
+                    basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))))
                     .admin().indices().prepareCreate("test_1").get();
             fail("Expected ElasticsearchSecurityException");
         } catch (ElasticsearchSecurityException e) {
@@ -566,24 +619,28 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
     }
 
     public void testGetAliasesAliasesOnlyPermission() {
-        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray())));
         final Client client = client().filterWithHeader(headers);
         //user has manage_aliases only permissions on both alias_* and test_*
 
         //ok: manage_aliases on both test_* and alias_*
-        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases("alias_1").addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases("alias_1")
+                .addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertThat(getAliasesResponse.getAliases().isEmpty(), is(true));
 
         try {
             //fails: no manage_aliases privilege on non_authorized alias
-            client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+            client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
         }
 
         try {
             //fails: no manage_aliases privilege on non_authorized index
-            client.admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+            client.admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         } catch(ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
         }

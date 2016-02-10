@@ -65,7 +65,8 @@ public class LicensesAcknowledgementTests extends ESSingleNodeTestCase {
         putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
         // ensure license was installed and no acknowledgment message was returned
         licensee.setAcknowledgementMessages(new String[0]);
-        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, Collections.<String, String[]>emptyMap(), latch));
+        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
+                Collections.<String, String[]>emptyMap(), latch));
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for a response to license registration");
         }
@@ -117,7 +118,8 @@ public class LicensesAcknowledgementTests extends ESSingleNodeTestCase {
         // ensure license was installed and no acknowledgment message was returned
         licensee1.setAcknowledgementMessages(new String[0]);
         licensee2.setAcknowledgementMessages(new String[0]);
-        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, Collections.<String, String[]>emptyMap(), latch));
+        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
+                Collections.<String, String[]>emptyMap(), latch));
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for a response to license registration");
         }
@@ -132,7 +134,8 @@ public class LicensesAcknowledgementTests extends ESSingleNodeTestCase {
         private final Map<String, String[]> expectedAckMessages;
         private final CountDownLatch latch;
 
-        public AssertingLicensesUpdateResponse(boolean expectedAcknowledgement, LicensesStatus expectedStatus, Map<String, String[]> expectedAckMessages, CountDownLatch latch) {
+        public AssertingLicensesUpdateResponse(boolean expectedAcknowledgement, LicensesStatus expectedStatus,
+                                               Map<String, String[]> expectedAckMessages, CountDownLatch latch) {
             this.expectedAcknowledgement = expectedAcknowledgement;
             this.expectedStatus = expectedStatus;
             this.expectedAckMessages = expectedAckMessages;

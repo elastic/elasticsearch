@@ -19,6 +19,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.dateTimeFormatter;
@@ -37,7 +38,8 @@ public class ActionStatus implements ToXContent {
         this(new AckStatus(now, AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION), null, null, null);
     }
 
-    public ActionStatus(AckStatus ackStatus, @Nullable Execution lastExecution, @Nullable Execution lastSuccessfulExecution, @Nullable Throttle lastThrottle) {
+    public ActionStatus(AckStatus ackStatus, @Nullable Execution lastExecution, @Nullable Execution lastSuccessfulExecution,
+                        @Nullable Throttle lastThrottle) {
         this.ackStatus = ackStatus;
         this.lastExecution = lastExecution;
         this.lastSuccessfulExecution = lastSuccessfulExecution;
@@ -67,13 +69,10 @@ public class ActionStatus implements ToXContent {
 
         ActionStatus that = (ActionStatus) o;
 
-        if (!ackStatus.equals(that.ackStatus)) return false;
-        if (lastExecution != null ? !lastExecution.equals(that.lastExecution) : that.lastExecution != null)
-            return false;
-        if (lastSuccessfulExecution != null ? !lastSuccessfulExecution.equals(that.lastSuccessfulExecution) : that.lastSuccessfulExecution != null)
-            return false;
-        return !(lastThrottle != null ? !lastThrottle.equals(that.lastThrottle) : that.lastThrottle != null);
-
+        return Objects.equals(ackStatus, that.ackStatus) &&
+                Objects.equals(lastExecution, that.lastExecution) &&
+                Objects.equals(lastSuccessfulExecution, that.lastSuccessfulExecution) &&
+                Objects.equals(lastThrottle, that.lastThrottle);
     }
 
     @Override
@@ -184,11 +183,13 @@ public class ActionStatus implements ToXContent {
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_THROTTLE)) {
                 lastThrottle = Throttle.parse(watchId, actionId, parser);
             } else {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}]", watchId, actionId, currentFieldName);
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}]", watchId,
+                        actionId, currentFieldName);
             }
         }
         if (ackStatus == null) {
-            throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}]", watchId, actionId, Field.ACK_STATUS.getPreferredName());
+            throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}]", watchId,
+                    actionId, Field.ACK_STATUS.getPreferredName());
         }
         return new ActionStatus(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
@@ -273,14 +274,17 @@ public class ActionStatus implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACK_STATUS_STATE)) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
-                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId, actionId, Field.ACK_STATUS.getPreferredName(), currentFieldName);
+                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
+                            actionId, Field.ACK_STATUS.getPreferredName(), currentFieldName);
                 }
             }
             if (timestamp == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]", watchId, actionId, Field.ACK_STATUS.getPreferredName(), Field.TIMESTAMP.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]",
+                        watchId, actionId, Field.ACK_STATUS.getPreferredName(), Field.TIMESTAMP.getPreferredName());
             }
             if (state == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]", watchId, actionId, Field.ACK_STATUS.getPreferredName(), Field.ACK_STATUS_STATE.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]",
+                        watchId, actionId, Field.ACK_STATUS.getPreferredName(), Field.ACK_STATUS_STATE.getPreferredName());
             }
             return new AckStatus(timestamp, state);
         }
@@ -378,20 +382,24 @@ public class ActionStatus implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REASON)) {
                     reason = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), currentFieldName);
+                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
+                            actionId, Field.LAST_EXECUTION.getPreferredName(), currentFieldName);
                 }
             }
             if (timestamp == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]", watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), Field.TIMESTAMP.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]",
+                        watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), Field.TIMESTAMP.getPreferredName());
             }
             if (successful == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]", watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), Field.EXECUTION_SUCCESSFUL.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]",
+                        watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), Field.EXECUTION_SUCCESSFUL.getPreferredName());
             }
             if (successful) {
                 return successful(timestamp);
             }
             if (reason == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field for unsuccessful execution [{}.{}]", watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), Field.REASON.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field for unsuccessful" +
+                        " execution [{}.{}]", watchId, actionId, Field.LAST_EXECUTION.getPreferredName(), Field.REASON.getPreferredName());
             }
             return failure(timestamp, reason);
         }
@@ -472,14 +480,17 @@ public class ActionStatus implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REASON)) {
                     reason = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId, actionId, Field.LAST_THROTTLE.getPreferredName(), currentFieldName);
+                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
+                            actionId, Field.LAST_THROTTLE.getPreferredName(), currentFieldName);
                 }
             }
             if (timestamp == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]", watchId, actionId, Field.LAST_THROTTLE.getPreferredName(), Field.TIMESTAMP.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]",
+                        watchId, actionId, Field.LAST_THROTTLE.getPreferredName(), Field.TIMESTAMP.getPreferredName());
             }
             if (reason == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]", watchId, actionId, Field.LAST_THROTTLE.getPreferredName(), Field.REASON.getPreferredName());
+                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. missing required field [{}.{}]",
+                        watchId, actionId, Field.LAST_THROTTLE.getPreferredName(), Field.REASON.getPreferredName());
             }
             return new Throttle(timestamp, reason);
         }

@@ -11,7 +11,7 @@ import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 
-public class LicenseModule extends AbstractModule {
+public class LicensingModule extends AbstractModule {
 
     @Override
     protected void configure() {

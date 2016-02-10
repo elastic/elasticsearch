@@ -35,7 +35,8 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTestCase 
     }
 
     public void testEmptyGetLicense() throws Exception {
-        final ActionFuture<GetLicenseResponse> getLicenseFuture = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).execute();
+        final ActionFuture<GetLicenseResponse> getLicenseFuture =
+                new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).execute();
         final GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
         assertNotNull(getLicenseResponse.license());
         assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.TRIAL));
@@ -45,8 +46,8 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTestCase 
         License signedLicense = generateSignedLicense(TimeValue.timeValueMinutes(2));
 
         // put license
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE)
-                .setLicense(signedLicense);
+        PutLicenseRequestBuilder putLicenseRequestBuilder =
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(signedLicense);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
@@ -61,8 +62,8 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTestCase 
         String licenseString = TestUtils.dumpLicense(signedLicense);
 
         // put license source
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE)
-                .setLicense(licenseString);
+        PutLicenseRequestBuilder putLicenseRequestBuilder =
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(licenseString);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
@@ -113,8 +114,8 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTestCase 
 
     public void testPutLicensesSimple() throws Exception {
         License basicSignedLicense = generateSignedLicense("basic", TimeValue.timeValueMinutes(5));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE)
-                .setLicense(basicSignedLicense);
+        PutLicenseRequestBuilder putLicenseRequestBuilder =
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(basicSignedLicense);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
@@ -131,15 +132,16 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTestCase 
 
     public void testRemoveLicensesSimple() throws Exception {
         License goldLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE)
-                .setLicense(goldLicense);
+        PutLicenseRequestBuilder putLicenseRequestBuilder =
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(goldLicense);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
         assertThat(getLicenseResponse.license(), equalTo(goldLicense));
         // delete all licenses
-        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(client().admin().cluster(), DeleteLicenseAction.INSTANCE);
+        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder =
+                new DeleteLicenseRequestBuilder(client().admin().cluster(), DeleteLicenseAction.INSTANCE);
         DeleteLicenseResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
         assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
         // get licenses (expected no licenses)

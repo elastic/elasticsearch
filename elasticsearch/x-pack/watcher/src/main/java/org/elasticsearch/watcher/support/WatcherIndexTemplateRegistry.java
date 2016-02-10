@@ -153,9 +153,9 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         executor.execute(new Runnable() {
             @Override
             public void run() {
-                try (InputStream is = WatchStore.class.getResourceAsStream("/" + config.getTemplateName()+ ".json")) {
+                try (InputStream is = WatchStore.class.getResourceAsStream("/" + config.getFileName()+ ".json")) {
                     if (is == null) {
-                        logger.error("Resource [/" + config.getTemplateName() + ".json] not found in classpath");
+                        logger.error("Resource [/" + config.getFileName() + ".json] not found in classpath");
                         return;
                     }
                     final byte[] template;
@@ -184,11 +184,21 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     public static class TemplateConfig {
 
         private final String templateName;
+        private String fileName;
         private final Setting<Settings> setting;
 
         public TemplateConfig(String templateName, Setting<Settings> setting) {
+            this(templateName, templateName, setting);
+        }
+
+        public TemplateConfig(String templateName, String fileName, Setting<Settings> setting) {
             this.templateName = templateName;
+            this.fileName = fileName;
             this.setting = setting;
+        }
+
+        public String getFileName() {
+            return fileName;
         }
 
         public String getTemplateName() {

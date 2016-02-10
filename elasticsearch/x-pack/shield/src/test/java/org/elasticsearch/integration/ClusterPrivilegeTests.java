@@ -124,7 +124,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatSnapshotAndRestore() throws Exception {
-        String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location", repositoryLocation.toString()).endObject().endObject().string();
+        String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
+                repositoryLocation.toString()).endObject().endObject().string();
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
@@ -176,7 +177,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                 Thread.sleep(200L);
             } catch (InterruptedException e) {}
             i++;
-            if (i >= 20) { throw new ElasticsearchException("Snapshot should have been successfully created after four seconds, was " + snapshotsStatusResponse.getSnapshots().get(0).getState()); }
+            if (i >= 20) { throw new ElasticsearchException("Snapshot should have been successfully created after four seconds, was " +
+                    snapshotsStatusResponse.getSnapshots().get(0).getState()); }
         } while (snapshotsStatusResponse.getSnapshots().get(0).getState() != SnapshotsInProgress.State.SUCCESS);
     }
 }

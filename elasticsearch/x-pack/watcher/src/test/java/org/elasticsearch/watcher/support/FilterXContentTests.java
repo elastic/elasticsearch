@@ -63,7 +63,8 @@ public class FilterXContentTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         data.put("leaf1", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", true).map());
         data.put("leaf2", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").put("key3", 3).map());
-        data.put("leaf3", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").map()).map());
+        Map<Object, Object> innerMap = MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").map();
+        data.put("leaf3", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", innerMap).map());
 
         BytesReference bytes = jsonBuilder().value(data).bytes();
 

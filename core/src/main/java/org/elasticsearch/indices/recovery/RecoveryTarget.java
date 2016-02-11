@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -37,12 +38,14 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -320,7 +323,15 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
                 try {
                     recoveryStatus.indexTranslogOperations(request.operations(), request.totalTranslogOps());
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                } catch (RecoveryTargetHandler.RetryTranslogOpsException exception) {
+                } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
+                    MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
+                    if (mapperException == null) {
+                        throw exception;
+                    }
+                    // in very rare cases a translog replay from primary is processed before a mapping update on this node
+                    // which causes local mapping changes. we want to wait until these mappings are processed.
+                    logger.trace("delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)", exception, exception
+                            .completedOperations());
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -389,9 +400,27 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
-                statusRef.status().writeFileChunk(request.name(), request.position(), request.metadata(), request.content(),
-                        request.length(), request.lastChunk(), request.totalTranslogOps(), request.sourceThrottleTimeInNanos(),
-                        recoverySettings.rateLimiter());
+                final RecoveryStatus status = statusRef.status();
+                final RecoveryState.Index indexState = status.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                    indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+                }
+
+                RateLimiter rateLimiter = recoverySettings.rateLimiter();
+                if (rateLimiter != null) {
+                    long bytes = bytesSinceLastPause.addAndGet(request.content().length());
+                    if (bytes > rateLimiter.getMinPauseCheckBytes()) {
+                        // Time to pause
+                        bytesSinceLastPause.addAndGet(-bytes);
+                        long throttleTimeInNanos = rateLimiter.pause(bytes);
+                        indexState.addTargetThrottling(throttleTimeInNanos);
+                        status.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
+                    }
+                }
+
+                status.writeFileChunk(request.metadata(), request.position(), request.content(),
+                        request.lastChunk(), request.totalTranslogOps()
+                );
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

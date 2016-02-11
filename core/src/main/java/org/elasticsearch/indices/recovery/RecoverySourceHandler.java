@@ -46,16 +46,13 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
@@ -79,7 +76,6 @@ public class RecoverySourceHandler {
     private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
-    private final RecoverySettings recoverySettings;
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
 
@@ -102,16 +98,16 @@ public class RecoverySourceHandler {
     };
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
-                                 final StartRecoveryRequest request, final RecoverySettings recoverySettings,
+                                 final StartRecoveryRequest request,
+                                 final int fileChunkSizeInBytes,
                                  final ESLogger logger) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
-        this.recoverySettings = recoverySettings;
         this.logger = logger;
         this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
-        this.chunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
+        this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
     }
 
@@ -249,9 +245,8 @@ public class RecoverySourceHandler {
                             response.phase1ExistingFileSizes, translogView.totalOperations());
                 });
                 // How many bytes we've copied since we last called RateLimiter.pause
-                final AtomicLong bytesSinceLastPause = new AtomicLong();
                 final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new BufferedOutputStream(new
-                        RecoveryOutputStream(md, bytesSinceLastPause, translogView), chunkSizeInBytes);
+                        RecoveryOutputStream(md, translogView), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
@@ -425,12 +420,6 @@ public class RecoverySourceHandler {
             throw new ElasticsearchException("failed to get next operation from translog", ex);
         }
 
-        final TransportRequestOptions recoveryOptions = TransportRequestOptions.builder()
-                .withCompress(true)
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionLongTimeout())
-                .build();
-
         if (operation == null) {
             logger.trace("[{}][{}] no translog operations to send to {}",
                     indexName, shardId, request.targetNode());
@@ -454,13 +443,7 @@ public class RecoverySourceHandler {
                 // index docs to replicas while the index files are recovered
                 // the lock can potentially be removed, in which case, it might
                 // make sense to re-enable throttling in this phase
-                cancellableThreads.execute(() -> {
-                    try {
-                        recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations());
-                    } catch (RecoveryTargetHandler.RetryTranslogOpsException e) {
-                        e.printStackTrace();
-                    }
-                });
+                cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
                             indexName, shardId, ops, new ByteSizeValue(size),
@@ -480,12 +463,7 @@ public class RecoverySourceHandler {
         }
         // send the leftover
         if (!operations.isEmpty()) {
-            cancellableThreads.execute(() -> {
-                RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                        request.recoveryId(), request.shardId(), operations, snapshot.totalOperations());
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
-                        recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-            });
+            cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
 
         }
         if (logger.isTraceEnabled()) {
@@ -516,13 +494,11 @@ public class RecoverySourceHandler {
 
     final class RecoveryOutputStream extends OutputStream {
         private final StoreFileMetaData md;
-        private final AtomicLong bytesSinceLastPause;
         private final Translog.View translogView;
         private long position = 0;
 
-        RecoveryOutputStream(StoreFileMetaData md, AtomicLong bytesSinceLastPause, Translog.View translogView) {
+        RecoveryOutputStream(StoreFileMetaData md, Translog.View translogView) {
             this.md = md;
-            this.bytesSinceLastPause = bytesSinceLastPause;
             this.translogView = translogView;
         }
 
@@ -539,44 +515,23 @@ public class RecoverySourceHandler {
         }
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
-            final TransportRequestOptions chunkSendOptions = TransportRequestOptions.builder()
-                    .withCompress(false)  // lucene files are already compressed and therefore compressing this won't really help much so
-                    // we are safing the cpu for other things
-                    .withType(TransportRequestOptions.Type.RECOVERY)
-                    .withTimeout(recoverySettings.internalActionTimeout())
-                    .build();
-            cancellableThreads.execute(() -> {
-                // Pause using the rate limiter, if desired, to throttle the recovery
-                final long throttleTimeInNanos;
-                // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
-                final RateLimiter rl = recoverySettings.rateLimiter();
-                if (rl != null) {
-                    long bytes = bytesSinceLastPause.addAndGet(content.length());
-                    if (bytes > rl.getMinPauseCheckBytes()) {
-                        // Time to pause
-                        bytesSinceLastPause.addAndGet(-bytes);
-                        try {
-                            throttleTimeInNanos = rl.pause(bytes);
-                            shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("failed to pause recovery", e);
-                        }
-                    } else {
-                        throttleTimeInNanos = 0;
+            try {
+                cancellableThreads.execute(() -> {
+                    // Actually send the file chunk to the target node, waiting for it to complete
+                    try {
+                        recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogView.totalOperations());
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("failed to write file chunk on recovery target", e);
                     }
+                });
+            } catch (ElasticsearchException e) {
+                // TODO - find a cleaner way to throw typed exceptions out of cancellableThreads
+                if (e.getCause() instanceof IOException) {
+                    throw (IOException) e.getCause();
                 } else {
-                    throttleTimeInNanos = 0;
+                    throw e;
                 }
-                // Actually send the file chunk to the target node, waiting for it to complete
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK,
-                        new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content, lastChunk,
-                                translogView.totalOperations(),
-                                /* we send totalOperations with every request since we collect stats on the target and that way we can
-                                 * see how many translog ops we accumulate while copying files across the network. A future optimization
-                                 * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
-                                 */
-                                throttleTimeInNanos), chunkSendOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-            });
+            }
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 throw new IndexShardClosedException(request.shardId());
             }

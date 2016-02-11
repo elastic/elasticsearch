@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -39,7 +37,7 @@ public interface RecoveryTargetHandler {
      **/
     void finalizeRecovery();
 
-    void indexTranslogOperations(Iterable<Translog.Operation> operations, int totalTranslogOps);
+    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
 
     void receiveFileInfo(List<String> phase1FileNames,
                          List<Long> phase1FileSizes,
@@ -49,9 +47,8 @@ public interface RecoveryTargetHandler {
 
     void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
 
-    void writeFileChunk(String name, long position, StoreFileMetaData metadata, BytesReference content,
-                        long length, boolean lastChunk, int totalTranslogOps,
-                        long sourceThrottleTimeInNanos, @Nullable RateLimiter rateLimiter) throws IOException;
+    void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                        boolean lastChunk, int totalTranslogOps) throws IOException;
 
     class RetryTranslogOpsException extends Exception {
 

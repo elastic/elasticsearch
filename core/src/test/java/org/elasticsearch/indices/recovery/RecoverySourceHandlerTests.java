@@ -70,7 +70,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
             null, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, recoveryTarget, request, recoverySettings, null, logger);
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(),
+                logger);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -121,7 +122,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, recoveryTarget, request, recoverySettings, null, logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -184,7 +185,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, recoveryTarget, request, recoverySettings, null, logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());

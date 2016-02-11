@@ -22,7 +22,6 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
@@ -35,8 +34,9 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     private final IndexShard shard;
     private final StartRecoveryRequest request;
 
-    public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ESLogger logger) {
-        super(shard, recoveryTarget, request, recoverySettings, transportService, logger);
+    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request, ESLogger
+            logger) {
+        super(shard, recoveryTarget, request, -1, logger);
         this.shard = shard;
         this.request = request;
     }

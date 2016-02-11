@@ -24,11 +24,9 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -294,7 +291,8 @@ public class RecoveryStatus extends AbstractRefCounted implements RecoveryTarget
 
     private void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls");
+            throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " +
+                    "calls");
         }
     }
 
@@ -315,26 +313,12 @@ public class RecoveryStatus extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void indexTranslogOperations(Iterable<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
+    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
             .BatchOperationException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
-        try {
-            indexShard().performBatchRecovery(operations);
-        } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
-            MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
-            if (mapperException == null) {
-                throw exception;
-            } else {
-                // in very rare cases a translog replay from primary is processed before a mapping update on this node
-                // which causes local mapping changes. we want to wait until these mappings are processed.
-                logger.trace("delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)", exception, exception
-                        .completedOperations());
-                throw new RetryTranslogOpsException(exception);
-            }
-
-        }
+        indexShard().performBatchRecovery(operations);
     }
 
     @Override
@@ -396,37 +380,24 @@ public class RecoveryStatus extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void writeFileChunk(String name, long position, StoreFileMetaData metadata, BytesReference content,
-                               long length, boolean lastChunk, int totalTranslogOps,
-                               long sourceThrottleTimeInNanos, @Nullable RateLimiter rateLimiter) throws IOException {
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                               boolean lastChunk, int totalTranslogOps) throws IOException {
         final Store store = store();
+        final String name = fileMetaData.name();
         state().getTranslog().totalOperations(totalTranslogOps);
         final RecoveryState.Index indexState = state().getIndex();
-        if (sourceThrottleTimeInNanos != RecoveryState.Index.UNKNOWN) {
-            indexState.addSourceThrottling(sourceThrottleTimeInNanos);
-        }
         IndexOutput indexOutput;
         if (position == 0) {
-            indexOutput = openAndPutIndexOutput(name, metadata, store);
+            indexOutput = openAndPutIndexOutput(name, fileMetaData, store);
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
         if (!content.hasArray()) {
             content = content.toBytesArray();
         }
-        if (rateLimiter != null) {
-            long bytes = bytesSinceLastPause.addAndGet(content.length());
-            if (bytes > rateLimiter.getMinPauseCheckBytes()) {
-                // Time to pause
-                bytesSinceLastPause.addAndGet(-bytes);
-                long throttleTimeInNanos = rateLimiter.pause(bytes);
-                indexState.addTargetThrottling(throttleTimeInNanos);
-                indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
-            }
-        }
         indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
         indexState.addRecoveredBytesToFile(name, content.length());
-        if (indexOutput.getFilePointer() >= length || lastChunk) {
+        if (indexOutput.getFilePointer() >= fileMetaData.length() || lastChunk) {
             try {
                 Store.verify(indexOutput);
             } finally {
@@ -434,7 +405,7 @@ public class RecoveryStatus extends AbstractRefCounted implements RecoveryTarget
                 indexOutput.close();
             }
             // write the checksum
-            legacyChecksums().add(metadata);
+            legacyChecksums().add(fileMetaData);
             final String temporaryFileName = getTempNameForFile(name);
             assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
             store.directory().sync(Collections.singleton(temporaryFileName));

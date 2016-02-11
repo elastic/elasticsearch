@@ -30,8 +30,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
-    final static RecoveryTarget.RecoveryListener listener = new RecoveryTarget.RecoveryListener() {
+    final static RecoveryTargetService.RecoveryListener listener = new RecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 
@@ -61,12 +61,12 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
         final long recoveryId = startRecovery(collection);
-        try (RecoveriesCollection.StatusRef status = collection.getStatus(recoveryId)) {
+        try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
             final long lastSeenTime = status.status().lastAccessTime();
             assertBusy(new Runnable() {
                 @Override
                 public void run() {
-                    try (RecoveriesCollection.StatusRef currentStatus = collection.getStatus(recoveryId)) {
+                    try (RecoveriesCollection.RecoveryRef currentStatus = collection.getRecovery(recoveryId)) {
                         assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.status().lastAccessTime()));
                     }
                 }
@@ -81,7 +81,7 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
         final AtomicBoolean failed = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
-        final long recoveryId = startRecovery(collection, new RecoveryTarget.RecoveryListener() {
+        final long recoveryId = startRecovery(collection, new RecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
                 latch.countDown();
@@ -107,8 +107,8 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
         final long recoveryId = startRecovery(collection);
         final long recoveryId2 = startRecovery(collection);
-        try (RecoveriesCollection.StatusRef statusRef = collection.getStatus(recoveryId)) {
-            ShardId shardId = statusRef.status().shardId();
+        try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
+            ShardId shardId = recoveryRef.status().shardId();
             assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
             assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
         } finally {
@@ -124,19 +124,19 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         final long recoveryId2 = startRecovery(collection);
         final ArrayList<AutoCloseable> toClose = new ArrayList<>();
         try {
-            RecoveriesCollection.StatusRef statusRef = collection.getStatus(recoveryId);
-            toClose.add(statusRef);
-            ShardId shardId = statusRef.status().shardId();
+            RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId);
+            toClose.add(recoveryRef);
+            ShardId shardId = recoveryRef.status().shardId();
             assertFalse("should not have cancelled recoveries", collection.cancelRecoveriesForShard(shardId, "test", status -> false));
-            final Predicate<RecoveryStatus> shouldCancel = status -> status.recoveryId() == recoveryId;
+            final Predicate<RecoveryTarget> shouldCancel = status -> status.recoveryId() == recoveryId;
             assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test", shouldCancel));
             assertThat("we should still have on recovery", collection.size(), equalTo(1));
-            statusRef = collection.getStatus(recoveryId);
-            toClose.add(statusRef);
-            assertNull("recovery should have been deleted", statusRef);
-            statusRef = collection.getStatus(recoveryId2);
-            toClose.add(statusRef);
-            assertNotNull("recovery should NOT have been deleted", statusRef);
+            recoveryRef = collection.getRecovery(recoveryId);
+            toClose.add(recoveryRef);
+            assertNull("recovery should have been deleted", recoveryRef);
+            recoveryRef = collection.getRecovery(recoveryId2);
+            toClose.add(recoveryRef);
+            assertNotNull("recovery should NOT have been deleted", recoveryRef);
 
         } finally {
             // TODO: do we want a lucene IOUtils version of this?
@@ -163,7 +163,7 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         return startRecovery(collection, listener, TimeValue.timeValueMinutes(60));
     }
 
-    long startRecovery(RecoveriesCollection collection, RecoveryTarget.RecoveryListener listener, TimeValue timeValue) {
+    long startRecovery(RecoveriesCollection collection, RecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         IndexShard indexShard = indexServices.indexServiceSafe("test").getShardOrNull(0);
         final DiscoveryNode sourceNode = new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT);

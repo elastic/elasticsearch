@@ -19,56 +19,35 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntIntHashMap;
-import com.carrotsearch.hppc.IntIntMap;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.CoreMatchers.equalTo;
 
-/**
- *
- */
+
 public class MetaDataIT extends ESIntegTestCase {
 
-    /**
-     * Making sure that if there are multiple aggregations, working on the same field, yet require different
-     * value source type, they can all still work. It used to fail as we used to cache the ValueSource by the
-     * field name. If the cached value source was of type "bytes" and another aggregation on the field required to see
-     * it as "numeric", it didn't work. Now we cache the Value Sources by a custom key (field name + ValueSource type)
-     * so there's no conflict there.
-     */
     public void testMetaDataSetOnAggregationResult() throws Exception {
-
         createIndex("idx");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
-        IntIntMap values = new IntIntHashMap();
-        long missingValues = 0;
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            if (rarely()) {
-                missingValues++;
-                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
-                        .startObject()
-                        .field("name", name)
-                        .endObject());
-            } else {
-                int value = randomIntBetween(1, 10);
-                values.put(value, values.getOrDefault(value, 0) + 1);
-                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
-                        .startObject()
-                        .field("name", name)
-                        .field("value", value)
-                        .endObject());
-            }
+            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                .startObject()
+                    .field("name", name)
+                    .field("value", randomInt())
+                .endObject());
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -77,7 +56,7 @@ public class MetaDataIT extends ESIntegTestCase {
             put("nested", "value");
         }};
 
-        Map<String, Object> missingValueMetaData = new HashMap<String, Object>() {{
+        Map<String, Object> metaData = new HashMap<String, Object>() {{
             put("key", "value");
             put("numeric", 1.2);
             put("bool", true);
@@ -85,7 +64,21 @@ public class MetaDataIT extends ESIntegTestCase {
         }};
 
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(missing("missing_values").field("value").setMetaData(missingValueMetaData))
+                .addAggregation(
+                    terms("the_terms")
+                        .setMetaData(metaData)
+                        .field("name")
+                        .subAggregation(
+                            sum("the_sum")
+                                .setMetaData(metaData)
+                                .field("value")
+                            )
+                )
+                .addAggregation(
+                    maxBucket("the_max_bucket")
+                        .setMetaData(metaData)
+                        .setBucketsPaths("the_terms>the_sum")
+                )
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -93,11 +86,26 @@ public class MetaDataIT extends ESIntegTestCase {
         Aggregations aggs = response.getAggregations();
         assertNotNull(aggs);
 
-        Missing missing = aggs.get("missing_values");
-        assertNotNull(missing);
-        assertThat(missing.getDocCount(), equalTo(missingValues));
+        Terms terms = aggs.get("the_terms");
+        assertNotNull(terms);
+        assertMetaData(terms.getMetaData());
 
-        Map<String, Object> returnedMetaData = missing.getMetaData();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
+        for (Terms.Bucket bucket : buckets) {
+            Aggregations subAggs = bucket.getAggregations();
+            assertNotNull(subAggs);
+
+            Sum sum = subAggs.get("the_sum");
+            assertNotNull(sum);
+            assertMetaData(sum.getMetaData());
+        }
+
+        InternalBucketMetricValue maxBucket = aggs.get("the_max_bucket");
+        assertNotNull(maxBucket);
+        assertMetaData(maxBucket.getMetaData());
+    }
+
+    private void assertMetaData(Map<String, Object> returnedMetaData) {
         assertNotNull(returnedMetaData);
         assertEquals(4, returnedMetaData.size());
         assertEquals("value", returnedMetaData.get("key"));

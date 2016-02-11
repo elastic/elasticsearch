@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Checking simple filtering capabilites of the cluster state
+ * Checking simple filtering capabilities of the cluster state
  *
  */
 public class SimpleClusterStateIT extends ESIntegTestCase {

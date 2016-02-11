@@ -284,7 +284,7 @@ class InstallPluginCommand extends CliTool.Command {
         List<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(pluginsDir);
 
         // if we aren't isolated, we need to jarhellcheck against any other non-isolated plugins
-        // thats always the first bundle
+        // that's always the first bundle
         if (isolated == false) {
             jars.addAll(bundles.get(0).urls);
         }

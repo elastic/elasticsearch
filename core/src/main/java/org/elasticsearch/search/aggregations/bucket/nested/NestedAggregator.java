@@ -99,7 +99,7 @@ public class NestedAggregator extends SingleBucketAggregator {
                     // So the trick is to set at the last moment just before needed and we can use its child filter as the
                     // parent filter.
 
-                    // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the the assumption
+                    // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the assumption
                     // that aggs instances are constructed in reverse doesn't hold when buckets are constructed lazily during
                     // aggs execution
                     Query parentFilterNotCached = findClosestNestedPath(parent());

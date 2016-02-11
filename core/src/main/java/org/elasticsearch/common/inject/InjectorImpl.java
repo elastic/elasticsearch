@@ -489,7 +489,7 @@ class InjectorImpl implements Injector, Lookups {
         ParameterizedType parameterizedType = (ParameterizedType) typeLiteralType;
         Type innerType = parameterizedType.getActualTypeArguments()[0];
 
-        // this is unforunate. We don't support building TypeLiterals for type variable like 'T'. If
+        // this is unfortunate. We don't support building TypeLiterals for type variable like 'T'. If
         // this proves problematic, we can probably fix TypeLiteral to support type variables
         if (!(innerType instanceof Class)
                 && !(innerType instanceof GenericArrayType)

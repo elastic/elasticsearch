@@ -275,7 +275,7 @@ public class MovAvgIT extends ESIntegTestCase {
     }
 
     /**
-     * Exponentionally weighted (EWMA, Single exponential) moving avg
+     * Exponentially weighted (EWMA, Single exponential) moving avg
      *
      * @param window Window of values to compute movavg for
      */

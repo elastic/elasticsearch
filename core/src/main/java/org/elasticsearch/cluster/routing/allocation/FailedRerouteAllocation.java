@@ -30,7 +30,7 @@ import java.util.List;
 
 /**
  * This {@link RoutingAllocation} keeps a shard which routing
- * allocation has faild
+ * allocation has failed.
  */
 public class FailedRerouteAllocation extends RoutingAllocation {
 

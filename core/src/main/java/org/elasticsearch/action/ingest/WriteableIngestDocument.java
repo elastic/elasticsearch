@@ -69,7 +69,9 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
         builder.startObject("doc");
         Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
         for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
-            builder.field(metadata.getKey().getFieldName(), metadata.getValue());
+            if (metadata.getValue() != null) {
+                builder.field(metadata.getKey().getFieldName(), metadata.getValue());
+            }
         }
         builder.field("_source", ingestDocument.getSourceAndMetadata());
         builder.startObject("_ingest");

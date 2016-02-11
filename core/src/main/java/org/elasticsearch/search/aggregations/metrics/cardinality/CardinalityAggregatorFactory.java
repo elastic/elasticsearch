@@ -71,7 +71,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<
         int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
         while (parent != null) {
             if (parent instanceof SingleBucketAggregator == false) {
-                // if the parent creates buckets, we substract 5 to the precision,
+                // if the parent creates buckets, we subtract 5 to the precision,
                 // which will effectively divide the memory usage of each counter by 32
                 precision -= 5;
             }

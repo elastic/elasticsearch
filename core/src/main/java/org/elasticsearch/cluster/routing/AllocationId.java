@@ -97,6 +97,13 @@ public class AllocationId implements ToXContent {
     }
 
     /**
+     * Creates a new allocation id for initializing allocation based on an existing id.
+     */
+    public static AllocationId newInitializing(String existingAllocationId) {
+        return new AllocationId(existingAllocationId, null);
+    }
+
+    /**
      * Creates a new allocation id for the target initializing shard that is the result
      * of a relocation.
      */

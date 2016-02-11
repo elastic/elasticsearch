@@ -25,6 +25,11 @@ import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.util.List;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.settings.Setting.listSetting;
+
 public final class HttpTransportSettings {
 
     public static final Setting<Boolean> SETTING_CORS_ENABLED = Setting.boolSetting("http.cors.enabled", false, false, Scope.CLUSTER);
@@ -37,6 +42,10 @@ public final class HttpTransportSettings {
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS = Setting.intSetting("http.pipelining.max_events", 10000, false, Scope.CLUSTER);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION = Setting.boolSetting("http.compression", false, false, Scope.CLUSTER);
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL = Setting.intSetting("http.compression_level", 6, false, Scope.CLUSTER);
+    public static final Setting<List<String>> SETTING_HTTP_HOST = listSetting("http.host", emptyList(), s -> s, false, Scope.CLUSTER);
+    public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST = listSetting("http.publish_host", SETTING_HTTP_HOST, s -> s, false, Scope.CLUSTER);
+    public static final Setting<List<String>> SETTING_HTTP_BIND_HOST = listSetting("http.bind_host", SETTING_HTTP_HOST, s -> s, false, Scope.CLUSTER);
+
     public static final Setting<PortsRange> SETTING_HTTP_PORT = new Setting<PortsRange>("http.port", "9200-9300", PortsRange::new, false, Scope.CLUSTER);
     public static final Setting<Integer> SETTING_HTTP_PUBLISH_PORT = Setting.intSetting("http.publish_port", 0, 0, false, Scope.CLUSTER);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED = Setting.boolSetting("http.detailed_errors.enabled", true, false, Scope.CLUSTER);

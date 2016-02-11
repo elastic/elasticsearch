@@ -104,7 +104,7 @@ public class NetworkService extends AbstractComponent {
      */
     public InetAddress[] resolveBindHostAddresses(String bindHosts[]) throws IOException {
         // first check settings
-        if (bindHosts == null) {
+        if (bindHosts == null || bindHosts.length == 0) {
             if (GLOBAL_NETWORK_BINDHOST_SETTING.exists(settings) || GLOBAL_NETWORK_HOST_SETTING.exists(settings)) {
                 // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
                 bindHosts = GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);

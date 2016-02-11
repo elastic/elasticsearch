@@ -284,7 +284,7 @@ public class MultiMatchQuery extends MatchQuery {
             } catch (RuntimeException ex) {
                 // we can't parse it just use the incoming value -- it will
                 // just have a DF of 0 at the end of the day and will be ignored
-                // Note that this is like lenient = true allways
+                // Note that this is like lenient = true always
             }
             return new Term(field, value);
         }

@@ -471,7 +471,7 @@ public final class Settings implements ToXContent {
 
     /**
      * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
@@ -480,7 +480,7 @@ public final class Settings implements ToXContent {
 
     /**
      * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {

@@ -165,7 +165,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Sets the minimum number of high frequent query terms that need to match in order to
-     * produce a hit when there are no low frequen terms.
+     * produce a hit when there are no low frequent terms.
      */
     public CommonTermsQueryBuilder highFreqMinimumShouldMatch(String highFreqMinimumShouldMatch) {
         this.highFreqMinimumShouldMatch = highFreqMinimumShouldMatch;

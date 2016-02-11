@@ -104,7 +104,7 @@ final class Seccomp {
         int prctl(int option, NativeLong arg2, NativeLong arg3, NativeLong arg4, NativeLong arg5);
         /**
          * used to call seccomp(2), its too new...
-         * this is the only way, DONT use it on some other architecture unless you know wtf you are doing
+         * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
          */
         NativeLong syscall(NativeLong number, Object... args);
     };

@@ -55,8 +55,6 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -160,8 +158,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
-        bind(IndicesQueryCache.class).asEagerSingleton();
-        bind(IndicesRequestCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
         bind(UpdateHelper.class).asEagerSingleton();

@@ -58,7 +58,6 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
@@ -105,7 +104,6 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndexingMemoryController;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.percolator.PercolatorService;
@@ -154,7 +152,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final SimilarityService similarityService;
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
-    private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
 
@@ -227,7 +224,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.searchService = new ShardSearchStats(slowLog);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
-        this.indicesQueryCache = provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
         this.indexFieldDataService = indexFieldDataService;
@@ -650,10 +646,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public WarmerStats warmerStats() {
         return shardWarmerService.stats();
-    }
-
-    public QueryCacheStats queryCacheStats() {
-        return indicesQueryCache.getStats(shardId);
     }
 
     public FieldDataStats fieldDataStats(String... fields) {

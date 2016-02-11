@@ -88,7 +88,7 @@ public class IndexModuleTests extends ESTestCase {
     private Environment environment;
     private NodeEnvironment nodeEnvironment;
     private NodeServicesProvider nodeServicesProvider;
-    private IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
+    private IndicesQueryCache indicesQueryCache;
 
     private IndexService.ShardStoreDeleter deleter = new IndexService.ShardStoreDeleter() {
         @Override
@@ -122,6 +122,7 @@ public class IndexModuleTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         index = indexSettings.getIndex();
         environment = new Environment(settings);
@@ -134,10 +135,8 @@ public class IndexModuleTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         nodeEnvironment.close();
-        nodeServicesProvider.getThreadPool().shutdown();
-        if (nodeServicesProvider.getThreadPool().awaitTermination(10, TimeUnit.SECONDS) == false) {
-            nodeServicesProvider.getThreadPool().shutdownNow();
-        }
+        indicesQueryCache.close();
+        ThreadPool.terminate(nodeServicesProvider.getThreadPool(), 10, TimeUnit.SECONDS);
     }
 
     public void testWrapperIsBound() throws IOException {

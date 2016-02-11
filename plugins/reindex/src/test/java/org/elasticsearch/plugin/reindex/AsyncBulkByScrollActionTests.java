@@ -356,7 +356,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          * This is the total number of milliseconds that a reindex made with the default settings will backoff before attempting one final
          * time. If that request is rejected then the whole process fails with a rejected exception.
          */
-        int defaultBackoffBeforeFailing = 24670;
+        int defaultBackoffBeforeFailing = 59460;
         assertEquals(defaultBackoffBeforeFailing, millis);
     }
 

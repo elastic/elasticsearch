@@ -76,14 +76,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     /**
      * Initial delay after a rejection before retrying a bulk request. With the default maxRetries the total backoff for retrying rejections
-     * is about 25 seconds per bulk request. Once the entire bulk request is successful the retry counter resets.
+     * is about one minute per bulk request. Once the entire bulk request is successful the retry counter resets.
      */
-    private TimeValue retryBackoffInitialTime = timeValueMillis(50);
+    private TimeValue retryBackoffInitialTime = timeValueMillis(500);
 
     /**
      * Total number of retries attempted for rejections. There is no way to ask for unlimited retries.
      */
-    private int maxRetries = 10;
+    private int maxRetries = 11;
 
     public AbstractBulkByScrollRequest() {
     }

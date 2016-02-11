@@ -52,18 +52,18 @@ logstash:
     'logstash-*':
       privileges: indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, indices:data/read/search, indices:data/read/scroll, create_index
 
-# Marvel user role. Assign to marvel users.
-marvel_user:
+# Monitoring user role. Assign to monitoring users.
+monitoring_user:
   indices:
-    '.marvel-es-*':
+    '.monitoring-es-*':
       privileges: read
     '.kibana':
       privileges: indices:admin/exists, indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search
 
-# Marvel remote agent role. Assign to the agent user on the remote marvel cluster
-# to which the marvel agent will export all its data
-remote_marvel_agent:
+# Monitoring remote agent role. Assign to the agent user on the remote monitoring cluster
+# to which the monitoring agent will export all its data
+remote_monitoring_agent:
   cluster: indices:admin/template/put, indices:admin/template/get
   indices:
-    '.marvel-es-*':
+    '.monitoring-es-*':
       privileges: all

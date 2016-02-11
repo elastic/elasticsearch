@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -34,10 +34,10 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put(MarvelSettings.INDICES_SETTING.getKey(), INDEX_PREFIX + "*")
-                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), IndexRecoveryCollector.NAME)
-                .put("marvel.agent.exporters.default_local.type", "local")
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MarvelSettings.INDICES.getKey(), INDEX_PREFIX + "*")
+                .put(MarvelSettings.COLLECTORS.getKey(), IndexRecoveryCollector.NAME)
+                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }
 
@@ -73,8 +73,8 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
         String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
-        logger.debug("--> searching for marvel documents of type [{}]", IndexRecoveryCollector.TYPE);
-        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + "*")
+        logger.debug("--> searching for monitoring documents of type [{}]", IndexRecoveryCollector.TYPE);
+        SearchResponse response = client().prepareSearch(MarvelSettings.MONITORING_INDICES_PREFIX + "*")
                 .setTypes(IndexRecoveryCollector.TYPE)
                 .get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));

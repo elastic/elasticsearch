@@ -19,24 +19,24 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Main class to easily run Marvel from a IDE.
+ * Main class to easily run Monitoring from a IDE.
  * <p>
  * In order to run this class set configure the following:
  * 1) Set `-Des.path.home=` to a directory containing an ES config directory
  *
  * It accepts collectors names as program arguments.
  */
-public class MarvelF {
+public class MonitoringF {
 
     public static void main(String[] args) throws Throwable {
         Settings.Builder settings = Settings.builder();
         settings.put("script.inline", "true");
         settings.put("security.manager.enabled", "false");
         settings.put("plugins.load_classpath_plugins", "false");
-        settings.put("cluster.name", MarvelF.class.getSimpleName());
-        settings.put("marvel.agent.interval", "5s");
+        settings.put("cluster.name", MonitoringF.class.getSimpleName());
+        settings.put("xpack.monitoring.agent.interval", "5s");
         if (!CollectionUtils.isEmpty(args)) {
-            settings.putArray("marvel.agent.collectors", args);
+            settings.putArray("xpack.monitoring.agent.collectors", args);
         }
 
         final CountDownLatch latch = new CountDownLatch(1);

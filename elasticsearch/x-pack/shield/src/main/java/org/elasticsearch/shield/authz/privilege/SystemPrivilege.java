@@ -20,8 +20,8 @@ public class SystemPrivilege extends Privilege<SystemPrivilege> {
 
     protected static final Predicate<String> PREDICATE = new AutomatonPredicate(patterns(
             "internal:*",
-            "indices:monitor/*", // added for marvel
-            "cluster:monitor/*",  // added for marvel
+            "indices:monitor/*", // added for monitoring
+            "cluster:monitor/*",  // added for monitoring
             "cluster:admin/reroute" // added for DiskThresholdDecider.DiskListener
     ));
 

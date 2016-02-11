@@ -1,8 +1,7 @@
 {
-  "template": ".marvel-es-data-${marvel.template.version}",
+  "template": ".monitoring-es-data-${monitoring.template.version}",
   "settings": {
-    "marvel.plugin.version": "${marvel.plugin.version}",
-    "marvel.template.version": "${marvel.template.version}",
+    "index.xpack.version": "${project.version}",
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
     "index.codec": "best_compression",

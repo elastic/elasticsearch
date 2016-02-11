@@ -10,6 +10,6 @@ integTest {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     systemProperty 'es.script.inline', 'true'
     systemProperty 'es.xpack.shield.enabled', 'false'
-    systemProperty 'es.xpack.marvel.enabled', 'false'
+    systemProperty 'es.xpack.monitoring.enabled', 'false'
   }
 }

@@ -6,9 +6,9 @@
 package org.elasticsearch.marvel.cleaner;
 
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -17,8 +17,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -35,7 +34,7 @@ public class CleanerServiceTests extends ESTestCase {
 
     @Before
     public void start() {
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<Setting<?>>(Arrays.asList(CleanerService.HISTORY_SETTING)));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(MarvelSettings.HISTORY_DURATION));
         defaultRetention = TimeValue.parseTimeValue("7d", null, "");
         threadPool = new ThreadPool("CleanerServiceTests");
     }

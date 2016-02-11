@@ -10,9 +10,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -46,20 +46,20 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
 
     private Settings marvelSettings() {
         return Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), interval)
-                .put(MarvelSettings.INDEX_STATS_TIMEOUT_SETTING.getKey(), indexStatsTimeout)
-                .put(MarvelSettings.INDICES_STATS_TIMEOUT_SETTING.getKey(), indicesStatsTimeout)
-                .putArray(MarvelSettings.INDICES_SETTING.getKey(), indices)
-                .put(MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING.getKey(), clusterStateTimeout)
-                .put(MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING.getKey(), clusterStatsTimeout)
-                .put(MarvelSettings.INDEX_RECOVERY_TIMEOUT_SETTING.getKey(), recoveryTimeout)
-                .put(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY_SETTING.getKey(), recoveryActiveOnly)
-                .putArray(MarvelSettings.COLLECTORS_SETTING.getKey(), collectors)
+                .put(MarvelSettings.INTERVAL.getKey(), interval)
+                .put(MarvelSettings.INDEX_STATS_TIMEOUT.getKey(), indexStatsTimeout)
+                .put(MarvelSettings.INDICES_STATS_TIMEOUT.getKey(), indicesStatsTimeout)
+                .putArray(MarvelSettings.INDICES.getKey(), indices)
+                .put(MarvelSettings.CLUSTER_STATE_TIMEOUT.getKey(), clusterStateTimeout)
+                .put(MarvelSettings.CLUSTER_STATS_TIMEOUT.getKey(), clusterStatsTimeout)
+                .put(MarvelSettings.INDEX_RECOVERY_TIMEOUT.getKey(), recoveryTimeout)
+                .put(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY.getKey(), recoveryActiveOnly)
+                .putArray(MarvelSettings.COLLECTORS.getKey(), collectors)
                 .build();
     }
 
     public void testMarvelSettings() throws Exception {
-        logger.info("--> testing marvel settings service initialization");
+        logger.info("--> testing monitoring settings service initialization");
         for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
             assertThat(marvelSettings.indexStatsTimeout().millis(), equalTo(indexStatsTimeout.millis()));
             assertThat(marvelSettings.indicesStatsTimeout().millis(), equalTo(indicesStatsTimeout.millis()));
@@ -76,18 +76,18 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
 
         }
 
-        logger.info("--> testing marvel dynamic settings update");
+        logger.info("--> testing monitoring dynamic settings update");
         Settings.Builder transientSettings = Settings.builder();
         final Setting[] marvelSettings = new Setting[] {
-                MarvelSettings.INDICES_SETTING,
-        MarvelSettings.INTERVAL_SETTING,
-        MarvelSettings.INDEX_RECOVERY_TIMEOUT_SETTING,
-        MarvelSettings.INDEX_STATS_TIMEOUT_SETTING,
-        MarvelSettings.INDICES_STATS_TIMEOUT_SETTING,
-        MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY_SETTING,
-        MarvelSettings.COLLECTORS_SETTING,
-        MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING,
-        MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING};
+                MarvelSettings.INDICES,
+        MarvelSettings.INTERVAL,
+        MarvelSettings.INDEX_RECOVERY_TIMEOUT,
+        MarvelSettings.INDEX_STATS_TIMEOUT,
+        MarvelSettings.INDICES_STATS_TIMEOUT,
+        MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY,
+        MarvelSettings.COLLECTORS,
+        MarvelSettings.CLUSTER_STATE_TIMEOUT,
+        MarvelSettings.CLUSTER_STATS_TIMEOUT };
         for (Setting<?> setting : marvelSettings) {
             if (setting.isDynamic()) {
                 Object updated = null;
@@ -110,30 +110,30 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
         final Settings updatedSettings = transientSettings.build();
         assertAcked(prepareRandomUpdateSettings(updatedSettings).get());
 
-        logger.error("--> checking that the value has been correctly updated on all marvel settings services");
+        logger.error("--> checking that the value has been correctly updated on all monitoring settings services");
         for (Setting<?> setting : marvelSettings) {
             if (setting.isDynamic() == false) {
                 continue;
             }
-            if (setting == MarvelSettings.INTERVAL_SETTING) {
+            if (setting == MarvelSettings.INTERVAL) {
                 for (final AgentService service : internalCluster().getInstances(AgentService.class)) {
                     assertEquals(service.getSamplingInterval(), setting.get(updatedSettings));
                 }
             } else {
                 for (final MarvelSettings marvelSettings1 : internalCluster().getInstances(MarvelSettings.class)) {
-                    if (setting == MarvelSettings.INDEX_STATS_TIMEOUT_SETTING) {
+                    if (setting == MarvelSettings.INDEX_STATS_TIMEOUT) {
                         assertEquals(marvelSettings1.indexStatsTimeout(), setting.get(updatedSettings));
-                    } else if (setting == MarvelSettings.INDICES_STATS_TIMEOUT_SETTING) {
+                    } else if (setting == MarvelSettings.INDICES_STATS_TIMEOUT) {
                         assertEquals(marvelSettings1.indicesStatsTimeout(), setting.get(updatedSettings));
-                    } else if (setting == MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING) {
+                    } else if (setting == MarvelSettings.CLUSTER_STATS_TIMEOUT) {
                         assertEquals(marvelSettings1.clusterStatsTimeout(), setting.get(updatedSettings));
-                    } else if (setting == MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING) {
+                    } else if (setting == MarvelSettings.CLUSTER_STATE_TIMEOUT) {
                         assertEquals(marvelSettings1.clusterStateTimeout(), setting.get(updatedSettings));
-                    } else if (setting == MarvelSettings.INDEX_RECOVERY_TIMEOUT_SETTING) {
+                    } else if (setting == MarvelSettings.INDEX_RECOVERY_TIMEOUT) {
                         assertEquals(marvelSettings1.recoveryTimeout(), setting.get(updatedSettings));
-                    } else if (setting == MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY_SETTING) {
+                    } else if (setting == MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY) {
                         assertEquals(Boolean.valueOf(marvelSettings1.recoveryActiveOnly()), setting.get(updatedSettings));
-                    } else if (setting == MarvelSettings.INDICES_SETTING) {
+                    } else if (setting == MarvelSettings.INDICES) {
                         assertEquals(Arrays.asList(marvelSettings1.indices()), setting.get(updatedSettings));
                     } else {
                         fail("unable to check value for unknown dynamic setting [" + setting + "]");

@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.shards.ShardsCollector;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -41,10 +41,10 @@ public class ShardsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ShardsCollector.NAME)
-                .put(MarvelSettings.INDICES_SETTING.getKey(), INDEX_PREFIX + "*")
-                .put("marvel.agent.exporters.default_local.type", "local")
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS.getKey(), ShardsCollector.NAME)
+                .put(MarvelSettings.INDICES.getKey(), INDEX_PREFIX + "*")
+                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }
 
@@ -68,7 +68,7 @@ public class ShardsTests extends MarvelIntegTestCase {
 
         awaitMarvelDocsCount(greaterThan(0L), ShardsCollector.TYPE);
 
-        logger.debug("--> searching for marvel documents of type [{}]", ShardsCollector.TYPE);
+        logger.debug("--> searching for monitoring documents of type [{}]", ShardsCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(ShardsCollector.TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 

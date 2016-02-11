@@ -42,8 +42,8 @@ public class ShieldF {
         settings.put("script.inline", "true");
         settings.put("xpack.shield.enabled", "true");
         settings.put("security.manager.enabled", "false");
-        // Disable Marvel to prevent cluster activity
-        settings.put("xpack.marvel.enabled", "false");
+        // Disable Monitoring to prevent cluster activity
+        settings.put("xpack.monitoring.enabled", "false");
         settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE);
         settings.put("cluster.name", ShieldF.class.getSimpleName());
 

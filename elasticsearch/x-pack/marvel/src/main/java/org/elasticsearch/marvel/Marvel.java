@@ -18,8 +18,6 @@ import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.renderer.RendererModule;
-import org.elasticsearch.marvel.agent.settings.MarvelModule;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -36,12 +34,7 @@ public class Marvel {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
-    public static final String NAME = "marvel";
-    public static final Setting<String> INDEX_MARVEL_VERSION_SETTING =
-            new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
-    public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING =
-            new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
-    public static final String TRIBE_NAME_SETTING = "tribe.name";
+    public static final String NAME = "monitoring";
 
     private final Settings settings;
     private final boolean enabled;
@@ -49,14 +42,6 @@ public class Marvel {
     public Marvel(Settings settings) {
         this.settings = settings;
         this.enabled = enabled(settings);
-    }
-
-    public String name() {
-        return NAME;
-    }
-
-    public String description() {
-        return "Elasticsearch Marvel";
     }
 
     boolean isEnabled() {
@@ -87,49 +72,13 @@ public class Marvel {
 
     public static boolean enabled(Settings settings) {
         if ("node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false) {
-            logger.trace("marvel cannot be started on a transport client");
+            logger.trace("monitoring cannot be started on a transport client");
             return false;
         }
-        // By default, marvel is disabled on tribe nodes
-        return settings.getAsBoolean(XPackPlugin.featureEnabledSetting(Marvel.NAME),
-                !isTribeNode(settings) && !isTribeClientNode(settings));
-    }
-
-    static boolean isTribeNode(Settings settings) {
-        if (settings.getGroups("tribe", true).isEmpty() == false) {
-            logger.trace("detecting tribe node");
-            return true;
-        }
-        return false;
-    }
-
-    static boolean isTribeClientNode(Settings settings) {
-        String tribeName = settings.get(TRIBE_NAME_SETTING);
-        if (tribeName != null) {
-            logger.trace("detecting tribe client node [{}]", tribeName);
-            return true;
-        }
-        return false;
+        return MarvelSettings.ENABLED.get(settings);
     }
 
     public void onModule(SettingsModule module) {
-        module.registerSetting(Exporters.EXPORTERS_SETTING);
-        module.registerSetting(MarvelSettings.INDICES_SETTING);
-        module.registerSetting(MarvelSettings.INTERVAL_SETTING);
-        module.registerSetting(MarvelSettings.INDEX_RECOVERY_TIMEOUT_SETTING);
-        module.registerSetting(MarvelSettings.INDEX_STATS_TIMEOUT_SETTING);
-        module.registerSetting(MarvelSettings.INDICES_STATS_TIMEOUT_SETTING);
-        module.registerSetting(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY_SETTING);
-        module.registerSetting(MarvelSettings.COLLECTORS_SETTING);
-        module.registerSetting(MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING);
-        module.registerSetting(MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING);
-        module.registerSetting(CleanerService.HISTORY_SETTING);
-        module.registerSetting(INDEX_MARVEL_VERSION_SETTING);
-        module.registerSetting(INDEX_MARVEL_TEMPLATE_VERSION_SETTING);
-        // TODO convert these settings to where they belong
-        module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.password", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.path", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Marvel.NAME), true, false, Setting.Scope.CLUSTER));
-        module.registerSettingsFilter("marvel.agent.exporters.*.auth.password");
+        MarvelSettings.register(module);
     }
 }

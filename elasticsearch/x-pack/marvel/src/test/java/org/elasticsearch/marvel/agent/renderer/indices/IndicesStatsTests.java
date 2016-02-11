@@ -9,7 +9,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsCollector;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -27,9 +27,9 @@ public class IndicesStatsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), IndicesStatsCollector.NAME)
-                .put("marvel.agent.exporters.default_local.type", "local")
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS.getKey(), IndicesStatsCollector.NAME)
+                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }
 
@@ -74,7 +74,7 @@ public class IndicesStatsTests extends MarvelIntegTestCase {
         logger.debug("--> wait for indices stats collector to collect global stat");
         awaitMarvelDocsCount(greaterThan(0L), IndicesStatsCollector.TYPE);
 
-        logger.debug("--> searching for marvel documents of type [{}]", IndicesStatsCollector.TYPE);
+        logger.debug("--> searching for monitoring documents of type [{}]", IndicesStatsCollector.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(IndicesStatsCollector.TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 

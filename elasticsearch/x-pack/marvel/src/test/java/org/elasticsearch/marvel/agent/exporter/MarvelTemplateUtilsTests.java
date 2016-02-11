@@ -12,8 +12,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-//import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.MARVEL_VERSION_FIELD;
-
 public class MarvelTemplateUtilsTests extends ESTestCase {
 
     public void testLoadTimestampedIndexTemplate() {
@@ -46,13 +44,13 @@ public class MarvelTemplateUtilsTests extends ESTestCase {
         assertThat(MarvelTemplateUtils.indexTemplateName(),
                 equalTo(MarvelTemplateUtils.INDEX_TEMPLATE_NAME_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
         int version = randomIntBetween(1, 100);
-        assertThat(MarvelTemplateUtils.indexTemplateName(version), equalTo(".marvel-es-" + version));
+        assertThat(MarvelTemplateUtils.indexTemplateName(version), equalTo(".monitoring-es-" + version));
     }
 
     public void testDataTemplateName() {
         assertThat(MarvelTemplateUtils.dataTemplateName(),
                 equalTo(MarvelTemplateUtils.DATA_TEMPLATE_NAME_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
         int version = randomIntBetween(1, 100);
-        assertThat(MarvelTemplateUtils.dataTemplateName(version), equalTo(".marvel-es-data-" + version));
+        assertThat(MarvelTemplateUtils.dataTemplateName(version), equalTo(".monitoring-es-data-" + version));
     }
 }

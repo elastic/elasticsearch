@@ -13,7 +13,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.ArrayList;
@@ -188,13 +188,13 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             } else if (marvelDoc instanceof DiscoveryNodeMarvelDoc) {
                 DiscoveryNodeMarvelDoc discoveryNodeMarvelDoc = (DiscoveryNodeMarvelDoc) marvelDoc;
                 assertThat(discoveryNodeMarvelDoc.getIndex(),
-                        equalTo(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
+                        equalTo(MarvelSettings.MONITORING_DATA_INDEX_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
                 assertThat(discoveryNodeMarvelDoc.getId(), not(isEmptyOrNullString()));
                 assertNotNull(discoveryNodeMarvelDoc.getNode());
                 discoveryNodes.add(discoveryNodeMarvelDoc);
 
             } else {
-                fail("unknown marvel document type " + marvelDoc.getType());
+                fail("unknown monitoring document type " + marvelDoc.getType());
             }
         }
 

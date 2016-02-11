@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Renders Marvel documents using a XContentBuilder (potentially filtered)
+ * Renders Monitoring documents using a XContentBuilder (potentially filtered)
  */
 public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<T> {
 
@@ -54,7 +54,7 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
             try (XContentBuilder builder = new XContentBuilder(xContentType.xContent(), os, filters())) {
                 builder.startObject();
 
-                // Add fields common to all Marvel documents
+                // Add fields common to all Monitoring documents
                 builder.field(Fields.CLUSTER_UUID, marvelDoc.getClusterUUID());
                 DateTime timestampDateTime = new DateTime(marvelDoc.getTimestamp(), DateTimeZone.UTC);
                 builder.field(Fields.TIMESTAMP, timestampDateTime.toString());
@@ -64,7 +64,7 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
                     builder.field(Fields.SOURCE_NODE, sourceNode);
                 }
 
-                // Render fields specific to the Marvel document
+                // Render fields specific to the Monitoring document
                 doRender(marvelDoc, builder, ToXContent.EMPTY_PARAMS);
 
                 builder.endObject();

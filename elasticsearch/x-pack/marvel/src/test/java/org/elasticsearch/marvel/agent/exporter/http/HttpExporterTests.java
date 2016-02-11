@@ -29,7 +29,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -94,11 +94,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueResponse(200, "successful bulk request ");
 
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false)
-                .put("marvel.agent.exporters._http.update_mappings", false);
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.agent.exporters._http.type", "http")
+                .put("xpack.monitoring.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.agent.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.agent.exporters._http.update_mappings", false);
 
         String agentNode = internalCluster().startNode(builder);
         HttpExporter exporter = getExporter(agentNode);
@@ -140,35 +140,35 @@ public class HttpExporterTests extends MarvelIntegTestCase {
     public void testDynamicHostChange() {
         // disable exporting to be able to use non valid hosts
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", "test0");
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.agent.exporters._http.type", "http")
+                .put("xpack.monitoring.agent.exporters._http.host", "test0");
 
         String nodeName = internalCluster().startNode(builder);
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("marvel.agent.exporters._http.host", "test1")));
+                .putArray("xpack.monitoring.agent.exporters._http.host", "test1")));
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test1"));
 
         // wipes the non array settings
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("marvel.agent.exporters._http.host", "test2")
-                .put("marvel.agent.exporters._http.host", "")));
+                .putArray("xpack.monitoring.agent.exporters._http.host", "test2")
+                .put("xpack.monitoring.agent.exporters._http.host", "")));
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test2"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("marvel.agent.exporters._http.host", "test3")));
+                .putArray("xpack.monitoring.agent.exporters._http.host", "test3")));
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test3"));
     }
 
     public void testHostChangeReChecksTemplate() throws Exception {
 
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false)
-                .put("marvel.agent.exporters._http.update_mappings", false);
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.agent.exporters._http.type", "http")
+                .put("xpack.monitoring.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.agent.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.agent.exporters._http.update_mappings", false);
 
         logger.info("--> starting node");
 
@@ -236,7 +236,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             assertNotNull("Unable to start the second mock web server", secondWebServer);
 
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putArray("marvel.agent.exporters._http.host",
+                    Settings.builder().putArray("xpack.monitoring.agent.exporters._http.host",
                             secondWebServer.getHostName() + ":" + secondWebServer.getPort())).get());
 
             // a new exporter is created on update, so we need to re-fetch it
@@ -283,10 +283,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     public void testUnsupportedClusterVersion() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.agent.exporters._http.type", "http")
+                .put("xpack.monitoring.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.agent.exporters._http.connection.keep_alive", false);
 
         logger.info("--> starting node");
 
@@ -310,11 +310,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     public void testDynamicIndexFormatChange() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("marvel.agent.exporters._http.connection.keep_alive", false)
-                .put("marvel.agent.exporters._http.update_mappings", false);
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.agent.exporters._http.type", "http")
+                .put("xpack.monitoring.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.agent.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.agent.exporters._http.update_mappings", false);
 
         String agentNode = internalCluster().startNode(builder);
 
@@ -371,7 +371,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         String newTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
         logger.info("--> updating index time format setting to {}", newTimeFormat);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("marvel.agent.exporters._http.index.name.time_format", newTimeFormat)));
+                .put("xpack.monitoring.agent.exporters._http.index.name.time_format", newTimeFormat)));
 
 
         logger.info("--> exporting a second event");
@@ -385,7 +385,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter = getExporter(agentNode);
         exporter.export(Collections.singletonList(doc));
 
-        String expectedMarvelIndex = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
+        String expectedMarvelIndex = MarvelSettings.MONITORING_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
                 + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
 
         assertThat(webServer.getRequestCount(), equalTo(6 + 4));
@@ -418,10 +418,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         final String host = webServer.getHostName() + ":" + webServer.getPort();
 
         Settings.Builder builder = Settings.builder()
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put("marvel.agent.exporters._http.type", "http")
-                .put("marvel.agent.exporters._http.host", host)
-                .put("marvel.agent.exporters._http.connection.keep_alive", false);
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.agent.exporters._http.type", "http")
+                .put("xpack.monitoring.agent.exporters._http.host", host)
+                .put("xpack.monitoring.agent.exporters._http.connection.keep_alive", false);
 
         String agentNode = internalCluster().startNode(builder);
         HttpExporter exporter = getExporter(agentNode);

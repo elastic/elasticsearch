@@ -72,10 +72,8 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 ext.expansions = [
   'project.version': version,
   // Used in marvel index templates
-  'marvel.plugin.version': version,
-  'marvel.template.version': '1',
-  // Used in watcher index template
-  'watcher.plugin.version': version,
+  'monitoring.template.version': '1',
+  // Used in watcher index templates
   'watcher.template.version': '1',
 ]
 

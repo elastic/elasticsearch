@@ -21,7 +21,7 @@ public class IndicesStatsRendererTests extends ESSingleNodeTestCase {
         logger.debug("--> retrieving indices stats response");
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
 
-        logger.debug("--> creating the indices stats marvel document");
+        logger.debug("--> creating the indices stats monitoring document");
         IndicesStatsMarvelDoc marvelDoc = new IndicesStatsMarvelDoc();
         marvelDoc.setClusterUUID("test");
         marvelDoc.setType("indices_stats");

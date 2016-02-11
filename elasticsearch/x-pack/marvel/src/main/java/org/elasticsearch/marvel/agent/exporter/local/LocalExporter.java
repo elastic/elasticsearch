@@ -28,7 +28,7 @@ import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.shield.InternalClient;
 import org.joda.time.DateTime;
@@ -130,7 +130,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we think may not have .marvel-es-
+            // wait until the gateway has recovered from disk, otherwise we think may not have .monitoring-es-
             // indices but they may not have been restored from the cluster state on disk
             logger.debug("local exporter [{}] - waiting until gateway has recovered from disk", name());
             return null;
@@ -139,14 +139,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         String templateName = MarvelTemplateUtils.indexTemplateName(templateVersion);
         boolean templateInstalled = hasTemplate(templateName, clusterState);
 
-        // if this is not the master, we'll just look to see if the marvel timestamped template is already
+        // if this is not the master, we'll just look to see if the monitoring timestamped template is already
         // installed and if so, if it has a compatible version. If it is (installed and compatible)
         // we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
         if (!clusterService.localNode().masterNode()) {
             // We only need to check the index template for timestamped indices
             if (!templateInstalled) {
                 // the template for timestamped indices is not yet installed in the given cluster state, we'll wait.
-                logger.debug("local exporter [{}] - marvel index template does not exist, so service cannot start", name());
+                logger.debug("local exporter [{}] - monitoring index template does not exist, so service cannot start", name());
                 return null;
             }
 
@@ -165,7 +165,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // Install the index template for timestamped indices first, so that other nodes can ship data
         if (!templateInstalled) {
-            logger.debug("local exporter [{}] - could not find existing marvel template for timestamped indices, installing a new one",
+            logger.debug("local exporter [{}] - could not find existing monitoring template for timestamped indices, installing a new one",
                     name());
             putTemplate(templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate());
             // we'll get that template on the next cluster state update
@@ -175,7 +175,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // Install the index template for data index
         templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
         if (!hasTemplate(templateName, clusterState)) {
-            logger.debug("local exporter [{}] - could not find existing marvel template for data index, installing a new one", name());
+            logger.debug("local exporter [{}] - could not find existing monitoring template for data index, installing a new one", name());
             putTemplate(templateName, MarvelTemplateUtils.loadDataIndexTemplate());
             // we'll get that template on the next cluster state update
             return null;
@@ -224,15 +224,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             @Override
             public void onResponse(PutIndexTemplateResponse response) {
                 if (response.isAcknowledged()) {
-                    logger.trace("local exporter [{}] - successfully installed marvel template [{}]", name(), template);
+                    logger.trace("local exporter [{}] - successfully installed monitoring template [{}]", name(), template);
                 } else {
-                    logger.error("local exporter [{}] - failed to update marvel index template [{}]", name(), template);
+                    logger.error("local exporter [{}] - failed to update monitoring index template [{}]", name(), template);
                 }
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                logger.error("local exporter [{}] - failed to update marvel index template [{}]", throwable, name(), template);
+                logger.error("local exporter [{}] - failed to update monitoring index template [{}]", throwable, name(), template);
             }
         });
     }
@@ -247,7 +247,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (clusterService.localNode().masterNode()) {
 
             // Retention duration can be overridden at exporter level
-            TimeValue exporterRetention = config.settings().getAsTime(CleanerService.HISTORY_DURATION, null);
+            TimeValue exporterRetention = config.settings().getAsTime(MarvelSettings.HISTORY_DURATION_SETTING_NAME, null);
             if (exporterRetention != null) {
                 try {
                     cleanerService.validateRetention(exporterRetention);
@@ -270,9 +270,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
                 for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
                     String indexName =  index.key;
-                    if (Regex.simpleMatch(MarvelSettings.MARVEL_INDICES_PREFIX + "*", indexName)) {
+                    if (Regex.simpleMatch(MarvelSettings.MONITORING_INDICES_PREFIX + "*", indexName)) {
                         // Never delete the data indices
-                        if (indexName.startsWith(MarvelSettings.MARVEL_DATA_INDEX_PREFIX)) {
+                        if (indexName.startsWith(MarvelSettings.MONITORING_DATA_INDEX_PREFIX)) {
                             continue;
                         }
 

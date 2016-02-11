@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
@@ -37,7 +37,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INDICES_SETTING.getKey(), "test-shards*")
+                .put(MarvelSettings.INDICES.getKey(), "test-shards*")
                 .build();
     }
 
@@ -150,7 +150,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         for (int i = 0; i < nbIndices; i++) {
             String index = indexPrefix + String.valueOf(i);
             int total = getNumShards(index).totalNumShards;
-            assertThat("expecting " + total + " shards marvel documents for index [" + index + "]", shards[i], equalTo(total));
+            assertThat("expecting " + total + " shards monitoring documents for index [" + index + "]", shards[i], equalTo(total));
         }
     }
 

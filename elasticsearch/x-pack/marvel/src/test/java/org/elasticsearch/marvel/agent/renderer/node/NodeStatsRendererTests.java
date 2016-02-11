@@ -25,7 +25,7 @@ public class NodeStatsRendererTests extends ESSingleNodeTestCase {
         logger.debug("--> retrieving node stats");
         NodeStats nodeStats = getInstanceFromNode(NodeService.class).stats();
 
-        logger.debug("--> creating the node stats marvel document");
+        logger.debug("--> creating the node stats monitoring document");
         NodeStatsMarvelDoc marvelDoc = new NodeStatsMarvelDoc();
         marvelDoc.setClusterUUID("test");
         marvelDoc.setType("node_stats");

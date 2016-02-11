@@ -22,13 +22,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.support.VersionUtils;
 
 import javax.net.ssl.HostnameVerifier;
@@ -80,7 +80,7 @@ public class HttpExporter extends Exporter {
     public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = "truststore.algorithm";
     public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
 
-    /** Minimum supported version of the remote marvel cluster **/
+    /** Minimum supported version of the remote monitoring cluster **/
     public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_2_0_0_beta2;
 
     volatile String[] hosts;
@@ -145,7 +145,7 @@ public class HttpExporter extends Exporter {
 
         logger.debug("initialized with hosts [{}], index prefix [{}], index resolver [{}], template version [{}]",
                 Strings.arrayToCommaDelimitedString(hosts),
-                MarvelSettings.MARVEL_INDICES_PREFIX, indexNameResolver, templateVersion);
+                MarvelSettings.MONITORING_INDICES_PREFIX, indexNameResolver, templateVersion);
     }
 
     @Override
@@ -186,10 +186,11 @@ public class HttpExporter extends Exporter {
 
         // Get the appropriate renderer in order to render the MarvelDoc
         Renderer renderer = renderers.getRenderer(marvelDoc);
-        assert renderer != null : "unable to render marvel document of type [" + marvelDoc.getType() + "]. no renderer found in registry";
+        assert renderer != null :
+                "unable to render monitoring document of type [" + marvelDoc.getType() + "]. no renderer found in registry";
 
         if (renderer == null) {
-            logger.warn("http exporter [{}] - unable to render marvel document of type [{}]: no renderer found in registry",
+            logger.warn("http exporter [{}] - unable to render monitoring document of type [{}]: no renderer found in registry",
                     name(), marvelDoc.getType());
             return;
         }
@@ -372,7 +373,7 @@ public class HttpExporter extends Exporter {
     }
 
     /**
-     * Get the version of the remote Marvel cluster
+     * Get the version of the remote monitoring cluster
      */
     Version loadRemoteClusterVersion(final String host) {
         HttpURLConnection connection = null;
@@ -413,7 +414,7 @@ public class HttpExporter extends Exporter {
         // Works like LocalExporter on master:
         // Install the index template for timestamped indices first, so that other nodes can ship data
         if (!templateInstalled) {
-            logger.debug("http exporter [{}] - could not find existing marvel template, installing a new one", name());
+            logger.debug("http exporter [{}] - could not find existing monitoring template, installing a new one", name());
             if (!putTemplate(host, templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate())) {
                 return false;
             }
@@ -422,7 +423,7 @@ public class HttpExporter extends Exporter {
         // Install the index template for data index
         templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
         if (!hasTemplate(templateName, host)) {
-            logger.debug("http exporter [{}] - could not find existing marvel template for data index, installing a new one", name());
+            logger.debug("http exporter [{}] - could not find existing monitoring template for data index, installing a new one", name());
             if (!putTemplate(host, templateName, MarvelTemplateUtils.loadDataIndexTemplate())) {
                 return false;
             }
@@ -438,19 +439,20 @@ public class HttpExporter extends Exporter {
 
         HttpURLConnection connection = null;
         try {
-            logger.debug("http exporter [{}] - checking if marvel template [{}] exists on the marvel cluster", name(), templateName);
+            logger.debug("http exporter [{}] - checking if monitoring template [{}] exists on the monitoring cluster",
+                    name(), templateName);
             connection = openConnection(host, "GET", url, null);
             if (connection == null) {
-                throw new IOException("no available connection to check for marvel template [" + templateName + "] existence");
+                throw new IOException("no available connection to check for monitoring template [" + templateName + "] existence");
             }
 
             // 200 means that the template has been found, 404 otherwise
             if (connection.getResponseCode() == 200) {
-                logger.debug("marvel template [{}] found",templateName);
+                logger.debug("monitoring template [{}] found",templateName);
                 return true;
             }
         } catch (Exception e) {
-            logger.error("http exporter [{}] - failed to verify the marvel template [{}] on [{}]:\n{}", name(), templateName, host,
+            logger.error("http exporter [{}] - failed to verify the monitoring template [{}] on [{}]:\n{}", name(), templateName, host,
                     e.getMessage());
             return false;
         } finally {
@@ -471,21 +473,21 @@ public class HttpExporter extends Exporter {
         try {
             connection = openConnection(host, "PUT", "_template/" + template, XContentType.JSON.mediaType());
             if (connection == null) {
-                logger.debug("http exporter [{}] - no available connection to update marvel template [{}]", name(), template);
+                logger.debug("http exporter [{}] - no available connection to update monitoring template [{}]", name(), template);
                 return false;
             }
 
             // Uploads the template and closes the outputstream
             Streams.copy(source, connection.getOutputStream());
             if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
-                logConnectionError("error adding the marvel template [" + template + "] to [" + host + "]", connection);
+                logConnectionError("error adding the monitoring template [" + template + "] to [" + host + "]", connection);
                 return false;
             }
 
-            logger.info("http exporter [{}] - marvel template [{}] updated to version [{}]", name(), template, templateVersion);
+            logger.info("http exporter [{}] - monitoring template [{}] updated to version [{}]", name(), template, templateVersion);
             return true;
         } catch (IOException e) {
-            logger.error("http exporter [{}] - failed to update marvel template [{}] on host [{}]:\n{}", name(), template, host,
+            logger.error("http exporter [{}] - failed to update monitoring template [{}] on host [{}]:\n{}", name(), template, host,
                     e.getMessage());
             return false;
         } finally {
@@ -519,7 +521,7 @@ public class HttpExporter extends Exporter {
 
     protected void initKeepAliveThread() {
         if (keepAlive) {
-            keepAliveThread = new Thread(keepAliveWorker, "marvel-exporter[" + config.name() + "][keep_alive]");
+            keepAliveThread = new Thread(keepAliveWorker, "monitoring-exporter[" + config.name() + "][keep_alive]");
             keepAliveThread.setDaemon(true);
             keepAliveThread.start();
         }
@@ -531,10 +533,10 @@ public class HttpExporter extends Exporter {
             try {
                 HttpExporterUtils.parseHostWithPath(host, "");
             } catch (URISyntaxException e) {
-                throw new SettingsException("[marvel.agent.exporter] invalid host: [" + host + "]." +
+                throw new SettingsException("[xpack.monitoring.agent.exporter] invalid host: [" + host + "]." +
                         " error: [" + e.getMessage() + "]");
             } catch (MalformedURLException e) {
-                throw new SettingsException("[marvel.agent.exporter] invalid host: [" + host + "]." +
+                throw new SettingsException("[xpack.monitoring.agent.exporter] invalid host: [" + host + "]." +
                         " error: [" + e.getMessage() + "]");
             }
         }
@@ -699,7 +701,7 @@ public class HttpExporter extends Exporter {
                     out = connection.getOutputStream();
                 }
 
-                // We need to use a buffer to render each Marvel document
+                // We need to use a buffer to render each monitoring document
                 // because the renderer might close the outputstream (ex: XContentBuilder)
                 try (BytesStreamOutput buffer = new BytesStreamOutput()) {
                     for (MarvelDoc marvelDoc : docs) {

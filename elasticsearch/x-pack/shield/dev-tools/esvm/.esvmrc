@@ -19,9 +19,9 @@
         "bind_host": "127.0.0.1",
         "publish_host": "127.0.0.1"
       },
-      "marvel.agent.exporter.es.hosts": [ "https://admin-plain:changeme@127.0.0.1:9200"],
-      "marvel.agent.exporter.es.ssl.truststore.path": "../../src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
-      "marvel.agent.exporter.es.ssl.truststore.password": "testnode",
+      "xpack.monitoring.agent.exporters.es.hosts": [ "https://admin-plain:changeme@127.0.0.1:9200"],
+      "xpack.monitoring.agent.exporters.es.ssl.truststore.path": "../../src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
+      "xpack.monitoring.agent.exporters.es.ssl.truststore.password": "testnode",
       "http.cors": {
         "enabled": true,
         "allow-origin": "/http:\/\/www.elasticsearch.(org|com)/"

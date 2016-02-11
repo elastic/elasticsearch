@@ -26,7 +26,7 @@ public class IndexStatsRendererTests extends ESTestCase {
     private static final String SAMPLE_FILE = "/samples/index_stats.json";
 
     public void testIndexStatsRenderer() throws Exception {
-        logger.debug("--> creating the index stats marvel document");
+        logger.debug("--> creating the index stats monitoring document");
         IndexStatsMarvelDoc marvelDoc = new IndexStatsMarvelDoc();
         marvelDoc.setClusterUUID("test");
         marvelDoc.setType("index_stats");

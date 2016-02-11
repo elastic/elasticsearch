@@ -16,7 +16,7 @@ import org.elasticsearch.shield.authz.privilege.Privilege;
 
 /**
  * XPack internal user that manages xpack. Has all cluster/indices permissions for watcher,
- * shield and marvel to operate.
+ * shield and monitoring to operate.
  */
 public class XPackUser extends User {
 
@@ -48,12 +48,12 @@ public class XPackUser extends User {
 
 
 
-//            these will be the index permissions required by marvel (will uncomment once we optimize watcher permissions)
+//            these will be the index permissions required by monitoring (will uncomment once we optimize monitoring permissions)
 
 //            // we need all monitoring access
 //            .add(IndexPrivilege.MONITOR, "*")
-//            // and full access to .marvel-es-* and .marvel-es-data indices
-//            .add(IndexPrivilege.ALL, MarvelSettings.MARVEL_INDICES_PREFIX + "*")
+//            // and full access to .monitoring-es-* and .monitoring-es-data indices
+//            .add(IndexPrivilege.ALL, MarvelSettings.MONITORING_INDICES_PREFIX + "*")
 
             .build();
 

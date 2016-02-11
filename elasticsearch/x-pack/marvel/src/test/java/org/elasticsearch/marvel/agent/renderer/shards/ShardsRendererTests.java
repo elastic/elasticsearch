@@ -29,7 +29,7 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
         logger.debug("--> retrieving cluster state");
         ClusterState clusterState = getInstanceFromNode(ClusterService.class).state();
 
-        logger.debug("--> creating the shard marvel document");
+        logger.debug("--> creating the shard monitoring document");
         ShardMarvelDoc marvelDoc = new ShardMarvelDoc(null, "shards", "my-id");
         marvelDoc.setClusterUUID("test");
         marvelDoc.setClusterUUID(clusterState.metaData().clusterUUID());

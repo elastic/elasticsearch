@@ -13,7 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.After;
@@ -39,8 +39,8 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ClusterStatsCollector.NAME)
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS.getKey(), ClusterStatsCollector.NAME)
                 .build();
     }
 
@@ -61,8 +61,8 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
-        logger.debug("--> waiting for the marvel data index to be created (it should have been created by the ClusterInfoCollector)");
-        String dataIndex = ".marvel-es-data-" + MarvelTemplateUtils.TEMPLATE_VERSION;
+        logger.debug("--> waiting for the monitoring data index to be created (it should have been created by the ClusterInfoCollector)");
+        String dataIndex = ".monitoring-es-data-" + MarvelTemplateUtils.TEMPLATE_VERSION;
         awaitIndexExists(dataIndex);
 
         logger.debug("--> waiting for cluster info collector to collect data");

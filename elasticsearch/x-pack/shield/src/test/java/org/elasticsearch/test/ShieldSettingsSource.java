@@ -120,7 +120,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
 
-                //TODO: for now isolate shield tests from watcher & marvel (randomize this later)
+                //TODO: for now isolate shield tests from watcher & monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
 

@@ -46,8 +46,10 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 integTest {
   cluster {
     systemProperty 'es.network.host', host
-    systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.path', keystore.name
-    systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.password', 'keypass'
+    systemProperty 'es.xpack.monitoring.agent.exporters.es.type', 'http'
+    systemProperty 'es.xpack.monitoring.agent.exporters.es.enabled', 'false'
+    systemProperty 'es.xpack.monitoring.agent.exporters.es.ssl.truststore.path', keystore.name
+    systemProperty 'es.xpack.monitoring.agent.exporters.es.ssl.truststore.password', 'keypass'
     systemProperty 'es.shield.transport.ssl', 'true'
     systemProperty 'es.shield.http.ssl', 'true'
     systemProperty 'es.shield.ssl.keystore.path', keystore.name

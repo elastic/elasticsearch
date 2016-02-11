@@ -228,6 +228,9 @@ public class AggregatorParsers {
                     throw new SearchParseException(context, "Aggregation [" + aggregationName + "] cannot define sub-aggregations",
                             parser.getTokenLocation());
                 }
+                if (metaData != null) {
+                    pipelineAggregatorFactory.setMetaData(metaData);
+                }
                 factories.addPipelineAggregator(pipelineAggregatorFactory);
             }
         }

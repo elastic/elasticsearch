@@ -38,7 +38,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -140,7 +139,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     static StringFieldMapper createParentJoinFieldMapper(String docType, BuilderContext context) {
-        StringFieldMapper.Builder parentJoinField = MapperBuilders.stringField(joinField(docType));
+        StringFieldMapper.Builder parentJoinField = new StringFieldMapper.Builder(joinField(docType));
         parentJoinField.indexOptions(IndexOptions.NONE);
         parentJoinField.docValues(true);
         parentJoinField.fieldType().setDocValuesType(DocValuesType.SORTED);

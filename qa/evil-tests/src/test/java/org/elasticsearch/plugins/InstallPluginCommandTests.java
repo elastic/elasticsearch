@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -203,7 +204,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = createTempDir();
         String pluginZip = createPlugin("fake", pluginDir);
         Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
-        Files.copy(new URL(pluginZip).openStream(), pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
+        try (InputStream in = new URL(pluginZip).openStream()) {
+            Files.copy(in, pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
+        }
         installPlugin(pluginZipWithSpaces.toUri().toURL().toString(), env);
         assertPlugin("fake", pluginDir, env);
     }

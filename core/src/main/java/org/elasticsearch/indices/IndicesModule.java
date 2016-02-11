@@ -61,7 +61,7 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -155,7 +155,7 @@ public class IndicesModule extends AbstractModule {
 
         bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
-        bind(RecoveryTarget.class).asEagerSingleton();
+        bind(RecoveryTargetService.class).asEagerSingleton();
         bind(RecoverySource.class).asEagerSingleton();
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();

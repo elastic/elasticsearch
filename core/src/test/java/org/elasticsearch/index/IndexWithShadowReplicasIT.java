@@ -41,7 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -485,7 +485,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     public void sendRequest(DiscoveryNode node, long requestId, String action,
                                             TransportRequest request, TransportRequestOptions options)
                             throws IOException, TransportException {
-                        if (keepFailing.get() && action.equals(RecoveryTarget.Actions.TRANSLOG_OPS)) {
+                        if (keepFailing.get() && action.equals(RecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }

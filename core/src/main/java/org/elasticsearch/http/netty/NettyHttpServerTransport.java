@@ -20,6 +20,8 @@
 package org.elasticsearch.http.netty;
 
 import org.elasticsearch.common.Booleans;
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -137,8 +139,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     protected final boolean detailedErrorsEnabled;
 
-    protected int publishPort;
-
     protected final String tcpNoDelay;
     protected final String tcpKeepAlive;
     protected final boolean reuseAddress;
@@ -187,7 +187,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.port = settings.get("http.netty.port", settings.get("http.port", DEFAULT_PORT_RANGE));
         this.bindHosts = settings.getAsArray("http.netty.bind_host", settings.getAsArray("http.bind_host", settings.getAsArray("http.host", null)));
         this.publishHosts = settings.getAsArray("http.netty.publish_host", settings.getAsArray("http.publish_host", settings.getAsArray("http.host", null)));
-        this.publishPort = settings.getAsInt("http.netty.publish_port", settings.getAsInt("http.publish_port", 0));
         this.tcpNoDelay = settings.get("http.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
         this.tcpKeepAlive = settings.get("http.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
@@ -271,7 +270,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("reuseAddress", reuseAddress);
         serverBootstrap.setOption("child.reuseAddress", reuseAddress);
+        this.boundAddress = createBoundHttpAddress();
+    }
 
+    private BoundTransportAddress createBoundHttpAddress() {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
         try {
@@ -292,7 +294,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        if (0 == publishPort) {
+        final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
+        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
+        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
+    }
+
+    // package private for tests
+    static int resolvePublishPort(Settings settings, List<InetSocketTransportAddress> boundAddresses, InetAddress publishInetAddress) {
+        int publishPort = settings.getAsInt("http.netty.publish_port", settings.getAsInt("http.publish_port", -1));
+
+        if (publishPort < 0) {
             for (InetSocketTransportAddress boundAddress : boundAddresses) {
                 InetAddress boundInetAddress = boundAddress.address().getAddress();
                 if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
@@ -302,12 +313,23 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             }
         }
 
-        if (0 == publishPort) {
-            throw new BindHttpException("Publish address [" + publishInetAddress + "] does not match any of the bound addresses [" + boundAddresses + "]");
+        // if no matching boundAddress found, check if there is a unique port for all bound addresses
+        if (publishPort < 0) {
+            final IntSet ports = new IntHashSet();
+            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+                ports.add(boundAddress.getPort());
+            }
+            if (ports.size() == 1) {
+                publishPort = ports.iterator().next().value;
+            }
         }
 
-        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);;
-        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
+        if (publishPort < 0) {
+            throw new BindHttpException("Failed to auto-resolve http publish port, multiple bound addresses " + boundAddresses +
+                " with distinct ports and none of them matched the publish address (" + publishInetAddress + "). " +
+                "Please specify a unique port by setting http.port or http.publish_port");
+        }
+        return publishPort;
     }
 
     private CorsConfig buildCorsConfig(Settings settings) {

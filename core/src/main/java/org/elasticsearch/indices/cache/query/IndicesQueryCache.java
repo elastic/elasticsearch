@@ -64,7 +64,6 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     // See onDocIdSetEviction for more info
     private final Map<Object, StatsAndCount> stats2 = new IdentityHashMap<>();
 
-    @Inject
     public IndicesQueryCache(Settings settings) {
         super(settings);
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);

@@ -72,7 +72,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
      * Gets the global suggest text
      */
     public String getText() {
-        return null;
+        return this.globalText;
     }
 
     /**

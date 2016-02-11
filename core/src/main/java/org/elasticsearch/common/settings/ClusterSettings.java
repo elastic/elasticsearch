@@ -56,6 +56,7 @@ import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -397,6 +398,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
                     BootstrapSettings.MLOCKALL_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
-                    BootstrapSettings.CTRLHANDLER_SETTING
+                    BootstrapSettings.CTRLHANDLER_SETTING,
+                    DanglingIndicesState.IMPORT_ON_SHARED_FS_SETTING
             )));
 }

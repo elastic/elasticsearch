@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
@@ -48,6 +49,12 @@ public class DanglingIndicesState extends AbstractComponent {
     private final LocalAllocateDangledIndices allocateDangledIndices;
 
     private final Map<String, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
+
+    /**
+     * Setting whether dangling indices on a shared filesystem should be automatically imported, defaults to {@code false}
+     */
+    public static final Setting<Boolean> IMPORT_ON_SHARED_FS_SETTING = Setting.boolSetting("gateway.local.dangling.import_shared_fs",
+            false, false, Setting.Scope.CLUSTER);
 
     @Inject
     public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -119,6 +126,11 @@ public class DanglingIndicesState extends AbstractComponent {
                 try {
                     IndexMetaData indexMetaData = metaStateService.loadIndexState(indexName);
                     if (indexMetaData != null) {
+                        if (IndexMetaData.isOnSharedFilesystem(indexMetaData.getSettings()) &&
+                                IMPORT_ON_SHARED_FS_SETTING.get(settings) == false) {
+                            logger.info("ignoring dangling index [{}] because it is on a shared filesystem", indexMetaData.getIndex());
+                            continue;
+                        }
                         logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state", indexName);
                         if (!indexMetaData.getIndex().getName().equals(indexName)) {
                             logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.getIndex());

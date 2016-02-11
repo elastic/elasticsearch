@@ -82,7 +82,7 @@ public class ShadowEngine extends Engine {
                     this.lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                     success = true;
                 } else {
-                    throw new IllegalStateException("failed to open a shadow engine after" +
+                    throw new IllegalStateException("failed to open a shadow engine after " +
                             nonexistentRetryTime + "ms, " +
                             "directory is not an index");
                 }

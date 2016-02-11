@@ -17,10 +17,27 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.rest-test'
+package org.elasticsearch.index.reindex;
 
-integTest {
-  cluster {
-    systemProperty 'es.script.inline', 'true'
-  }
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
+
+public class UpdateByQueryAction extends
+        Action<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> {
+    public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
+    public static final String NAME = "indices:data/write/update/byquery";
+
+    private UpdateByQueryAction() {
+        super(NAME);
+    }
+
+    @Override
+    public UpdateByQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new UpdateByQueryRequestBuilder(client, this);
+    }
+
+    @Override
+    public BulkIndexByScrollResponse newResponse() {
+        return new BulkIndexByScrollResponse();
+    }
 }

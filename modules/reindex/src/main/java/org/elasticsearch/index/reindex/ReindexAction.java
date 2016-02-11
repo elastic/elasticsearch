@@ -17,10 +17,26 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.rest-test'
+package org.elasticsearch.index.reindex;
 
-integTest {
-  cluster {
-    systemProperty 'es.script.inline', 'true'
-  }
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
+
+public class ReindexAction extends Action<ReindexRequest, ReindexResponse, ReindexRequestBuilder> {
+    public static final ReindexAction INSTANCE = new ReindexAction();
+    public static final String NAME = "indices:data/write/reindex";
+
+    private ReindexAction() {
+        super(NAME);
+    }
+
+    @Override
+    public ReindexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ReindexRequestBuilder(client, this);
+    }
+
+    @Override
+    public ReindexResponse newResponse() {
+        return new ReindexResponse();
+    }
 }

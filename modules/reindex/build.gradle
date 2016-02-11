@@ -17,10 +17,7 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.rest-test'
-
-integTest {
-  cluster {
-    systemProperty 'es.script.inline', 'true'
-  }
+esplugin {
+  description 'The Reindex Plugin adds APIs to reindex from one index to another or update documents in place.'
+  classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }

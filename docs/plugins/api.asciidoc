@@ -15,11 +15,6 @@ The delete by query plugin adds support for deleting all of the documents
 replacement for the problematic _delete-by-query_ functionality which has been
 removed from Elasticsearch core.
 
-<<plugins-reindex,Reindex>>::
-
-The Reindex plugin adds support for updating documents matching a query and
-copying documents from one index to another.
-
 [float]
 === Community contributed API extension plugins
 

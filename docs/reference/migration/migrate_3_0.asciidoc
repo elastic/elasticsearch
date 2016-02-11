@@ -273,6 +273,12 @@ now doesn't accept a value less than `100ms` which prevents fsyncing too often i
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
 
+`indices.requests.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
+==== Field Data Cache Settings
+
+`indices.fielddata.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
 ==== Allocation settings
 
 Allocation settings deprecated in 1.x have been removed:

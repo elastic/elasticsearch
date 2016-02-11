@@ -41,7 +41,7 @@ public class PercolateStats implements Streamable, ToXContent {
     private long numQueries;
 
     /**
-     * Noop constructor for serialazation purposes.
+     * Noop constructor for serialization purposes.
      */
     public PercolateStats() {
     }

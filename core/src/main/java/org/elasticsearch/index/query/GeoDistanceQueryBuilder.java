@@ -197,7 +197,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         return this.optimizeBbox;
     }
 
-    /** Set validaton method for geo coordinates. */
+    /** Set validation method for geo coordinates. */
     public void setValidationMethod(GeoValidationMethod method) {
         this.validationMethod = method;
     }

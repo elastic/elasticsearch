@@ -403,7 +403,7 @@ public class RecoverySourceHandler {
             } catch (IllegalIndexShardStateException e) {
                 // we can ignore this exception since, on the other node, when it moved to phase3
                 // it will also send shard started, which might cause the index shard we work against
-                // to move be closed by the time we get to the the relocated method
+                // to move be closed by the time we get to the relocated method
             }
         }
         stopWatch.stop();

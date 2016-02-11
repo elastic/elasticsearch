@@ -1,0 +1,153 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.search.suggest.completion;
+
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.RegexpFlag;
+
+import java.io.IOException;
+
+/**
+ * Regular expression options for completion suggester
+ */
+public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
+    static final String NAME = "regex";
+    static final ParseField REGEX_OPTIONS = new ParseField(NAME);
+    static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
+    static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
+    private int flagsValue;
+    private int maxDeterminizedStates;
+
+    private RegexOptions() {
+    }
+
+    private RegexOptions(int flagsValue, int maxDeterminizedStates) {
+        this.flagsValue = flagsValue;
+        this.maxDeterminizedStates = maxDeterminizedStates;
+    }
+
+    /**
+     * Returns internal regular expression syntax flag value
+     * see {@link RegexpFlag#value()}
+     */
+    public int getFlagsValue() {
+        return flagsValue;
+    }
+
+    /**
+     * Returns the maximum automaton states allowed for fuzzy expansion
+     */
+    public int getMaxDeterminizedStates() {
+        return maxDeterminizedStates;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RegexOptions that = (RegexOptions) o;
+
+        if (flagsValue != that.flagsValue) return false;
+        return maxDeterminizedStates == that.maxDeterminizedStates;
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = flagsValue;
+        result = 31 * result + maxDeterminizedStates;
+        return result;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(REGEX_OPTIONS.getPreferredName());
+        builder.field(FLAGS_VALUE.getPreferredName(), flagsValue);
+        builder.field(MAX_DETERMINIZED_STATES.getPreferredName(), maxDeterminizedStates);
+        builder.endObject();
+        return builder;
+    }
+
+    public static RegexOptions readRegexOptions(StreamInput in) throws IOException {
+        RegexOptions regexOptions = new RegexOptions();
+        regexOptions.readFrom(in);
+        return regexOptions;
+    }
+
+    @Override
+    public RegexOptions readFrom(StreamInput in) throws IOException {
+        this.flagsValue = in.readVInt();
+        this.maxDeterminizedStates = in.readVInt();
+        return this;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(flagsValue);
+        out.writeVInt(maxDeterminizedStates);
+    }
+
+    /**
+     * Options for regular expression queries
+     */
+    public static class Builder {
+        private int flagsValue = RegExp.ALL;
+        private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+
+        public Builder() {
+        }
+
+        /**
+         * Sets the regular expression syntax flags
+         * see {@link RegexpFlag}
+         */
+        public Builder setFlags(String flags) {
+            this.flagsValue = RegexpFlag.resolveValue(flags);
+            return this;
+        }
+
+        /**
+         * Sets the maximum automaton states allowed for the regular expression expansion
+         */
+        public Builder setMaxDeterminizedStates(int maxDeterminizedStates) {
+            if (maxDeterminizedStates < 0) {
+                throw new IllegalArgumentException("maxDeterminizedStates must not be negative");
+            }
+            this.maxDeterminizedStates = maxDeterminizedStates;
+            return this;
+        }
+
+        public RegexOptions build() {
+            return new RegexOptions(flagsValue, maxDeterminizedStates);
+        }
+    }
+}

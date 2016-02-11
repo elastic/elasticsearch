@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Parser for the The More Like This Query (MLT Query) which finds documents that are "like" a given set of documents.
+ * Parser for the More Like This Query (MLT Query) which finds documents that are "like" a given set of documents.
  *
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */

@@ -143,7 +143,7 @@ public final class IndexModule {
     }
 
     /**
-     * Adds an {@link IndexStore} type to this index module. Typically stores are registered with a refrence to
+     * Adds an {@link IndexStore} type to this index module. Typically stores are registered with a reference to
      * it's constructor:
      * <pre>
      *     indexModule.addIndexStore("my_store_type", MyStore::new);

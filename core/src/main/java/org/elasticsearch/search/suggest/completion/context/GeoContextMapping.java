@@ -247,18 +247,15 @@ public class GeoContextMapping extends ContextMapping {
         List<GeoQueryContext> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add(GeoQueryContext.parse(parser));
+            queryContexts.add(GeoQueryContext.PROTOTYPE.fromXContext(parser));
         } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
-                queryContexts.add(GeoQueryContext.parse(parser));
+                queryContexts.add(GeoQueryContext.PROTOTYPE.fromXContext(parser));
             }
         }
         List<QueryContext> queryContextList = new ArrayList<>();
         for (GeoQueryContext queryContext : queryContexts) {
-            int minPrecision = this.precision;
-            if (queryContext.getPrecision() != -1) {
-                minPrecision = Math.min(minPrecision, queryContext.getPrecision());
-            }
+            int minPrecision = Math.min(this.precision, queryContext.getPrecision());
             GeoPoint point = queryContext.getGeoPoint();
             final Collection<String> locations = new HashSet<>();
             String geoHash = GeoHashUtils.stringEncode(point.getLon(), point.getLat(), minPrecision);

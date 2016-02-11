@@ -332,7 +332,7 @@ public class SimpleJodaTests extends ESTestCase {
         Joda.EpochTimePrinter epochTimePrinter = new Joda.EpochTimePrinter(false);
         epochTimePrinter.printTo(buffer, now, Locale.ROOT);
         assertThat(buffer.length(), is(10));
-        // only check the last digit, as seconds go from 0-99 in the unix timestamp and dont stop at 60
+        // only check the last digit, as seconds go from 0-99 in the unix timestamp and don't stop at 60
         assertThat(buffer.toString(), endsWith(String.valueOf(now.getSecondOfMinute() % 10)));
 
         buffer = new StringBuffer();

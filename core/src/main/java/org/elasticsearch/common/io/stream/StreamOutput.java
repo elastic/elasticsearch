@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.context.QueryContext;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
 import org.joda.time.ReadableInstant;
@@ -678,7 +679,7 @@ public abstract class StreamOutput extends OutputStream {
     public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
         writeNamedWriteable(smoothinModel);
     }
-    
+
     /**
      * Writes a {@link Task.Status} to the current stream.
      */
@@ -716,5 +717,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeSuggestion(SuggestionBuilder suggestion) throws IOException {
         writeNamedWriteable(suggestion);
+    }
+
+    /**
+     * Writes a completion {@link QueryContext} to the current stream
+     */
+    public void writeCompletionSuggestionQueryContext(QueryContext queryContext) throws IOException {
+        writeNamedWriteable(queryContext);
     }
 }

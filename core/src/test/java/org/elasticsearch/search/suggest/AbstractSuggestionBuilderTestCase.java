@@ -69,9 +69,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -280,9 +277,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
             SuggestionSearchContext buildSuggestSearchContext = suggestBuilder.build(mockShardContext);
             assertEquals(parsedSuggestionSearchContext.suggestions().size(), buildSuggestSearchContext.suggestions().size());
-            Iterator<Entry<String, SuggestionContext>> iterator = buildSuggestSearchContext.suggestions().entrySet().iterator();
-            for (Entry<String, SuggestionContext> entry : parsedSuggestionSearchContext.suggestions().entrySet()) {
-                Entry<String, SuggestionContext> other = iterator.next();
+            Iterator<Map.Entry<String, SuggestionContext>> iterator =  buildSuggestSearchContext.suggestions().entrySet().iterator();
+            for (Map.Entry<String, SuggestionContext> entry : parsedSuggestionSearchContext.suggestions().entrySet()) {
+                Map.Entry<String, SuggestionContext> other = iterator.next();
                 assertEquals(entry.getKey(), other.getKey());
 
                 SuggestionContext oldSchoolContext = entry.getValue();
@@ -357,29 +354,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     protected SB serializedCopy(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeSuggestion(original);
-            ;
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 return (SB) in.readSuggestion();
             }
         }
     }
-
-    protected static <T> void maybeSet(Consumer<T> consumer, T value) {
-        if (randomBoolean()) {
-            consumer.accept(value);
-        }
-    }
-
-    /**
-     * helper to get a random value in a certain range that's different from the
-     * input
-     */
-    protected static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
-        T randomValue = null;
-        do {
-            randomValue = randomSupplier.get();
-        } while (randomValue.equals(input));
-        return randomValue;
-    }
-
 }

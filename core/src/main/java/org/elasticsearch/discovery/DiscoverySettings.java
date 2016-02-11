@@ -41,7 +41,7 @@ public class DiscoverySettings extends AbstractComponent {
     public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     /**
      * sets the timeout for a complete publishing cycle, including both sending and committing. the master
-     * will continute to process the next cluster state update after this time has elapsed
+     * will continue to process the next cluster state update after this time has elapsed
      **/
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING = Setting.positiveTimeSetting("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(30), true, Setting.Scope.CLUSTER);
 

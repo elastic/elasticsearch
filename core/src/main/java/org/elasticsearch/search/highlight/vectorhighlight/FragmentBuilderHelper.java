@@ -41,7 +41,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Simple helper class for {@link FastVectorHighlighter} {@link FragmentsBuilder} implemenations.
+ * Simple helper class for {@link FastVectorHighlighter} {@link FragmentsBuilder} implementations.
  */
 public final class FragmentBuilderHelper {
 

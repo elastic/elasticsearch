@@ -36,7 +36,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     private final StartRecoveryRequest request;
 
     public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ESLogger logger) {
-        super(shard, request, recoverySettings, transportService, logger);
+        super(shard, recoveryTarget, request, recoverySettings, transportService, logger);
         this.shard = shard;
         this.request = request;
     }

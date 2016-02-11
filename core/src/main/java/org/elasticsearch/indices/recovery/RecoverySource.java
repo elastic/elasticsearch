@@ -123,7 +123,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
         if (shard.indexSettings().isOnSharedFilesystem()) {
             handler = new SharedFSRecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
         } else {
-            handler = new RecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
+            handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings, transportService, logger);
         }
         ongoingRecoveries.add(shard, handler);
         try {

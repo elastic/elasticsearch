@@ -19,23 +19,36 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
@@ -47,7 +60,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 
 
-public class RecoveryStatus extends AbstractRefCounted {
+public class RecoveryStatus extends AbstractRefCounted implements RecoveryTargetHandler {
 
     private final ESLogger logger;
 
@@ -285,4 +298,148 @@ public class RecoveryStatus extends AbstractRefCounted {
         }
     }
 
+    /*** Implementation of {@link RecoveryTargetHandler } */
+
+    // How many bytes we've copied since we last called RateLimiter.pause
+    final AtomicLong bytesSinceLastPause = new AtomicLong();
+
+    @Override
+    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+        state().getTranslog().totalOperations(totalTranslogOps);
+        indexShard().skipTranslogRecovery();
+    }
+
+    @Override
+    public void finalizeRecovery() {
+        indexShard().finalizeRecovery();
+    }
+
+    @Override
+    public void indexTranslogOperations(Iterable<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
+            .BatchOperationException {
+        final RecoveryState.Translog translog = state().getTranslog();
+        translog.totalOperations(totalTranslogOps);
+        assert indexShard().recoveryState() == state();
+        try {
+            indexShard().performBatchRecovery(operations);
+        } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
+            MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
+            if (mapperException == null) {
+                throw exception;
+            } else {
+                // in very rare cases a translog replay from primary is processed before a mapping update on this node
+                // which causes local mapping changes. we want to wait until these mappings are processed.
+                logger.trace("delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)", exception, exception
+                        .completedOperations());
+                throw new RetryTranslogOpsException(exception);
+            }
+
+        }
+    }
+
+    @Override
+    public void receiveFileInfo(List<String> phase1FileNames,
+                                List<Long> phase1FileSizes,
+                                List<String> phase1ExistingFileNames,
+                                List<Long> phase1ExistingFileSizes,
+                                int totalTranslogOps) {
+        final RecoveryState.Index index = state().getIndex();
+        for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
+            index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
+        }
+        for (int i = 0; i < phase1FileNames.size(); i++) {
+            index.addFileDetail(phase1FileNames.get(i), phase1FileSizes.get(i), false);
+        }
+        state().getTranslog().totalOperations(totalTranslogOps);
+        state().getTranslog().totalOperationsOnStart(totalTranslogOps);
+
+    }
+
+    @Override
+    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+        state().getTranslog().totalOperations(totalTranslogOps);
+        // first, we go and move files that were created with the recovery id suffix to
+        // the actual names, its ok if we have a corrupted index here, since we have replicas
+        // to recover from in case of a full cluster shutdown just when this code executes...
+        indexShard().deleteShardState(); // we have to delete it first since even if we fail to rename the shard
+        // might be invalid
+        renameAllTempFiles();
+        final Store store = store();
+        // now write checksums
+        legacyChecksums().write(store);
+        try {
+            store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
+            // this is a fatal exception at this stage.
+            // this means we transferred files from the remote that have not be checksummed and they are
+            // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+            // source shard since this index might be broken there as well? The Source can handle this and checks
+            // its content on disk if possible.
+            try {
+                try {
+                    store.removeCorruptionMarker();
+                } finally {
+                    Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                }
+            } catch (Throwable e) {
+                logger.debug("Failed to clean lucene index", e);
+                ex.addSuppressed(e);
+            }
+            RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
+            fail(rfe, true);
+            throw rfe;
+        } catch (Exception ex) {
+            RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
+            fail(rfe, true);
+            throw rfe;
+        }
+    }
+
+    @Override
+    public void writeFileChunk(String name, long position, StoreFileMetaData metadata, BytesReference content,
+                               long length, boolean lastChunk, int totalTranslogOps,
+                               long sourceThrottleTimeInNanos, @Nullable RateLimiter rateLimiter) throws IOException {
+        final Store store = store();
+        state().getTranslog().totalOperations(totalTranslogOps);
+        final RecoveryState.Index indexState = state().getIndex();
+        if (sourceThrottleTimeInNanos != RecoveryState.Index.UNKNOWN) {
+            indexState.addSourceThrottling(sourceThrottleTimeInNanos);
+        }
+        IndexOutput indexOutput;
+        if (position == 0) {
+            indexOutput = openAndPutIndexOutput(name, metadata, store);
+        } else {
+            indexOutput = getOpenIndexOutput(name);
+        }
+        if (!content.hasArray()) {
+            content = content.toBytesArray();
+        }
+        if (rateLimiter != null) {
+            long bytes = bytesSinceLastPause.addAndGet(content.length());
+            if (bytes > rateLimiter.getMinPauseCheckBytes()) {
+                // Time to pause
+                bytesSinceLastPause.addAndGet(-bytes);
+                long throttleTimeInNanos = rateLimiter.pause(bytes);
+                indexState.addTargetThrottling(throttleTimeInNanos);
+                indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
+            }
+        }
+        indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
+        indexState.addRecoveredBytesToFile(name, content.length());
+        if (indexOutput.getFilePointer() >= length || lastChunk) {
+            try {
+                Store.verify(indexOutput);
+            } finally {
+                // we are done
+                indexOutput.close();
+            }
+            // write the checksum
+            legacyChecksums().add(metadata);
+            final String temporaryFileName = getTempNameForFile(name);
+            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+            store.directory().sync(Collections.singleton(temporaryFileName));
+            IndexOutput remove = removeOpenIndexOutputs(name);
+            assert remove == null || remove == indexOutput; // remove maybe null if we got finished
+        }
+    }
 }

@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A "stupid-backoff" smoothing model simialr to <a
+ * A "stupid-backoff" smoothing model similar to <a
  * href="http://en.wikipedia.org/wiki/Katz's_back-off_model"> Katz's
  * Backoff</a>. This model is used as the default if no model is configured.
  * <p>

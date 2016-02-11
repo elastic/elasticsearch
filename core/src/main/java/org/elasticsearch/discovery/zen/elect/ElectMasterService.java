@@ -79,7 +79,7 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     /**
-     * Returns the given nodes sorted by likelyhood of being elected as master, most likely first.
+     * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
      * Non-master nodes are not removed but are rather put in the end
      */
     public List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {

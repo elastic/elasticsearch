@@ -34,7 +34,7 @@ import java.util.List;
  * - doSetNextReader()
  * - needsScores()
  *
- * InternalProfiler facilitates the linking of the the Collector graph
+ * InternalProfiler facilitates the linking of the Collector graph
  */
 public class InternalProfileCollector implements Collector {
 

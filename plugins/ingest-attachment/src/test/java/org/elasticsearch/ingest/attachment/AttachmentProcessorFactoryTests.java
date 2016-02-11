@@ -32,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
@@ -101,8 +102,11 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
             factory.create(config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[fields] illegal field option [invalid]. valid values are " +
-                "[CONTENT, TITLE, NAME, AUTHOR, KEYWORDS, DATE, CONTENT_TYPE, CONTENT_LENGTH, LANGUAGE]"));
+            assertThat(e.getMessage(), containsString("[fields] illegal field option [invalid]"));
+            // ensure allowed fields are mentioned
+            for (AttachmentProcessor.Field field : AttachmentProcessor.Field.values()) {
+                assertThat(e.getMessage(), containsString(field.name()));
+            }
         }
 
         config = new HashMap<>();

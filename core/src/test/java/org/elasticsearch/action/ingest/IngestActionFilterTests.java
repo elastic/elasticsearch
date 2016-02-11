@@ -106,7 +106,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        verify(executionService).executeIndexRequest(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -124,10 +124,10 @@ public class IngestActionFilterTests extends ESTestCase {
             listener.accept(true);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), any(Consumer.class), any(Consumer.class));
+        doAnswer(answer).when(executionService).executeIndexRequest(any(IndexRequest.class), any(Consumer.class), any(Consumer.class));
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        verify(executionService).executeIndexRequest(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verify(actionFilterChain).proceed(task, IndexAction.NAME, indexRequest, actionListener);
         verifyZeroInteractions(actionListener);
     }
@@ -146,10 +146,10 @@ public class IngestActionFilterTests extends ESTestCase {
             handler.accept(exception);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        doAnswer(answer).when(executionService).executeIndexRequest(same(indexRequest), any(Consumer.class), any(Consumer.class));
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        verify(executionService).executeIndexRequest(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verify(actionListener).onFailure(exception);
         verifyZeroInteractions(actionFilterChain);
     }
@@ -233,7 +233,7 @@ public class IngestActionFilterTests extends ESTestCase {
             listener.accept(true);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), any(Consumer.class), any(Consumer.class));
+        doAnswer(answer).when(executionService).executeIndexRequest(any(IndexRequest.class), any(Consumer.class), any(Consumer.class));
 
         Task task = mock(Task.class);
         ActionListener actionListener = mock(ActionListener.class);
@@ -243,7 +243,7 @@ public class IngestActionFilterTests extends ESTestCase {
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
         assertThat(indexRequest.getPipeline(), nullValue());
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
-        verify(executionService, times(1)).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
+        verify(executionService, times(1)).executeIndexRequest(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verify(actionFilterChain, times(2)).proceed(task, IndexAction.NAME, indexRequest, actionListener);
     }
 }

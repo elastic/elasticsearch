@@ -257,7 +257,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Retruns <code>true</code> iff the given class is a registered for an exception to be read.
+     * Returns <code>true</code> iff the given class is a registered for an exception to be read.
      */
     public static boolean isRegistered(Class<? extends Throwable> exception) {
         return CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.containsKey(exception);
@@ -372,7 +372,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Returns the root cause of this exception or mupltiple if different shards caused different exceptions
+     * Returns the root cause of this exception or multiple if different shards caused different exceptions
      */
     public ElasticsearchException[] guessRootCauses() {
         final Throwable cause = getCause();
@@ -383,7 +383,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Returns the root cause of this exception or mupltiple if different shards caused different exceptions.
+     * Returns the root cause of this exception or multiple if different shards caused different exceptions.
      * If the given exception is not an instance of {@link org.elasticsearch.ElasticsearchException} an empty array
      * is returned.
      */

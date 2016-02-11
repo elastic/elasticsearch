@@ -212,7 +212,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         }
     }
 
-    // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
+    // The fielddata settings need to be the same after deserializing/re-serialsing, else unnecessary mapping sync's can be triggered
     public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
         final String MY_MULTI_FIELD = "multi_field";
 

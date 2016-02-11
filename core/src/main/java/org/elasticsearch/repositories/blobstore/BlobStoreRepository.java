@@ -528,7 +528,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     }
 
     /**
-     * In v2.0.0 we changed the matadata file format
+     * In v2.0.0 we changed the metadata file format
      * @return true if legacy version should be used false otherwise
      */
     public static boolean legacyMetaData(Version version) {

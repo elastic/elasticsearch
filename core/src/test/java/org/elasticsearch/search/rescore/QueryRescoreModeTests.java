@@ -30,7 +30,7 @@ import java.io.IOException;
 public class QueryRescoreModeTests extends ESTestCase {
 
     /**
-     * Test @link {@link QueryRescoreMode} enum ordinals and names, since serilaization relies on it
+     * Test @link {@link QueryRescoreMode} enum ordinals and names, since serialization relies on it
      */
     public void testQueryRescoreMode() throws IOException {
         float primary = randomFloat();

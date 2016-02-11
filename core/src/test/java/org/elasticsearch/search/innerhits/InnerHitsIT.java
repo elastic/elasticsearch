@@ -115,7 +115,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
         innerHitsBuilder.addNestedInnerHits("comment", "comments",
                 new InnerHitsBuilder.InnerHit().setQuery(matchQuery("comments.message", "fox")));
-        // Inner hits can be defined in two ways: 1) with the query 2) as seperate inner_hit definition
+        // Inner hits can be defined in two ways: 1) with the query 2) as separate inner_hit definition
         SearchRequest[] searchRequests = new SearchRequest[]{
                 client().prepareSearch("articles").setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits("comment", null))).request(),
                 client().prepareSearch("articles").setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")))
@@ -142,7 +142,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         innerHitsBuilder.addNestedInnerHits("comment", "comments",
                 new InnerHitsBuilder.InnerHit().setQuery(matchQuery("comments.message", "elephant")));
         // Inner hits can be defined in two ways: 1) with the query 2) as
-        // seperate inner_hit definition
+        // separate inner_hit definition
         searchRequests = new SearchRequest[] {
                 client().prepareSearch("articles")
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")))

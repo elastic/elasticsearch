@@ -169,7 +169,7 @@ public class HoltWintersModel extends MovAvgModel {
         this.pad = pad;
 
         // Only pad if we are multiplicative and padding is enabled
-        // The padding amount is not currently user-configurable...i dont see a reason to expose it?
+        // The padding amount is not currently user-configurable...i don't see a reason to expose it?
         this.padding = seasonalityType.equals(SeasonalityType.MULTIPLICATIVE) && pad ? 0.0000000001 : 0;
     }
 

@@ -154,7 +154,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     private FuzzyQueryBuilder() {
-        // for protoype
+        // for prototype
         this.fieldName = null;
         this.value = null;
     }

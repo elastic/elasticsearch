@@ -63,7 +63,7 @@ public class ProcessProbeTests extends ESTestCase {
         // CPU percent can be negative if the system recent cpu usage is not available
         assertThat(cpu.getPercent(), anyOf(lessThan((short) 0), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100))));
 
-        // CPU time can return -1 if the the platform does not support this operation, let's see which platforms fail
+        // CPU time can return -1 if the platform does not support this operation, let's see which platforms fail
         assertThat(cpu.total, greaterThan(0L));
 
         ProcessStats.Mem mem = stats.getMem();

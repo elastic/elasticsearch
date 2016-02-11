@@ -27,18 +27,15 @@ import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -68,22 +65,31 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(notNullValue()));
     }
 
-    public void testEnglishTextDocumentWithRandomFields() throws Exception {
-        Set<AttachmentProcessor.Field> fields = EnumSet.noneOf(AttachmentProcessor.Field.class);
-        List<String> fieldNames = new ArrayList<>();
-        int numFields = scaledRandomIntBetween(1, AttachmentProcessor.Field.values().length);
+    public void testHtmlDocumentWithRandomFields() throws Exception {
+        //date is not present in the html doc
+        ArrayList<AttachmentProcessor.Field> fieldsList = new ArrayList<>(EnumSet.complementOf(EnumSet.of
+            (AttachmentProcessor.Field.DATE)));
+        Set<AttachmentProcessor.Field> selectedFields = new HashSet<>();
+
+        int numFields = randomIntBetween(1, fieldsList.size());
+        String[] selectedFieldNames = new String[numFields];
         for (int i = 0; i < numFields; i++) {
-            AttachmentProcessor.Field field = AttachmentProcessor.Field.values()[i];
-            fields.add(field);
-            fieldNames.add(field.name().toLowerCase(Locale.ROOT));
+            AttachmentProcessor.Field field;
+            do {
+                field = randomFrom(fieldsList);
+            } while (selectedFields.add(field) == false);
+
+            selectedFieldNames[i] = field.toLowerCase();
         }
-
+        if (randomBoolean()) {
+            selectedFields.add(AttachmentProcessor.Field.DATE);
+        }
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.copyOf(fields), 10000);
+            "target_field", selectedFields, 10000);
 
-        Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
-        assertThat(attachmentData.keySet(), hasSize(1));
-        assertThat(attachmentData.keySet(), contains("content"));
+        Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
+        assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));
+        assertThat(attachmentData.keySet(), containsInAnyOrder(selectedFieldNames));
     }
 
     public void testFrenchTextDocument() throws Exception {

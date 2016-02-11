@@ -52,7 +52,7 @@ public class DeflateCompressor implements Compressor {
     private static final byte[] HEADER = new byte[] { 'D', 'F', 'L', '\0' };
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
-    // We use buffering on the input and ouput of in/def-laters in order to
+    // We use buffering on the input and output of in/def-laters in order to
     // limit the number of JNI calls
     private static final int BUFFER_SIZE = 4096;
 

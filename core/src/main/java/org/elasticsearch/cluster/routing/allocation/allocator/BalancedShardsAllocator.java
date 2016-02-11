@@ -702,7 +702,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
-                            routingNodes.initialize(shard, minNode.getNodeId(), allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                            routingNodes.initialize(shard, minNode.getNodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         } else {
@@ -790,7 +790,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             routingNodes.relocate(candidate, minNode.getNodeId(), allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
 
                         } else {
-                            routingNodes.initialize(candidate, minNode.getNodeId(), allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                            routingNodes.initialize(candidate, minNode.getNodeId(), null, allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                         }
                         return true;
 

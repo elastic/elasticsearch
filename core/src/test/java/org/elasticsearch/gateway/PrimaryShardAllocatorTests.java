@@ -161,7 +161,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testFoundAllocationAndAllocating() {
         final RoutingAllocation allocation;
-        if (randomBoolean()) {
+        boolean useAllocationIds = randomBoolean();
+        if (useAllocationIds) {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), "allocId1");
             testAllocator.addData(node1, 1, "allocId1", randomBoolean());
         } else {
@@ -173,6 +174,10 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node1.id()));
+        if (useAllocationIds) {
+            // check that allocation id is reused
+            assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(), equalTo("allocId1"));
+        }
     }
 
     /**

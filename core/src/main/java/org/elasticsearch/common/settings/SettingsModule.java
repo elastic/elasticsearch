@@ -20,7 +20,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tribe.TribeService;
 
 import java.util.HashMap;
@@ -90,7 +89,7 @@ public class SettingsModule extends AbstractModule {
 
     /**
      * Registers a settings filter pattern that allows to filter out certain settings that for instance contain sensitive information
-     * or if a setting is for internal purposes only. The given patter must either be a valid settings key or a simple regesp pattern.
+     * or if a setting is for internal purposes only. The given pattern must either be a valid settings key or a simple regexp pattern.
      */
     public void registerSettingsFilter(String filter) {
         if (SettingsFilter.isValidPattern(filter) == false) {

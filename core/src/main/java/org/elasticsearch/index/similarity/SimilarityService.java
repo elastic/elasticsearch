@@ -63,6 +63,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
+            if(BUILT_IN.containsKey(name))
+                throw new IllegalArgumentException("Cannot redefine built-in Similarity [" + name + "]");
             Settings settings = entry.getValue();
             String typeName = settings.get("type");
             if (typeName == null) {
@@ -78,7 +80,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         }
         addSimilarities(similaritySettings, providers, DEFAULTS);
         this.similarities = providers;
-        defaultSimilarity = providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
+        defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
+                                                              : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         // Expert users can configure the base type as being different to default, but out-of-box we use default.
         baseSimilarity = (providers.get("base") != null) ? providers.get("base").get() :
                 defaultSimilarity;

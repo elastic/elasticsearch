@@ -23,19 +23,34 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Base builder for metrics aggregations.
  */
 public abstract class MetricsAggregationBuilder<B extends MetricsAggregationBuilder<B>> extends AbstractAggregationBuilder {
 
+    private Map<String, Object> metaData;
+
     public MetricsAggregationBuilder(String name, String type) {
         super(name, type);
     }
 
+    /**
+     * Sets the meta data to be included in the metric aggregator's response
+     */
+    public B setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
+        return (B) this;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getName()).startObject(type);
+        builder.startObject(getName());
+        if (this.metaData != null) {
+            builder.field("meta", this.metaData);
+        }
+        builder.startObject(type);
         internalXContent(builder, params);
         return builder.endObject().endObject();
     }

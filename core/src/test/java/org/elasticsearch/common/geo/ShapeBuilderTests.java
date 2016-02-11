@@ -163,7 +163,7 @@ public class ShapeBuilderTests extends ESTestCase {
             )
             .build();
 
-        // LineString that needs to be wrappped
+        // LineString that needs to be wrapped
         ShapeBuilders.newMultiLinestring()
             .linestring(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(150.0, 60.0)

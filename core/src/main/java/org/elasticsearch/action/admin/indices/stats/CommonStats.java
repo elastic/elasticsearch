@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -40,10 +41,13 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
@@ -122,7 +126,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
 
-    public CommonStats(IndexShard indexShard, CommonStatsFlags flags) {
+    public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+
         CommonStatsFlags.Flag[] setFlags = flags.getFlags();
 
         for (CommonStatsFlags.Flag flag : setFlags) {
@@ -155,7 +160,7 @@ public class CommonStats implements Streamable, ToXContent {
                     warmer = indexShard.warmerStats();
                     break;
                 case QueryCache:
-                    queryCache = indexShard.queryCacheStats();
+                    queryCache = indicesQueryCache.getStats(indexShard.shardId());
                     break;
                 case FieldData:
                     fieldData = indexShard.fieldDataStats(flags.fieldDataFields());

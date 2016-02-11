@@ -38,7 +38,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -47,18 +46,13 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
@@ -82,9 +76,8 @@ public class RecoverySourceHandler {
     private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
-    private final RecoverySettings recoverySettings;
-    private final TransportService transportService;
     private final int chunkSizeInBytes;
+    private final RecoveryTargetHandler recoveryTarget;
 
     protected final RecoveryResponse response;
 
@@ -104,16 +97,17 @@ public class RecoverySourceHandler {
         }
     };
 
-    public RecoverySourceHandler(final IndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
-                                 final TransportService transportService, final ESLogger logger) {
+    public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
+                                 final StartRecoveryRequest request,
+                                 final int fileChunkSizeInBytes,
+                                 final ESLogger logger) {
         this.shard = shard;
+        this.recoveryTarget = recoveryTarget;
         this.request = request;
-        this.recoverySettings = recoverySettings;
         this.logger = logger;
-        this.transportService = transportService;
         this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
-        this.chunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
+        this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
     }
 
@@ -200,11 +194,14 @@ public class RecoverySourceHandler {
                 final long numDocsTarget = request.metadataSnapshot().getNumDocs();
                 final long numDocsSource = recoverySourceMetadata.getNumDocs();
                 if (numDocsTarget != numDocsSource) {
-                    throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number of docs differ: " + numDocsTarget + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsSource + "(" + request.targetNode().getName() + ")");
+                    throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
+                            "of docs differ: " + numDocsTarget + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsSource
+                            + "(" + request.targetNode().getName() + ")");
                 }
                 // we shortcut recovery here because we have nothing to copy. but we must still start the engine on the target.
                 // so we don't return here
-                logger.trace("[{}][{}] skipping [phase1] to {} - identical sync id [{}] found on both source and target", indexName, shardId,
+                logger.trace("[{}][{}] skipping [phase1] to {} - identical sync id [{}] found on both source and target", indexName,
+                        shardId,
                         request.targetNode(), recoverySourceSyncId);
             } else {
                 final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
@@ -213,7 +210,8 @@ public class RecoverySourceHandler {
                     response.phase1ExistingFileSizes.add(md.length());
                     existingTotalSize += md.length();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]",
+                        logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}]," +
+                                        " size [{}]",
                                 indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
                     }
                     totalSize += md.length();
@@ -223,7 +221,8 @@ public class RecoverySourceHandler {
                 phase1Files.addAll(diff.missing);
                 for (StoreFileMetaData md : phase1Files) {
                     if (request.metadataSnapshot().asMap().containsKey(md.name())) {
-                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote " +
+                                        "[{}], local [{}]",
                                 indexName, shardId, request.targetNode(), md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
                     } else {
                         logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote",
@@ -237,20 +236,16 @@ public class RecoverySourceHandler {
                 response.phase1TotalSize = totalSize;
                 response.phase1ExistingTotalSize = existingTotalSize;
 
-                logger.trace("[{}][{}] recovery [phase1] to {}: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
+                logger.trace("[{}][{}] recovery [phase1] to {}: recovering_files [{}] with total_size [{}], reusing_files [{}] with " +
+                                "total_size [{}]",
                         indexName, shardId, request.targetNode(), response.phase1FileNames.size(),
                         new ByteSizeValue(totalSize), response.phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
-                cancellableThreads.execute(() -> {
-                    RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(request.recoveryId(), request.shardId(),
-                            response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames, response.phase1ExistingFileSizes,
-                            translogView.totalOperations());
-                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest,
-                            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-                });
+                cancellableThreads.execute(() ->
+                        recoveryTarget.receiveFileInfo(response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames,
+                                response.phase1ExistingFileSizes, translogView.totalOperations()));
                 // How many bytes we've copied since we last called RateLimiter.pause
-                final AtomicLong bytesSinceLastPause = new AtomicLong();
-                final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new BufferedOutputStream(new RecoveryOutputStream(md, bytesSinceLastPause, translogView), chunkSizeInBytes);
+                final Function<StoreFileMetaData, OutputStream> outputStreamFactories =
+                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogView), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
@@ -261,23 +256,19 @@ public class RecoverySourceHandler {
                 // related to this recovery (out of date segments, for example)
                 // are deleted
                 try {
-                    cancellableThreads.execute(() -> {
-                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                            new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, translogView.totalOperations()),
-                            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-                    });
-                } catch (RemoteTransportException remoteException) {
+                    cancellableThreads.executeIO(() -> recoveryTarget.cleanFiles(translogView.totalOperations(), recoverySourceMetadata));
+                } catch (RemoteTransportException | IOException targetException) {
                     final IOException corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery
                     // the index was corrupted:
                     //   - maybe due to a broken segments file on an empty index (transferred with no checksum)
                     //   - maybe due to old segments without checksums or length only checks
-                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(remoteException)) != null) {
+                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(targetException)) != null) {
                         try {
                             final Store.MetadataSnapshot recoverySourceMetadata1 = store.getMetadata(snapshot);
                             StoreFileMetaData[] metadata =
-                                    StreamSupport.stream(recoverySourceMetadata1.spliterator(), false).toArray(size -> new StoreFileMetaData[size]);
+                                    StreamSupport.stream(recoverySourceMetadata1.spliterator(), false).toArray(size -> new
+                                            StoreFileMetaData[size]);
                             ArrayUtil.timSort(metadata, (o1, o2) -> {
                                 return Long.compare(o1.length(), o2.length()); // check small files first
                             });
@@ -291,17 +282,18 @@ public class RecoverySourceHandler {
                                 }
                             }
                         } catch (IOException ex) {
-                            remoteException.addSuppressed(ex);
-                            throw remoteException;
+                            targetException.addSuppressed(ex);
+                            throw targetException;
                         }
                         // corruption has happened on the way to replica
-                        RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
-                        exception.addSuppressed(remoteException);
+                        RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
+                                "checksums are ok", null);
+                        exception.addSuppressed(targetException);
                         logger.warn("{} Remote file corruption during finalization on node {}, recovering {}. local checksum OK",
                                 corruptIndexException, shard.shardId(), request.targetNode());
                         throw exception;
                     } else {
-                        throw remoteException;
+                        throw targetException;
                     }
                 }
             }
@@ -318,22 +310,14 @@ public class RecoverySourceHandler {
     }
 
 
-    protected void prepareTargetForTranslog(final int totalTranslogOps) {
+    protected void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("{} recovery [phase1] to {}: prepare remote engine for translog", request.shardId(), request.targetNode());
         final long startEngineStart = stopWatch.totalTime().millis();
-        cancellableThreads.execute(new Interruptable() {
-            @Override
-            public void run() throws InterruptedException {
-                // Send a request preparing the new shard's translog to receive
-                // operations. This ensures the shard engine is started and disables
-                // garbage collection (not the JVM's GC!) of tombstone deletes
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG,
-                        new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId(), totalTranslogOps),
-                        TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-            }
-        });
-
+        // Send a request preparing the new shard's translog to receive
+        // operations. This ensures the shard engine is started and disables
+        // garbage collection (not the JVM's GC!) of tombstone deletes
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -378,20 +362,7 @@ public class RecoverySourceHandler {
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
 
 
-        cancellableThreads.execute(new Interruptable() {
-            @Override
-            public void run() throws InterruptedException {
-                // Send the FINALIZE request to the target node. The finalize request
-                // clears unreferenced translog files, refreshes the engine now that
-                // new segments are available, and enables garbage collection of
-                // tombstone files. The shard is also moved to the POST_RECOVERY phase
-                // during this time
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FINALIZE,
-                        new RecoveryFinalizeRecoveryRequest(request.recoveryId(), request.shardId()),
-                        TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                        EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-            }
-        });
+        cancellableThreads.execute(recoveryTarget::finalizeRecovery);
 
         if (isPrimaryRelocation()) {
             /**
@@ -403,12 +374,12 @@ public class RecoverySourceHandler {
             } catch (IllegalIndexShardStateException e) {
                 // we can ignore this exception since, on the other node, when it moved to phase3
                 // it will also send shard started, which might cause the index shard we work against
-                // to move be closed by the time we get to the the relocated method
+                // to move be closed by the time we get to the relocated method
             }
         }
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
-            indexName, shardId, request.targetNode(), stopWatch.totalTime());
+                indexName, shardId, request.targetNode(), stopWatch.totalTime());
     }
 
     protected boolean isPrimaryRelocation() {
@@ -435,12 +406,6 @@ public class RecoverySourceHandler {
             throw new ElasticsearchException("failed to get next operation from translog", ex);
         }
 
-        final TransportRequestOptions recoveryOptions = TransportRequestOptions.builder()
-                .withCompress(true)
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionLongTimeout())
-                .build();
-
         if (operation == null) {
             logger.trace("[{}][{}] no translog operations to send to {}",
                     indexName, shardId, request.targetNode());
@@ -464,12 +429,7 @@ public class RecoverySourceHandler {
                 // index docs to replicas while the index files are recovered
                 // the lock can potentially be removed, in which case, it might
                 // make sense to re-enable throttling in this phase
-                cancellableThreads.execute(() -> {
-                    final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                            request.recoveryId(), request.shardId(), operations, snapshot.totalOperations());
-                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
-                            recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-                });
+                cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
                             indexName, shardId, ops, new ByteSizeValue(size),
@@ -489,12 +449,7 @@ public class RecoverySourceHandler {
         }
         // send the leftover
         if (!operations.isEmpty()) {
-            cancellableThreads.execute(() -> {
-                RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                        request.recoveryId(), request.shardId(), operations, snapshot.totalOperations());
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
-                        recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-            });
+            cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
 
         }
         if (logger.isTraceEnabled()) {
@@ -525,13 +480,11 @@ public class RecoverySourceHandler {
 
     final class RecoveryOutputStream extends OutputStream {
         private final StoreFileMetaData md;
-        private final AtomicLong bytesSinceLastPause;
         private final Translog.View translogView;
         private long position = 0;
 
-        RecoveryOutputStream(StoreFileMetaData md, AtomicLong bytesSinceLastPause, Translog.View translogView) {
+        RecoveryOutputStream(StoreFileMetaData md, Translog.View translogView) {
             this.md = md;
-            this.bytesSinceLastPause = bytesSinceLastPause;
             this.translogView = translogView;
         }
 
@@ -548,43 +501,10 @@ public class RecoverySourceHandler {
         }
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
-            final TransportRequestOptions chunkSendOptions = TransportRequestOptions.builder()
-                .withCompress(false)  // lucene files are already compressed and therefore compressing this won't really help much so we are safing the cpu for other things
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionTimeout())
-                .build();
-            cancellableThreads.execute(() -> {
-                // Pause using the rate limiter, if desired, to throttle the recovery
-                final long throttleTimeInNanos;
-                // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
-                final RateLimiter rl = recoverySettings.rateLimiter();
-                if (rl != null) {
-                    long bytes = bytesSinceLastPause.addAndGet(content.length());
-                    if (bytes > rl.getMinPauseCheckBytes()) {
-                        // Time to pause
-                        bytesSinceLastPause.addAndGet(-bytes);
-                        try {
-                            throttleTimeInNanos = rl.pause(bytes);
-                            shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("failed to pause recovery", e);
-                        }
-                    } else {
-                        throttleTimeInNanos = 0;
-                    }
-                } else {
-                    throttleTimeInNanos = 0;
-                }
-                // Actually send the file chunk to the target node, waiting for it to complete
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK,
-                        new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content, lastChunk,
-                                translogView.totalOperations(),
-                                /* we send totalOperations with every request since we collect stats on the target and that way we can
-                                 * see how many translog ops we accumulate while copying files across the network. A future optimization
-                                 * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
-                                 */
-                                throttleTimeInNanos), chunkSendOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-            });
+            // Actually send the file chunk to the target node, waiting for it to complete
+            cancellableThreads.executeIO(() ->
+                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogView.totalOperations())
+            );
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -594,7 +514,7 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Throwable {
         store.incRef();
         try {
-            ArrayUtil.timSort(files, (a,b) -> Long.compare(a.length(), b.length())); // send smallest first
+            ArrayUtil.timSort(files, (a, b) -> Long.compare(a.length(), b.length())); // send smallest first
             for (int i = 0; i < files.length; i++) {
                 final StoreFileMetaData md = files[i];
                 try (final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
@@ -609,10 +529,11 @@ public class RecoverySourceHandler {
                             failEngine(corruptIndexException);
                             throw corruptIndexException;
                         } else { // corruption has happened on the way to replica
-                            RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
+                            RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
+                                    "checksums are ok", null);
                             exception.addSuppressed(t);
                             logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                corruptIndexException, shardId, request.targetNode(), md);
+                                    corruptIndexException, shardId, request.targetNode(), md);
                             throw exception;
                         }
                     } else {

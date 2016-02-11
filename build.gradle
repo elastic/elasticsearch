@@ -223,6 +223,10 @@ tasks.idea.dependsOn(buildSrcIdea)
 // eclipse configuration
 allprojects {
   apply plugin: 'eclipse'
+  // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
+  if (path != ':') {
+    eclipse.project.name = path
+  }
 
   plugins.withType(JavaBasePlugin) {
     File eclipseBuild = project.file('build-eclipse')

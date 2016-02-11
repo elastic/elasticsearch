@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.binaryField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -79,7 +78,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            BinaryFieldMapper.Builder builder = binaryField(name);
+            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             return builder;
         }

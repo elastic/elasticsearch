@@ -107,7 +107,7 @@ public class Requests {
     }
 
     /**
-     * Creats a new bulk request.
+     * Creates a new bulk request.
      */
     public static BulkRequest bulkRequest() {
         return new BulkRequest();

@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.ByteFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
@@ -104,7 +103,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
+        final MappedFieldType mapper1 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -121,7 +120,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         // write new segment
         writer.addDocument(doc);
         final IndexReader reader2 = DirectoryReader.open(writer, true);
-        final MappedFieldType mapper2 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "doc_values").build()).build(ctx).fieldType();
+        final MappedFieldType mapper2 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "doc_values").build()).build(ctx).fieldType();
         ifd = ifdService.getForField(mapper2);
         assertThat(ifd, instanceOf(SortedSetDVOrdinalsIndexFieldData.class));
         reader1.close();
@@ -138,7 +137,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
+        final MappedFieldType mapper1 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));

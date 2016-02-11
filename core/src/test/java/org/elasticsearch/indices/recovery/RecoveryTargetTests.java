@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RecoveryStateTests extends ESTestCase {
+public class RecoveryTargetTests extends ESTestCase {
     abstract class Streamer<T extends Streamable> extends Thread {
         private T lastRead;
         final private AtomicBoolean shouldStop;
@@ -329,8 +329,10 @@ public class RecoveryStateTests extends ESTestCase {
             assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
             assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
         } else {
-            assertThat((double) index.recoveredFilesPercent(), closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1));
-            assertThat((double) index.recoveredBytesPercent(), closeTo(100.0 * index.recoveredBytes() / index.totalRecoverBytes(), 0.1));
+            assertThat((double) index.recoveredFilesPercent(),
+                    closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1));
+            assertThat((double) index.recoveredBytesPercent(),
+                    closeTo(100.0 * index.recoveredBytes() / index.totalRecoverBytes(), 0.1));
         }
     }
 
@@ -346,7 +348,8 @@ public class RecoveryStateTests extends ESTestCase {
         stages[i] = stages[j];
         stages[j] = t;
         try {
-            RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
+            RecoveryState state = new RecoveryState(
+                    new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
             for (Stage stage : stages) {
                 state.setStage(stage);
             }
@@ -360,7 +363,8 @@ public class RecoveryStateTests extends ESTestCase {
         i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
-        RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
+        RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode,
+                discoveryNode);
         for (Stage stage : list) {
             state.setStage(stage);
         }
@@ -532,7 +536,7 @@ public class RecoveryStateTests extends ESTestCase {
             if (f.equals(anotherFile)) {
                 assertEquals(f.hashCode(), anotherFile.hashCode());
             } else if (f.hashCode() != anotherFile.hashCode()) {
-               assertFalse(f.equals(anotherFile));
+                assertFalse(f.equals(anotherFile));
             }
         }
     }

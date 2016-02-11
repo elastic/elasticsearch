@@ -120,10 +120,13 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
 
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode());
         final RecoverySourceHandler handler;
+        final RemoteRecoveryTargetHandler recoveryTarget =
+                new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService, request.targetNode(),
+                        recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
         if (shard.indexSettings().isOnSharedFilesystem()) {
-            handler = new SharedFSRecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
+            handler = new SharedFSRecoverySourceHandler(shard, recoveryTarget, request, logger);
         } else {
-            handler = new RecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
+            handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings.getChunkSize().bytesAsInt(), logger);
         }
         ongoingRecoveries.add(shard, handler);
         try {

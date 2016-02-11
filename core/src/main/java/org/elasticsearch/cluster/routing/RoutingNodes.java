@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
@@ -420,11 +421,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     /**
      * Moves a shard from unassigned to initialize state
+     *
+     * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
      */
-    public void initialize(ShardRouting shard, String nodeId, long expectedSize) {
+    public void initialize(ShardRouting shard, String nodeId, @Nullable String existingAllocationId, long expectedSize) {
         ensureMutable();
         assert shard.unassigned() : shard;
-        shard.initialize(nodeId, expectedSize);
+        shard.initialize(nodeId, existingAllocationId, expectedSize);
         node(nodeId).add(shard);
         inactiveShardCount++;
         if (shard.primary()) {
@@ -692,10 +695,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Initializes the current unassigned shard and moves it from the unassigned list.
+             *
+             * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
              */
-            public void initialize(String nodeId, long expectedShardSize) {
+            public void initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize) {
                 innerRemove();
-                nodes.initialize(new ShardRouting(current), nodeId, expectedShardSize);
+                nodes.initialize(new ShardRouting(current), nodeId, existingAllocationId, expectedShardSize);
             }
 
             /**
@@ -711,7 +716,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore()} or
-             * {@link #initialize(String, long)}.
+             * {@link #initialize(String, String, long)}.
              */
             @Override
             public void remove() {

@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeShortValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.shortField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -101,7 +100,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ShortFieldMapper.Builder builder = shortField(name);
+            ShortFieldMapper.Builder builder = new ShortFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

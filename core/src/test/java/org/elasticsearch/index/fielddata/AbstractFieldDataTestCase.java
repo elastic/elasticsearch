@@ -42,7 +42,14 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.ByteFieldMapper;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.ShortFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
@@ -97,19 +104,19 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         final MappedFieldType fieldType;
         final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         if (type.getType().equals("string")) {
-            fieldType = MapperBuilders.stringField(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new StringFieldMapper.Builder(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("float")) {
-            fieldType = MapperBuilders.floatField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new FloatFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("double")) {
-            fieldType = MapperBuilders.doubleField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new DoubleFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("long")) {
-            fieldType = MapperBuilders.longField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new LongFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("int")) {
-            fieldType = MapperBuilders.integerField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new IntegerFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("short")) {
-            fieldType = MapperBuilders.shortField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new ShortFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("byte")) {
-            fieldType = MapperBuilders.byteField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new ByteFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("geo_point")) {
             if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
                 fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
@@ -119,7 +126,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else if (type.getType().equals("_parent")) {
             fieldType = new ParentFieldMapper.Builder("_type").type(fieldName).build(context).fieldType();
         } else if (type.getType().equals("binary")) {
-            fieldType = MapperBuilders.binaryField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type.getType());
         }

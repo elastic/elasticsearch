@@ -51,7 +51,6 @@ import java.util.Map;
 
 import static org.apache.lucene.util.NumericUtils.doubleToSortableLong;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeDoubleValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -98,7 +97,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            DoubleFieldMapper.Builder builder = doubleField(name);
+            DoubleFieldMapper.Builder builder = new DoubleFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

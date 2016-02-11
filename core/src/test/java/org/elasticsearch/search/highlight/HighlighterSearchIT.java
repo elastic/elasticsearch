@@ -1727,7 +1727,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = search.get();
         assertHighlight(response, 0, "text", 0, hlQueryMatcher);
 
-        // Make sure the the highlightQuery is taken into account when it is set on the highlight context instead of the field
+        // Make sure the highlightQuery is taken into account when it is set on the highlight context instead of the field
         highlightBuilder.highlightQuery(matchQuery("text", "query"));
         field.highlighterType("fvh").highlightQuery(null);
         response = search.get();

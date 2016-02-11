@@ -93,7 +93,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         // because they would make obtain/release too costly: we really need constant-time
         // operations.
         // Ultimately a better solution would be to only store one kind of data and have the
-        // ability to intepret it either as a source of bytes, doubles, longs, etc. eg. thanks
+        // ability to interpret it either as a source of bytes, doubles, longs, etc. eg. thanks
         // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
         // that would need to be addressed such as garbage collection of native memory or safety
         // of Unsafe writes.

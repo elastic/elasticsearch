@@ -48,7 +48,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
@@ -252,11 +254,14 @@ public class TasksIT extends ESIntegTestCase {
          */
         ReentrantLock taskFinishLock = new ReentrantLock();
         taskFinishLock.lock();
+        CountDownLatch taskRegistered = new CountDownLatch(1);
         for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
             ((MockTaskManager)clusterService.getTaskManager()).addListener(new MockTaskManagerListener() {
                 @Override
                 public void onTaskRegistered(Task task) {
-                    // Intentional noop
+                    if (task.getAction().startsWith(IndexAction.NAME)) {
+                        taskRegistered.countDown();
+                    }
                 }
 
                 @Override
@@ -275,6 +280,7 @@ public class TasksIT extends ESIntegTestCase {
             });
         }
         ListenableActionFuture<?> indexFuture = client().prepareIndex("test", "test").setSource("test", "test").execute();
+        taskRegistered.await(10, TimeUnit.SECONDS); // waiting for at least one task to be registered
         ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").setDetailed(true)
                 .get();
         taskFinishLock.unlock();

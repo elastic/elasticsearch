@@ -38,7 +38,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.recovery.RecoveryStats;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
@@ -568,12 +567,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         String[] recoveryActions = new String[]{
                 RecoverySource.Actions.START_RECOVERY,
-                RecoveryTarget.Actions.FILES_INFO,
-                RecoveryTarget.Actions.FILE_CHUNK,
-                RecoveryTarget.Actions.CLEAN_FILES,
+                RecoveryTargetService.Actions.FILES_INFO,
+                RecoveryTargetService.Actions.FILE_CHUNK,
+                RecoveryTargetService.Actions.CLEAN_FILES,
                 //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
-                RecoveryTarget.Actions.PREPARE_TRANSLOG,
-                RecoveryTarget.Actions.FINALIZE
+                RecoveryTargetService.Actions.PREPARE_TRANSLOG,
+                RecoveryTargetService.Actions.FINALIZE
         };
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         final boolean dropRequests = randomBoolean();

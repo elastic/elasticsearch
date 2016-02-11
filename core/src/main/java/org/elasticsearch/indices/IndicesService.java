@@ -71,6 +71,8 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -124,6 +126,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final MapperRegistry mapperRegistry;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
+    private final IndicesRequestCache indicesRequestCache;
+    private final IndicesQueryCache indicesQueryCache;
 
     @Override
     protected void doStart() {
@@ -146,6 +150,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.indicesRequestCache = new IndicesRequestCache(settings, threadPool);
+        this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
@@ -196,7 +202,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     protected void doClose() {
-        IOUtils.closeWhileHandlingException(analysisRegistry, indexingMemoryController, indicesFieldDataCache, fieldDataCacheCleaner);
+        IOUtils.closeWhileHandlingException(analysisRegistry, indexingMemoryController, indicesFieldDataCache, fieldDataCacheCleaner, indicesRequestCache, indicesQueryCache);
     }
 
     /**
@@ -247,7 +253,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     if (indexShard.routingEntry() == null) {
                         continue;
                     }
-                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indexShard, flags), indexShard.commitStats()) });
+                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesQueryCache, indexShard, flags), indexShard.commitStats()) });
                     if (!statsByShard.containsKey(indexService.index())) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
@@ -348,10 +354,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
+        final IndexEventListener onStoreClose = new IndexEventListener() {
+            @Override
+            public void onStoreClosed(ShardId shardId) {
+                indicesQueryCache.onClose(shardId);
+            }
+        };
+        indexModule.addIndexEventListener(onStoreClose);
         indexModule.addIndexEventListener(oldShardsStats);
         final IndexEventListener listener = indexModule.freeze();
         listener.beforeIndexCreated(index, idxSettings.getSettings());
-        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry, indicesFieldDataCache, indexingMemoryController);
+        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, indicesQueryCache, mapperRegistry, indicesFieldDataCache, indexingMemoryController);
         boolean success = false;
         try {
             assert indexService.getIndexEventListener() == listener;
@@ -418,6 +431,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     public CircuitBreakerService getCircuitBreakerService() {
         return circuitBreakerService;
+    }
+
+    public IndicesRequestCache getIndicesRequestCache() {
+        return indicesRequestCache;
+    }
+
+    public IndicesQueryCache getIndicesQueryCache() {
+        return indicesQueryCache;
     }
 
     static class OldShardsStats implements IndexEventListener {
@@ -515,7 +536,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             if (success == false) {
                 addPendingDelete(index, indexSettings);
             }
-            // this is a pure protection to make sure this index doesn't get re-imported as a dangeling index.
+            // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index.getName()));
         }

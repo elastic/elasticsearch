@@ -176,7 +176,7 @@ public final class ShardPath {
             totFreeSpace += nodePath.fileStore.getUsableSpace();
         }
 
-        // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
+        // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
         // shard size across the cluster and 5% of the total available free space on this node:
         long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
 
@@ -215,7 +215,7 @@ public final class ShardPath {
             // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
             // how large they will be once they're done copying, instead of a silly guess for such cases:
 
-            // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
+            // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
             // shard size across the cluster and 5% of the total available free space on this node:
             long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
 

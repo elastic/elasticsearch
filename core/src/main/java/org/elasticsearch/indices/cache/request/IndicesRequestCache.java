@@ -45,6 +45,8 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.search.internal.SearchContext;
@@ -53,6 +55,7 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -74,7 +77,7 @@ import java.util.concurrent.TimeUnit;
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
  */
-public class IndicesRequestCache extends AbstractComponent implements RemovalListener<IndicesRequestCache.Key, IndicesRequestCache.Value> {
+public class IndicesRequestCache extends AbstractComponent implements RemovalListener<IndicesRequestCache.Key, IndicesRequestCache.Value>, Closeable {
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -89,7 +92,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     private static final Set<SearchType> CACHEABLE_SEARCH_TYPES = EnumSet.of(SearchType.QUERY_THEN_FETCH, SearchType.QUERY_AND_FETCH);
 
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
 
     private final TimeValue cleanInterval;
     private final Reaper reaper;
@@ -104,18 +106,13 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
 
     private volatile Cache<Key, Value> cache;
 
-    @Inject
-    public IndicesRequestCache(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
+    public IndicesRequestCache(Settings settings, ThreadPool threadPool) {
         super(settings);
-        this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.cleanInterval = INDICES_CACHE_REQUEST_CLEAN_INTERVAL.get(settings);
-
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
-
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         buildCache();
-
         this.reaper = new Reaper();
         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, reaper);
     }
@@ -123,10 +120,8 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
 
     private void buildCache() {
         long sizeInBytes = size.bytes();
-
         CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.<Key, Value>builder()
                 .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
-        // cacheBuilder.concurrencyLevel(concurrencyLevel);
 
         if (expire != null) {
             cacheBuilder.setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(expire.millis()));
@@ -135,6 +130,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         cache = cacheBuilder.build();
     }
 
+    @Override
     public void close() {
         reaper.close();
         cache.invalidateAll();
@@ -174,21 +170,17 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         if (!CACHEABLE_SEARCH_TYPES.contains(context.searchType())) {
             return false;
         }
-
-        IndexMetaData index = clusterService.state().getMetaData().index(request.index());
-        if (index == null) { // in case we didn't yet have the cluster state, or it just got deleted
-            return false;
-        }
+        IndexSettings settings = context.indexShard().getIndexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (INDEX_CACHE_REQUEST_ENABLED_SETTING.get(index.getSettings()) == false) {
+            if (settings.getValue(INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
                 return false;
             }
-        } else if (!request.requestCache()) {
+        } else if (request.requestCache() == false) {
             return false;
         }
         // if the reader is not a directory reader, we can't get the version from it
-        if (!(context.searcher().getIndexReader() instanceof DirectoryReader)) {
+        if ((context.searcher().getIndexReader() instanceof DirectoryReader) == false) {
             return false;
         }
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag

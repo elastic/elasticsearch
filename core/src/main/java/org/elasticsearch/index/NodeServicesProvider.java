@@ -23,7 +23,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 public final class NodeServicesProvider {
 
     private final ThreadPool threadPool;
-    private final IndicesQueryCache indicesQueryCache;
     private final BigArrays bigArrays;
     private final Client client;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -44,9 +42,8 @@ public final class NodeServicesProvider {
     private final CircuitBreakerService circuitBreakerService;
 
     @Inject
-    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, CircuitBreakerService circuitBreakerService) {
+    public NodeServicesProvider(ThreadPool threadPool, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, CircuitBreakerService circuitBreakerService) {
         this.threadPool = threadPool;
-        this.indicesQueryCache = indicesQueryCache;
         this.bigArrays = bigArrays;
         this.client = client;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
@@ -56,10 +53,6 @@ public final class NodeServicesProvider {
 
     public ThreadPool getThreadPool() {
         return threadPool;
-    }
-
-    public IndicesQueryCache getIndicesQueryCache() {
-        return indicesQueryCache;
     }
 
     public BigArrays getBigArrays() { return bigArrays; }

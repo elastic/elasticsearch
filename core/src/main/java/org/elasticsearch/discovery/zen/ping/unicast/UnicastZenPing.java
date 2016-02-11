@@ -342,7 +342,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         // sort the nodes by likelihood of being an active master
         List<DiscoveryNode> sortedNodesToPing = electMasterService.sortByMasterLikelihood(nodesToPingSet);
 
-        // new add the the unicast targets first
+        // new add the unicast targets first
         List<DiscoveryNode> nodesToPing = CollectionUtils.arrayAsArrayList(configuredTargetNodes);
         nodesToPing.addAll(sortedNodesToPing);
 

@@ -66,7 +66,7 @@ public class ScriptModule extends AbstractModule {
     }
 
     /**
-     * This method is called after all modules have been processed but before we actually validate all settings. This allwos the
+     * This method is called after all modules have been processed but before we actually validate all settings. This allows the
      * script extensions to add all their settings.
      */
     public void prepareSettings(SettingsModule settingsModule) {

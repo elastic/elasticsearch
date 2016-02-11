@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -68,7 +67,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static StringFieldMapper.Builder createStringFieldBuilder(String name) {
-            StringFieldMapper.Builder queryMetaDataFieldBuilder = MapperBuilders.stringField(name);
+            StringFieldMapper.Builder queryMetaDataFieldBuilder = new StringFieldMapper.Builder(name);
             queryMetaDataFieldBuilder.docValues(false);
             queryMetaDataFieldBuilder.store(false);
             queryMetaDataFieldBuilder.tokenized(false);

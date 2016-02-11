@@ -48,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
@@ -82,7 +81,7 @@ public class ExternalMapper extends FieldMapper {
         public Builder(String name, String generatedValue, String mapperName) {
             super(name, new ExternalFieldType(), new ExternalFieldType());
             this.builder = this;
-            this.stringBuilder = stringField(name).store(false);
+            this.stringBuilder = new StringFieldMapper.Builder(name).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
         }

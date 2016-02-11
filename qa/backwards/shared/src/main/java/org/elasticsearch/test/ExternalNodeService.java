@@ -346,6 +346,7 @@ public class ExternalNodeService {
             }
             logger.debug("Starting elasticsearch with {}", startReproduction);
             ProcessBuilder builder = new ProcessBuilder(command);
+            builder.environment().put("ES_HEAP_SIZE", "256m");
             builder.inheritIO();
             Process process = null;
             String pid = null;

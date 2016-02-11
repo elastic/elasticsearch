@@ -188,18 +188,14 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().getIndex().getName(), request.shardId().id(), request
                     .sourceNode());
             recoveryTarget.indexShard().prepareForIndexRecovery();
-            recoveryTarget.CancellableThreads().execute(new CancellableThreads.Interruptable() {
-                @Override
-                public void run() throws InterruptedException {
-                    responseHolder.set(transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY,
-                            request, new FutureTransportResponseHandler<RecoveryResponse>() {
+            recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
+                    transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request,
+                            new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
                                 public RecoveryResponse newInstance() {
                                     return new RecoveryResponse();
                                 }
-                            }).txGet());
-                }
-            });
+                            }).txGet()));
             final RecoveryResponse recoveryResponse = responseHolder.get();
             assert responseHolder != null;
             final TimeValue recoveryTime = new TimeValue(recoveryTarget.state().getTimer().time());

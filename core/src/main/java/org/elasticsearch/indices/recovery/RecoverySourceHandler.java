@@ -240,13 +240,12 @@ public class RecoverySourceHandler {
                                 "total_size [{}]",
                         indexName, shardId, request.targetNode(), response.phase1FileNames.size(),
                         new ByteSizeValue(totalSize), response.phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
-                cancellableThreads.execute(() -> {
-                    recoveryTarget.receiveFileInfo(response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames,
-                            response.phase1ExistingFileSizes, translogView.totalOperations());
-                });
+                cancellableThreads.execute(() ->
+                        recoveryTarget.receiveFileInfo(response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames,
+                                response.phase1ExistingFileSizes, translogView.totalOperations()));
                 // How many bytes we've copied since we last called RateLimiter.pause
-                final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new BufferedOutputStream(new
-                        RecoveryOutputStream(md, translogView), chunkSizeInBytes);
+                final Function<StoreFileMetaData, OutputStream> outputStreamFactories =
+                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogView), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
@@ -257,14 +256,8 @@ public class RecoverySourceHandler {
                 // related to this recovery (out of date segments, for example)
                 // are deleted
                 try {
-                    cancellableThreads.execute(() -> {
-                        try {
-                            recoveryTarget.cleanFiles(translogView.totalOperations(), recoverySourceMetadata);
-                        } catch (IOException e) {
-                            throw new RuntimeException("recovery target clean files failed", e);
-                        }
-                    });
-                } catch (RuntimeException targetException) {
+                    cancellableThreads.executeIO(() -> recoveryTarget.cleanFiles(translogView.totalOperations(), recoverySourceMetadata));
+                } catch (RemoteTransportException | IOException targetException) {
                     final IOException corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery
                     // the index was corrupted:
@@ -317,21 +310,14 @@ public class RecoverySourceHandler {
     }
 
 
-    protected void prepareTargetForTranslog(final int totalTranslogOps) {
+    protected void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("{} recovery [phase1] to {}: prepare remote engine for translog", request.shardId(), request.targetNode());
         final long startEngineStart = stopWatch.totalTime().millis();
-        cancellableThreads.execute(() -> {
-            // Send a request preparing the new shard's translog to receive
-            // operations. This ensures the shard engine is started and disables
-            // garbage collection (not the JVM's GC!) of tombstone deletes
-            try {
-                recoveryTarget.prepareForTranslogOperations(totalTranslogOps);
-            } catch (IOException e) {
-                throw new ElasticsearchException("prepare for translog ops on remote failed", e);
-            }
-        });
-
+        // Send a request preparing the new shard's translog to receive
+        // operations. This ensures the shard engine is started and disables
+        // garbage collection (not the JVM's GC!) of tombstone deletes
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -515,23 +501,10 @@ public class RecoverySourceHandler {
         }
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
-            try {
-                cancellableThreads.execute(() -> {
-                    // Actually send the file chunk to the target node, waiting for it to complete
-                    try {
-                        recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogView.totalOperations());
-                    } catch (IOException e) {
-                        throw new ElasticsearchException("failed to write file chunk on recovery target", e);
-                    }
-                });
-            } catch (ElasticsearchException e) {
-                // TODO - find a cleaner way to throw typed exceptions out of cancellableThreads
-                if (e.getCause() instanceof IOException) {
-                    throw (IOException) e.getCause();
-                } else {
-                    throw e;
-                }
-            }
+            // Actually send the file chunk to the target node, waiting for it to complete
+            cancellableThreads.executeIO(() ->
+                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogView.totalOperations())
+            );
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 throw new IndexShardClosedException(request.shardId());
             }

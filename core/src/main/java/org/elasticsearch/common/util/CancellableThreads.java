@@ -80,14 +80,32 @@ public class CancellableThreads {
      * @param interruptable code to run
      */
     public void execute(Interruptable interruptable) {
+        try {
+            executeIO(interruptable);
+        } catch (IOException e) {
+            assert false : "the passed interruptable can not result in an IOException";
+            throw new RuntimeException("unexpected IO exception", e);
+        }
+    }
+    /**
+     * run the Interruptable, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
+     * causing the call to prematurely return.
+     *
+     * @param interruptable code to run
+     */
+    public void executeIO(IOInterruptable interruptable) throws IOException {
         boolean wasInterrupted = add();
-        RuntimeException throwable = null;
+        RuntimeException runtimeException = null;
+        IOException ioException = null;
+
         try {
             interruptable.run();
         } catch (InterruptedException | ThreadInterruptedException e) {
             // assume this is us and ignore
         } catch (RuntimeException t) {
-            throwable = t;
+            runtimeException = t;
+        } catch (IOException e) {
+            ioException = e;
         } finally {
             remove();
         }
@@ -101,10 +119,14 @@ public class CancellableThreads {
         }
         synchronized (this) {
             if (isCancelled()) {
-                onCancel(reason, throwable);
-            } else if (throwable != null) {
+                onCancel(reason, ioException != null ? ioException : runtimeException);
+            } else if (ioException != null) {
                 // if we're not canceling, we throw the original exception
-                throw throwable;
+                throw ioException;
+            }
+            if (runtimeException != null) {
+                // if we're not canceling, we throw the original exception
+                throw runtimeException;
             }
         }
     }
@@ -131,8 +153,12 @@ public class CancellableThreads {
     }
 
 
-    public interface Interruptable {
+    public interface Interruptable extends IOInterruptable {
         void run() throws InterruptedException;
+    }
+
+    public interface IOInterruptable {
+        void run() throws IOException, InterruptedException;
     }
 
     public static class ExecutionCancelledException extends ElasticsearchException {

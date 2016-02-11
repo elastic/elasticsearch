@@ -20,11 +20,24 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.is;
 
 public class AWSSignersTests extends ESTestCase {
+
+    /**
+     * Starts Ec2DiscoveryPlugin. It's a workaround when you run test from IntelliJ. Otherwise it generates
+     * java.security.AccessControlException: access denied ("java.lang.RuntimePermission" "accessDeclaredMembers")
+     */
+    @BeforeClass
+    public static void instantiatePlugin() {
+        new Ec2DiscoveryPlugin(Settings.EMPTY);
+    }
+
     public void testSigners() {
         assertThat(signerTester(null), is(false));
         assertThat(signerTester("QueryStringSignerType"), is(true));

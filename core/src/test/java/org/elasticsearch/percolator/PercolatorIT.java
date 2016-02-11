@@ -861,7 +861,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testPercolateWithAliasFilter() throws Exception {
         assertAcked(prepareCreate("my-index")
-                        .addMapping(PercolatorService.TYPE_NAME, "a", "type=string,index=not_analyzed")
+                        .addMapping(PercolatorService.TYPE_NAME, "a", "type=keyword")
                         .addAlias(new Alias("a").filter(QueryBuilders.termQuery("a", "a")))
                         .addAlias(new Alias("b").filter(QueryBuilders.termQuery("a", "b")))
                         .addAlias(new Alias("c").filter(QueryBuilders.termQuery("a", "c")))

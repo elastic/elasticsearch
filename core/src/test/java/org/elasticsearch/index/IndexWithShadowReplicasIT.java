@@ -643,7 +643,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "foo").get();
@@ -725,7 +725,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         // only one node, so all primaries will end up on node1
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         // Index some documents

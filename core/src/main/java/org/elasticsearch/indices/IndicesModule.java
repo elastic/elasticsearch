@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -96,6 +97,7 @@ public class IndicesModule extends AbstractModule {
         registerMapper(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
         registerMapper(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
         registerMapper(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        registerMapper(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         registerMapper(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
         registerMapper(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         registerMapper(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());

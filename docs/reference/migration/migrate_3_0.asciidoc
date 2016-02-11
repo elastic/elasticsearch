@@ -20,6 +20,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_packaging>>
 * <<breaking_30_scripting>>
 * <<breaking_30_term_vectors>>
+* <<breaking_30_security>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -767,3 +768,10 @@ The term vectors APIs no longer persist unmapped fields in the mappings.
 
 The `dfs` parameter has been removed completely, term vectors don't support
 distributed document frequencies anymore.
+
+[[breaking_30_security]]
+=== Security
+
+The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
+permissions to elasticsearch users must tweak the local Java Security Policy.
+

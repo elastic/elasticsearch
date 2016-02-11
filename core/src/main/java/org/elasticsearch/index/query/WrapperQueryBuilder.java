@@ -105,14 +105,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context);
-            contextCopy.reset(qSourceParser);
-            contextCopy.parseFieldMatcher(context.parseFieldMatcher());
-            QueryBuilder<?> result = contextCopy.parseContext().parseInnerQueryBuilder();
-            context.combineNamedQueries(contextCopy);
-            return result.toQuery(context);
-        }
+       throw new UnsupportedOperationException("this query must be rewritten first");
     }
 
     @Override
@@ -133,5 +126,22 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected boolean doEquals(WrapperQueryBuilder other) {
         return Arrays.equals(source, other.source);   // otherwise we compare pointers
+    }
+
+    @Override
+    public QueryBuilder<?> rewrite(QueryRewriteContext context) throws IOException {
+        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
+            QueryParseContext parseContext = context.newParseContext();
+            parseContext.reset(qSourceParser);
+
+            final QueryBuilder<?> queryBuilder = parseContext.parseInnerQueryBuilder();
+            if (queryBuilder.boost() == DEFAULT_BOOST) {
+                queryBuilder.boost(boost());
+            }
+            if (queryName() != null) { // we inherit the name
+                queryBuilder.queryName(queryName());
+            }
+            return queryBuilder;
+        }
     }
 }

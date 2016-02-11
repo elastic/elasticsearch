@@ -41,9 +41,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
@@ -482,5 +487,15 @@ public class SearchSourceBuilderTests extends ESTestCase {
         builder.postFilter(EmptyQueryBuilder.PROTOTYPE);
         String query = "{ \"post_filter\": {} }";
         assertParseSearchSource(builder, new BytesArray(query));
+    }
+
+    public void testRewrite() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        builder.query(new BoolQueryBuilder());
+        TermQueryBuilder tqb = new TermQueryBuilder("foo", "bar");
+        builder.postFilter(new WrapperQueryBuilder(tqb.toString()));
+        builder.rewrite(new QueryRewriteContext(null, null, indicesQueriesRegistry));
+        assertEquals(new MatchAllQueryBuilder(), builder.query());
+        assertEquals(tqb, builder.postFilter());
     }
 }

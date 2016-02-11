@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -345,5 +346,41 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         out.writeBoolean(adjustPureNegative);
         out.writeBoolean(disableCoord);
         out.writeOptionalString(minimumShouldMatch);
+    }
+
+    @Override
+    public QueryBuilder<?> rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        BoolQueryBuilder newBuilder = new BoolQueryBuilder();
+        boolean changed = false;
+        final int clauses = mustClauses.size() + mustNotClauses.size() + filterClauses.size() + shouldClauses.size();
+        if (clauses == 0) {
+            return new MatchAllQueryBuilder().boost(boost()).queryName(queryName());
+        }
+        changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
+        changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
+        changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
+        changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
+
+        if (changed) {
+            newBuilder.adjustPureNegative = adjustPureNegative;
+            newBuilder.disableCoord = disableCoord;
+            newBuilder.minimumShouldMatch = minimumShouldMatch;
+            newBuilder.boost(boost());
+            newBuilder.queryName(queryName());
+            return newBuilder;
+        }
+        return this;
+    }
+
+    private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders, Consumer<QueryBuilder<?>> conusmer) throws IOException {
+        boolean changed = false;
+        for (QueryBuilder builder : builders) {
+            QueryBuilder result = builder.rewrite(queryRewriteContext);
+            if (result != builder) {
+                changed = true;
+            }
+            conusmer.accept(result);
+        }
+        return changed;
     }
 }

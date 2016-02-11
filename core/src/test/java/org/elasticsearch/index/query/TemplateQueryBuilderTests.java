@@ -56,7 +56,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected void doAssertLuceneQuery(TemplateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertEquals(templateBase.toQuery(context), query);
+        assertEquals(QueryBuilder.rewriteQuery(templateBase, context).toQuery(context), query);
     }
 
     public void testIllegalArgument() {

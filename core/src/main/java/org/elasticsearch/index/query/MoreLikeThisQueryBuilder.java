@@ -1050,4 +1050,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 Objects.equals(include, other.include) &&
                 Objects.equals(failOnUnsupportedField, other.failOnUnsupportedField);
     }
+
+    @Override
+    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        // TODO this needs heavy cleanups before we can rewrite it
+        return this;
+    }
 }

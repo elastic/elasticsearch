@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 
@@ -393,5 +394,18 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         public FilterFunctionBuilder readFrom(StreamInput in) throws IOException {
             return new FilterFunctionBuilder(in.readQuery(), in.readScoreFunction());
         }
+    }
+
+    @Override
+    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder<?> queryBuilder = this.query.rewrite(queryShardContext);
+        if (queryBuilder != query) {
+            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+            newQueryBuilder.scoreMode = scoreMode;
+            newQueryBuilder.minScore = minScore;
+            newQueryBuilder.maxBoost = maxBoost;
+            return newQueryBuilder.queryName(queryName()).boost(boost());
+        }
+        return this;
     }
 }

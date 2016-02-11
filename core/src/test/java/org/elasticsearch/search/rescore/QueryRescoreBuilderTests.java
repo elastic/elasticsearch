@@ -160,7 +160,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, null, indicesQueriesRegistry) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
@@ -170,7 +170,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
-            QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.build(mockShardContext);
+            QueryRescoreContext rescoreContext = rescoreBuilder.build(mockShardContext);
             XContentParser parser = createParser(rescoreBuilder);
 
             QueryRescoreContext parsedRescoreContext = (QueryRescoreContext) new RescoreParseElement().parseSingleRescoreContext(parser, mockShardContext);

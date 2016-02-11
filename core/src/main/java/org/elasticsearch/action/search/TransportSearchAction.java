@@ -33,6 +33,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,7 +91,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 logger.debug("failed to optimize search type, continue as normal", e);
             }
         }
-
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
             dfsQueryThenFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.QUERY_THEN_FETCH) {

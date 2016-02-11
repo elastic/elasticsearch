@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -62,7 +61,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
     private final String fieldName;
 
-    private ShapeBuilder shape;
+    private final ShapeBuilder shape;
 
     private SpatialStrategy strategy;
 
@@ -237,12 +236,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        ShapeBuilder shapeToQuery = shape;
-        if (shapeToQuery == null) {
-            GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
-            shapeToQuery = fetch(context.getClient(), getRequest, indexedShapePath);
+        if (shape == null) {
+            throw new UnsupportedOperationException("query must be rewritten first");
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        final ShapeBuilder shapeToQuery = shape;
+        final MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new QueryShardException(context, "Failed to find geo_shape field [" + fieldName + "]");
         }
@@ -252,7 +250,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             throw new QueryShardException(context, "Field [" + fieldName + "] is not a geo_shape");
         }
 
-        GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
+        final GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
 
         PrefixTreeStrategy strategy = shapeFieldType.defaultStrategy();
         if (this.strategy != null) {
@@ -448,5 +446,16 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public QueryBuilder<GeoShapeQueryBuilder> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        if (this.shape == null) {
+            GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
+            ShapeBuilder shape = fetch(queryShardContext.getClient(), getRequest, indexedShapePath);
+            return new GeoShapeQueryBuilder(this.fieldName, shape).relation(relation).strategy(strategy)
+                .boost(boost()).queryName(queryName());
+        }
+        return this;
     }
 }

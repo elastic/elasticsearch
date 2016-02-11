@@ -286,7 +286,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         });
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        queryShardContext = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
+        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -516,7 +516,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
             setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
-            Query firstLuceneQuery = firstQuery.toQuery(context);
+            Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             SearchContext.removeCurrent(); // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
             assertTrue(
@@ -534,7 +534,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         + randomAsciiOfLengthBetween(1, 10));
             }
             setSearchContext(randomTypes);
-            Query secondLuceneQuery = secondQuery.toQuery(context);
+            Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
             SearchContext.removeCurrent();
 
@@ -544,12 +544,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 setSearchContext(randomTypes);
-                Query thirdLuceneQuery = secondQuery.toQuery(context);
+                Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 SearchContext.removeCurrent();
                 assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery,
                         not(equalTo(thirdLuceneQuery)));
             }
         }
+    }
+
+    private QueryBuilder<?> rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
+        QueryBuilder<?> rewritten = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
+        assertSerialization(rewritten);
+        return rewritten;
     }
 
     /**
@@ -625,11 +631,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Serialize the given query builder and asserts that both are equal
      */
     @SuppressWarnings("unchecked")
-    protected QB assertSerialization(QB testQuery) throws IOException {
+    protected <QB extends QueryBuilder> QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> prototype = queryParser(testQuery.getName()).getBuilderPrototype();
+                QueryParser<?> queryParser = queryParser(testQuery.getName());
+                assertNotNull("queryparser not found for query: [" + testQuery.getName() + "]", queryParser);
+                QueryBuilder<?> prototype = queryParser.getBuilderPrototype();
                 QueryBuilder<?> deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
@@ -674,7 +682,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryParser<?> queryParser(String queryId) {
-        return indicesQueriesRegistry.queryParsers().get(queryId);
+        QueryParser<?> queryParser = indicesQueriesRegistry.queryParsers().get(queryId);
+        if (queryParser == null && EmptyQueryBuilder.NAME.equals(queryId)) {
+            return new QueryParser() {
+                @Override
+                public String[] names() {
+                    return new String[] {EmptyQueryBuilder.NAME};
+                }
+
+                @Override
+                public QueryBuilder<?> fromXContent(QueryParseContext parseContext) throws IOException {
+                    return new EmptyQueryBuilder();
+                }
+
+                @Override
+                public QueryBuilder getBuilderPrototype() {
+                    return EmptyQueryBuilder.PROTOTYPE;
+                }
+            };
+        }
+        return queryParser;
     }
 
     //we use the streaming infra to create a copy of the query provided as argument

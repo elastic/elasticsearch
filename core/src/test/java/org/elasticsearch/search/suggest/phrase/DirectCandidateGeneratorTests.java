@@ -171,7 +171,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             }
         };
 
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, null, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, mockMapperService, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 StringFieldMapper.Builder builder = MapperBuilders.stringField(name);

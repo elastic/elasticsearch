@@ -104,4 +104,13 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeQuery(filterBuilder);
     }
+
+    @Override
+    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewrite = filterBuilder.rewrite(queryShardContext);
+        if (rewrite != filterBuilder) {
+            return new ConstantScoreQueryBuilder(rewrite).boost(boost()).queryName(queryName());
+        }
+        return this;
+    }
 }

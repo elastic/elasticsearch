@@ -22,7 +22,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -255,5 +254,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected int doHashCode() {
         return Objects.hash(query, type, score, innerHit);
+    }
+
+    @Override
+    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryShardContext);
+        if (rewrite != query) {
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrite);
+            hasParentQueryBuilder.score = score;
+            hasParentQueryBuilder.innerHit = innerHit;
+            return hasParentQueryBuilder.queryName(queryName()).boost(boost());
+        }
+        return this;
     }
 }

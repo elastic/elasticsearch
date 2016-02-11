@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -1433,4 +1434,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(version, other.version)
                 && Objects.equals(profile, other.profile);
     }
+
+    /**
+     * Rewrites the internal query builders in-place
+     */
+    public void rewrite(QueryRewriteContext rewriteContext) throws IOException {
+        if (queryBuilder != null) {
+            queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
+        }
+        if (postQueryBuilder != null) {
+            postQueryBuilder = QueryBuilder.rewriteQuery(postQueryBuilder, rewriteContext);
+        }
+    }
+
 }

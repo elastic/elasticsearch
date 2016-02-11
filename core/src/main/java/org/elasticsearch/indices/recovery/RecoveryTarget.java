@@ -83,6 +83,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
+    private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
+
     public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
 
         super("recovery_status");
@@ -94,12 +96,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.shardId = indexShard.shardId();
         this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
         this.store = indexShard.store();
+        indexShard.recoveryStats().incCurrentAsTarget();
         // make sure the store is not released until we are done.
         store.incRef();
-        indexShard.recoveryStats().incCurrentAsTarget();
     }
-
-    private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     public long recoveryId() {
         return recoveryId;
@@ -389,7 +389,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
-        if (!content.hasArray()) {
+        if (content.hasArray() == false) {
             content = content.toBytesArray();
         }
         indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());

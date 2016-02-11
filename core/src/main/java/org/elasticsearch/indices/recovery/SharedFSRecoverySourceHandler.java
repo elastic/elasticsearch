@@ -42,8 +42,8 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    public RecoveryResponse recoverToTarget() {
-       boolean engineClosed = false;
+    public RecoveryResponse recoverToTarget() throws IOException {
+        boolean engineClosed = false;
         try {
             logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
             if (isPrimaryRelocation()) {
@@ -83,5 +83,4 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                 shard.shardId(), request.targetNode());
         return 0;
     }
-
 }

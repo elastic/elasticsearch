@@ -995,7 +995,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                 indexShardReference.failShard(message, shardFailedError);
                                                 forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                             } else {
-                                                assert false : shardFailedError;
+                                                assert shardFailedError.getMessage().contains("TransportService is closed ") :
+                                                        shardFailedError;
                                                 onReplicaFailure(nodeId, exp);
                                             }
                                         }

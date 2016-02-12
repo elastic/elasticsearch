@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -225,10 +226,34 @@ public class IndicesRequestCacheTests extends ESTestCase {
     }
 
     public void testEviction() throws Exception {
+        final ByteSizeValue size;
+        {
+            IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+            AtomicBoolean indexShard = new AtomicBoolean(true);
+            ShardRequestCache requestCacheStats = new ShardRequestCache();
+            Directory dir = newDirectory();
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+            writer.addDocument(newDoc(0, "foo"));
+            DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "bar", 1));
+            TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+            TestEntity entity = new TestEntity(requestCacheStats, reader, indexShard, 0);
+
+            writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
+            DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "bar", 1));
+            TestEntity secondEntity = new TestEntity(requestCacheStats, secondReader, indexShard, 0);
+
+            BytesReference value1 = cache.getOrCompute(entity, reader, termQuery.buildAsBytes());
+            assertEquals("foo", value1.toUtf8());
+            BytesReference value2 = cache.getOrCompute(secondEntity, secondReader, termQuery.buildAsBytes());
+            assertEquals("bar", value2.toUtf8());
+            size = requestCacheStats.stats().getMemorySize();
+            IOUtils.close(reader, secondReader, writer, dir, cache);
+        }
         IndicesRequestCache cache = new IndicesRequestCache(Settings.builder()
-            .put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), "113b") // the first 2 cache entries add up to 112b
+            .put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.bytes()+1 +"b")
             .build());
-        AtomicBoolean indexShard =  new AtomicBoolean(true);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());

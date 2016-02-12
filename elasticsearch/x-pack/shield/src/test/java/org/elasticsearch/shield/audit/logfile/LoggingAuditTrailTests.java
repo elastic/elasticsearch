@@ -735,7 +735,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return InetAddress.getByAddress(hostname, bytes);
     }
 
-    private static class MockMessage extends TransportMessage<MockMessage> {
+    private static class MockMessage extends TransportMessage {
 
         private MockMessage(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {
@@ -751,7 +751,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
-    private static class MockIndicesRequest extends TransportMessage<MockIndicesRequest> implements IndicesRequest {
+    private static class MockIndicesRequest extends TransportMessage implements IndicesRequest {
 
         private MockIndicesRequest(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {

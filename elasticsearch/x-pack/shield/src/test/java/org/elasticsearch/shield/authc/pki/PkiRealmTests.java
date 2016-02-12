@@ -14,7 +14,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 
 import javax.security.auth.x500.X500Principal;
@@ -187,11 +186,6 @@ public class PkiRealmTests extends ESTestCase {
         try (InputStream in = Files.newInputStream(path)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             return (X509Certificate) factory.generateCertificate(in);
-        }
-    }
-
-    private static class Message extends TransportMessage<Message> {
-        private Message() {
         }
     }
 }

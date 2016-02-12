@@ -319,7 +319,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void anonymousAccessDenied(String action, TransportMessage<?> message) {
+    public void anonymousAccessDenied(String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             try {
                 enqueue(message("anonymous_access_denied", action, null, null, indices(message), message), "anonymous_access_denied");
@@ -341,7 +341,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(String action, TransportMessage<?> message) {
+    public void authenticationFailed(String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             try {
                 enqueue(message("authentication_failed", action, null, null, indices(message), message), "authentication_failed");
@@ -363,7 +363,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
+    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             if (!principalIsAuditor(token.principal())) {
                 try {
@@ -389,7 +389,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
+    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             if (!principalIsAuditor(token.principal())) {
                 try {
@@ -415,7 +415,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage<?> message) {
+    public void accessGranted(User user, String action, TransportMessage message) {
         if (!principalIsAuditor(user.principal())) {
             // special treatment for internal system actions - only log if explicitly told to
             if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user)) {
@@ -437,7 +437,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage<?> message) {
+    public void accessDenied(User user, String action, TransportMessage message) {
         if (events.contains(ACCESS_DENIED)) {
             if (!principalIsAuditor(user.principal())) {
                 try {
@@ -450,7 +450,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void tamperedRequest(String action, TransportMessage<?> message) {
+    public void tamperedRequest(String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             try {
                 enqueue(message("tampered_request", action, null, indices(message), message), "tampered_request");
@@ -461,7 +461,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportMessage<?> request) {
+    public void tamperedRequest(User user, String action, TransportMessage request) {
         if (events.contains(TAMPERED_REQUEST)) {
             if (!principalIsAuditor(user.principal())) {
                 try {
@@ -496,7 +496,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsGranted(User user, String action, TransportMessage<?> message) {
+    public void runAsGranted(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_GRANTED)) {
             try {
                 enqueue(message("run_as_granted", action, user, null, message), "access_granted");
@@ -507,7 +507,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsDenied(User user, String action, TransportMessage<?> message) {
+    public void runAsDenied(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
                 enqueue(message("run_as_denied", action, user, null, message), "access_granted");

@@ -501,7 +501,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         context.reset(parser);
         context.parseFieldMatcher(matcher);
         QueryBuilder<?> parseInnerQueryBuilder = context.parseInnerQueryBuilder();
-        assertTrue(parser.nextToken() == null);
+        assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }
 

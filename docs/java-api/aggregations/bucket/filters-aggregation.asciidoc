@@ -14,9 +14,8 @@ Here is an example on how to create the aggregation request:
 --------------------------------------------------
 AggregationBuilder aggregation =
     AggregationBuilders
-        .filters("agg")
-            .filter("men", QueryBuilders.termQuery("gender", "male"))
-            .filter("women", QueryBuilders.termQuery("gender", "female"));
+        .filters("agg", new KeyedFilter("men", QueryBuilders.termQuery("gender", "male")), 
+            new KeyedFilter("women", QueryBuilders.termQuery("gender", "female")));
 --------------------------------------------------
 
 

@@ -50,6 +50,13 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";
 
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField FILTER_FIELD = new ParseField("filter");
+    public static final ParseField FUNCTIONS_FIELD = new ParseField("functions");
+    public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    public static final ParseField BOOST_MODE_FIELD = new ParseField("boost_mode");
+    public static final ParseField MAX_BOOST_FIELD = new ParseField("max_boost");
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     private final ScoreFunctionParserMapper functionParserMapper;
 
@@ -87,7 +94,7 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("query".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     if (query != null) {
                         throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. [query] is already defined.", FunctionScoreQueryBuilder.NAME);
                     }
@@ -109,7 +116,7 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("functions".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FUNCTIONS_FIELD)) {
                     if (singleFunctionFound) {
                         String errorString = "already found [" + singleFunctionName + "], now encountering [functions].";
                         handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);
@@ -121,17 +128,17 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
                 }
 
             } else if (token.isValue()) {
-                if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
                     scoreMode = FiltersFunctionScoreQuery.ScoreMode.fromString(parser.text());
-                } else if ("boost_mode".equals(currentFieldName) || "boostMode".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOOST_MODE_FIELD)) {
                     combineFunction = CombineFunction.fromString(parser.text());
-                } else if ("max_boost".equals(currentFieldName) || "maxBoost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_BOOST_FIELD)) {
                     maxBoost = parser.floatValue();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("min_score".equals(currentFieldName) || "minScore".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
                     minScore = parser.floatValue();
                 } else {
                     if (singleFunctionFound) {
@@ -189,7 +196,7 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if ("filter".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
                             filter = parseContext.parseInnerQueryBuilder();
                         } else {
                             if (scoreFunction != null) {

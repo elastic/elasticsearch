@@ -197,22 +197,22 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (query != null) {
-            builder.field("query");
+            builder.field(FunctionScoreQueryParser.QUERY_FIELD.getPreferredName());
             query.toXContent(builder, params);
         }
-        builder.startArray("functions");
+        builder.startArray(FunctionScoreQueryParser.FUNCTIONS_FIELD.getPreferredName());
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
             filterFunctionBuilder.toXContent(builder, params);
         }
         builder.endArray();
 
-        builder.field("score_mode", scoreMode.name().toLowerCase(Locale.ROOT));
+        builder.field(FunctionScoreQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
         if (boostMode != null) {
-            builder.field("boost_mode", boostMode.name().toLowerCase(Locale.ROOT));
+            builder.field(FunctionScoreQueryParser.BOOST_MODE_FIELD.getPreferredName(), boostMode.name().toLowerCase(Locale.ROOT));
         }
-        builder.field("max_boost", maxBoost);
+        builder.field(FunctionScoreQueryParser.MAX_BOOST_FIELD.getPreferredName(), maxBoost);
         if (minScore != null) {
-            builder.field("min_score", minScore);
+            builder.field(FunctionScoreQueryParser.MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -358,7 +358,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("filter");
+            builder.field(FunctionScoreQueryParser.FILTER_FIELD.getPreferredName());
             filter.toXContent(builder, params);
             scoreFunction.toXContent(builder, params);
             builder.endObject();

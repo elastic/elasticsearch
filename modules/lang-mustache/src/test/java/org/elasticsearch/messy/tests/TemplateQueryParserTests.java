@@ -229,6 +229,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         try {
             parser.fromXContent(context.parseContext()).toQuery(context);
+            fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("this query must be rewritten first", ex.getMessage());
         }

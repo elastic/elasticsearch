@@ -71,16 +71,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    protected ReplicationRequest(Request request) {
-        this.timeout = request.timeout();
-        this.index = request.index();
-        this.consistencyLevel = request.consistencyLevel();
-    }
-
-    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")

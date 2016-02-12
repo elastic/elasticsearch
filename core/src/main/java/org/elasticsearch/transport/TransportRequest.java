@@ -32,7 +32,6 @@ public abstract class TransportRequest extends TransportMessage<TransportRequest
     public TransportRequest() {
     }
 
-
     /**
      * Returns the task object that should be used to keep track of the processing of the request.
      *
@@ -48,5 +47,4 @@ public abstract class TransportRequest extends TransportMessage<TransportRequest
     public String getDescription() {
         return "";
     }
-
 }

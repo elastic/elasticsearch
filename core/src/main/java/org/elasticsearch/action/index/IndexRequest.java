@@ -160,26 +160,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Copy constructor that creates a new index request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public IndexRequest(IndexRequest indexRequest) {
-        super(indexRequest);
-        this.type = indexRequest.type;
-        this.id = indexRequest.id;
-        this.routing = indexRequest.routing;
-        this.parent = indexRequest.parent;
-        this.timestamp = indexRequest.timestamp;
-        this.ttl = indexRequest.ttl;
-        this.source = indexRequest.source;
-        this.opType = indexRequest.opType;
-        this.refresh = indexRequest.refresh;
-        this.version = indexRequest.version;
-        this.versionType = indexRequest.versionType;
-        this.contentType = indexRequest.contentType;
-    }
-
-    /**
      * Constructs a new index request against the specific index. The {@link #type(String)}
      * {@link #source(byte[])} must be set.
      */

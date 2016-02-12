@@ -392,7 +392,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16634")
     public void testDuelGeoPoints() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

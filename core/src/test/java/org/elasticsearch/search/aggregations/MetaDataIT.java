@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
@@ -65,9 +64,6 @@ public class MetaDataIT extends ESIntegTestCase {
             put("complex", nestedMetaData);
         }};
 
-        // NORELEASE make setMetadata return the builder so it can be chained
-        MaxBucketPipelineAggregatorBuilder maxBucketBuilder = maxBucket("the_max_bucket", "the_terms>the_sum");
-        maxBucketBuilder.setMetaData(metaData);
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                     terms("the_terms")
@@ -79,7 +75,7 @@ public class MetaDataIT extends ESIntegTestCase {
                                 .field("value")
                             )
                 )
-                .addAggregation(maxBucketBuilder)
+                .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetaData(metaData))
                 .execute().actionGet();
 
         assertSearchResponse(response);

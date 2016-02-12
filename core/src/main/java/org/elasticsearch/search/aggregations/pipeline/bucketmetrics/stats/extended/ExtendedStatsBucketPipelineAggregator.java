@@ -143,7 +143,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+                List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -162,7 +162,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         }
 
         @Override
-        protected BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+        protected ExtendedStatsBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
                 throws IOException {
             ExtendedStatsBucketPipelineAggregatorBuilder factory = new ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPaths);
             factory.sigma = in.readDouble();
@@ -180,7 +180,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         }
 
         @Override
-        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder obj) {
+        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<ExtendedStatsBucketPipelineAggregatorBuilder> obj) {
             ExtendedStatsBucketPipelineAggregatorBuilder other = (ExtendedStatsBucketPipelineAggregatorBuilder) obj;
             return Objects.equals(sigma, other.sigma);
         }

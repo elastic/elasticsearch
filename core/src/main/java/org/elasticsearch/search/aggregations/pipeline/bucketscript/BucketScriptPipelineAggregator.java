@@ -160,7 +160,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
     }
 
-    public static class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
+    public static class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBuilder<BucketScriptPipelineAggregatorBuilder> {
 
         static final BucketScriptPipelineAggregatorBuilder PROTOTYPE = new BucketScriptPipelineAggregatorBuilder("", Collections.emptyMap(),
                 new Script(""));
@@ -254,7 +254,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        protected BucketScriptPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
             Map<String, String> bucketsPathsMap = new HashMap<String, String>();
             int mapSize = in.readVInt();
             for (int i = 0; i < mapSize; i++) {

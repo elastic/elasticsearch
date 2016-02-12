@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMetricsPipelineAggregatorBuilder<AF>>
-        extends PipelineAggregatorBuilder {
+        extends PipelineAggregatorBuilder<AF> {
 
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -47,6 +47,7 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     /**
      * Sets the format to use on the output of this aggregation.
      */
+    @SuppressWarnings("unchecked")
     public AF format(String format) {
         this.format = format;
         return (AF) this;
@@ -70,6 +71,7 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     /**
      * Sets the gap policy to use for this aggregation.
      */
+    @SuppressWarnings("unchecked")
     public AF gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
         return (AF) this;
@@ -87,7 +89,7 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -109,14 +111,14 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        BucketMetricsPipelineAggregatorBuilder factory = innerReadFrom(name, bucketsPaths, in);
+    protected final PipelineAggregatorBuilder<AF> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        BucketMetricsPipelineAggregatorBuilder<AF> factory = innerReadFrom(name, bucketsPaths, in);
         factory.format = in.readOptionalString();
         factory.gapPolicy = GapPolicy.readFrom(in);
         return factory;
     }
 
-    protected abstract BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+    protected abstract BucketMetricsPipelineAggregatorBuilder<AF> innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
             throws IOException;
 
     @Override
@@ -137,12 +139,13 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
 
     @Override
     protected final boolean doEquals(Object obj) {
-        BucketMetricsPipelineAggregatorBuilder other = (BucketMetricsPipelineAggregatorBuilder) obj;
+        @SuppressWarnings("unchecked")
+        BucketMetricsPipelineAggregatorBuilder<AF> other = (BucketMetricsPipelineAggregatorBuilder<AF>) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)
                 && innerEquals(other);
     }
 
-    protected abstract boolean innerEquals(BucketMetricsPipelineAggregatorBuilder other);
+    protected abstract boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<AF> other);
 
 }

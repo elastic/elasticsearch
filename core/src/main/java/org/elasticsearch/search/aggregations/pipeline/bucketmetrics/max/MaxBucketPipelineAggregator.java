@@ -116,7 +116,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+                List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -129,7 +129,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         }
 
         @Override
-        protected BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+        protected MaxBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
                 throws IOException {
             return new MaxBucketPipelineAggregatorBuilder(name, bucketsPaths);
         }
@@ -145,7 +145,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         }
 
         @Override
-        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder other) {
+        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<MaxBucketPipelineAggregatorBuilder> other) {
             return true;
         }
 

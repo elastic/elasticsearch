@@ -159,7 +159,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
     }
 
-    public static class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuilder {
+    public static class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuilder<DerivativePipelineAggregatorBuilder> {
 
         static final DerivativePipelineAggregatorBuilder PROTOTYPE = new DerivativePipelineAggregatorBuilder("", "");
 
@@ -243,7 +243,8 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories, List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+                List<PipelineAggregatorBuilder<?>> pipelineAggregatoractories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -261,7 +262,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        protected DerivativePipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
             DerivativePipelineAggregatorBuilder factory = new DerivativePipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             if (in.readBoolean()) {

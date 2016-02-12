@@ -145,7 +145,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         out.writeVInt(lag);
     }
 
-    public static class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
+    public static class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuilder<SerialDiffPipelineAggregatorBuilder> {
 
         static final SerialDiffPipelineAggregatorBuilder PROTOTYPE = new SerialDiffPipelineAggregatorBuilder("", "");
 
@@ -239,7 +239,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        protected SerialDiffPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
             SerialDiffPipelineAggregatorBuilder factory = new SerialDiffPipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             factory.gapPolicy = GapPolicy.readFrom(in);

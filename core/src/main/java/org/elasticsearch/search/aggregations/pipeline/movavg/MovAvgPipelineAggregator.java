@@ -279,7 +279,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     }
 
-    public static class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
+    public static class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<MovAvgPipelineAggregatorBuilder> {
 
         static final MovAvgPipelineAggregatorBuilder PROTOTYPE = new MovAvgPipelineAggregatorBuilder("", "");
 
@@ -462,7 +462,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
+                List<PipelineAggregatorBuilder<?>> pipelineAggregatoractories) {
             if (minimize != null && minimize && !model.canBeMinimized()) {
                 // If the user asks to minimize, but this model doesn't support
                 // it, throw exception
@@ -502,7 +502,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        protected MovAvgPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
             MovAvgPipelineAggregatorBuilder factory = new MovAvgPipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             factory.gapPolicy = GapPolicy.readFrom(in);

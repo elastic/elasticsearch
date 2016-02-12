@@ -111,7 +111,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         ValueFormatterStreams.writeOptional(formatter, out);
     }
 
-    public static class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
+    public static class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBuilder<CumulativeSumPipelineAggregatorBuilder> {
 
         static final CumulativeSumPipelineAggregatorBuilder PROTOTYPE = new CumulativeSumPipelineAggregatorBuilder("", "");
 
@@ -157,7 +157,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories, List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+                List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -183,7 +184,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected final PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        protected final CumulativeSumPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in)
+                throws IOException {
             CumulativeSumPipelineAggregatorBuilder factory = new CumulativeSumPipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             return factory;

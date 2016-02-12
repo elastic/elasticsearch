@@ -170,7 +170,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+                List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -193,7 +193,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         }
 
         @Override
-        protected BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+        protected PercentilesBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
                 throws IOException {
             PercentilesBucketPipelineAggregatorBuilder factory = new PercentilesBucketPipelineAggregatorBuilder(name, bucketsPaths);
             factory.percents = in.readDoubleArray();
@@ -211,7 +211,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         }
 
         @Override
-        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder obj) {
+        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<PercentilesBucketPipelineAggregatorBuilder> obj) {
             PercentilesBucketPipelineAggregatorBuilder other = (PercentilesBucketPipelineAggregatorBuilder) obj;
             return Objects.deepEquals(percents, other.percents);
         }

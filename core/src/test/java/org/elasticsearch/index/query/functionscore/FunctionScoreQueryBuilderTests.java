@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
@@ -641,6 +642,35 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals(json, 42, parsed.boost(), 0.0001);
         assertEquals(json, 100, parsed.maxBoost(), 0.00001);
         assertEquals(json, 1, parsed.getMinScore(), 0.0001);
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
+    }
+
+    public void testRewrite() throws IOException {
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()));
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        assertNotSame(functionScoreQueryBuilder, rewrite);
+        assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
+    }
+
+    public void testRewriteWithFunction() throws IOException {
+        TermQueryBuilder secondFunction = new TermQueryBuilder("tq", "2");
+        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()) : new TermQueryBuilder("foo", "bar");
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
+            new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString()), new RandomScoreFunctionBuilder()),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder())
+
+            });
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        assertNotSame(functionScoreQueryBuilder, rewrite);
+        assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
+        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
+        assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {

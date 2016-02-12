@@ -21,14 +21,11 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,7 +47,7 @@ public class QueryShardContextTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         QueryShardContext context = new QueryShardContext(
-            indexSettings, null, null, null, mapperService, null, null, null
+            indexSettings, null, null, mapperService, null, null, null
         );
 
         context.setAllowUnmappedFields(false);

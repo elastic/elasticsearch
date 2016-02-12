@@ -149,7 +149,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     public QueryRescoreContext build(QueryShardContext context) throws IOException {
         org.elasticsearch.search.rescore.QueryRescorer rescorer = new org.elasticsearch.search.rescore.QueryRescorer();
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(rescorer);
-        queryRescoreContext.setQuery(this.queryBuilder.toQuery(context));
+        queryRescoreContext.setQuery(QueryBuilder.rewriteQuery(this.queryBuilder, context).toQuery(context));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);

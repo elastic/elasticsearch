@@ -25,11 +25,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -100,14 +102,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        BytesReference querySource = context.executeQueryTemplate(template);
-        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context);
-            contextCopy.reset(qSourceParser);
-            QueryBuilder result = contextCopy.parseContext().parseInnerQueryBuilder();
-            context.combineNamedQueries(contextCopy);
-            return result.toQuery(context);
-        }
+        throw new UnsupportedOperationException("this query must be rewritten first");
     }
 
     @Override
@@ -129,5 +124,23 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     @Override
     protected boolean doEquals(TemplateQueryBuilder other) {
         return Objects.equals(template, other.template);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
+            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        BytesReference querySource = (BytesReference) executable.run();
+        final QueryParseContext queryParseContext = queryRewriteContext.newParseContext();
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+            queryParseContext.reset(qSourceParser);
+            final QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
+            if (boost() != DEFAULT_BOOST || queryName() != null) {
+                final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must(queryBuilder);
+                return boolQueryBuilder;
+            }
+            return queryBuilder;
+        }
     }
 }

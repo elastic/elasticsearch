@@ -72,4 +72,28 @@ public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteabl
      * Returns the name that identifies uniquely the query
      */
     String getName();
+
+    /**
+     * Rewrites this query builder into its primitive form. By default this method return the builder itself. If the builder
+     * did not change the identity reference must be returned otherwise the builder will be rewritten infinitely.
+     */
+    default QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        return this;
+    }
+
+    /**
+     * Rewrites the given query into its primitive form. Queries that for instance fetch resources from remote hosts or
+     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
+     * rewrites the query until it doesn't change anymore.
+     * @throws IOException if an {@link IOException} occurs
+     */
+    static QueryBuilder<?> rewriteQuery(QueryBuilder<?> original, QueryRewriteContext context) throws IOException {
+        QueryBuilder builder = original;
+        for (QueryBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
+             rewrittenBuilder = builder.rewrite(context)) {
+            builder = rewrittenBuilder;
+        }
+        return builder;
+    }
+
 }

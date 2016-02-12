@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 
@@ -393,5 +394,33 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         public FilterFunctionBuilder readFrom(StreamInput in) throws IOException {
             return new FilterFunctionBuilder(in.readQuery(), in.readScoreFunction());
         }
+
+        public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
+            QueryBuilder<?> rewrite = filter.rewrite(context);
+            if (rewrite != filter) {
+                return new FilterFunctionBuilder(rewrite, scoreFunction);
+            }
+            return this;
+        }
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder<?> queryBuilder = this.query.rewrite(queryRewriteContext);
+        FilterFunctionBuilder[] rewrittenBuilders = new FilterFunctionBuilder[this.filterFunctionBuilders.length];
+        boolean rewritten = false;
+        for (int i = 0; i < rewrittenBuilders.length; i++) {
+            FilterFunctionBuilder rewrite = filterFunctionBuilders[i].rewrite(queryRewriteContext);
+            rewritten |= rewrite != filterFunctionBuilders[i];
+            rewrittenBuilders[i] = rewrite;
+        }
+        if (queryBuilder != query || rewritten) {
+            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, rewrittenBuilders);
+            newQueryBuilder.scoreMode = scoreMode;
+            newQueryBuilder.minScore = minScore;
+            newQueryBuilder.maxBoost = maxBoost;
+            return newQueryBuilder;
+        }
+        return this;
     }
 }

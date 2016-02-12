@@ -111,7 +111,7 @@ public class TopHitsIT extends ESIntegTestCase {
                             .field("type", "long")
                         .endObject()
                         .startObject("message")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("store", true)
                             .field("term_vector", "with_positions_offsets")
                             .field("index_options", "offsets")

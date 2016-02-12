@@ -20,15 +20,13 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -41,70 +39,65 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
-/**
- * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
- */
-public final class KeywordFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+/** A {@link FieldMapper} for full-text fields. */
+public class TextFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
-    public static final String CONTENT_TYPE = "keyword";
+    public static final String CONTENT_TYPE = "text";
+    private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new KeywordFieldType();
+        public static final MappedFieldType FIELD_TYPE = new TextFieldType();
 
         static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.freeze();
         }
 
-        public static final String NULL_VALUE = null;
-        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
+        /**
+         * The default position_increment_gap is set to 100 so that phrase
+         * queries of reasonably high slop will not match across field values.
+         */
+        public static final int POSITION_INCREMENT_GAP = 100;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, KeywordFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, TextFieldMapper> {
 
-        protected String nullValue = Defaults.NULL_VALUE;
-        protected int ignoreAbove = Defaults.IGNORE_ABOVE;
+        private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 
-        public Builder ignoreAbove(int ignoreAbove) {
-            if (ignoreAbove < 0) {
-                throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
+        public Builder positionIncrementGap(int positionIncrementGap) {
+            if (positionIncrementGap < 0) {
+                throw new MapperParsingException("[positions_increment_gap] must be positive, got " + positionIncrementGap);
             }
-            this.ignoreAbove = ignoreAbove;
+            this.positionIncrementGap = positionIncrementGap;
             return this;
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
-                throw new IllegalArgumentException("The [keyword] field does not support positions, got [index_options]="
-                        + indexOptionToString(fieldType.indexOptions()));
+        public Builder docValues(boolean docValues) {
+            if (docValues) {
+                throw new IllegalArgumentException("[text] fields do not support doc values");
             }
-            return super.indexOptions(indexOptions);
+            return super.docValues(docValues);
         }
 
         @Override
-        protected void setupFieldType(BuilderContext context) {
-            if (!omitNormsSet && fieldType.boost() != 1.0f) {
-                fieldType.setOmitNorms(false);
+        public TextFieldMapper build(BuilderContext context) {
+            if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
+                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
+                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
-            super.setupFieldType(context);
-        }
-
-        @Override
-        public KeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            KeywordFieldMapper fieldMapper = new KeywordFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove,
+            TextFieldMapper fieldMapper = new TextFieldMapper(
+                    name, fieldType, defaultFieldType, positionIncrementGap,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             return fieldMapper.includeInAll(includeInAll);
         }
@@ -112,23 +105,21 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
+        public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(fieldName);
+            builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
+            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+            builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
+            parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    builder.nullValue(propNode.toString());
+                if (propName.equals("position_increment_gap")) {
+                    int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
+                    builder.positionIncrementGap(newPositionIncrementGap);
                     iterator.remove();
-                } else if (propName.equals("ignore_above")) {
-                    builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
-                    iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -136,16 +127,16 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         }
     }
 
-    public static final class KeywordFieldType extends MappedFieldType {
+    public static final class TextFieldType extends MappedFieldType {
 
-        public KeywordFieldType() {}
+        public TextFieldType() {}
 
-        protected KeywordFieldType(KeywordFieldType ref) {
+        protected TextFieldType(TextFieldType ref) {
             super(ref);
         }
 
-        public KeywordFieldType clone() {
-            return new KeywordFieldType(this);
+        public TextFieldType clone() {
+            return new TextFieldType(this);
         }
 
         @Override
@@ -171,24 +162,26 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     }
 
     private Boolean includeInAll;
-    private int ignoreAbove;
+    private int positionIncrementGap;
 
-    protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                int positionIncrementGap,
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
-        this.ignoreAbove = ignoreAbove;
+        assert fieldType.tokenized();
+        assert fieldType.hasDocValues() == false;
+        this.positionIncrementGap = positionIncrementGap;
     }
 
     @Override
-    protected KeywordFieldMapper clone() {
-        return (KeywordFieldMapper) super.clone();
+    protected TextFieldMapper clone() {
+        return (TextFieldMapper) super.clone();
     }
 
     @Override
-    public KeywordFieldMapper includeInAll(Boolean includeInAll) {
+    public TextFieldMapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
-            KeywordFieldMapper clone = clone();
+            TextFieldMapper clone = clone();
             clone.includeInAll = includeInAll;
             return clone;
         } else {
@@ -197,9 +190,9 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     }
 
     @Override
-    public KeywordFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
+    public TextFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
-            KeywordFieldMapper clone = clone();
+            TextFieldMapper clone = clone();
             clone.includeInAll = includeInAll;
             return clone;
         } else {
@@ -208,14 +201,18 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     }
 
     @Override
-    public KeywordFieldMapper unsetIncludeInAll() {
+    public TextFieldMapper unsetIncludeInAll() {
         if (includeInAll != null) {
-            KeywordFieldMapper clone = clone();
+            TextFieldMapper clone = clone();
             clone.includeInAll = null;
             return clone;
         } else {
             return this;
         }
+    }
+
+    public int getPositionIncrementGap() {
+        return this.positionIncrementGap;
     }
 
     @Override
@@ -224,15 +221,10 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = fieldType().nullValueAsString();
-            } else {
-                value =  parser.textOrNull();
-            }
+            value = context.parser().textOrNull();
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
             return;
         }
 
@@ -244,9 +236,6 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
         }
-        if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
-        }
     }
 
     @Override
@@ -257,17 +246,13 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
-        this.includeInAll = ((KeywordFieldMapper) mergeWith).includeInAll;
-        this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
+        this.includeInAll = ((TextFieldMapper) mergeWith).includeInAll;
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
-        }
+        doXContentAnalyzers(builder, includeDefaults);
 
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
@@ -275,8 +260,8 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             builder.field("include_in_all", true);
         }
 
-        if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
-            builder.field("ignore_above", ignoreAbove);
+        if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            builder.field("position_increment_gap", positionIncrementGap);
         }
     }
 }

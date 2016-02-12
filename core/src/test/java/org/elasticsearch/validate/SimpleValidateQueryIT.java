@@ -59,7 +59,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
@@ -83,9 +83,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
-                        .startObject("baz").field("type", "string").field("analyzer", "snowball").endObject()
+                        .startObject("baz").field("type", "text").field("analyzer", "snowball").endObject()
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
@@ -164,7 +164,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainFilteredAlias() {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field", "type=string")
+                .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
         ensureGreen();
 
@@ -183,7 +183,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
                         .putArray("index.analysis.analyzer.syns.filter", "syns")
-                    ).addMapping("test", "field","type=string,analyzer=syns"));
+                    ).addMapping("test", "field","type=text,analyzer=syns"));
         ensureGreen();
 
         ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
@@ -215,7 +215,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field", "type=string,analyzer=whitespace")
+                .addMapping("type1", "field", "type=text,analyzer=whitespace")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
         client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();

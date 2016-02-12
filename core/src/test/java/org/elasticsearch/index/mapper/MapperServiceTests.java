@@ -60,7 +60,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .admin()
                 .indices()
                 .prepareCreate(index)
-                .addMapping(type, field, "type=string")
+                .addMapping(type, field, "type=text")
                 .execute()
                 .actionGet();
     }
@@ -76,7 +76,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .admin()
                 .indices()
                 .prepareCreate(index)
-                .addMapping(type, field, "type=string")
+                .addMapping(type, field, "type=text")
                 .execute()
                 .actionGet();
     }

@@ -2,8 +2,7 @@
     person:{
         properties:{
             "name":{
-                type:"string",
-                index:"analyzed",
+                "type": "text",
                 store:true
             }
         }

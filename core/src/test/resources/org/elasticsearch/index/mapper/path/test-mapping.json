@@ -5,10 +5,10 @@
                 "type":"object",
                 "properties":{
                     "first1":{
-                        "type":"string"
+                        "type":"text"
                     },
                     "last1":{
-                        "type":"string"
+                        "type":"text"
                     }
                 }
             },
@@ -16,10 +16,10 @@
                 "type":"object",
                 "properties":{
                     "first2":{
-                        "type":"string"
+                        "type":"text"
                     },
                     "last2":{
-                        "type":"string"
+                        "type":"text"
                     }
                 }
             }

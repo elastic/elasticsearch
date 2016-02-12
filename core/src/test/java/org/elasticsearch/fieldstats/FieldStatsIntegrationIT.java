@@ -47,7 +47,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
 
     public void testRandom() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
-                "test", "string", "type=string", "date", "type=date", "double", "type=double", "double", "type=double",
+                "test", "string", "type=text", "date", "type=date", "double", "type=double", "double", "type=double",
                 "float", "type=float", "long", "type=long", "integer", "type=integer", "short", "type=short", "byte", "type=byte"
         ));
         ensureGreen("test");
@@ -185,7 +185,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
                 "test", "value", "type=long"
         ));
         assertAcked(prepareCreate("test2").addMapping(
-                "test", "value", "type=string"
+                "test", "value", "type=text"
         ));
         ensureGreen("test1", "test2");
 

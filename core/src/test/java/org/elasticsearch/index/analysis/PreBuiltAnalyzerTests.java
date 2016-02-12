@@ -86,7 +86,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("analyzer", analyzerName).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "text").field("analyzer", analyzerName).endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 

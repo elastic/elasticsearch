@@ -62,7 +62,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public static void before() throws Exception {
         MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
-                STRING_FIELD_NAME, "type=string",
+                STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",
@@ -71,7 +71,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
-                STRING_FIELD_NAME, "type=string",
+                STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",

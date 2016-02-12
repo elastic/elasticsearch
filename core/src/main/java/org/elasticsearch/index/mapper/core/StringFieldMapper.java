@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -63,13 +62,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
 
-        /**
-         * Post 2.0 default for position_increment_gap. Set to 100 so that
-         * phrase queries of reasonably high slop will not match across field
-         * values.
-         */
-        public static final int POSITION_INCREMENT_GAP = 100;
-
         public static final int IGNORE_ABOVE = -1;
     }
 
@@ -100,11 +92,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         public Builder positionIncrementGap(int positionIncrementGap) {
             this.positionIncrementGap = positionIncrementGap;
             return this;
-        }
-
-        public Builder searchQuotedAnalyzer(NamedAnalyzer analyzer) {
-            this.fieldType.setSearchQuoteAnalyzer(analyzer);
-            return builder;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -167,6 +154,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
                 }
             }
+            builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
+            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+            builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -178,30 +168,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     }
                     builder.nullValue(propNode.toString());
                     iterator.remove();
-                } else if (propName.equals("search_quote_analyzer")) {
-                    NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
-                    if (analyzer == null) {
-                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + fieldName + "]");
-                    }
-                    builder.searchQuotedAnalyzer(analyzer);
-                    iterator.remove();
                 } else if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
                     if (newPositionIncrementGap < 0) {
                         throw new MapperParsingException("positions_increment_gap less than 0 aren't allowed.");
                     }
                     builder.positionIncrementGap(newPositionIncrementGap);
-                    // we need to update to actual analyzers if they are not set in this case...
-                    // so we can inject the position increment gap...
-                    if (builder.fieldType().indexAnalyzer() == null) {
-                        builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
-                    }
-                    if (builder.fieldType().searchAnalyzer() == null) {
-                        builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
-                    }
-                    if (builder.fieldType().searchQuoteAnalyzer() == null) {
-                        builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
-                    }
                     iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));

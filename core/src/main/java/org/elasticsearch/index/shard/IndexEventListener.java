@@ -177,4 +177,12 @@ public interface IndexEventListener {
      */
     default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
     }
+
+    /**
+     * Called when the given shards store is closed. The store is closed once all resource have been released on the store.
+     * This implies that all index readers are closed and no recoveries are running.
+     *
+     * @param shardId the shard ID the store belongs to
+     */
+    default void onStoreClosed(ShardId shardId) {}
 }

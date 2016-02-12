@@ -63,7 +63,7 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -83,7 +83,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final RecoveryTarget recoveryTarget;
+    private final RecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
@@ -105,7 +105,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
-                                      ThreadPool threadPool, RecoveryTarget recoveryTarget,
+                                      ThreadPool threadPool, RecoveryTargetService recoveryTargetService,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -113,11 +113,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       SearchService searchService, SyncedFlushService syncedFlushService,
                                       RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider) {
         super(settings);
-        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTarget, searchService, syncedFlushService);
+        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTargetService, searchService, syncedFlushService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.recoveryTarget = recoveryTarget;
+        this.recoveryTargetService = recoveryTargetService;
         this.shardStateAction = shardStateAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
@@ -466,7 +466,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 } else if (isPeerRecovery(shardRouting)) {
                     final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
                     // check if there is an existing recovery going, and if so, and the source node is not the same, cancel the recovery to restart it
-                    if (recoveryTarget.cancelRecoveriesForShard(indexShard.shardId(), "recovery source node changed", status -> !status.sourceNode().equals(sourceNode))) {
+                    if (recoveryTargetService.cancelRecoveriesForShard(indexShard.shardId(), "recovery source node changed", status -> !status.sourceNode().equals(sourceNode))) {
                         logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
                         // closing the shard will also cancel any ongoing recovery.
                         indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
@@ -609,7 +609,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.PRIMARY_RELOCATION : RecoveryState.Type.REPLICA;
                 RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.localNode());
                 indexShard.markAsRecovering("from " + sourceNode, recoveryState);
-                recoveryTarget.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
+                recoveryTargetService.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
             } catch (Throwable e) {
                 indexShard.failShard("corrupted preexisting index", e);
                 handleRecoveryFailure(indexService, shardRouting, true, e);
@@ -698,7 +698,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         return !shardRouting.primary() || shardRouting.relocatingNodeId() != null;
     }
 
-    private class PeerRecoveryListener implements RecoveryTarget.RecoveryListener {
+    private class PeerRecoveryListener implements RecoveryTargetService.RecoveryListener {
 
         private final ShardRouting shardRouting;
         private final IndexService indexService;

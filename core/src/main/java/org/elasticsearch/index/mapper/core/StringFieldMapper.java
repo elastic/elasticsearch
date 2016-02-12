@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
@@ -146,7 +145,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            StringFieldMapper.Builder builder = stringField(fieldName);
+            StringFieldMapper.Builder builder = new StringFieldMapper.Builder(fieldName);
             // hack for the fact that string can't just accept true/false for
             // the index property and still accepts no/not_analyzed/analyzed
             final Object index = node.remove("index");

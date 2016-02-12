@@ -28,15 +28,14 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.doc;
-import static org.elasticsearch.index.mapper.MapperBuilders.object;
-import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,9 +46,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleMapperTests extends ESSingleNodeTestCase {
     public void testSimpleMapper() throws Exception {
         IndexService indexService = createIndex("test");
-        DocumentMapper docMapper = doc(
-                rootObject("person")
-                        .add(object("name").add(stringField("first").store(true).index(false))),
+        DocumentMapper docMapper = new DocumentMapper.Builder(
+                new RootObjectMapper.Builder("person")
+                        .add(new ObjectMapper.Builder("name").add(new StringFieldMapper.Builder("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
@@ -107,9 +106,9 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
 
     public void testNoDocumentSent() throws Exception {
         IndexService indexService = createIndex("test");
-        DocumentMapper docMapper = doc(
-                rootObject("person")
-                        .add(object("name").add(stringField("first").store(true).index(false))),
+        DocumentMapper docMapper = new DocumentMapper.Builder(
+                new RootObjectMapper.Builder("person")
+                        .add(new ObjectMapper.Builder("name").add(new StringFieldMapper.Builder("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));

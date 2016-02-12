@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeLongValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.longField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -103,7 +102,7 @@ public class LongFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            LongFieldMapper.Builder builder = longField(name);
+            LongFieldMapper.Builder builder = new LongFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

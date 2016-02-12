@@ -34,10 +34,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -47,7 +51,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -165,6 +168,15 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 return new StringFieldType();
             }
         };
+
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, null, null) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
+                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
+        };
+        mockShardContext.setMapUnmappedFieldAsString(true);
 
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();

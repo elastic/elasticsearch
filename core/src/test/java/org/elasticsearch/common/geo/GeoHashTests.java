@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.test.ESTestCase;
 
-
-
 /**
- * Tests for {@link org.apache.lucene.util.GeoHashUtils}
+ * Tests for {@link org.apache.lucene.spatial.util.GeoHashUtils}
  */
 public class GeoHashTests extends ESTestCase {
     public void testGeohashAsLongRoutines()  {

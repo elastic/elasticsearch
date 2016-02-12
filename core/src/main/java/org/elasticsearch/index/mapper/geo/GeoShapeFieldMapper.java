@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -53,7 +54,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
 
 
 /**
@@ -160,7 +160,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = geoShapeField(name);
+            Builder builder = new Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

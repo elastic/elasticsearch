@@ -52,7 +52,6 @@ import java.util.Map;
 
 import static org.apache.lucene.util.NumericUtils.floatToSortableInt;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.floatField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -99,7 +98,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FloatFieldMapper.Builder builder = floatField(name);
+            FloatFieldMapper.Builder builder = new FloatFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

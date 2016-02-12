@@ -77,23 +77,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
-     * Copy constructor that creates a new search request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public SearchRequest(SearchRequest searchRequest) {
-        this.searchType = searchRequest.searchType;
-        this.indices = searchRequest.indices;
-        this.routing = searchRequest.routing;
-        this.preference = searchRequest.preference;
-        this.template = searchRequest.template;
-        this.source = searchRequest.source;
-        this.requestCache = searchRequest.requestCache;
-        this.scroll = searchRequest.scroll;
-        this.types = searchRequest.types;
-        this.indicesOptions = searchRequest.indicesOptions;
-    }
-
-    /**
      * Constructs a new search request against the indices. No indices provided here means that search
      * will run against all indices.
      */

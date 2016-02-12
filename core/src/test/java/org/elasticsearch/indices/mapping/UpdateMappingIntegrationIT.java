@@ -229,7 +229,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("Changing _default_ mappings field from analyzed to non-analyzed");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "string").field("index", "not_analyzed").endObject().endObject()
+                        .startObject("properties").startObject("f").field("type", "keyword").endObject().endObject()
                         .endObject().endObject()
         ).get();
         assertThat(putResponse.isAcknowledged(), equalTo(true));
@@ -238,7 +238,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
         defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
-        assertThat(fieldSettings, hasEntry("index", (Object) "not_analyzed"));
+        assertThat(fieldSettings, hasEntry("type", (Object) "keyword"));
 
         // but we still validate the _default_ type
         logger.info("Confirming _default_ mappings validation");

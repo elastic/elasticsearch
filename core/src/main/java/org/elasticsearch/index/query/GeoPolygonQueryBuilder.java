@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointInPolygonQuery;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -136,7 +137,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
 
-        if (context.indexVersionCreated().before(Version.V_2_2_0)) {
+        final Version indexVersionCreated = context.indexVersionCreated();
+        if (indexVersionCreated.before(Version.V_2_2_0)) {
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shellSize]));
         }
@@ -149,7 +151,11 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             lats[i] = p.lat();
             lons[i] = p.lon();
         }
-        return new GeoPointInPolygonQuery(fieldType.name(), lons, lats);
+        // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+        // if index created V_2_3 > use prefix encoded postings format
+        final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
+            GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
+        return new GeoPointInPolygonQuery(fieldType.name(), encoding, lons, lats);
     }
 
     @Override

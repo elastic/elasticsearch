@@ -19,7 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;

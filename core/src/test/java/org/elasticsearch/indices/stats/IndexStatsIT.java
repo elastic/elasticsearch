@@ -48,7 +48,8 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -78,7 +79,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put(IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL.getKey(), "1ms")
+                .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
                 .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
                 .build();

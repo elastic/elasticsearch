@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -39,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
@@ -206,7 +206,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertThat(queryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("ezs42e");
-        GeoHashUtils.addNeighbors("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
+        addNeighbors("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.QueryContext queryContext : queryContexts) {
             assertThat(queryContext.context, isIn(locations));
             assertThat(queryContext.boost, equalTo(1));
@@ -225,7 +225,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertThat(queryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
-        GeoHashUtils.addNeighbors("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
+        addNeighbors("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.QueryContext queryContext : queryContexts) {
             assertThat(queryContext.context, isIn(locations));
             assertThat(queryContext.boost, equalTo(1));
@@ -249,11 +249,11 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
         locations.add("w");
-        GeoHashUtils.addNeighbors("w", 1, locations);
+        addNeighbors("w", 1, locations);
         locations.add("wh");
-        GeoHashUtils.addNeighbors("wh", 2, locations);
+        addNeighbors("wh", 2, locations);
         locations.add("wh0");
-        GeoHashUtils.addNeighbors("wh0", 3, locations);
+        addNeighbors("wh0", 3, locations);
         for (ContextMapping.QueryContext queryContext : queryContexts) {
             assertThat(queryContext.context, isIn(locations));
             assertThat(queryContext.boost, equalTo(10));
@@ -287,15 +287,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
-        GeoHashUtils.addNeighbors("w", 1, firstLocations);
+        addNeighbors("w", 1, firstLocations);
         firstLocations.add("wh");
-        GeoHashUtils.addNeighbors("wh", 2, firstLocations);
+        addNeighbors("wh", 2, firstLocations);
         firstLocations.add("wh0");
-        GeoHashUtils.addNeighbors("wh0", 3, firstLocations);
+        addNeighbors("wh0", 3, firstLocations);
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
         secondLocations.add("w5cx0");
-        GeoHashUtils.addNeighbors("w5cx0", 5, secondLocations);
+        addNeighbors("w5cx0", 5, secondLocations);
         for (ContextMapping.QueryContext queryContext : queryContexts) {
             if (firstLocations.contains(queryContext.context)) {
                 assertThat(queryContext.boost, equalTo(10));
@@ -330,12 +330,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
-        GeoHashUtils.addNeighbors("w", 1, firstLocations);
+        addNeighbors("w", 1, firstLocations);
         firstLocations.add("wh");
-        GeoHashUtils.addNeighbors("wh", 2, firstLocations);
+        addNeighbors("wh", 2, firstLocations);
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
-        GeoHashUtils.addNeighbors("w5cx04", 6, secondLocations);
+        addNeighbors("w5cx04", 6, secondLocations);
         for (ContextMapping.QueryContext queryContext : queryContexts) {
             if (firstLocations.contains(queryContext.context)) {
                 assertThat(queryContext.boost, equalTo(10));

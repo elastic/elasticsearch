@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.apache.lucene.util.GeoHashUtils;
-import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -29,9 +27,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Collection;
+
+import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonHash;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -42,6 +46,12 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false)
@@ -62,7 +72,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(1.3, 1.2)));
         }
     }
 
@@ -86,7 +96,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(1.3, 1.2)));
         }
     }
 
@@ -101,13 +111,13 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("point", GeoHashUtils.stringEncode(1.3, 1.2))
+                .field("point", stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point.lat"), nullValue());
         assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.stringEncode(1.3, 1.2)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
         assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 

@@ -108,13 +108,24 @@ All options but the first option need a normalization value.
 Type name: `DFR`
 
 [float]
+[[dfi]]
+==== DFI similarity
+
+Similarity that implements the http://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
+model.
+This similarity has the following options:
+
+[horizontal]
+`independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+
+[float]
 [[ib]]
 ==== IB similarity.
 
 http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
 based model] . The algorithm is based on the concept that the information content in any symbolic 'distribution'
 sequence is primarily determined by the repetitive usage of its basic elements.
-For written texts this challenge would correspond to comparing the writing styles of diferent authors.
+For written texts this challenge would correspond to comparing the writing styles of different authors.
 This similarity has the following options:
 
 [horizontal]

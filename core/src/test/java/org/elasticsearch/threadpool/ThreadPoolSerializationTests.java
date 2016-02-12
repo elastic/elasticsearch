@@ -63,7 +63,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
-        assertThat(newInfo.getQueueSize().singles(), is(10000l));
+        assertThat(newInfo.getQueueSize().singles(), is(10000L));
     }
 
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
@@ -97,7 +97,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     }
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
-        Settings settings = settingsBuilder().put("name", "index").put("threadpool.index.queue_size", "-1").build();
+        Settings settings = settingsBuilder().put("node.name", "index").put("threadpool.index.queue_size", "-1").build();
         ThreadPool threadPool = new ThreadPool(settings);
         assertThat(threadPool.info("index").getQueueSize(), is(nullValue()));
         terminate(threadPool);

@@ -50,10 +50,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -111,6 +113,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     static {
         // register non plugin custom metadata
         registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
+        registerPrototype(IngestMetadata.TYPE, IngestMetadata.PROTO);
     }
 
     /**
@@ -227,7 +230,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public boolean equalsAliases(MetaData other) {
         for (ObjectCursor<IndexMetaData> cursor : other.indices().values()) {
             IndexMetaData otherIndex = cursor.value;
-            IndexMetaData thisIndex= indices().get(otherIndex.getIndex());
+            IndexMetaData thisIndex= index(otherIndex.getIndex());
             if (thisIndex == null) {
                 return false;
             }
@@ -414,7 +417,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             String[] indexNames = new String[result.getIndices().size()];
             int i = 0;
             for (IndexMetaData indexMetaData : result.getIndices()) {
-                indexNames[i++] = indexMetaData.getIndex();
+                indexNames[i++] = indexMetaData.getIndex().getName();
             }
             throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
         }
@@ -447,6 +450,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     public IndexMetaData index(String index) {
         return indices.get(index);
+    }
+
+    public IndexMetaData index(Index index) {
+        return index(index.getName());
     }
 
     public ImmutableOpenMap<String, IndexMetaData> indices() {
@@ -813,19 +820,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // we know its a new one, increment the version and store
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
-            indices.put(indexMetaData.getIndex(), indexMetaData);
+            indices.put(indexMetaData.getIndex().getName(), indexMetaData);
             return this;
         }
 
         public Builder put(IndexMetaData indexMetaData, boolean incrementVersion) {
-            if (indices.get(indexMetaData.getIndex()) == indexMetaData) {
+            if (indices.get(indexMetaData.getIndex().getName()) == indexMetaData) {
                 return this;
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
                 indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
-            indices.put(indexMetaData.getIndex(), indexMetaData);
+            indices.put(indexMetaData.getIndex().getName(), indexMetaData);
             return this;
         }
 
@@ -952,7 +959,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
         public MetaData build() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
-            // 1) The datastructures will only be rebuilded when needed. Now during serailizing we rebuild these datastructures
+            // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
@@ -962,7 +969,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
             List<String> allIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.getIndex());
+                allIndicesLst.add(cursor.value.getIndex().getName());
             }
             String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
 
@@ -971,9 +978,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
                 if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.getIndex());
+                    allOpenIndicesLst.add(indexMetaData.getIndex().getName());
                 } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.getIndex());
+                    allClosedIndicesLst.add(indexMetaData.getIndex().getName());
                 }
             }
             String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
@@ -983,7 +990,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                aliasAndIndexLookup.put(indexMetaData.getIndex(), new AliasOrIndex.Index(indexMetaData));
+                aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
@@ -996,7 +1003,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         alias.addIndex(indexMetaData);
                     } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
                         AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
-                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index [" + index.getIndex().getIndex() + "] have the same name");
+                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index " + index.getIndex().getIndex() + " have the same name");
                     } else {
                         throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
                     }

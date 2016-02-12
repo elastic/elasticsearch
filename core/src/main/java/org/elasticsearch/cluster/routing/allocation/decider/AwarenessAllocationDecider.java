@@ -54,7 +54,7 @@ import java.util.Map;
  * <p>
  * Awareness can also be used to prevent over-allocation in the case of node or
  * even "zone" failure. For example in cloud-computing infrastructures like
- * Amazone AWS a cluster might span over multiple "zones". Awareness can be used
+ * Amazon AWS a cluster might span over multiple "zones". Awareness can be used
  * to distribute replicas to individual zones by setting:
  * <pre>
  * cluster.routing.allocation.awareness.attributes: zone

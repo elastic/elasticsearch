@@ -20,10 +20,12 @@
 package org.elasticsearch.plugin.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AzureDiscoveryModule;
+import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.AzureDiscovery;
 import org.elasticsearch.discovery.azure.AzureUnicastHostsProvider;
@@ -32,9 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- *
- */
 public class AzureDiscoveryPlugin extends Plugin {
 
     private final Settings settings;
@@ -65,5 +64,20 @@ public class AzureDiscoveryPlugin extends Plugin {
             discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
             discoveryModule.addUnicastHostProvider(AzureUnicastHostsProvider.class);
         }
+    }
+
+    public void onModule(SettingsModule settingsModule) {
+        settingsModule.registerSetting(AzureComputeService.Discovery.REFRESH_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.KEYSTORE_PATH_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.KEYSTORE_TYPE_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.SERVICE_NAME_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Discovery.HOST_TYPE_SETTING);
+        // Cloud management API settings we need to hide
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_TYPE_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey());
     }
 }

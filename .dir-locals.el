@@ -82,4 +82,7 @@
       (c-set-offset 'func-decl-cont        '++)
       ))
    (c-basic-offset . 4)
-   (c-comment-only-line-offset . (0 . 0)))))
+   (c-comment-only-line-offset . (0 . 0))
+   (fill-column . 140)
+   (fci-rule-column . 140)
+   (compile-command . "gradle compileTestJava"))))

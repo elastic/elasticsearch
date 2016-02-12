@@ -66,10 +66,10 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndex());
+                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndex(), indexShardStats);
+                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
                 }
 
                 indexShardStats.total++;

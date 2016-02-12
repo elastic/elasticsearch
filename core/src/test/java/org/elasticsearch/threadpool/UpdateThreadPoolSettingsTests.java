@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -47,13 +48,14 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public class UpdateThreadPoolSettingsTests extends ESTestCase {
+
     public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
         String threadPoolName = randomThreadPoolName();
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool(settingsBuilder()
-                    .put("name", "testCorrectThreadPoolTypePermittedInSettings")
+                    .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("threadpool." + threadPoolName + ".type", correctThreadPoolType.getType())
                     .build());
             ThreadPool.Info info = info(threadPool, threadPoolName);
@@ -76,7 +78,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             threadPool = new ThreadPool(
                     settingsBuilder()
-                            .put("name", "testThreadPoolCanNotOverrideThreadPoolType")
+                            .put("node.name", "testThreadPoolCanNotOverrideThreadPoolType")
                             .put("threadpool." + threadPoolName + ".type", incorrectThreadPoolType.getType())
                             .build());
             terminate(threadPool);
@@ -100,7 +102,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
                 // try to create a too-big (maxSize+1) thread pool
                 threadPool = new ThreadPool(settingsBuilder()
-                                               .put("name", "testIndexingThreadPoolsMaxSize")
+                                               .put("node.name", "testIndexingThreadPoolsMaxSize")
                                                .put("threadpool." + name + ".size", maxSize+1)
                                                .build());
 
@@ -141,7 +143,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool.ThreadPoolType validThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
+            threadPool = new ThreadPool(settingsBuilder().put("node.name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
 
@@ -166,7 +168,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool threadPool = null;
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testCachedExecutorType").build();
+                    .put("node.name", "testCachedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -225,7 +227,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testFixedExecutorType").build();
+                    .put("node.name", "testFixedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -285,7 +287,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", 10)
-                    .put("name", "testScalingExecutorType").build();
+                    .put("node.name", "testScalingExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -323,7 +325,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = Settings.settingsBuilder()
                     .put("threadpool." + threadPoolName + ".queue_size", 1000)
-                    .put("name", "testCachedExecutorType").build();
+                    .put("node.name", "testShutdownNowInterrupts").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -360,7 +362,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("threadpool.my_pool2.type", "fixed")
                     .put("threadpool.my_pool2.size", "1")
                     .put("threadpool.my_pool2.queue_size", "1")
-                    .put("name", "testCustomThreadPool").build();
+                    .put("node.name", "testCustomThreadPool").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -377,7 +379,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                     assertThat(info.getMin(), equalTo(1));
                     assertThat(info.getMax(), equalTo(1));
-                    assertThat(info.getQueueSize().singles(), equalTo(1l));
+                    assertThat(info.getQueueSize().singles(), equalTo(1L));
                 } else {
                     for (Field field : Names.class.getFields()) {
                         if (info.getName().equalsIgnoreCase(field.getName())) {
@@ -409,7 +411,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     foundPool2 = true;
                     assertThat(info.getMax(), equalTo(10));
                     assertThat(info.getMin(), equalTo(10));
-                    assertThat(info.getQueueSize().singles(), equalTo(1l));
+                    assertThat(info.getQueueSize().singles(), equalTo(1L));
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                 } else {
                     for (Field field : Names.class.getFields()) {
@@ -452,11 +454,10 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         Set<ThreadPool.ThreadPoolType> set = new HashSet<>();
         set.addAll(Arrays.asList(ThreadPool.ThreadPoolType.values()));
         set.remove(ThreadPool.THREAD_POOL_TYPES.get(threadPoolName));
-        ThreadPool.ThreadPoolType invalidThreadPoolType = randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
-        return invalidThreadPoolType;
+        return randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
     }
 
     private String randomThreadPool(ThreadPool.ThreadPoolType type) {
-        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(t -> t.getKey()).collect(Collectors.toList()));
+        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).collect(Collectors.toList()));
     }
 }

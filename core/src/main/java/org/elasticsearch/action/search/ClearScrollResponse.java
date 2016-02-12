@@ -55,7 +55,7 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * @return The number of seach contexts that were freed. If this is <code>0</code> the assumption can be made,
+     * @return The number of search contexts that were freed. If this is <code>0</code> the assumption can be made,
      * that the scroll id specified in the request did not exist. (never existed, was expired, or completely consumed)
      */
     public int getNumFreed() {

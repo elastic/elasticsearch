@@ -54,7 +54,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 2)))
+                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -206,18 +206,18 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(10));
 
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
-            assertThat(shardRouting.index(), equalTo("test"));
+            assertThat(shardRouting.getIndexName(), equalTo("test"));
         }
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node2")) {
-            assertThat(shardRouting.index(), equalTo("test1"));
+            assertThat(shardRouting.getIndexName(), equalTo("test1"));
         }
 
-        logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE + " for test, see that things move");
+        logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + " for test, see that things move");
         metaData = MetaData.builder(metaData)
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 3)
+                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 3)
                 ))
                 .build();
 

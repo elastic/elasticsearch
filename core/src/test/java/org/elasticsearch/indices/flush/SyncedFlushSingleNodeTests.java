@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -110,8 +111,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
-        shard.incrementOperationCounterOnPrimary();
-        try {
+        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
             listener.latch.await();
@@ -121,8 +121,6 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(0, syncedFlushResult.successfulShards());
             assertNotEquals(0, syncedFlushResult.totalShards());
             assertEquals("[1] ongoing operations on primary", syncedFlushResult.failureReason());
-        } finally {
-            shard.decrementOperationCounter();
         }
     }
 
@@ -133,7 +131,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         SyncedFlushUtil.LatchedListener listener = new SyncedFlushUtil.LatchedListener();
-        flushService.attemptSyncedFlush(new ShardId("test", 1), listener);
+        flushService.attemptSyncedFlush(new ShardId("test", "_na_", 1), listener);
         listener.latch.await();
         assertNotNull(listener.error);
         assertNull(listener.result);
@@ -151,7 +149,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals("closed", listener.error.getMessage());
 
         listener = new SyncedFlushUtil.LatchedListener();
-        flushService.attemptSyncedFlush(new ShardId("index not found", 0), listener);
+        flushService.attemptSyncedFlush(new ShardId("index not found", "_na_", 0), listener);
         listener.latch.await();
         assertNotNull(listener.error);
         assertNull(listener.result);

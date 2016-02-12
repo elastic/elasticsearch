@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,19 +76,6 @@ public final class Settings implements ToXContent {
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
-
-    /** Name of the setting to use to disable required units for byte size, time settings. */
-    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
-
-    private static boolean settingsRequireUnits = true;
-
-    public static void setSettingsRequireUnits(boolean v) {
-        settingsRequireUnits = v;
-    }
-
-    public static boolean getSettingsRequireUnits() {
-        return settingsRequireUnits;
-    }
 
     private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
@@ -220,6 +208,19 @@ public final class Settings implements ToXContent {
                     continue;
                 }
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
+     */
+    public Settings filter(Predicate<String> predicate) {
+        Builder builder = new Builder();
+        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+            if (predicate.test(entry.getKey())) {
+                builder.put(entry.getKey(), entry.getValue());
             }
         }
         return builder.build();
@@ -470,7 +471,7 @@ public final class Settings implements ToXContent {
 
     /**
      * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
@@ -479,7 +480,7 @@ public final class Settings implements ToXContent {
 
     /**
      * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
@@ -945,7 +946,26 @@ public final class Settings implements ToXContent {
          * @param values  The values
          * @return The builder
          */
+
+        /**
+         * Sets the setting with the provided setting key and an array of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
         public Builder putArray(String setting, String... values) {
+            return putArray(setting, Arrays.asList(values));
+        }
+
+        /**
+         * Sets the setting with the provided setting key and a list of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
+        public Builder putArray(String setting, List<String> values) {
             remove(setting);
             int counter = 0;
             while (true) {
@@ -954,8 +974,8 @@ public final class Settings implements ToXContent {
                     break;
                 }
             }
-            for (int i = 0; i < values.length; i++) {
-                put(setting + "." + i, values[i]);
+            for (int i = 0; i < values.size(); i++) {
+                put(setting + "." + i, values.get(i));
             }
             return this;
         }

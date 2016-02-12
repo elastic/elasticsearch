@@ -31,7 +31,6 @@ import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -71,6 +71,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -83,13 +84,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-    public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
-    public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
-    public static final int SCRIPT_CACHE_SIZE_DEFAULT = 100;
-    public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
+    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.intSetting("script.cache.max_size", 100, 0, false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
     public static final String SCRIPT_INDEX = ".scripts";
-    public static final String DEFAULT_LANG = "groovy";
-    public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
+    public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING = Setting.boolSetting("script.auto_reload_enabled", true, false, Setting.Scope.CLUSTER);
 
     private final String defaultLang;
 
@@ -138,45 +136,50 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, ScriptContextRegistry scriptContextRegistry) throws IOException {
+                         ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
         super(settings);
+        Objects.requireNonNull(scriptEngineRegistry);
+        Objects.requireNonNull(scriptContextRegistry);
+        Objects.requireNonNull(scriptSettings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: on` and `script.indexed: on` in elasticsearch.yml");
+                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.indexed: true` in elasticsearch.yml");
         }
 
         this.scriptEngines = scriptEngines;
         this.scriptContextRegistry = scriptContextRegistry;
-        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, SCRIPT_CACHE_SIZE_DEFAULT);
-        TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
-        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
+        int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
 
-        this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, DEFAULT_LANG);
+        this.defaultLang = scriptSettings.getDefaultScriptLanguageSetting().get(settings);
 
         CacheBuilder<CacheKey, CompiledScript> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
             cacheBuilder.setMaximumWeight(cacheMaxSize);
         }
-        if (cacheExpire != null) {
+
+        TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
+        if (cacheExpire.getNanos() != 0) {
             cacheBuilder.setExpireAfterAccess(cacheExpire.nanos());
         }
+
+        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
         Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
-            for (String type : scriptEngine.types()) {
-                enginesByLangBuilder.put(type, scriptEngine);
+            for (String language : scriptEngineRegistry.getLanguages(scriptEngine.getClass())) {
+                enginesByLangBuilder.put(language, scriptEngine);
             }
-            for (String ext : scriptEngine.extensions()) {
+            for (String ext : scriptEngine.getExtensions()) {
                 enginesByExtBuilder.put(ext, scriptEngine);
             }
         }
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
-        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
+        this.scriptModes = new ScriptModes(scriptSettings, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.scriptsFile();
@@ -186,7 +189,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
-        if (settings.getAsBoolean(SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true)) {
+        if (SCRIPT_AUTO_RELOAD_ENABLED_SETTING.get(settings)) {
             // automatic reload is enabled - register scripts
             resourceWatcherService.add(fileWatcher);
         } else {
@@ -225,7 +228,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext, HasContextAndHeaders headersContext, Map<String, String> params) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -244,7 +247,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             throw new ScriptException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
-        // TODO: fix this through some API or something, thats wrong
+        // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
         boolean expression = "expression".equals(script.getLang());
         boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
@@ -253,14 +256,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        return compileInternal(script, headersContext, params);
+        return compileInternal(script, params);
     }
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script,
      * without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(Script script, HasContextAndHeaders context, Map<String, String> params) {
+    public CompiledScript compileInternal(Script script, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -297,7 +300,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             //the script has been updated in the index since the last look up.
             final IndexedScript indexedScript = new IndexedScript(lang, name);
             name = indexedScript.id;
-            code = getScriptFromIndex(indexedScript.lang, indexedScript.id, context);
+            code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
         }
 
         CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
@@ -323,7 +326,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
-        GetRequest getRequest = new GetRequest(request, SCRIPT_INDEX).type(scriptLang).id(request.id())
+        GetRequest getRequest = new GetRequest(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
                 .preference("_local"); //Set preference for no forking
         client.get(getRequest, listener);
@@ -338,13 +341,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptLang;
     }
 
-    String getScriptFromIndex(String scriptLang, String id, HasContextAndHeaders context) {
+    String getScriptFromIndex(String scriptLang, String id) {
         if (client == null) {
             throw new IllegalArgumentException("Got an indexed script with no Client registered.");
         }
         scriptLang = validateScriptLanguage(scriptLang);
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
-        getRequest.copyContextAndHeadersFrom(context);
         GetResponse responseFields = client.get(getRequest).actionGet();
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
@@ -392,7 +394,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         //verify that the script compiles
         validate(request.source(), scriptLang);
 
-        IndexRequest indexRequest = new IndexRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
+        IndexRequest indexRequest = new IndexRequest().index(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
                 .source(request.source()).opType(request.opType()).refresh(true); //Always refresh after indexing a template
         client.index(indexRequest, listener);
@@ -400,7 +402,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     public void deleteScriptFromIndex(DeleteIndexedScriptRequest request, ActionListener<DeleteResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
-        DeleteRequest deleteRequest = new DeleteRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
+        DeleteRequest deleteRequest = new DeleteRequest().index(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .refresh(true).version(request.version()).versionType(request.versionType());
         client.delete(deleteRequest, listener);
     }
@@ -437,8 +439,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext, HasContextAndHeaders headersContext, Map<String, String> params) {
-        return executable(compile(script, scriptContext, headersContext, params), script.getParams());
+    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params) {
+        return executable(compile(script, scriptContext, params), script.getParams());
     }
 
     /**
@@ -452,7 +454,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * Compiles (or retrieves from cache) and executes the provided search script
      */
     public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
-        CompiledScript compiledScript = compile(script, scriptContext, SearchContext.current(), params);
+        CompiledScript compiledScript = compile(script, scriptContext, params);
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 
@@ -477,7 +479,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             case OFF:
                 return false;
             case SANDBOX:
-                return scriptEngineService.sandboxed();
+                return scriptEngineService.isSandboxed();
             default:
                 throw new IllegalArgumentException("script mode [" + mode + "] not supported");
         }
@@ -536,12 +538,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     try {
                         //we don't know yet what the script will be used for, but if all of the operations for this lang
                         // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                        if (isAnyScriptContextEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
+                        if (isAnyScriptContextEnabled(engineService.getTypes().get(0), engineService, ScriptType.FILE)) {
                             logger.info("compiling script file [{}]", file.toAbsolutePath());
                             try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                                 String script = Streams.copyToString(reader);
                                 CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
-                                staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.types()[0], engineService.compile(script, Collections.emptyMap())));
+                                staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getTypes().get(0), engineService.compile(script, Collections.emptyMap())));
                                 scriptMetrics.onCompilation();
                             }
                         } else {
@@ -583,14 +585,16 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * - loaded from an index
      * - loaded from file
      */
-    public static enum ScriptType {
+    public enum ScriptType {
 
-        INLINE(0, "inline"),
-        INDEXED(1, "id"),
-        FILE(2, "file");
+        INLINE(0, "inline", "inline", ScriptMode.SANDBOX),
+        INDEXED(1, "id", "indexed", ScriptMode.SANDBOX),
+        FILE(2, "file", "file", ScriptMode.ON);
 
         private final int val;
         private final ParseField parseField;
+        private final String scriptType;
+        private final ScriptMode defaultScriptMode;
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
             int scriptTypeVal = in.readVInt();
@@ -611,19 +615,30 @@ public class ScriptService extends AbstractComponent implements Closeable {
             }
         }
 
-        private ScriptType(int val, String name) {
+        ScriptType(int val, String name, String scriptType, ScriptMode defaultScriptMode) {
             this.val = val;
             this.parseField = new ParseField(name);
+            this.scriptType = scriptType;
+            this.defaultScriptMode = defaultScriptMode;
         }
 
         public ParseField getParseField() {
             return parseField;
         }
 
+        public ScriptMode getDefaultScriptMode() {
+            return defaultScriptMode;
+        }
+
+        public String getScriptType() {
+            return scriptType;
+        }
+
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+
     }
 
     private static final class CacheKey {
@@ -633,7 +648,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         final Map<String, String> params;
 
         private CacheKey(final ScriptEngineService service, final String name, final String code, final Map<String, String> params) {
-            this.lang = service.types()[0];
+            this.lang = service.getTypes().get(0);
             this.name = name;
             this.code = code;
             this.params = params;

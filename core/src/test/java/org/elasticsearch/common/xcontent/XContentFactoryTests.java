@@ -97,6 +97,14 @@ public class XContentFactoryTests extends ESTestCase {
         assertNull(XContentFactory.xContentType(is));
     }
 
+    public void testInvalidStream() throws Exception {
+        byte[] bytes = new byte[] { (byte) '"' };
+        assertNull(XContentFactory.xContentType(bytes));
+
+        bytes = new byte[] { (byte) 'x' };
+        assertNull(XContentFactory.xContentType(bytes));
+    }
+
     public void testJsonFromBytesOptionallyPrecededByUtf8Bom() throws Exception {
         byte[] bytes = new byte[] {(byte) '{', (byte) '}'};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));

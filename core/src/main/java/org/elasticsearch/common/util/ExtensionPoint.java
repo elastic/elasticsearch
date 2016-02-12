@@ -78,7 +78,7 @@ public abstract class ExtensionPoint {
         /**
          * Creates a new {@link ClassMap}
          *
-         * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
+         * @param name           the human readable underscore case name of the extension point. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
          * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          * @param reservedKeys   a set of reserved keys by internal implementations
@@ -120,7 +120,7 @@ public abstract class ExtensionPoint {
     }
 
     /**
-     * A Type extension point which basically allows to registerd keyed extensions like {@link ClassMap}
+     * A Type extension point which basically allows to registered keyed extensions like {@link ClassMap}
      * but doesn't instantiate and bind all the registered key value pairs but instead replace a singleton based on a given setting via {@link #bindType(Binder, Settings, String, String)}
      * Note: {@link #bind(Binder)} is not supported by this class
      */
@@ -169,7 +169,7 @@ public abstract class ExtensionPoint {
         /**
          * Creates a new {@link ClassSet}
          *
-         * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
+         * @param name           the human readable underscore case name of the extension point. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
          * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          */

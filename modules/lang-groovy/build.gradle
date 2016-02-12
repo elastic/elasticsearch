@@ -26,13 +26,10 @@ dependencies {
   compile 'org.codehaus.groovy:groovy:2.4.4:indy'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked,-cast,-deprecation'
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked,-cast,-deprecation'
-
 integTest {
   cluster {
-    systemProperty 'es.script.inline', 'on'
-    systemProperty 'es.script.indexed', 'on'
+    systemProperty 'es.script.inline', 'true'
+    systemProperty 'es.script.indexed', 'true'
   }
 }
 

@@ -47,7 +47,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Inject
     public RestIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
@@ -58,7 +58,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override
@@ -77,6 +77,7 @@ public class RestIndexAction extends BaseRestHandler {
         if (request.hasParam("ttl")) {
             indexRequest.ttl(request.param("ttl"));
         }
+        indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.content());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));

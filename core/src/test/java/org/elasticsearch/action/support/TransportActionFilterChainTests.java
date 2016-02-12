@@ -220,9 +220,10 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         RequestTestFilter testFilter = new RequestTestFilter(randomInt(), new RequestCallback() {
             @Override
-            public void execute(Task task, final String action, final ActionRequest actionRequest, final ActionListener actionListener, final ActionFilterChain actionFilterChain) {
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
                 for (int i = 0; i <= additionalContinueCount; i++) {
-                    actionFilterChain.proceed(task, action, actionRequest, actionListener);
+                    actionFilterChain.proceed(task, action, request, listener);
                 }
             }
         });
@@ -276,7 +277,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         ResponseTestFilter testFilter = new ResponseTestFilter(randomInt(), new ResponseCallback() {
             @Override
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
                 for (int i = 0; i <= additionalContinueCount; i++) {
                     chain.proceed(action, response, listener);
                 }
@@ -344,17 +346,18 @@ public class TransportActionFilterChainTests extends ESTestCase {
             return order;
         }
 
-        @SuppressWarnings("unchecked")
         @Override
-        public void apply(Task task, String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
+        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+                ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             this.runs.incrementAndGet();
             this.lastActionName = action;
             this.executionToken = counter.incrementAndGet();
-            this.callback.execute(task, action, actionRequest, actionListener, actionFilterChain);
+            this.callback.execute(task, action, request, listener, chain);
         }
 
         @Override
-        public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+        public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
+                ActionFilterChain<?, Response> chain) {
             chain.proceed(action, response, listener);
         }
     }
@@ -377,12 +380,14 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
 
         @Override
-        public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+                ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             chain.proceed(task, action, request, listener);
         }
 
         @Override
-        public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+        public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
+                ActionFilterChain<?, Response> chain) {
             this.runs.incrementAndGet();
             this.lastActionName = action;
             this.executionToken = counter.incrementAndGet();
@@ -393,21 +398,24 @@ public class TransportActionFilterChainTests extends ESTestCase {
     private static enum RequestOperation implements RequestCallback {
         CONTINUE_PROCESSING {
             @Override
-            public void execute(Task task, String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
-                actionFilterChain.proceed(task, action, actionRequest, actionListener);
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
+                actionFilterChain.proceed(task, action, request, listener);
             }
         },
         LISTENER_RESPONSE {
             @Override
-            @SuppressWarnings("unchecked")
-            public void execute(Task task, String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
-                actionListener.onResponse(new TestResponse());
+            @SuppressWarnings("unchecked")  // Safe because its all we test with
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
+                ((ActionListener<TestResponse>) listener).onResponse(new TestResponse());
             }
         },
         LISTENER_FAILURE {
             @Override
-            public void execute(Task task, String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
-                actionListener.onFailure(new ElasticsearchTimeoutException(""));
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
+                listener.onFailure(new ElasticsearchTimeoutException(""));
             }
         }
     }
@@ -415,34 +423,39 @@ public class TransportActionFilterChainTests extends ESTestCase {
     private static enum ResponseOperation implements ResponseCallback {
         CONTINUE_PROCESSING {
             @Override
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
                 chain.proceed(action, response, listener);
             }
         },
         LISTENER_RESPONSE {
             @Override
-            @SuppressWarnings("unchecked")
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
-                listener.onResponse(new TestResponse());
+            @SuppressWarnings("unchecked") // Safe because its all we test with
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
+                ((ActionListener<TestResponse>) listener).onResponse(new TestResponse());
             }
         },
         LISTENER_FAILURE {
             @Override
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
                 listener.onFailure(new ElasticsearchTimeoutException(""));
             }
         }
     }
 
     private static interface RequestCallback {
-        void execute(Task task, String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain);
+        <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain);
     }
 
     private static interface ResponseCallback {
-        void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain);
+        <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                ActionFilterChain<?, Response> chain);
     }
 
-    public static class TestRequest extends ActionRequest {
+    public static class TestRequest extends ActionRequest<TestRequest> {
         @Override
         public ActionRequestValidationException validate() {
             return null;

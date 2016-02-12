@@ -28,6 +28,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -45,7 +46,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
@@ -62,6 +63,14 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
+    private static boolean nodeBooleanValue(Object node, Mapper.TypeParser.ParserContext parserContext) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            return XContentMapValues.nodeBooleanValue(node);
+        } else {
+            return XContentMapValues.lenientNodeBooleanValue(node);
+        }
+    }
+
     public static void parseNumberField(NumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, numberNode, parserContext);
         for (Iterator<Map.Entry<String, Object>> iterator = numberNode.entrySet().iterator(); iterator.hasNext();) {
@@ -72,13 +81,13 @@ public class TypeParsers {
                 builder.precisionStep(nodeIntegerValue(propNode));
                 iterator.remove();
             } else if (propName.equals("ignore_malformed")) {
-                builder.ignoreMalformed(nodeBooleanValue(propNode));
+                builder.ignoreMalformed(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("coerce")) {
-                builder.coerce(nodeBooleanValue(propNode));
+                builder.coerce(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("omit_norms")) {
-                builder.omitNorms(nodeBooleanValue(propNode));
+                builder.omitNorms(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
@@ -102,16 +111,16 @@ public class TypeParsers {
                 parseTermVector(name, propNode.toString(), builder);
                 iterator.remove();
             } else if (propName.equals("store_term_vectors")) {
-                builder.storeTermVectors(nodeBooleanValue(propNode));
+                builder.storeTermVectors(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_offsets")) {
-                builder.storeTermVectorOffsets(nodeBooleanValue(propNode));
+                builder.storeTermVectorOffsets(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_positions")) {
-                builder.storeTermVectorPositions(nodeBooleanValue(propNode));
+                builder.storeTermVectorPositions(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_payloads")) {
-                builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
+                builder.storeTermVectorPayloads(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
@@ -160,19 +169,19 @@ public class TypeParsers {
             final String propName = Strings.toUnderscoreCase(entry.getKey());
             final Object propNode = entry.getValue();
             if (propName.equals("store")) {
-                builder.store(parseStore(name, propNode.toString()));
+                builder.store(parseStore(name, propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals("index")) {
-                parseIndex(name, propNode.toString(), builder);
+                builder.index(parseIndex(name, propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(nodeBooleanValue(propNode));
+                builder.docValues(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
             } else if (propName.equals("omit_norms")) {
-                builder.omitNorms(nodeBooleanValue(propNode));
+                builder.omitNorms(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("norms")) {
                 final Map<String, Object> properties = nodeMapValue(propNode, "norms");
@@ -181,7 +190,7 @@ public class TypeParsers {
                     final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
                     final Object propNode2 = entry2.getValue();
                     if (propName2.equals("enabled")) {
-                        builder.omitNorms(!nodeBooleanValue(propNode2));
+                        builder.omitNorms(!lenientNodeBooleanValue(propNode2));
                         propsIterator.remove();
                     } else if (propName2.equals(Loading.KEY)) {
                         builder.normsLoading(Loading.parse(nodeStringValue(propNode2, null), null));
@@ -194,7 +203,7 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
-                builder.includeInAll(nodeBooleanValue(propNode));
+                builder.includeInAll(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
@@ -319,28 +328,43 @@ public class TypeParsers {
         }
     }
 
-    public static void parseIndex(String fieldName, String index, FieldMapper.Builder builder) throws MapperParsingException {
-        index = Strings.toUnderscoreCase(index);
-        if ("no".equals(index)) {
-            builder.index(false);
-        } else if ("not_analyzed".equals(index)) {
-            builder.index(true);
-            builder.tokenized(false);
-        } else if ("analyzed".equals(index)) {
-            builder.index(true);
-            builder.tokenized(true);
+    public static boolean parseIndex(String fieldName, String index, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            switch (index) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
+            }
         } else {
-            throw new MapperParsingException("wrong value for index [" + index + "] for field [" + fieldName + "]");
+            final String normalizedIndex = Strings.toUnderscoreCase(index);
+            switch (normalizedIndex) {
+            case "true":
+            case "not_analyzed":
+            case "analyzed":
+                return true;
+            case "false":
+            case "no":
+                return false;
+            default:
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+            }
         }
     }
 
-    public static boolean parseStore(String fieldName, String store) throws MapperParsingException {
-        if ("no".equals(store)) {
-            return false;
-        } else if ("yes".equals(store)) {
-            return true;
+    public static boolean parseStore(String fieldName, String store, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            return XContentMapValues.nodeBooleanValue(store);
         } else {
-            return nodeBooleanValue(store);
+            if ("no".equals(store)) {
+                return false;
+            } else if ("yes".equals(store)) {
+                return true;
+            } else {
+                return lenientNodeBooleanValue(store);
+            }
         }
     }
 
@@ -364,7 +388,7 @@ public class TypeParsers {
         }
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
         if (similarityProvider == null) {
-            throw new MapperParsingException("Unknown Similarity type [" + value + "] for [" + name + "]");
+            throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
         }
         return similarityProvider;
     }

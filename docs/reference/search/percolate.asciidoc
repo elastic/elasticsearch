@@ -20,14 +20,8 @@ in a request to the percolate API.
 =====================================
 
 Fields referred to in a percolator query must *already* exist in the mapping
-associated with the index used for percolation.
-There are two ways to make sure that a field mapping exist:
-
-* Add or update a mapping via the <<indices-create-index,create index>> or
-  <<indices-put-mapping,put mapping>> APIs.
-* Percolate a document before registering a query. Percolating a document can
-  add field mappings dynamically, in the same way as happens when indexing a
-  document.
+associated with the index used for percolation. In order to make sure these fields exist,
+add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
 
 =====================================
 

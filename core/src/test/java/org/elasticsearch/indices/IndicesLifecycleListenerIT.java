@@ -54,7 +54,12 @@ import java.util.function.BooleanSupplier;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.shard.IndexShardState.*;
+import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
+import static org.elasticsearch.index.shard.IndexShardState.CREATED;
+import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
+import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
+import static org.elasticsearch.index.shard.IndexShardState.RELOCATED;
+import static org.elasticsearch.index.shard.IndexShardState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -80,7 +85,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             @Override
             public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
                 beforeAddedCount.incrementAndGet();
-                if (indexSettings.getAsBoolean("index.fail", false)) {
+                if (MockIndexEventListener.TestPlugin.INDEX_FAIL.get(indexSettings)) {
                     throw new ElasticsearchException("failing on purpose");
                 }
             }
@@ -126,7 +131,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                 throw new RuntimeException("FAIL");
             }
         });
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("index1", 0), node1, node2)).get();
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> shard = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);

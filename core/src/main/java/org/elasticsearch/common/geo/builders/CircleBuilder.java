@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Circle;
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -37,9 +38,17 @@ public class CircleBuilder extends ShapeBuilder {
 
     public static final CircleBuilder PROTOTYPE = new CircleBuilder();
 
-    private DistanceUnit unit;
+    private DistanceUnit unit = DistanceUnit.DEFAULT;
     private double radius;
     private Coordinate center;
+
+    /**
+     * Creates a circle centered at [0.0, 0.0].
+     * Center can be changed by calling {@link #center(Coordinate)} later.
+     */
+    public CircleBuilder() {
+        this.center = ZERO_ZERO;
+    }
 
     /**
      * Set the center of the circle

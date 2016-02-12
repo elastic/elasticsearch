@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,31 +33,20 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
-    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder();
+    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder(new Coordinate(-1.0, 1.0), new Coordinate(1.0, -1.0));
 
     private Coordinate topLeft;
     private Coordinate bottomRight;
 
-    public EnvelopeBuilder topLeft(Coordinate topLeft) {
+    public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight) {
+        Objects.requireNonNull(topLeft, "topLeft of envelope cannot be null");
+        Objects.requireNonNull(bottomRight, "bottomRight of envelope cannot be null");
         this.topLeft = topLeft;
-        return this;
-    }
-
-    public EnvelopeBuilder topLeft(double longitude, double latitude) {
-        return topLeft(coordinate(longitude, latitude));
+        this.bottomRight = bottomRight;
     }
 
     public Coordinate topLeft() {
         return this.topLeft;
-    }
-
-    public EnvelopeBuilder bottomRight(Coordinate bottomRight) {
-        this.bottomRight = bottomRight;
-        return this;
-    }
-
-    public EnvelopeBuilder bottomRight(double longitude, double latitude) {
-        return bottomRight(coordinate(longitude, latitude));
     }
 
     public Coordinate bottomRight() {
@@ -110,8 +100,6 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     @Override
     public EnvelopeBuilder readFrom(StreamInput in) throws IOException {
-        return new EnvelopeBuilder()
-                .topLeft(readCoordinateFrom(in))
-                .bottomRight(readCoordinateFrom(in));
+        return new EnvelopeBuilder(readCoordinateFrom(in), readCoordinateFrom(in));
     }
 }

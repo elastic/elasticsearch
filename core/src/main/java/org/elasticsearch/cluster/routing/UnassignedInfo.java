@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,9 +42,9 @@ import java.io.IOException;
 public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
-
-    public static final String INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = "index.unassigned.node_left.delayed_timeout";
     private static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMinutes(1);
+
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.timeSetting("index.unassigned.node_left.delayed_timeout", DEFAULT_DELAYED_NODE_LEFT_TIMEOUT, true, Setting.Scope.INDEX);
 
     /**
      * Reason why the shard is in unassigned state.
@@ -105,7 +106,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     private final Reason reason;
     private final long unassignedTimeMillis; // used for display and log messages, in milliseconds
     private final long unassignedTimeNanos; // in nanoseconds, used to calculate delay for delayed shard allocation
-    private volatile long lastComputedLeftDelayNanos = 0l; // how long to delay shard allocation, not serialized (always positive, 0 means no delay)
+    private volatile long lastComputedLeftDelayNanos = 0L; // how long to delay shard allocation, not serialized (always positive, 0 means no delay)
     private final String message;
     private final Throwable failure;
 
@@ -215,8 +216,8 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         if (reason != Reason.NODE_LEFT) {
             return 0;
         }
-        TimeValue delayTimeout = indexSettings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, settings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, DEFAULT_DELAYED_NODE_LEFT_TIMEOUT));
-        return Math.max(0l, delayTimeout.nanos());
+        TimeValue delayTimeout = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings, settings);
+        return Math.max(0L, delayTimeout.nanos());
     }
 
     /**
@@ -235,8 +236,8 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
         long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
         final long newComputedLeftDelayNanos;
-        if (delayTimeoutNanos == 0l) {
-            newComputedLeftDelayNanos = 0l;
+        if (delayTimeoutNanos == 0L) {
+            newComputedLeftDelayNanos = 0L;
         } else {
             assert nanoTimeNow >= unassignedTimeNanos;
             newComputedLeftDelayNanos = Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
@@ -268,7 +269,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         long minDelaySetting = Long.MAX_VALUE;
         for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shard.primary() == false) {
-                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
+                IndexMetaData indexMetaData = state.metaData().index(shard.getIndexName());
                 boolean delayed = shard.unassignedInfo().getLastComputedLeftDelayNanos() > 0;
                 long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSettingNanos(settings, indexMetaData.getSettings());
                 if (delayed && delayTimeoutSetting > 0 && delayTimeoutSetting < minDelaySetting) {
@@ -276,7 +277,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
                 }
             }
         }
-        return minDelaySetting == Long.MAX_VALUE ? 0l : minDelaySetting;
+        return minDelaySetting == Long.MAX_VALUE ? 0L : minDelaySetting;
     }
 
 
@@ -293,7 +294,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
                 }
             }
         }
-        return nextDelay == Long.MAX_VALUE ? 0l : nextDelay;
+        return nextDelay == Long.MAX_VALUE ? 0L : nextDelay;
     }
 
     public String shortSummary() {

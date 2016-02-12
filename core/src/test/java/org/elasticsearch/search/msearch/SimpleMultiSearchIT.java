@@ -48,9 +48,9 @@ public class SimpleMultiSearchIT extends ESIntegTestCase {
            assertNoFailures(item.getResponse());
         }
         assertThat(response.getResponses().length, equalTo(3));
-        assertHitCount(response.getResponses()[0].getResponse(), 1l);
-        assertHitCount(response.getResponses()[1].getResponse(), 1l);
-        assertHitCount(response.getResponses()[2].getResponse(), 2l);
+        assertHitCount(response.getResponses()[0].getResponse(), 1L);
+        assertHitCount(response.getResponses()[1].getResponse(), 1L);
+        assertHitCount(response.getResponses()[2].getResponse(), 2L);
         assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
         assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
     }

@@ -28,6 +28,8 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -38,7 +40,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,11 +68,6 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
 
-    /**
-     * Defaults to localhost:9300
-     */
-    public static final String TESTS_CLUSTER_DEFAULT = "localhost:9300";
-
     protected static final ESLogger logger = ESLoggerFactory.getLogger(ESSmokeClientTestCase.class.getName());
 
     private static final AtomicInteger counter = new AtomicInteger();
@@ -81,11 +77,11 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
 
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
         Settings clientSettings = Settings.settingsBuilder()
-                .put("name", "qa_smoke_client_" + counter.getAndIncrement())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // prevents any settings to be replaced by system properties.
+                .put("node.name", "qa_smoke_client_" + counter.getAndIncrement())
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
-                .put("path.home", tempDir)
-                .put("node.mode", "network").build(); // we require network here!
+                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+                .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!
 
         TransportClient.Builder transportClientBuilder = TransportClient.builder().settings(clientSettings);
         TransportClient client = transportClientBuilder.build().addTransportAddresses(transportAddresses);
@@ -131,11 +127,10 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
     }
 
     @BeforeClass
-    public static void initializeSettings() throws UnknownHostException {
+    public static void initializeSettings() {
         clusterAddresses = System.getProperty(TESTS_CLUSTER);
         if (clusterAddresses == null || clusterAddresses.isEmpty()) {
-            clusterAddresses = TESTS_CLUSTER_DEFAULT;
-            logger.info("[{}] not set. Falling back to [{}]", TESTS_CLUSTER, TESTS_CLUSTER_DEFAULT);
+            fail("Must specify " + TESTS_CLUSTER + " for smoke client test");
         }
     }
 

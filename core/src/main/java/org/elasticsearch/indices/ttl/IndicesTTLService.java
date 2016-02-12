@@ -68,7 +68,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
     public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.CLUSTER);
-    public static final String INDEX_TTL_DISABLE_PURGE = "index.ttl.disable_purge";
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -160,12 +159,11 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
                 // check the value of disable_purge for this index
-                IndexMetaData indexMetaData = metaData.index(indexService.index().name());
+                IndexMetaData indexMetaData = metaData.index(indexService.index().getName());
                 if (indexMetaData == null) {
                     continue;
                 }
-                boolean disablePurge = indexMetaData.getSettings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
-                if (disablePurge) {
+                if (indexService.getIndexSettings().isTTLPurgeDisabled()) {
                     continue;
                 }
 
@@ -207,7 +205,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 BulkRequest bulkRequest = new BulkRequest();
                 for (DocToPurge docToPurge : docsToPurge) {
 
-                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
+                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().getIndexName()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
                     bulkRequest = processBulkIfNeeded(bulkRequest, false);
                 }
                 processBulkIfNeeded(bulkRequest, true);

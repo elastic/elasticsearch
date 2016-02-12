@@ -21,8 +21,8 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
-import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -110,6 +110,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
      * explicitly mapped
      */
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16399")
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();

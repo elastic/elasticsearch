@@ -6,6 +6,7 @@ your application to Elasticsearch 3.0.
 
 * <<breaking_30_search_changes>>
 * <<breaking_30_rest_api_changes>>
+* <<breaking_30_cat_api>>
 * <<breaking_30_parent_child_changes>>
 * <<breaking_30_settings_changes>>
 * <<breaking_30_mapping_changes>>
@@ -15,6 +16,11 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_non_loopback>>
 * <<breaking_30_thread_pool>>
 * <<breaking_30_allocation>>
+* <<breaking_30_percolator>>
+* <<breaking_30_packaging>>
+* <<breaking_30_scripting>>
+* <<breaking_30_term_vectors>>
+* <<breaking_30_security>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -107,6 +113,7 @@ The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:
+
 * `filtered`: use `bool` query instead, which supports `filter` clauses too
 * `and`: use `must` clauses in a `bool` query instead
 * `or`: use should clauses in a `bool` query instead
@@ -150,6 +157,22 @@ Removed support for the deprecated top level `filter` in the search api, replace
 
 Removed support for the undocumented `query_binary` and `filter_binary` sections of a search request.
 
+==== `span_near`'s' `collect_payloads` deprecated
+
+Payloads are now loaded when needed.
+
+[[breaking_30_cat_api]]
+=== CAT API changes
+
+==== Use Accept header for specifying response media type
+
+Previous versions of Elasticsearch accepted the Content-type header
+field for controlling the media type of the response in the cat API.
+This is in opposition to the HTTP spec which specifies the Accept
+header field for this purpose. Elasticsearch now uses the Accept header
+field and support for using the Content-Type header field for this
+purpose has been removed.
+
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
 
@@ -158,7 +181,7 @@ with `_parent` field mapping created before version `2.0.0`. The data of these i
 
 The format of the join between parent and child documents have changed with the `2.0.0` release. The old
 format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
-scalable join between parent and child documents and the join data structures are stored on on disk
+scalable join between parent and child documents and the join data structures are stored on disk
 data structures as opposed as before the join data structures were stored in the jvm heap space.
 
 ==== `score_type` has been removed
@@ -177,9 +200,31 @@ When `max_children` was set to `0` on the `has_child` query then there was no up
 are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
 
+==== `_parent` field no longer indexed
+
+The join between parent and child documents no longer relies on indexed fields and therefor from `3.0.0` onwards
+the `_parent` indexed field won't be indexed. In order to find documents that referrer to a specific parent id
+the new `parent_id` query can be used. The get response and hits inside the search response remain to include
+the parent id under the `_parent` key.
 
 [[breaking_30_settings_changes]]
 === Settings changes
+
+From Elasticsearch 3.0 on all settings are validated before they are applied. Node level and default index
+level settings are validated on node startup, dynamic cluster and index setting are validated before they are updated/added
+to the cluster state. Every setting must be a _known_ setting or in other words all settings must be registered with the
+node or transport client they are used with. This implies that plugins that define custom settings must register all of their
+settings during pluging loading using the `SettingsModule#registerSettings(Setting)` method.
+
+==== Node settings
+
+The `name` setting has been removed and is replaced by `node.name`. Usage of `-Dname=some_node_name` is not supported
+anymore.
+
+==== Transport Settings
+
+All settings with a `netty` infix have been replaced by their already existing `transport` synonyms. For instance `transport.netty.bind_host` is
+no longer supported and should be replaced by the superseding setting `transport.bind_host`.
 
 ==== Analysis settings
 
@@ -193,7 +238,6 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 `discovery.zen.ping.timeout` and `discovery.zen.ping_timeout`. The former two have been removed and
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
-
 
 ==== Recovery settings
 
@@ -221,10 +265,20 @@ The `index.translog.flush_threshold_ops` setting is not supported anymore. In or
 growth use `index.translog.flush_threshold_size` instead. Changing the translog type with `index.translog.fs.type` is not supported
 anymore, the `buffered` implementation is now the only available option and uses a fixed `8kb` buffer.
 
+The translog by default is fsynced on a request basis such that the ability to fsync on every operation is not necessary anymore. In-fact it can
+be a performance bottleneck and it's trappy since it enabled by a special value set on `index.translog.sync_interval`. `index.translog.sync_interval`
+now doesn't accept a value less than `100ms` which prevents fsyncing too often if async durability is enabled. The special value `0` is not supported anymore.
+
 ==== Request Cache Settings
 
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
+
+`indices.requests.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
+==== Field Data Cache Settings
+
+`indices.fielddata.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
 
 ==== Allocation settings
 
@@ -238,8 +292,18 @@ Please change the setting in your configuration files or in the clusterstate to 
 
 The 'default' similarity has been renamed to 'classic'.
 
+==== Indexing settings
+
+`indices.memory.min_shard_index_buffer_size` and `indices.memory.max_shard_index_buffer_size` are removed since Elasticsearch now allows any one shard to any
+amount of heap as long as the total indexing buffer heap used across all shards is below the node's `indices.memory.index_buffer_size` (default: 10% of the JVM heap)
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
+
+==== Default doc values settings
+
+Doc values are now also on by default on numeric and boolean fields that are
+not indexed.
 
 ==== Transform removed
 
@@ -252,7 +316,13 @@ float by default instead of a double. The reasoning is that floats should be
 more than enough for most cases but would decrease storage requirements
 significantly.
 
-==== `_source`'s `format` option
+==== `index` property
+
+On all types but `string`, the `index` property now only accepts `true`/`false`
+instead of `not_analyzed`/`no`. The `string` field still accepts
+`analyzed`/`not_analyzed`/`no`.
+
+==== ++_source++'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option
 will still be accepted for indices created before the upgrade to 3.0 for backward
@@ -272,9 +342,29 @@ values as follows:
 }
 ----
 
+==== `fielddata.format`
+
+Setting `fielddata.format: doc_values` in the mappings used to implicitly
+enable doc values on a field. This no longer works: the only way to enable or
+disable doc values is by using the `doc_values` property of mappings.
+
 
 [[breaking_30_plugins]]
 === Plugin changes
+
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
+The structure of the plugin has changed. All the plugin files must be contained in a directory called `elasticsearch`.
+If you use the gradle build, this structure is automatically generated.
+
+==== Site plugins removed
+
+Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
+
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud discovery plugins.
+
+==== Plugins with custom query implementations
 
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
@@ -469,7 +559,7 @@ Removing individual setters for lon() and lat() values, both values should be se
 Removing setters for to(Object ...) and from(Object ...) in favour of the only two allowed input
 arguments (String, Number). Removing setter for center point (point(), geohash()) because parameter
 is mandatory and should already be set in constructor.
-Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivallent
+Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivalent
 calls to to/from() and inludeLower()/includeUpper().
 
 ==== GeoPolygonQueryBuilder
@@ -529,6 +619,14 @@ to index a document only if it doesn't already exist.
 
 `InternalLineStringBuilder` is removed in favour of `LineStringBuilder`, `InternalPolygonBuilder` in favour of PolygonBuilder` and `Ring` has been replaced with `LineStringBuilder`. Also the abstract base classes `BaseLineStringBuilder` and `BasePolygonBuilder` haven been merged with their corresponding implementations.
 
+==== RescoreBuilder
+
+`RecoreBuilder.Rescorer` was merged with `RescoreBuilder`, which now is an abstract superclass. QueryRescoreBuilder currently is its only implementation.
+
+==== PhraseSuggestionBuilder
+
+The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
+
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
 
@@ -552,17 +650,32 @@ and high risk of being misused. The ability to change the thread pool type for a
 that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
 the thread pool type, `keep_alive`, `queue_size`, etc.).
 
-=== Adding system CPU percent to OS stats
+[[breaking_30_cpu_stats]]
+=== System CPU stats
 
-The recent CPU usage (as a percent) has been added to the OS stats reported under the node stats API and the cat nodes
-API. The breaking change here is that there is a new object in the "os" object in the node stats response. This object
-is called "cpu" and includes "percent" and "load_average" as fields. This moves the "load_average" field that was
-previously a top-level field in the "os" object to the "cpu" object. Additionally, the "cpu" field in the cat nodes API
-response is output by default.
+The recent CPU usage (as a percent) has been added to the OS stats
+reported under the node stats API and the cat nodes API. The breaking
+change here is that there is a new object in the `os` object in the node
+stats response. This object is called `cpu` and includes "percent" and
+`load_average` as fields. This moves the `load_average` field that was
+previously a top-level field in the `os` object to the `cpu` object. The
+format of the `load_average` field has changed to an object with fields
+`1m`, `5m`, and `15m` representing the one-minute, five-minute and
+fifteen-minute loads respectively. If any of these fields are not present,
+it indicates that the corresponding value is not available.
 
-Finally, the API for org.elasticsearch.monitor.os.OsStats has changed. The `getLoadAverage` method has been removed. The
-value for this can now be obtained from `OsStats.Cpu#getLoadAverage`. Additionally, the recent CPU usage can be obtained
-from `OsStats.Cpu#getPercent`.
+In the cat nodes API response, the `cpu` field is output by default. The
+previous `load` field has been removed and is replaced by `load_1m`,
+`load_5m`, and `load_15m` which represent the one-minute, five-minute
+and fifteen-minute loads respectively. The field will be null if the
+corresponding value is not available.
+
+Finally, the API for `org.elasticsearch.monitor.os.OsStats` has
+changed. The `getLoadAverage` method has been removed. The value for
+this can now be obtained from `OsStats.Cpu#getLoadAverage` but it is no
+longer a double and is instead an object encapsulating the one-minute,
+five-minute and fifteen-minute load averages. Additionally, the recent
+CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 
 === Fields option
 Only stored fields are retrievable with this option.
@@ -580,6 +693,22 @@ Allocation IDs assign unique identifiers to shard copies. This allows the cluste
 copies of the same data and track which shards have been active, so that after a cluster restart, shard copies
 containing only the most recent data can become primaries.
 
+=== Indices Shard Stores command
+
+By using allocation IDs instead of version numbers to identify shard copies for primary shard allocation, the former versioning scheme
+has become obsolete. This is reflected in the indices-shards-stores.html[Indices Shard Stores API]. A new field `allocation_id` replaces the
+former `version` field in the result of the Indices Shard Stores command. This field is available for all shard copies that have been either
+created with the current version of Elasticsearch or have been active in a cluster running a current version of Elasticsearch. For legacy
+shard copies that have not been active in a current version of Elasticsearch, a `legacy_version` field is available instead (equivalent to
+the former `version` field).
+
+=== Reroute commands
+
+The reroute command `allocate` has been split into two distinct commands `allocate_replica` and `allocate_empty_primary`.
+This was done as we introduced a new `allocate_stale_primary` command. The new `allocate_replica` command corresponds to the
+old `allocate` command  with `allow_primary` set to false. The new `allocate_empty_primary` command corresponds to the old
+`allocate` command with `allow_primary` set to true.
+
 ==== `index.shared_filesystem.recover_on_any_node` changes
 
 The behavior of `index.shared_filesystem.recover_on_any_node = true` has been changed. Previously, in the case where no
@@ -589,6 +718,7 @@ in the case where shard copies can be found. Previously, a node not holding the 
 holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
 even if none of the nodes holding a shard copy satisfy the allocation deciders.
 
+[[breaking_30_percolator]]
 === Percolator
 
 Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
@@ -604,3 +734,50 @@ The percolate api can no longer accept documents that have fields that don't exi
 
 When percolating an existing document then specifying a document in the source of the percolate request is not allowed
 any more.
+
+The percolate api no longer modifies the mappings. Before the percolate api could be used to dynamically introduce new
+fields to the mappings based on the fields in the document being percolated. This no longer works, because these
+unmapped fields are not persisted in the mapping.
+
+Percolator documents are no longer excluded from the search response.
+
+[[breaking_30_packaging]]
+=== Packaging
+
+==== Default logging using systemd (since Elasticsearch 2.2.0)
+
+In previous versions of Elasticsearch, the default logging
+configuration routed standard output to /dev/null and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the nether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the elasticsearch.service file.
+
+[[breaking_30_scripting]]
+=== Scripting
+
+==== Script mode settings
+
+Previously script mode settings (e.g., "script.inline: true",
+"script.engine.groovy.inline.aggs: false", etc.) accepted the values
+`on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
+values `off`, `false`, `0`, and `no` for disabling a scripting mode.
+The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
+and `no` for disabling are no longer supported.
+
+[[breaking_30_term_vectors]]
+=== Term vectors
+
+The term vectors APIs no longer persist unmapped fields in the mappings.
+
+The `dfs` parameter has been removed completely, term vectors don't support
+distributed document frequencies anymore.
+
+[[breaking_30_security]]
+=== Security
+
+The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
+permissions to elasticsearch users must tweak the local Java Security Policy.
+

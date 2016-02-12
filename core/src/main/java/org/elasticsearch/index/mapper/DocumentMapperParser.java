@@ -43,13 +43,11 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 
 public class DocumentMapperParser {
 
     final MapperService mapperService;
     final AnalysisService analysisService;
-    private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
 
@@ -112,7 +110,7 @@ public class DocumentMapperParser {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext(type);
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = doc((RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder((RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

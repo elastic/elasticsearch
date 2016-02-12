@@ -126,6 +126,10 @@ to prevent clashes with the watcher plugin
 * `watcher.interval.medium` is now `resource.reload.interval.medium`
 * `watcher.interval.high` is now `resource.reload.interval.high`
 
+==== index.gateway setting renamed
+
+* `index.gateway.local.sync` is now `index.translog.sync_interval`
+
 ==== Hunspell dictionary configuration
 
 The parameter `indices.analysis.hunspell.dictionary.location` has been
@@ -178,7 +182,7 @@ The location of a custom config directory may be specified as follows:
 [source,sh]
 --------------
 ./bin/elasticsearch --path.conf=/path/to/conf/dir
-./bin/plugin -Des.path.conf=/path/to/conf/dir install analysis-icu
+./bin/elasticsearch-plugin -Des.path.conf=/path/to/conf/dir install analysis-icu
 --------------
 
 When using the RPM or debian packages, the plugin script and the

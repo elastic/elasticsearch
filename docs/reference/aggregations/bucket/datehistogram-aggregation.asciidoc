@@ -105,8 +105,7 @@ that bucketing should use a different time zone.
 
 Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
 `-08:00`)  or as a timezone id, an identifier used in the TZ database like
-`America\Los_Angeles` (which would need to be escaped in JSON as
-`"America\\Los_Angeles"`).
+`America/Los_Angeles`.
 
 Consider the following example:
 

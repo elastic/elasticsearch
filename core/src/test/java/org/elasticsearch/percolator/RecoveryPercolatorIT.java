@@ -38,6 +38,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
@@ -97,7 +99,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
@@ -114,7 +116,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -122,7 +124,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
         internalCluster().rollingRestart();
@@ -132,7 +134,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         SearchResponse countResponse = client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
-        assertHitCount(countResponse, 1l);
+        assertHitCount(countResponse, 1L);
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").get();
         assertThat(actionGet.isAcknowledged(), equalTo(true));
@@ -140,7 +142,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0L));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -148,7 +150,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 0l);
+        assertMatchCount(percolate, 0L);
         assertThat(percolate.getMatches(), emptyArray());
 
         logger.info("--> register a query");
@@ -160,7 +162,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -168,7 +170,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
@@ -200,7 +202,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 95).endObject().endObject())
                 .get();
-        assertMatchCount(response, 6l);
+        assertMatchCount(response, 6L);
         assertThat(response.getMatches(), arrayWithSize(6));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
 
@@ -214,23 +216,14 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject()).get();
 
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(response.getMatches()[0].getId().string(), equalTo("100"));
     }
 
-    public void testSinglePercolatorRecovery() throws Exception {
-        percolatorRecovery(false);
-    }
-
-    @AwaitsFix(bugUrl = "sometimes reprodes with: gradle :core:integTest -Dtests.seed=21DDCAA92013B00C -Dtests.class=org.elasticsearch.percolator.RecoveryPercolatorIT -Dtests.method=\"testMultiPercolatorRecovery\"")
-    public void testMultiPercolatorRecovery() throws Exception {
-        percolatorRecovery(true);
-    }
-
-    // 3 nodes, 2 primary + 2 replicas per primary, so each node should have a copy of the data.
-    // We only start and stop nodes 2 and 3, so all requests should succeed and never be partial.
-    private void percolatorRecovery(final boolean multiPercolate) throws Exception {
+    public void testPercolatorRecovery() throws Exception {
+        // 3 nodes, 2 primary + 2 replicas per primary, so each node should have a copy of the data.
+        // We only start and stop nodes 2 and 3, so all requests should succeed and never be partial.
         internalCluster().startNode(settingsBuilder().put("node.stay", true));
         internalCluster().startNode(settingsBuilder().put("node.stay", false));
         internalCluster().startNode(settingsBuilder().put("node.stay", false));
@@ -258,58 +251,35 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setSource(document)
                 .get();
 
+        final Lock lock = new ReentrantLock();
         final AtomicBoolean run = new AtomicBoolean(true);
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    while (run.get()) {
-                        if (multiPercolate) {
-                            MultiPercolateRequestBuilder builder = client
-                                    .prepareMultiPercolate();
-                            int numPercolateRequest = randomIntBetween(50, 100);
-
-                            for (int i = 0; i < numPercolateRequest; i++) {
-                                PercolateRequestBuilder percolateBuilder = client.preparePercolate()
-                                        .setIndices("test").setDocumentType("type").setSize(numQueries);
-                                if (randomBoolean()) {
-                                    percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
-                                } else {
-                                    percolateBuilder.setPercolateDoc(docBuilder().setDoc(document));
-                                }
-                                builder.add(percolateBuilder);
-                            }
-
-                            MultiPercolateResponse response = builder.get();
-                            assertThat(response.items().length, equalTo(numPercolateRequest));
-                            for (MultiPercolateResponse.Item item : response) {
-                                assertThat(item.isFailure(), equalTo(false));
-                                assertNoFailures(item.getResponse());
-                                assertThat(item.getResponse().getSuccessfulShards(), equalTo(item.getResponse().getTotalShards()));
-                                assertThat(item.getResponse().getCount(), equalTo((long) numQueries));
-                                assertThat(item.getResponse().getMatches().length, equalTo(numQueries));
-                            }
-                        } else {
-                            PercolateRequestBuilder percolateBuilder = client.preparePercolate()
-                                    .setIndices("test").setDocumentType("type").setSize(numQueries);
-                            if (randomBoolean()) {
-                                percolateBuilder.setPercolateDoc(docBuilder().setDoc(document));
-                            } else {
-                                percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
-                            }
-                            PercolateResponse response = percolateBuilder.get();
-                            assertNoFailures(response);
-                            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
-                            assertThat(response.getCount(), equalTo((long) numQueries));
-                            assertThat(response.getMatches().length, equalTo(numQueries));
-                        }
+        Runnable r = () -> {
+            try {
+                while (run.get()) {
+                    PercolateRequestBuilder percolateBuilder = client.preparePercolate()
+                        .setIndices("test").setDocumentType("type").setSize(numQueries);
+                    if (randomBoolean()) {
+                        percolateBuilder.setPercolateDoc(docBuilder().setDoc(document));
+                    } else {
+                        percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
                     }
-                } catch (Throwable t) {
-                    logger.info("Error in percolate thread...", t);
-                    run.set(false);
-                    error.set(t);
+                    PercolateResponse response;
+                    try {
+                        lock.lock();
+                        response = percolateBuilder.get();
+                    } finally {
+                        lock.unlock();
+                    }
+                    assertNoFailures(response);
+                    assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+                    assertThat(response.getCount(), equalTo((long) numQueries));
+                    assertThat(response.getMatches().length, equalTo(numQueries));
                 }
+            } catch (Throwable t) {
+                logger.info("Error in percolate thread...", t);
+                run.set(false);
+                error.set(t);
             }
         };
         Thread t = new Thread(r);
@@ -318,7 +288,12 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         try {
             // 1 index, 2 primaries, 2 replicas per primary
             for (int i = 0; i < 4; i++) {
-                internalCluster().stopRandomNode(nodePredicate);
+                try {
+                    lock.lock();
+                    internalCluster().stopRandomNode(nodePredicate);
+                } finally {
+                    lock.unlock();
+                }
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -326,7 +301,12 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .setWaitForActiveShards(4) // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                internalCluster().stopRandomNode(nodePredicate);
+                try {
+                    lock.lock();
+                    internalCluster().stopRandomNode(nodePredicate);
+                } finally {
+                    lock.unlock();
+                }
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -334,7 +314,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .setWaitForActiveShards(2) // 1 node, so 2 shards (2 primaries, 0 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                internalCluster().startNode();
+                internalCluster().startNode(settingsBuilder().put("node.stay", false));
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -342,7 +322,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .setWaitForActiveShards(4)  // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                internalCluster().startNode();
+                internalCluster().startNode(settingsBuilder().put("node.stay", false));
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))

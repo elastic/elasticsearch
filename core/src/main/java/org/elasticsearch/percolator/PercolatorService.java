@@ -39,11 +39,11 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -52,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
@@ -85,7 +86,7 @@ import java.util.stream.StreamSupport;
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
-public class PercolatorService extends AbstractComponent {
+public class PercolatorService extends AbstractComponent implements Releasable {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
     public final static String TYPE_NAME = ".percolator";
@@ -135,14 +136,14 @@ public class PercolatorService extends AbstractComponent {
         multi = new MultiDocumentPercolatorIndex(cache);
     }
 
-    public ReduceResult reduce(boolean onlyCount, List<PercolateShardResponse> shardResponses, HasContextAndHeaders headersContext) throws IOException {
+    public ReduceResult reduce(boolean onlyCount, List<PercolateShardResponse> shardResponses) throws IOException {
         if (onlyCount) {
             long finalCount = 0;
             for (PercolateShardResponse shardResponse : shardResponses) {
                 finalCount += shardResponse.topDocs().totalHits;
             }
 
-            InternalAggregations reducedAggregations = reduceAggregations(shardResponses, headersContext);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResponses);
             return new PercolatorService.ReduceResult(finalCount, reducedAggregations);
         } else {
             int requestedSize = shardResponses.get(0).requestedSize();
@@ -162,14 +163,14 @@ public class PercolatorService extends AbstractComponent {
                 Map<String, HighlightField> hl = shardResponse.hls().get(doc.doc);
                 matches[i] = new PercolateResponse.Match(new Text(shardResponse.getIndex()), new Text(id), doc.score, hl);
             }
-            InternalAggregations reducedAggregations = reduceAggregations(shardResponses, headersContext);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResponses);
             return new PercolatorService.ReduceResult(foundMatches, matches, reducedAggregations);
         }
     }
 
     public PercolateShardResponse percolate(PercolateShardRequest request) throws IOException {
-        IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
+        final IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
         indexShard.readAllowed(); // check if we can read the shard...
         PercolatorQueriesRegistry percolateQueryRegistry = indexShard.percolateRegistry();
         percolateQueryRegistry.prePercolate();
@@ -179,10 +180,10 @@ public class PercolatorService extends AbstractComponent {
         // just like is done in other apis.
         String[] filteringAliases = indexNameExpressionResolver.filteringAliases(
                 clusterService.state(),
-                indexShard.shardId().index().name(),
+                indexShard.shardId().getIndex().getName(),
                 request.indices()
         );
-        Query aliasFilter = percolateIndexService.aliasFilter(indexShard.getQueryShardContext(), filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasFilter(percolateIndexService.newQueryShardContext(), filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
@@ -190,8 +191,7 @@ public class PercolatorService extends AbstractComponent {
         );
         SearchContext.setCurrent(context);
         try {
-            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService(), percolateIndexService.getQueryShardContext());
-
+            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService());
             if (context.searcher().getIndexReader().maxDoc() == 0) {
                 return new PercolateShardResponse(Lucene.EMPTY_TOP_DOCS, Collections.emptyMap(), Collections.emptyMap(), context);
             }
@@ -201,7 +201,8 @@ public class PercolatorService extends AbstractComponent {
 
             // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
             PercolatorIndex percolatorIndex;
-            boolean isNested = indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects();
+            DocumentMapper documentMapper = indexShard.mapperService().documentMapper(request.documentType());
+            boolean isNested = documentMapper != null && documentMapper.hasNestedObjects();
             if (parsedDocument.docs().size() > 1) {
                 assert isNested;
                 percolatorIndex = multi;
@@ -303,11 +304,12 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
+    @Override
     public void close() {
         cache.close();
     }
 
-    private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
+    private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults) {
         if (shardResults.get(0).aggregations() == null) {
             return null;
         }
@@ -316,7 +318,7 @@ public class PercolatorService extends AbstractComponent {
         for (PercolateShardResponse shardResult : shardResults) {
             aggregationsList.add(shardResult.aggregations());
         }
-        InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, new InternalAggregation.ReduceContext(bigArrays, scriptService, headersContext));
+        InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, new InternalAggregation.ReduceContext(bigArrays, scriptService));
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = shardResults.get(0).pipelineAggregators();
             if (pipelineAggregators != null) {
@@ -324,7 +326,7 @@ public class PercolatorService extends AbstractComponent {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new InternalAggregation.ReduceContext(bigArrays, scriptService, headersContext));
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new InternalAggregation.ReduceContext(bigArrays, scriptService));
                     newAggs.add(newAgg);
                 }
                 aggregations = new InternalAggregations(newAggs);

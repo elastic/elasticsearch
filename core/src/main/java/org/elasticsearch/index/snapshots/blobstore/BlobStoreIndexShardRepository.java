@@ -299,7 +299,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             this.snapshotId = snapshotId;
             this.version = version;
             this.shardId = shardId;
-            blobContainer = blobStore.blobContainer(basePath.add("indices").add(snapshotShardId.getIndex()).add(Integer.toString(snapshotShardId.getId())));
+            blobContainer = blobStore.blobContainer(basePath.add("indices").add(snapshotShardId.getIndexName()).add(Integer.toString(snapshotShardId.getId())));
         }
 
         /**
@@ -728,7 +728,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     }
 
     /**
-     * This is a BWC layer to ensure we update the snapshots metdata with the corresponding hashes before we compare them.
+     * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.
      * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
      * comparison of the files on a per-segment / per-commit level.
      */

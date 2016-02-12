@@ -108,7 +108,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 3)
-                .put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "10s")
+                .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "10s")
                 .build();
 
         logger.info("--> starting 4 nodes on different zones");

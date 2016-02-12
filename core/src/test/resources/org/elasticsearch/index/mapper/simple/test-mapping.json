@@ -15,7 +15,7 @@
                 properties:{
                     first:{
                         type:"string",
-                        store:"yes"
+                        store:true
                     },
                     last:{
                         type:"string",
@@ -30,7 +30,7 @@
                         properties:{
                             location:{
                                 type:"string",
-                                store:"yes"
+                                store:true
                             }
                         }
                     },

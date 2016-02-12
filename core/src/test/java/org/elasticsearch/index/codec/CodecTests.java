@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
+
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
@@ -105,9 +106,9 @@ public class CodecTests extends ESTestCase {
 
     private static CodecService createCodecService() throws IOException {
         Settings nodeSettings = settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_na"), nodeSettings);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(settings);
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());

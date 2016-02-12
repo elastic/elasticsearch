@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,14 +45,14 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
             .put(super.nodeSettings(nodeOrdinal))
             .put("discovery.type", "azure")
                 // We need the network to make the mock working
-            .put("node.mode", "network");
+            .put(Node.NODE_MODE_SETTING.getKey(), "network");
 
         // We add a fake subscription_id to start mock compute service
-        builder.put(Management.SUBSCRIPTION_ID, "fake")
-            .put(Discovery.REFRESH, "5s")
-            .put(Management.KEYSTORE_PATH, "dummy")
-            .put(Management.KEYSTORE_PASSWORD, "dummy")
-            .put(Management.SERVICE_NAME, "dummy");
+        builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")
+            .put(Discovery.REFRESH_SETTING.getKey(), "5s")
+            .put(Management.KEYSTORE_PATH_SETTING.getKey(), "dummy")
+            .put(Management.KEYSTORE_PASSWORD_SETTING.getKey(), "dummy")
+            .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy");
         return builder.build();
     }
 

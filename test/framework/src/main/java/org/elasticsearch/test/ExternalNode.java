@@ -32,6 +32,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.Closeable;
@@ -52,9 +53,9 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
-            .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
-            .put("node.mode", "network").build(); // we need network mode for this
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
+            .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we need network mode for this
 
     private final Path path;
     private final Random random;
@@ -112,9 +113,9 @@ final class ExternalNode implements Closeable {
                 case "node.mode":
                 case "node.local":
                 case NetworkModule.TRANSPORT_TYPE_KEY:
-                case DiscoveryModule.DISCOVERY_TYPE_KEY:
+                case "discovery.type":
                 case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:
-                case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
+                case "config.ignore_system_properties":
                     continue;
                 default:
                     externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());
@@ -193,8 +194,8 @@ final class ExternalNode implements Closeable {
 
             Settings clientSettings = settingsBuilder().put(externalNodeSettings)
                     .put("client.transport.nodes_sampler_interval", "1s")
-                    .put("name", "transport_client_" + nodeInfo.getNode().name())
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
+                    .put("node.name", "transport_client_" + nodeInfo.getNode().name())
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", false).build();
             TransportClient client = TransportClient.builder().settings(clientSettings).build();
             client.addTransportAddress(addr);
             this.client = client;

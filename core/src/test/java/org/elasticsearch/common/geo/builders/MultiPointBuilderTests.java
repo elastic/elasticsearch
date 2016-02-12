@@ -25,7 +25,28 @@ import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPointBuilder> {
+
+    public void testInvalidBuilderException() {
+        try {
+            new MultiPointBuilder(null);
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
+        }
+
+        try {
+            new MultiPointBuilder(new CoordinatesBuilder().build());
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
+        }
+
+        // one point is minimum
+        new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build());
+    }
 
     @Override
     protected MultiPointBuilder createTestShapeBuilder() {
@@ -40,21 +61,25 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
     static MultiPointBuilder mutate(MultiPointBuilder original) throws IOException {
         MultiPointBuilder mutation = (MultiPointBuilder) copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
-        Coordinate coordinate = randomFrom(coordinates);
-        if (randomBoolean()) {
-            if (coordinate.x != 0.0) {
-                coordinate.x = coordinate.x / 2;
+        if (coordinates.length > 0) {
+            Coordinate coordinate = randomFrom(coordinates);
+            if (randomBoolean()) {
+                if (coordinate.x != 0.0) {
+                    coordinate.x = coordinate.x / 2;
+                } else {
+                    coordinate.x = randomDoubleBetween(-180.0, 180.0, true);
+                }
             } else {
-                coordinate.x = randomDoubleBetween(-180.0, 180.0, true);
+                if (coordinate.y != 0.0) {
+                    coordinate.y = coordinate.y / 2;
+                } else {
+                    coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
+                }
             }
         } else {
-            if (coordinate.y != 0.0) {
-                coordinate.y = coordinate.y / 2;
-            } else {
-                coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
-            }
+            coordinates = new Coordinate[]{new Coordinate(1.0, 1.0)};
         }
-        return mutation.points(coordinates);
+        return mutation.coordinates(coordinates);
     }
 
     static MultiPointBuilder createRandomShape() {

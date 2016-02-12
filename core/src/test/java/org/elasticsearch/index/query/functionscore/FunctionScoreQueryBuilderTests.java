@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -367,7 +368,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder)queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder<?>)queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -414,7 +415,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder)queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder<?>)queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }

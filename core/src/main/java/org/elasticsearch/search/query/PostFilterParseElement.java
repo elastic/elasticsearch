@@ -30,7 +30,7 @@ public class PostFilterParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        ParsedQuery postFilter = context.indexShard().getQueryShardContext().parseInnerFilter(parser);
+        ParsedQuery postFilter = context.getQueryShardContext().parseInnerFilter(parser);
         if (postFilter != null) {
             context.parsedPostFilter(postFilter);
         }

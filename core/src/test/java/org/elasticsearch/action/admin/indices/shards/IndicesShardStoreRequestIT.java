@@ -35,10 +35,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,14 +58,20 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@TestLogging("_root:DEBUG,action.admin.indices.shards:TRACE,cluster.service:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList( MockFSIndexStore.TestPlugin.class);
+    }
+
     public void testEmpty() {
         ensureGreen();
         IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores().get();
         assertThat(rsp.getStoreStatuses().size(), equalTo(0));
     }
 
-    @TestLogging("action.admin.indices.shards:TRACE,cluster.service:TRACE")
     public void testBasic() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -85,7 +93,6 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStores.values().size(), equalTo(2));
         for (ObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
             for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
-                assertThat(storeStatus.getVersion(), greaterThan(-1l));
                 assertThat(storeStatus.getAllocationId(), notNullValue());
                 assertThat(storeStatus.getNode(), notNullValue());
                 assertThat(storeStatus.getStoreException(), nullValue());
@@ -148,7 +155,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
-                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
+                        .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
         indexRandomData(index);
         ensureGreen(index);
@@ -183,10 +190,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
-                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
+                    assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
                     assertThat(status.getStoreException(), notNullValue());
                 } else {
-                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
+                    assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
                     assertNull(status.getStoreException());
                 }
             }
@@ -214,7 +221,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
         @Override
         public boolean test(Settings settings) {
-            return nodesWithShard.contains(settings.get("name"));
+            return nodesWithShard.contains(settings.get("node.name"));
         }
 
         private Set<String> findNodesWithShard(String index) {

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -48,7 +49,7 @@ public class RestMainAction extends BaseRestHandler {
 
     @Inject
     public RestMainAction(Settings settings, Version version, RestController controller, ClusterName clusterName, Client client, ClusterService clusterService) {
-        super(settings, controller, client);
+        super(settings, client);
         this.version = version;
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -76,9 +77,8 @@ public class RestMainAction extends BaseRestHandler {
         }
 
         builder.startObject();
-        if (settings.get("name") != null) {
-            builder.field("name", settings.get("name"));
-        }
+        assert settings.get("node.name") != null;
+        builder.field("name", Node.NODE_NAME_SETTING.get(settings));
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
                 .field("number", version.number())

@@ -64,12 +64,12 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "        }\n" +
                 "    }\n" +
                 "}";
-        mapperService.merge("person", new CompressedXContent(mapping), true, false);
+        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         this.indexService = indexService;
     }
 
     public void testCrossFieldMultiMatchQuery() throws IOException {
-        QueryShardContext queryShardContext = indexService.getShard(0).getQueryShardContext();
+        QueryShardContext queryShardContext = indexService.newQueryShardContext();
         queryShardContext.setAllowUnmappedFields(true);
         Query parsedQuery = multiMatchQuery("banon").field("name.first", 2).field("name.last", 3).field("foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -28,7 +27,14 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -93,9 +99,9 @@ public class AllocationService extends AbstractComponent {
 
         String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
         logClusterHealthStateChange(
-            new ClusterStateHealth(clusterState),
-            new ClusterStateHealth(clusterState.metaData(), result.routingTable()),
-            "shards started [" + startedShardsAsString + "] ..."
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.metaData(), result.routingTable()),
+                "shards started [" + startedShardsAsString + "] ..."
         );
         return result;
 
@@ -125,17 +131,17 @@ public class AllocationService extends AbstractComponent {
         for (IndexRoutingTable indexRoutingTable : newRoutingTable) {
             final IndexMetaData indexMetaData = currentMetaData.index(indexRoutingTable.getIndex());
             if (indexMetaData == null) {
-                throw new IllegalStateException("no metadata found for index [" + indexRoutingTable.index() + "]");
+                throw new IllegalStateException("no metadata found for index " + indexRoutingTable.getIndex().getName());
             }
             IndexMetaData.Builder indexMetaDataBuilder = null;
             for (IndexShardRoutingTable shardRoutings : indexRoutingTable) {
 
                 // update activeAllocationIds
                 Set<String> activeAllocationIds = shardRoutings.activeShards().stream()
-                    .map(ShardRouting::allocationId)
-                    .filter(Objects::nonNull)
-                    .map(AllocationId::getId)
-                    .collect(Collectors.toSet());
+                        .map(ShardRouting::allocationId)
+                        .filter(Objects::nonNull)
+                        .map(AllocationId::getId)
+                        .collect(Collectors.toSet());
                 // only update active allocation ids if there is an active shard
                 if (activeAllocationIds.isEmpty() == false) {
                     // get currently stored allocation ids
@@ -156,8 +162,8 @@ public class AllocationService extends AbstractComponent {
                 final int shardId = primary.shardId().id();
                 if (primary.primaryTerm() != indexMetaData.primaryTerm(shardId)) {
                     assert primary.primaryTerm() > indexMetaData.primaryTerm(shardId) :
-                        "primary term should only increase. Index primary term ["
-                            + indexMetaData.primaryTerm(shardId) + "] but primary routing is " + primary;
+                            "primary term should only increase. Index primary term ["
+                                    + indexMetaData.primaryTerm(shardId) + "] but primary routing is " + primary;
                     if (indexMetaDataBuilder == null) {
                         indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                     }
@@ -198,7 +204,7 @@ public class AllocationService extends AbstractComponent {
         orderedFailedShards.sort(Comparator.comparing(failedShard -> failedShard.shard.primary()));
         for (FailedRerouteAllocation.FailedShard failedShard : orderedFailedShards) {
             changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
-                System.nanoTime(), System.currentTimeMillis()));
+                    System.nanoTime(), System.currentTimeMillis()));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
@@ -208,9 +214,9 @@ public class AllocationService extends AbstractComponent {
         final RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.shard.shardId().toString());
         logClusterHealthStateChange(
-            new ClusterStateHealth(clusterState),
-            new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
-            "shards failed [" + failedShardsAsString + "] ..."
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
+                "shards failed [" + failedShardsAsString + "] ..."
         );
         return result;
     }
@@ -226,10 +232,10 @@ public class AllocationService extends AbstractComponent {
     private <T> String firstListElementsToCommaDelimitedString(List<T> elements, Function<T, String> formatter) {
         final int maxNumberOfElements = 10;
         return elements
-            .stream()
-            .limit(maxNumberOfElements)
-            .map(formatter)
-            .collect(Collectors.joining(", "));
+                .stream()
+                .limit(maxNumberOfElements)
+                .map(formatter)
+                .collect(Collectors.joining(", "));
     }
 
     public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) {
@@ -254,9 +260,9 @@ public class AllocationService extends AbstractComponent {
         reroute(allocation);
         RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes, explanations);
         logClusterHealthStateChange(
-            new ClusterStateHealth(clusterState),
-            new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
-            "reroute commands"
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
+                "reroute commands"
         );
         return result;
     }
@@ -287,9 +293,9 @@ public class AllocationService extends AbstractComponent {
         }
         RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes);
         logClusterHealthStateChange(
-            new ClusterStateHealth(clusterState),
-            new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
-            reason
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
+                reason
         );
         return result;
     }
@@ -446,7 +452,7 @@ public class AllocationService extends AbstractComponent {
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]", null,
-                    allocation.getCurrentNanoTime(), System.currentTimeMillis());
+                        allocation.getCurrentNanoTime(), System.currentTimeMillis());
                 applyFailedShard(allocation, shardRouting, false, unassignedInfo);
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
@@ -466,8 +472,8 @@ public class AllocationService extends AbstractComponent {
         boolean changed = false;
         for (ShardRouting routing : replicas) {
             changed |= applyFailedShard(allocation, routing, false,
-                new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
-                    null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
+                    new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
+                            null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
         }
         return changed;
     }
@@ -623,7 +629,7 @@ public class AllocationService extends AbstractComponent {
         return routingNodes;
     }
 
-    /** ovrride this to control time based decisions during allocation */
+    /** override this to control time based decisions during allocation */
     protected long currentNanoTime() {
         return System.nanoTime();
     }

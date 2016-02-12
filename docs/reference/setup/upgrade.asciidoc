@@ -27,7 +27,24 @@ consult this table:
 |2.x            |3.x            |<<restart-upgrade,Full cluster restart>>
 |=======================================================================
 
-TIP: Take plugins into consideration as well when upgrading. Most plugins will have to be upgraded alongside Elasticsearch, although some plugins accessed primarily through the browser (`_site` plugins) may continue to work given that API changes are compatible.
+===========================================
+Upgrading Elasticsearch with Plugins
+
+Take plugins into consideration as well when upgrading. Plugins must be upgraded alongside Elasticsearch.
+
+Check with your plugin's provider to ensure that the plugin is compatible with
+your targeted version of Elasticsearch. If doing a rolling upgrade, it may be
+worth checking as well that the plugin works across a mixed-version cluster.
+
+The process for both <<rolling-upgrades,Rolling upgrade>> and
+<<restart-upgrade,Full cluster restart>> is generally as follows, per node.
+
+* Shut down Elasticsearch
+* Upgrade Elasticsearch
+* Upgrade Plugins
+* Start up Elasticsearch
+
+===========================================
 
 include::backup.asciidoc[]
 

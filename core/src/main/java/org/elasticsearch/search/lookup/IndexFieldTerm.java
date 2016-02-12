@@ -236,7 +236,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     /*
      * A user might decide inside a script to call get with _POSITIONS and then
      * a second time with _PAYLOADS. If the positions were recorded but the
-     * payloads were not, the user will not have access to them. Therfore, throw
+     * payloads were not, the user will not have access to them. Therefore, throw
      * exception here explaining how to call get().
      */
     public void validateFlags(int flags2) {

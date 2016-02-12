@@ -36,8 +36,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,12 +113,12 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         indexWriter.commit();
         indexWriter.close();
 
+        IndexService indexService = createIndex("test");
         DirectoryReader directoryReader = DirectoryReader.open(directory);
-        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("test"), 0));
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
-        IndexService indexService = createIndex("test");
-        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true, false);
+        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         SearchContext searchContext = createSearchContext(indexService);
         AggregationContext context = new AggregationContext(searchContext);
 
@@ -140,7 +140,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
 
         Nested nested = (Nested) aggs[0].buildAggregation(0);
         // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first segment are emitted as hits.
-        assertThat(nested.getDocCount(), equalTo(4l));
+        assertThat(nested.getDocCount(), equalTo(4L));
 
         directoryReader.close();
         directory.close();

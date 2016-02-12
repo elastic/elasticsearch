@@ -46,12 +46,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         String mapper = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
             .endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(mapper), true, true);
+        mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
 
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
             .startObject("properties").startObject("query").field("type", "percolator").endObject().endObject()
             .endObject().endObject().string();
-        mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), true, true);
+        mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
     }
 
     public void testPercolatorFieldMapper() throws Exception {
@@ -85,7 +85,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject("query").field("type", "percolator").field("index", "no").endObject().endObject()
             .endObject().endObject().string();
         try {
-            mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), true, true);
+            mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
             fail("MapperParsingException expected");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Mapping definition for [query] has unsupported parameters:  [index : no]"));

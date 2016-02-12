@@ -33,12 +33,14 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
@@ -94,7 +96,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
@@ -102,18 +104,18 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         item = response.getItems()[1];
         assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 4l);
+        assertMatchCount(item.getResponse(), 4L);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 1l);
+        assertMatchCount(item.getResponse(), 1L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
@@ -173,7 +175,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
@@ -181,18 +183,18 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         item = response.getItems()[1];
         assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 4l);
+        assertMatchCount(item.getResponse(), 4L);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 1l);
+        assertMatchCount(item.getResponse(), 1L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
@@ -361,6 +363,33 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertEquals(response.getItems()[0].getResponse().getMatches().length, 0);
         assertEquals(response.getItems()[1].getResponse().getMatches().length, 1);
         assertEquals(response.getItems()[1].getResponse().getMatches()[0].getId().string(), "Q");
+    }
+
+    public void testStartTimeIsPropagatedToShardRequests() throws Exception {
+        // See: https://github.com/elastic/elasticsearch/issues/15908
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        client().admin().indices().prepareCreate("test")
+            .setSettings(settingsBuilder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+            )
+            .addMapping("type", "date_field", "type=date,format=strict_date_optional_time||epoch_millis")
+            .get();
+        ensureGreen();
+
+        client().prepareIndex("test", ".percolator", "1")
+            .setSource(jsonBuilder().startObject().field("query", rangeQuery("date_field").lt("now+90d")).endObject())
+            .setRefresh(true)
+            .get();
+
+        for (int i = 0; i < 32; i++) {
+            MultiPercolateResponse response = client().prepareMultiPercolate()
+                .add(client().preparePercolate().setDocumentType("type").setIndices("test")
+                    .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("date_field", "2015-07-21T10:28:01-07:00")))
+                .get();
+            assertThat(response.getItems()[0].getResponse().getCount(), equalTo(1L));
+            assertThat(response.getItems()[0].getResponse().getMatches()[0].getId().string(), equalTo("1"));
+        }
     }
 
     void initNestedIndexAndPercolation() throws IOException {

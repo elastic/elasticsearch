@@ -61,12 +61,12 @@ public class SamplerIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(
-                "book", "author", "type=string,index=not_analyzed", "name", "type=string,index=analyzed", "genre",
-                "type=string,index=not_analyzed", "price", "type=float"));
+                "book", "author", "type=keyword", "name", "type=string,index=analyzed", "genre",
+                "type=keyword", "price", "type=float"));
         createIndex("idx_unmapped");
         // idx_unmapped_author is same as main index but missing author field
         assertAcked(prepareCreate("idx_unmapped_author").setSettings(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS, SETTING_NUMBER_OF_REPLICAS, 0)
-                .addMapping("book", "name", "type=string,index=analyzed", "genre", "type=string,index=not_analyzed", "price", "type=float"));
+                .addMapping("book", "name", "type=string,index=analyzed", "genre", "type=keyword", "price", "type=float"));
 
         ensureGreen();
         String data[] = {
@@ -137,7 +137,7 @@ public class SamplerIT extends ESIntegTestCase {
         for (Terms.Bucket testBucket : testBuckets) {
             maxBooksPerAuthor = Math.max(testBucket.getDocCount(), maxBooksPerAuthor);
         }
-        assertThat(maxBooksPerAuthor, equalTo(3l));
+        assertThat(maxBooksPerAuthor, equalTo(3L));
     }
 
     public void testSimpleDiversity() throws Exception {
@@ -232,7 +232,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), equalTo(0l));
+        assertThat(sample.getDocCount(), equalTo(0L));
         Terms authors = sample.getAggregations().get("authors");
         assertThat(authors.getBuckets().size(), equalTo(0));
     }
@@ -249,7 +249,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), greaterThan(0l));
+        assertThat(sample.getDocCount(), greaterThan(0L));
         Terms authors = sample.getAggregations().get("authors");
         assertThat(authors.getBuckets().size(), greaterThan(0));
     }
@@ -264,7 +264,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), greaterThan(0l));
+        assertThat(sample.getDocCount(), greaterThan(0L));
         Terms authors = sample.getAggregations().get("authors");
         assertThat(authors.getBuckets().size(), greaterThan(0));
     }
@@ -279,7 +279,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg).execute().actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), equalTo(0l));
+        assertThat(sample.getDocCount(), equalTo(0L));
         Terms authors = sample.getAggregations().get("authors");
         assertNull(authors);
     }

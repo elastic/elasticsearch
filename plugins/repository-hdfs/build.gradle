@@ -96,8 +96,6 @@ integTest {
   }
 }
 
-compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
-
 thirdPartyAudit.excludes = [
   // classes are missing, because we added hadoop jars one by one until tests pass.
   'com.google.gson.stream.JsonReader', 

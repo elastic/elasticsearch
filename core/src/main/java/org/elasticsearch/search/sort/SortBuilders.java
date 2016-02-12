@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.Script;
+
+import java.util.Arrays;
 
 /**
  * A set of static factory methods for {@link SortBuilder}s.
@@ -55,25 +58,34 @@ public class SortBuilders {
     }
 
     /**
-     * Constructs a new script based sort.
-     *
-     * @param script
-     *            The script to use.
-     * @param type
-     *            The type, can either be "string" or "number".
-     * @deprecated Use {@link #scriptSort(Script, String)} instead.
-     */
-    @Deprecated
-    public static ScriptSortBuilder scriptSort(String script, String type) {
-        return new ScriptSortBuilder(script, type);
-    }
-
-    /**
      * A geo distance based sort.
      *
      * @param fieldName The geo point like field name.
+     * @param lat Latitude of the point to create the range distance facets from.
+     * @param lon Longitude of the point to create the range distance facets from.
+     * 
      */
-    public static GeoDistanceSortBuilder geoDistanceSort(String fieldName) {
-        return new GeoDistanceSortBuilder(fieldName);
+    public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, double lat, double lon) {
+        return new GeoDistanceSortBuilder(fieldName, lat, lon);
     }
+    
+    /**
+     * Constructs a new distance based sort on a geo point like field.
+     *
+     * @param fieldName The geo point like field name.
+     * @param points The points to create the range distance facets from.
+     */
+    public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, GeoPoint... points) {
+        return new GeoDistanceSortBuilder(fieldName, points);
+    }
+
+    /**
+     * Constructs a new distance based sort on a geo point like field.
+     *
+     * @param fieldName The geo point like field name.
+     * @param geohashes The points to create the range distance facets from.
+     */
+    public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, String ... geohashes) {
+        return new GeoDistanceSortBuilder(fieldName, geohashes);
+    }    
 }

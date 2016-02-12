@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -126,20 +125,20 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
-                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
+                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndexName()); // it's a mystery why this is sometimes null
                 if (metaData != null) {
                     ShardPath shardPath = null;
                     try {
-                        IndexSettings indexSettings = new IndexSettings(metaData, settings, Collections.emptyList());
+                        IndexSettings indexSettings = new IndexSettings(metaData, settings);
                         shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
                         if (shardPath == null) {
                             throw new IllegalStateException(shardId + " no shard path found");
                         }
-                        Store.tryOpenIndex(shardPath.resolveIndex());
+                        Store.tryOpenIndex(shardPath.resolveIndex(), shardId);
                     } catch (Exception exception) {
                         logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId, shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
                         String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version, allocationId, exception);
+                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion, allocationId, shardStateMetaData.primary, exception);
                     }
                 }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
@@ -150,11 +149,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 } else {
                     logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
                     String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;
-                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version, allocationId);
+                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion, allocationId, shardStateMetaData.primary);
                 }
             }
             logger.trace("{} no local shard info found", shardId);
-            return new NodeGatewayStartedShards(clusterService.localNode(), -1, null);
+            return new NodeGatewayStartedShards(clusterService.localNode(), ShardStateMetaData.NO_VERSION, null, false);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);
         }
@@ -247,7 +246,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
 
         NodeRequest(String nodeId, TransportNodesListGatewayStartedShards.Request request) {
-            super(request, nodeId);
+            super(nodeId);
             this.shardId = request.shardId();
             this.indexUUID = request.getIndexUUID();
         }
@@ -277,29 +276,35 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
-        private long version = -1;
+        private long legacyVersion = ShardStateMetaData.NO_VERSION; // for pre-3.0 shards that have not yet been active
         private String allocationId = null;
+        private boolean primary = false;
         private Throwable storeException = null;
 
         public NodeGatewayStartedShards() {
         }
-        public NodeGatewayStartedShards(DiscoveryNode node, long version, String allocationId) {
-            this(node, version, allocationId, null);
+        public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary) {
+            this(node, legacyVersion, allocationId, primary, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long version, String allocationId, Throwable storeException) {
+        public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary, Throwable storeException) {
             super(node);
-            this.version = version;
+            this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
+            this.primary = primary;
             this.storeException = storeException;
         }
 
-        public long version() {
-            return this.version;
+        public long legacyVersion() {
+            return this.legacyVersion;
         }
 
         public String allocationId() {
             return this.allocationId;
+        }
+
+        public boolean primary() {
+            return this.primary;
         }
 
         public Throwable storeException() {
@@ -309,8 +314,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            version = in.readLong();
+            legacyVersion = in.readLong();
             allocationId = in.readOptionalString();
+            primary = in.readBoolean();
             if (in.readBoolean()) {
                 storeException = in.readThrowable();
             }
@@ -319,14 +325,38 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeLong(version);
+            out.writeLong(legacyVersion);
             out.writeOptionalString(allocationId);
+            out.writeBoolean(primary);
             if (storeException != null) {
                 out.writeBoolean(true);
                 out.writeThrowable(storeException);
             } else {
                 out.writeBoolean(false);
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
+
+            if (legacyVersion != that.legacyVersion) return false;
+            if (primary != that.primary) return false;
+            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) return false;
+            return storeException != null ? storeException.equals(that.storeException) : that.storeException == null;
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Long.hashCode(legacyVersion);
+            result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
+            result = 31 * result + (primary ? 1 : 0);
+            result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
+            return result;
         }
     }
 }

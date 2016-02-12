@@ -74,7 +74,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+                IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
                 if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
@@ -127,7 +127,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+            IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 continue;
             }
@@ -173,7 +173,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
                     // we found a match
                     changed = true;
-                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId(), shard.version(), allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                 }
             } else if (matchingNodes.hasAnyData() == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed

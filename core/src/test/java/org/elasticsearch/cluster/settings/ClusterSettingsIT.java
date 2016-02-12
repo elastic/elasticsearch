@@ -21,13 +21,11 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -97,7 +95,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
 
@@ -120,7 +118,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
                 .prepareUpdateSettings()
@@ -140,7 +138,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
 
@@ -164,7 +162,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
                 .prepareUpdateSettings()
@@ -256,7 +254,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
 
         try {
             client().admin().cluster()
@@ -265,10 +263,10 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [discovery.zen.commit_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "Failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
         }
 
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
 
         try {
             client().admin().cluster()
@@ -280,7 +278,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertEquals(ex.getMessage(), "Failed to parse value [-1] for setting [discovery.zen.publish_timeout] must be >= 0s");
         }
 
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
 
     public void testClusterUpdateSettingsWithBlocks() {
@@ -329,29 +327,30 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
-    public void testMissingUnitsLenient() {
+    public void testLoggerLevelUpdate() {
+        assertAcked(prepareCreate("test"));
+        final String rootLevel = ESLoggerFactory.getRootLogger().getLevel();
+        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
         try {
-            createNode(Settings.builder().put(Settings.SETTINGS_REQUIRE_UNITS, "false").build());
-            assertAcked(prepareCreate("test"));
-            ensureGreen();
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", e.getMessage());
+        }
+
+        try {
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace")).execute().actionGet();
+            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
         } finally {
-            // Restore the default so subsequent tests require units:
-            assertFalse(Settings.getSettingsRequireUnits());
-            Settings.setSettingsRequireUnits(true);
+            if (randomBoolean()) {
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.test").putNull("logger._root")).execute().actionGet();
+            } else {
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.*")).execute().actionGet();
+            }
+            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(rootLevel, ESLoggerFactory.getRootLogger().getLevel());
         }
     }
 
-    private void createNode(Settings settings) {
-        internalCluster().startNode(Settings.builder()
-                        .put(ClusterName.SETTING, "ClusterSettingsIT")
-                        .put("node.name", "ClusterSettingsIT")
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
-                        .put("http.enabled", false)
-                        .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                        .put(settings)
-        );
-    }
 }

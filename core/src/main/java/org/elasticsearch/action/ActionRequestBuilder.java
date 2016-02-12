@@ -49,12 +49,6 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
         return this.request;
     }
 
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder putHeader(String key, Object value) {
-        request.putHeader(key, value);
-        return (RequestBuilder) this;
-    }
-
     public ListenableActionFuture<Response> execute() {
         PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(threadPool);
         execute(future);

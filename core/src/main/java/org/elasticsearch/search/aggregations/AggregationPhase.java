@@ -124,7 +124,7 @@ public class AggregationPhase implements SearchPhase {
         if (!globals.isEmpty()) {
             BucketCollector globalsCollector = BucketCollector.wrap(globals);
             Query query = Queries.newMatchAllQuery();
-            Query searchFilter = context.searchFilter(context.types());
+            Query searchFilter = context.searchFilter(context.getQueryShardContext().getTypes());
 
             if (searchFilter != null) {
                 BooleanQuery filtered = new BooleanQuery.Builder()

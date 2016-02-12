@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.ChildTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -38,11 +36,6 @@ public class ChildTaskRequest extends TransportRequest {
     private long parentTaskId;
 
     protected ChildTaskRequest() {
-
-    }
-
-    protected ChildTaskRequest(TransportRequest parentTaskRequest) {
-        super(parentTaskRequest);
     }
 
     public void setParentTask(String parentTaskNode, long parentTaskId) {
@@ -65,7 +58,11 @@ public class ChildTaskRequest extends TransportRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new ChildTask(id, type, action, this::getDescription, parentTaskNode, parentTaskId);
+    public final Task createTask(long id, String type, String action) {
+        return createTask(id, type, action, parentTaskNode, parentTaskId);
+    }
+
+    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
+        return new Task(id, type, action, getDescription(), parentTaskNode, parentTaskId);
     }
 }

@@ -42,7 +42,7 @@ public abstract class FilterClient extends AbstractClient {
      * @see #in()
      */
     public FilterClient(Client in) {
-        super(in.settings(), in.threadPool(), in.headers());
+        super(in.settings(), in.threadPool());
         this.in = in;
     }
 
@@ -52,7 +52,8 @@ public abstract class FilterClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+            Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         in().execute(action, request, listener);
     }
 

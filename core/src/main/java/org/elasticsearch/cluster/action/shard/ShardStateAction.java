@@ -19,15 +19,20 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -42,73 +47,127 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 public class ShardStateAction extends AbstractComponent {
+
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
 
     private final TransportService transportService;
+    private final ClusterService clusterService;
+    private final ThreadPool threadPool;
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                            AllocationService allocationService, RoutingService routingService) {
+                            AllocationService allocationService, RoutingService routingService, ThreadPool threadPool) {
         super(settings);
         this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.threadPool = threadPool;
 
         transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
     }
 
-    public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
-        shardFailed(clusterState, shardRouting, indexUUID, message, failure, null, listener);
-    }
-
-    public void resendShardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
-        logger.trace("{} re-sending failed shard [{}], index UUID [{}], reason [{}]", shardRouting.shardId(), failure, shardRouting, indexUUID, message);
-        shardFailed(clusterState, shardRouting, indexUUID, message, failure, listener);
-    }
-
-    public void shardFailed(final ClusterState clusterState, final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, TimeValue timeout, Listener listener) {
-        DiscoveryNode masterNode = clusterState.nodes().masterNode();
+    private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardRoutingEntry shardRoutingEntry, final Listener listener) {
+        DiscoveryNode masterNode = observer.observedState().nodes().masterNode();
         if (masterNode == null) {
-            logger.warn("{} no master known to fail shard [{}]", shardRouting.shardId(), shardRouting);
-            listener.onShardFailedNoMaster();
-            return;
-        }
-        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, failure);
-        TransportRequestOptions options = TransportRequestOptions.EMPTY;
-        if (timeout != null) {
-            options = TransportRequestOptions.builder().withTimeout(timeout).build();
-        }
-        transportService.sendRequest(masterNode,
-            SHARD_FAILED_ACTION_NAME, shardRoutingEntry, options, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    listener.onSuccess();
-                }
+            logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
+            waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
+        } else {
+            logger.debug("{} sending [{}] to [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, masterNode.getId(), shardRoutingEntry);
+            transportService.sendRequest(masterNode,
+                actionName, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        listener.onSuccess();
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.warn("{} unexpected failure while sending request to [{}] to fail shard [{}]", exp, shardRoutingEntry.shardRouting.shardId(), masterNode, shardRoutingEntry);
-                    listener.onShardFailedFailure(masterNode, exp);
+                    @Override
+                    public void handleException(TransportException exp) {
+                        if (isMasterChannelException(exp)) {
+                            waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
+                        } else {
+                            logger.warn("{} unexpected failure while sending request [{}] to [{}] for shard [{}]", exp, shardRoutingEntry.getShardRouting().shardId(), actionName, masterNode, shardRoutingEntry);
+                            listener.onFailure(exp.getCause());
+                        }
+                    }
+                });
+        }
+    }
+
+    private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
+        NotMasterException.class,
+        ConnectTransportException.class,
+        Discovery.FailedToCommitClusterStateException.class
+    };
+
+    private static boolean isMasterChannelException(TransportException exp) {
+        return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
+    }
+
+    /**
+     * Send a shard failed request to the master node to update the
+     * cluster state.
+     *
+     * @param shardRouting       the shard to fail
+     * @param sourceShardRouting the source shard requesting the failure (must be the shard itself, or the primary shard)
+     * @param message            the reason for the failure
+     * @param failure            the underlying cause of the failure
+     * @param listener           callback upon completion of the request
+     */
+    public void shardFailed(final ShardRouting shardRouting, ShardRouting sourceShardRouting, final String message, @Nullable final Throwable failure, Listener listener) {
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, sourceShardRouting, message, failure);
+        sendShardAction(SHARD_FAILED_ACTION_NAME, observer, shardRoutingEntry, listener);
+    }
+
+    // visible for testing
+    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardRoutingEntry shardRoutingEntry, Listener listener) {
+        observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("new cluster state [{}] after waiting for master election to fail shard [{}]", shardRoutingEntry.getShardRouting().shardId(), state.prettyPrint(), shardRoutingEntry);
                 }
-            });
+                sendShardAction(actionName, observer, shardRoutingEntry, listener);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                logger.warn("{} node closed while execution action [{}] for shard [{}]", shardRoutingEntry.failure, shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                // we wait indefinitely for a new master
+                assert false;
+            }
+        }, MasterNodeChangePredicate.INSTANCE);
     }
 
     private static class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
@@ -164,12 +223,12 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
+    static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
         private final AllocationService allocationService;
         private final RoutingService routingService;
         private final ESLogger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
+        ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
             this.allocationService = allocationService;
             this.routingService = routingService;
             this.logger = logger;
@@ -178,21 +237,82 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
-            List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>(tasks.size());
-            for (ShardRoutingEntry task : tasks) {
-                failedShards.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
-            }
+
+            // partition tasks into those that correspond to shards
+            // that exist versus do not exist
+            Map<ValidationResult, List<ShardRoutingEntry>> partition =
+                tasks.stream().collect(Collectors.groupingBy(task -> validateTask(currentState, task)));
+
+            // tasks that correspond to non-existent shards are marked
+            // as successful
+            batchResultBuilder.successes(partition.getOrDefault(ValidationResult.SHARD_MISSING, Collections.emptyList()));
+
             ClusterState maybeUpdatedState = currentState;
+            List<ShardRoutingEntry> tasksToFail = partition.getOrDefault(ValidationResult.VALID, Collections.emptyList());
             try {
-                RoutingAllocation.Result result = allocationService.applyFailedShards(currentState, failedShards);
+                List<FailedRerouteAllocation.FailedShard> failedShards =
+                    tasksToFail
+                        .stream()
+                        .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
+                        .collect(Collectors.toList());
+                RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
-                batchResultBuilder.successes(tasks);
+                batchResultBuilder.successes(tasksToFail);
             } catch (Throwable t) {
-                batchResultBuilder.failures(tasks, t);
+                // failures are communicated back to the requester
+                // cluster state will not be updated in this case
+                batchResultBuilder.failures(tasksToFail, t);
             }
+
+            partition
+                .getOrDefault(ValidationResult.SOURCE_INVALID, Collections.emptyList())
+                .forEach(task -> batchResultBuilder.failure(
+                    task,
+                    new NoLongerPrimaryShardException(
+                        task.getShardRouting().shardId(),
+                        "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation")
+                ));
+
             return batchResultBuilder.build(maybeUpdatedState);
+        }
+
+        // visible for testing
+        RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+            return allocationService.applyFailedShards(currentState, failedShards);
+        }
+
+        private enum ValidationResult {
+            VALID,
+            SOURCE_INVALID,
+            SHARD_MISSING
+        }
+
+        private ValidationResult validateTask(ClusterState currentState, ShardRoutingEntry task) {
+
+            // non-local requests
+            if (!task.shardRouting.isSameAllocation(task.sourceShardRouting)) {
+                IndexShardRoutingTable indexShard = currentState.getRoutingTable().shardRoutingTableOrNull(task.shardRouting.shardId());
+                if (indexShard == null) {
+                    return ValidationResult.SOURCE_INVALID;
+                }
+                ShardRouting primaryShard = indexShard.primaryShard();
+                if (primaryShard == null || !primaryShard.isSameAllocation(task.sourceShardRouting)) {
+                    return ValidationResult.SOURCE_INVALID;
+                }
+            }
+
+            RoutingNodes.RoutingNodeIterator routingNodeIterator =
+                currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
+            if (routingNodeIterator != null) {
+                for (ShardRouting maybe : routingNodeIterator) {
+                    if (task.getShardRouting().isSameAllocation(maybe)) {
+                        return ValidationResult.VALID;
+                    }
+                }
+            }
+            return ValidationResult.SHARD_MISSING;
         }
 
         @Override
@@ -208,21 +328,10 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public void shardStarted(final ClusterState clusterState, final ShardRouting shardRouting, String indexUUID, final String reason) {
-        DiscoveryNode masterNode = clusterState.nodes().masterNode();
-        if (masterNode == null) {
-            logger.warn("{} no master known to start shard [{}]", shardRouting.shardId(), shardRouting);
-            return;
-        }
-        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason, null);
-        logger.debug("sending start shard [{}]", shardRoutingEntry);
-        transportService.sendRequest(masterNode,
-            SHARD_STARTED_ACTION_NAME, new ShardRoutingEntry(shardRouting, indexUUID, reason, null), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.warn("{} failure sending start shard [{}] to [{}]", exp, shardRouting.shardId(), masterNode, shardRouting);
-                }
-            });
+    public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener) {
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, shardRouting, message, null);
+        sendShardAction(SHARD_STARTED_ACTION_NAME, observer, shardRoutingEntry, listener);
     }
 
     private static class ShardStartedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
@@ -288,16 +397,16 @@ public class ShardStateAction extends AbstractComponent {
 
     public static class ShardRoutingEntry extends TransportRequest {
         ShardRouting shardRouting;
-        String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
+        ShardRouting sourceShardRouting;
         String message;
         Throwable failure;
 
         public ShardRoutingEntry() {
         }
 
-        ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String message, @Nullable Throwable failure) {
+        ShardRoutingEntry(ShardRouting shardRouting, ShardRouting sourceShardRouting, String message, @Nullable Throwable failure) {
             this.shardRouting = shardRouting;
-            this.indexUUID = indexUUID;
+            this.sourceShardRouting = sourceShardRouting;
             this.message = message;
             this.failure = failure;
         }
@@ -310,7 +419,7 @@ public class ShardStateAction extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardRouting = readShardRoutingEntry(in);
-            indexUUID = in.readString();
+            sourceShardRouting = readShardRoutingEntry(in);
             message = in.readString();
             failure = in.readThrowable();
         }
@@ -319,25 +428,60 @@ public class ShardStateAction extends AbstractComponent {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardRouting.writeTo(out);
-            out.writeString(indexUUID);
+            sourceShardRouting.writeTo(out);
             out.writeString(message);
             out.writeThrowable(failure);
         }
 
         @Override
         public String toString() {
-            return "" + shardRouting + ", indexUUID [" + indexUUID + "], message [" + message + "], failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
+            List<String> components = new ArrayList<>(4);
+            components.add("target shard [" + shardRouting + "]");
+            components.add("source shard [" + sourceShardRouting + "]");
+            components.add("message [" + message + "]");
+            if (failure != null) {
+                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+            }
+            return String.join(", ", components);
         }
     }
 
     public interface Listener {
+
         default void onSuccess() {
         }
 
-        default void onShardFailedNoMaster() {
+        /**
+         * Notification for non-channel exceptions that are not handled
+         * by {@link ShardStateAction}.
+         *
+         * The exceptions that are handled by {@link ShardStateAction}
+         * are:
+         *  - {@link NotMasterException}
+         *  - {@link NodeDisconnectedException}
+         *  - {@link Discovery.FailedToCommitClusterStateException}
+         *
+         * Any other exception is communicated to the requester via
+         * this notification.
+         *
+         * @param t the unexpected cause of the failure on the master
+         */
+        default void onFailure(final Throwable t) {
         }
 
-        default void onShardFailedFailure(final DiscoveryNode master, final TransportException e) {
-        }
     }
+
+    public static class NoLongerPrimaryShardException extends ElasticsearchException {
+
+        public NoLongerPrimaryShardException(ShardId shardId, String msg) {
+            super(msg);
+            setShard(shardId);
+        }
+
+        public NoLongerPrimaryShardException(StreamInput in) throws IOException {
+            super(in);
+        }
+
+    }
+
 }

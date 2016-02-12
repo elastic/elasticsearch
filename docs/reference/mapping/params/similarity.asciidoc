@@ -8,7 +8,7 @@ algorithm other than the default TF/IDF, such as `BM25`.
 Similarities are mostly useful for <<string,`string`>> fields, especially
 `analyzed` string fields, but can also apply to other field types.
 
-Custom similarites can be configured by tuning the parameters of the built-in
+Custom similarities can be configured by tuning the parameters of the built-in
 similarities. For more details about this expert options, see the
 <<index-modules-similarity,similarity module>>.
 
@@ -22,7 +22,7 @@ configuration are:
 
 `BM25`::
         The Okapi BM25 algorithm.
-        See {defguide}/pluggable-similarites.html[Plugggable Similarity Algorithms]
+        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
         for more information.
 
 

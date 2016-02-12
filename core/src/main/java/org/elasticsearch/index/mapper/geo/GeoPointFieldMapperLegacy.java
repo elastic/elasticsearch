@@ -102,7 +102,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
                 return new Explicit<>(coerce, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+                return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.COERCE;
         }
@@ -132,7 +132,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
             String propName = Strings.toUnderscoreCase(entry.getKey());
             Object propNode = entry.getValue();
             if (propName.equals(Names.COERCE)) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
+                builder.coerce = XContentMapValues.lenientNodeBooleanValue(propNode);
                 iterator.remove();
             }
         }

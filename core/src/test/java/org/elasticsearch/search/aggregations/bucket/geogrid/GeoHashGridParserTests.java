@@ -27,7 +27,7 @@ import org.elasticsearch.test.TestSearchContext;
 
 public class GeoHashGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
-        SearchContext searchContext = new TestSearchContext();
+        SearchContext searchContext = new TestSearchContext(null);
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
@@ -37,7 +37,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseValidFromStrings() throws Exception {
-        SearchContext searchContext = new TestSearchContext();
+        SearchContext searchContext = new TestSearchContext(null);
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
@@ -47,7 +47,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnNonIntPrecision() throws Exception {
-        SearchContext searchContext = new TestSearchContext();
+        SearchContext searchContext = new TestSearchContext(null);
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
@@ -59,7 +59,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
-        SearchContext searchContext = new TestSearchContext();
+        SearchContext searchContext = new TestSearchContext(null);
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":false}");
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
@@ -71,7 +71,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
-        SearchContext searchContext = new TestSearchContext();
+        SearchContext searchContext = new TestSearchContext(null);
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"13\"}");
         GeoHashGridParser parser = new GeoHashGridParser();
         try {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -45,6 +48,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -66,14 +70,13 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
@@ -96,6 +99,7 @@ import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -104,10 +108,13 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -115,10 +122,22 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
-public class Node implements Releasable {
+public class Node implements Closeable {
+
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_CLIENT_SETTING = Setting.boolSetting("node.client", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting("node.master", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_LOCAL_SETTING = Setting.boolSetting("node.local", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<String> NODE_MODE_SETTING = new Setting<>("node.mode", "network", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", false, Setting.Scope.CLUSTER);
+    // this sucks that folks can mistype client etc and get away with it.
+    // TODO: we should move this to node.attribute.${name} = ${value} instead.
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", false, Setting.Scope.CLUSTER);
+
 
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
@@ -137,10 +156,10 @@ public class Node implements Releasable {
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
-            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+            .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
-        ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
         logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
 
         logger.info("initializing ...");
@@ -162,8 +181,8 @@ public class Node implements Releasable {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
         final NetworkService networkService = new NetworkService(settings);
-        final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -175,19 +194,21 @@ public class Node implements Releasable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(this.settings, settingsFilter));
+            SettingsModule settingsModule = new SettingsModule(this.settings);
+            modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false));
-            modules.add(new ScriptModule(this.settings));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
+            ScriptModule scriptModule = new ScriptModule();
+            modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
             modules.add(new ThreadPoolModule(threadPool));
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
-            modules.add(new SearchModule());
-            modules.add(new ActionModule(false));
+            modules.add(new SearchModule(settings, namedWriteableRegistry));
+            modules.add(new ActionModule(DiscoveryNode.ingestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());
@@ -197,7 +218,7 @@ public class Node implements Releasable {
             modules.add(new AnalysisModule(environment));
 
             pluginsService.processModules(modules);
-
+            scriptModule.prepareSettings(settingsModule);
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
@@ -230,6 +251,13 @@ public class Node implements Releasable {
     }
 
     /**
+     * Returns the environment of the node
+     */
+    public Environment getEnvironment() {
+        return environment;
+    }
+
+    /**
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() {
@@ -237,7 +265,7 @@ public class Node implements Releasable {
             return this;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
@@ -273,7 +301,7 @@ public class Node implements Releasable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
-        if (System.getProperty("es.tests.portsfile", "false").equals("true")) {
+        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (settings.getAsBoolean("http.enabled", true)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
@@ -291,7 +319,7 @@ public class Node implements Releasable {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("stopping ...");
 
         injector.getInstance(TribeService.class).stop();
@@ -330,7 +358,7 @@ public class Node implements Releasable {
     // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
     // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
-    public synchronized void close() {
+    public synchronized void close() throws IOException {
         if (lifecycle.started()) {
             stop();
         }
@@ -338,84 +366,80 @@ public class Node implements Releasable {
             return;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("closing ...");
-
+        List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");
-        stopWatch.start("tribe");
-        injector.getInstance(TribeService.class).close();
-        stopWatch.stop().start("http");
+        toClose.add(() -> stopWatch.start("tribe"));
+        toClose.add(injector.getInstance(TribeService.class));
+        toClose.add(() -> stopWatch.stop().start("node_service"));
+        toClose.add(injector.getInstance(NodeService.class));
+        toClose.add(() ->stopWatch.stop().start("http"));
         if (settings.getAsBoolean("http.enabled", true)) {
-            injector.getInstance(HttpServer.class).close();
+            toClose.add(injector.getInstance(HttpServer.class));
         }
-        stopWatch.stop().start("snapshot_service");
-        injector.getInstance(SnapshotsService.class).close();
-        injector.getInstance(SnapshotShardsService.class).close();
-        stopWatch.stop().start("client");
+        toClose.add(() ->stopWatch.stop().start("snapshot_service"));
+        toClose.add(injector.getInstance(SnapshotsService.class));
+        toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(() ->stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
-        stopWatch.stop().start("indices_cluster");
-        injector.getInstance(IndicesClusterStateService.class).close();
-        stopWatch.stop().start("indices");
-        injector.getInstance(IndicesTTLService.class).close();
-        injector.getInstance(IndicesService.class).close();
+        toClose.add(() ->stopWatch.stop().start("indices_cluster"));
+        toClose.add(injector.getInstance(IndicesClusterStateService.class));
+        toClose.add(() ->stopWatch.stop().start("indices"));
+        toClose.add(injector.getInstance(IndicesTTLService.class));
+        toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
-        injector.getInstance(IndicesQueryCache.class).close();
-        injector.getInstance(IndicesFieldDataCache.class).close();
-        injector.getInstance(IndicesStore.class).close();
-        stopWatch.stop().start("routing");
-        injector.getInstance(RoutingService.class).close();
-        stopWatch.stop().start("cluster");
-        injector.getInstance(ClusterService.class).close();
-        stopWatch.stop().start("discovery");
-        injector.getInstance(DiscoveryService.class).close();
-        stopWatch.stop().start("monitor");
-        injector.getInstance(MonitorService.class).close();
-        stopWatch.stop().start("gateway");
-        injector.getInstance(GatewayService.class).close();
-        stopWatch.stop().start("search");
-        injector.getInstance(SearchService.class).close();
-        stopWatch.stop().start("rest");
-        injector.getInstance(RestController.class).close();
-        stopWatch.stop().start("transport");
-        injector.getInstance(TransportService.class).close();
-        stopWatch.stop().start("percolator_service");
-        injector.getInstance(PercolatorService.class).close();
+        toClose.add(injector.getInstance(IndicesStore.class));
+        toClose.add(() ->stopWatch.stop().start("routing"));
+        toClose.add(injector.getInstance(RoutingService.class));
+        toClose.add(() ->stopWatch.stop().start("cluster"));
+        toClose.add(injector.getInstance(ClusterService.class));
+        toClose.add(() ->stopWatch.stop().start("discovery"));
+        toClose.add(injector.getInstance(DiscoveryService.class));
+        toClose.add(() ->stopWatch.stop().start("monitor"));
+        toClose.add(injector.getInstance(MonitorService.class));
+        toClose.add(() ->stopWatch.stop().start("gateway"));
+        toClose.add(injector.getInstance(GatewayService.class));
+        toClose.add(() ->stopWatch.stop().start("search"));
+        toClose.add(injector.getInstance(SearchService.class));
+        toClose.add(() ->stopWatch.stop().start("rest"));
+        toClose.add(injector.getInstance(RestController.class));
+        toClose.add(() ->stopWatch.stop().start("transport"));
+        toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(() ->stopWatch.stop().start("percolator_service"));
+        toClose.add(injector.getInstance(PercolatorService.class));
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            stopWatch.stop().start("plugin(" + plugin.getName() + ")");
-            injector.getInstance(plugin).close();
+            toClose.add(() ->stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
+            toClose.add(injector.getInstance(plugin));
         }
 
-        stopWatch.stop().start("script");
-        try {
-            injector.getInstance(ScriptService.class).close();
-        } catch(IOException e) {
-            logger.warn("ScriptService close failed", e);
-        }
+        toClose.add(() ->stopWatch.stop().start("script"));
+        toClose.add(injector.getInstance(ScriptService.class));
 
-        stopWatch.stop().start("thread_pool");
+        toClose.add(() ->stopWatch.stop().start("thread_pool"));
         // TODO this should really use ThreadPool.terminate()
-        injector.getInstance(ThreadPool.class).shutdown();
-        try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
-        stopWatch.stop().start("thread_pool_force_shutdown");
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
-        } catch (Exception e) {
-            // ignore
-        }
-        stopWatch.stop();
+        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdown());
+        toClose.add(() -> {
+            try {
+                injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        });
+
+        toClose.add(() ->stopWatch.stop().start("thread_pool_force_shutdown"));
+        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdownNow());
+        toClose.add(() -> stopWatch.stop());
+
+
+        toClose.add(injector.getInstance(NodeEnvironment.class));
+        toClose.add(injector.getInstance(PageCacheRecycler.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
         }
-
-        injector.getInstance(NodeEnvironment.class).close();
-        injector.getInstance(PageCacheRecycler.class).close();
-
+        IOUtils.close(toClose);
         logger.info("closed");
     }
 

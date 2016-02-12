@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.tasks;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
@@ -53,12 +54,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
+    OperationTask extends Task,
     TasksRequest extends BaseTasksRequest<TasksRequest>,
     TasksResponse extends BaseTasksResponse,
     TaskResponse extends Writeable<TaskResponse>
@@ -103,16 +106,16 @@ public abstract class TransportTasksAction<
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<TaskResponse> results = new ArrayList<>();
         List<TaskOperationFailure> exceptions = new ArrayList<>();
-        for (Task task : taskManager.getTasks().values()) {
-            // First check action and node filters
-            if (request.match(task)) {
-                try {
-                    results.add(taskOperation(request, task));
-                } catch (Exception ex) {
-                    exceptions.add(new TaskOperationFailure(clusterService.localNode().id(), task.getId(), ex));
+        processTasks(request, task -> {
+            try {
+                TaskResponse response = taskOperation(request, task);
+                if (response != null) {
+                    results.add(response);
                 }
+            } catch (Exception ex) {
+                exceptions.add(new TaskOperationFailure(clusterService.localNode().id(), task.getId(), ex));
             }
-        }
+        });
         return new NodeTasksResponse(clusterService.localNode().id(), results, exceptions);
     }
 
@@ -122,6 +125,28 @@ public abstract class TransportTasksAction<
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
         return clusterState.nodes().resolveNodesIds(request.nodesIds());
+    }
+
+    protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
+        if (request.taskId() != BaseTasksRequest.ALL_TASKS) {
+            // we are only checking one task, we can optimize it
+            Task task = taskManager.getTask(request.taskId());
+            if (task != null) {
+                if (request.match(task)) {
+                    operation.accept((OperationTask) task);
+                } else {
+                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.taskId());
+                }
+            } else {
+                throw new ResourceNotFoundException("task [{}] is missing", request.taskId());
+            }
+        } else {
+            for (Task task : taskManager.getTasks().values()) {
+                if (request.match(task)) {
+                    operation.accept((OperationTask)task);
+                }
+            }
+        }
     }
 
     protected abstract TasksResponse newResponse(TasksRequest request, List<TaskResponse> tasks, List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions);
@@ -150,7 +175,7 @@ public abstract class TransportTasksAction<
 
     protected abstract TaskResponse readTaskResponse(StreamInput in) throws IOException;
 
-    protected abstract TaskResponse taskOperation(TasksRequest request, Task task);
+    protected abstract TaskResponse taskOperation(TasksRequest request, OperationTask task);
 
     protected boolean transportCompress() {
         return false;
@@ -213,6 +238,7 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(), new BaseTransportResponseHandler<NodeTasksResponse>() {
                                 @Override
                                 public NodeTasksResponse newInstance() {
@@ -291,7 +317,7 @@ public abstract class TransportTasksAction<
         }
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
-            super(tasksRequest);
+            super();
             this.tasksRequest = tasksRequest;
         }
 

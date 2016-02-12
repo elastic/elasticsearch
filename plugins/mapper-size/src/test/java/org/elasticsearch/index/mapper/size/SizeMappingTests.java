@@ -34,9 +34,12 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,13 +55,18 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
     MapperService mapperService;
     DocumentMapperParser parser;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+    }
+
     @Before
     public void before() {
         indexService = createIndex("test");
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new HashMap<>();
         IndicesModule indices = new IndicesModule();
         indices.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
-        mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry(), indexService::getQueryShardContext);
+        mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry(), indexService::newQueryShardContext);
         parser = mapperService.documentMapperParser();
     }
 
@@ -90,7 +98,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 Collections.emptyMap(),
                 Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser()));
         parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
 
         BytesReference source = XContentFactory.jsonBuilder()
@@ -139,12 +147,12 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
+        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
+        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertThat(disabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }

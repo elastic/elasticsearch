@@ -374,7 +374,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     public void testReuseExistingMappings() throws IOException, Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY, "type",
-                "my_field1", "type=string,store=yes",
+                "my_field1", "type=string,store=true",
                 "my_field2", "type=integer,precision_step=10",
                 "my_field3", "type=long,doc_values=false",
                 "my_field4", "type=float,index_options=freqs",
@@ -473,8 +473,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                                     .field("type", "string")
                                     .startObject("fields")
                                         .startObject("raw")
-                                            .field("type", "string")
-                                            .field("index", "not_analyzed")
+                                            .field("type", "keyword")
                                         .endObject()
                                     .endObject()
                                 .endObject()
@@ -482,7 +481,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endArray()
                 .endObject().endObject();
-        indexService.mapperService().merge("type1", new CompressedXContent(mappings1.bytes()), true, false);
+        indexService.mapperService().merge("type1", new CompressedXContent(mappings1.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
         XContentBuilder mappings2 = jsonBuilder().startObject()
                 .startObject("type2")
                     .startObject("properties")
@@ -491,7 +490,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject();
-        indexService.mapperService().merge("type2", new CompressedXContent(mappings2.bytes()), true, false);
+        indexService.mapperService().merge("type2", new CompressedXContent(mappings2.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                     .field("field", "foo")
@@ -502,7 +501,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         ParsedDocument parsed = mapper.parse(source);
         assertNotNull(parsed.dynamicMappingsUpdate());
 
-        indexService.mapperService().merge("type1", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()), false, false);
+        indexService.mapperService().merge("type1", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapper = indexService.mapperService().documentMapper("type1");
         assertNotNull(mapper.mappers().getMapper("field.raw"));
         parsed = mapper.parse(source);

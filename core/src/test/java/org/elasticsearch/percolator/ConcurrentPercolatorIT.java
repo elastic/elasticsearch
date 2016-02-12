@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class ConcurrentPercolatorIT extends ESIntegTestCase {
     public void testSimpleConcurrentPercolator() throws Exception {
-        // We need to index a document / define mapping, otherwise field1 doesn't get reconized as number field.
+        // We need to index a document / define mapping, otherwise field1 doesn't get recognized as number field.
         // If we don't do this, then 'test2' percolate query gets parsed as a TermQuery and not a RangeQuery.
         // The percolate api doesn't parse the doc if no queries have registered, so it can't lazily create a mapping
         assertAcked(prepareCreate("index").addMapping("type", "field1", "type=long", "field2", "type=string")); // random # shards better has a mapping!
@@ -210,7 +210,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     throw new IllegalStateException("Illegal x=" + x);
                             }
                             assertThat(response.getId(), equalTo(id));
-                            assertThat(response.getVersion(), equalTo(1l));
+                            assertThat(response.getVersion(), equalTo(1L));
                         }
                     } catch (Throwable t) {
                         exceptionsHolder.add(t);

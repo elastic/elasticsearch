@@ -1,0 +1,102 @@
+setup:
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar, age: 18 }
+
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     42
+          body:   { foo: bar, age: 18 }
+
+  - do:
+        index:
+            index:  test
+            type:   test
+            id:     172
+            body:   { foo: bar, age: 24 }
+
+  - do:
+      indices.refresh:
+        index: test
+
+---
+"search with search_after parameter":
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { _uid: desc }]
+
+  - match: {hits.total: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0._id: "172" }
+  - match: {hits.hits.0.sort: [24, "test#172"] }
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { _uid: desc }]
+          search_after: [24, "test#172"]
+
+  - match: {hits.total: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._type:  test }
+  - match: {hits.hits.0._id: "42" }
+  - match: {hits.hits.0.sort: [18, "test#42"] }
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [ { age: desc }, { _uid: desc } ]
+          search_after: [18, "test#42"]
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0._id: "1" }
+  - match: {hits.hits.0.sort: [18, "test#1"] }
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { _uid: desc } ]
+          search_after: [18, "test#1"]
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 0 }

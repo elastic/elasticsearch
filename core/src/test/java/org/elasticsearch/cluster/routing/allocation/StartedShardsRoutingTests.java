@@ -24,13 +24,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 
 public class StartedShardsRoutingTests extends ESAllocationTestCase {
@@ -39,48 +47,21 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> building initial cluster state");
         final IndexMetaData indexMetaData = IndexMetaData.builder("test")
-                .settings(settings(Version.CURRENT).put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"))
-                .numberOfShards(3).numberOfReplicas(1)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(3).numberOfReplicas(0)
                 .build();
+        final Index index = indexMetaData.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")))
                 .metaData(MetaData.builder().put(indexMetaData, false));
 
-        final ShardRouting initShard;
-        final ShardRouting startedShard;
-        final ShardRouting relocatingShard;
-        final IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder("test");
-        if (randomBoolean()) {
-            initShard = TestShardRouting.newShardRouting("test", 0, "node1", 1, true, ShardRoutingState.INITIALIZING, 1);
-            ShardRouting replica = TestShardRouting.newShardRouting("test", 0, null, 1, false, ShardRoutingState.UNASSIGNED, 1);
-            indexRoutingTable.addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).addShard(replica).build());
-        } else {
-            ShardRouting primaryShard = TestShardRouting.newShardRouting("test", 0, "node2", 1, true, ShardRoutingState.STARTED, 1);
-            initShard = TestShardRouting.newShardRouting("test", 0, "node1", 1, false, ShardRoutingState.INITIALIZING, 1);
-            indexRoutingTable.addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(primaryShard).addShard(initShard).build());
-        }
-        if (randomBoolean()) {
-            startedShard = TestShardRouting.newShardRouting("test", 1, "node2", 1, true, ShardRoutingState.STARTED, 1);
-            ShardRouting replica = TestShardRouting.newShardRouting("test", 1, null, 1, false, ShardRoutingState.UNASSIGNED, 1);
-            indexRoutingTable.addIndexShard(new IndexShardRoutingTable.Builder(startedShard.shardId()).addShard(startedShard).addShard(replica).build());
-        } else {
-            ShardRouting primaryShard = TestShardRouting.newShardRouting("test", 1, "node1", 1, true, ShardRoutingState.STARTED, 1);
-            startedShard = TestShardRouting.newShardRouting("test", 1, "node2", 1, false, ShardRoutingState.STARTED, 1);
-            indexRoutingTable.addIndexShard(new IndexShardRoutingTable.Builder(startedShard.shardId()).addShard(primaryShard).addShard(startedShard).build());
-        }
-
-        if (randomBoolean()) {
-            relocatingShard = TestShardRouting.newShardRouting("test", 2, "node1", "node2", 1, true, ShardRoutingState.RELOCATING, 1);
-            ShardRouting replica = TestShardRouting.newShardRouting("test", 2, null, 1, false, ShardRoutingState.UNASSIGNED, 1);
-            indexRoutingTable.addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId()).addShard(relocatingShard).addShard(replica).build());
-        } else {
-            ShardRouting primaryShard = TestShardRouting.newShardRouting("test", 2, "node3", 1, true, ShardRoutingState.STARTED, 1);
-            relocatingShard = TestShardRouting.newShardRouting("test", 2, "node1", "node2", 1, false, ShardRoutingState.RELOCATING, 1);
-            indexRoutingTable.addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId())
-                    .addShard(primaryShard).addShard(relocatingShard).build());
-        }
-
-        stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build());
+        final ShardRouting initShard = TestShardRouting.newShardRouting(index, 0, "node1", 1, true, ShardRoutingState.INITIALIZING);
+        final ShardRouting startedShard = TestShardRouting.newShardRouting(index, 1, "node2", 1, true, ShardRoutingState.STARTED);
+        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(index, 2, "node1", "node2", 1, true, ShardRoutingState.RELOCATING);
+        stateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index)
+                .addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).build())
+                .addIndexShard(new IndexShardRoutingTable.Builder(startedShard.shardId()).addShard(startedShard).build())
+                .addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId()).addShard(relocatingShard).build())).build());
 
         ClusterState state = stateBuilder.build();
 
@@ -89,7 +70,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         RoutingAllocation.Result result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(initShard.index(), initShard.id(), initShard.currentNodeId(), initShard.relocatingNodeId(),
                         initShard.primaryTerm(), initShard.primary(),
-                        ShardRoutingState.INITIALIZING, initShard.allocationId(), randomInt())), false);
+                        ShardRoutingState.INITIALIZING, initShard.allocationId())), false);
         assertTrue("failed to start " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
         final ShardRouting resultRouting = result.routingTable().index("test").shard(initShard.id()).activeShards()
                 .stream().filter(routing -> routing.isSameAllocation(initShard)).findFirst().get();
@@ -101,23 +82,22 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(initShard.index(), initShard.id(), initShard.currentNodeId(), initShard.relocatingNodeId(),
                         initShard.primaryTerm(), initShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
+                        ShardRoutingState.INITIALIZING)), false);
         assertFalse("wrong allocation id flag shouldn't start shard " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(initShard.index(), initShard.id(), "some_node", initShard.currentNodeId(),
                         initShard.primaryTerm(), initShard.primary(),
-                        ShardRoutingState.INITIALIZING, AllocationId.newTargetRelocation(AllocationId.newRelocation(initShard.allocationId()))
-                        , 1)), false);
+                        ShardRoutingState.INITIALIZING, AllocationId.newTargetRelocation(AllocationId.newRelocation(initShard.allocationId())))), false);
         assertFalse("relocating shard from node shouldn't start shard " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
 
         logger.info("--> testing double starting");
 
         result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(startedShard.index(), startedShard.id(), startedShard.currentNodeId(), startedShard.relocatingNodeId(),
-                        startedShard.primaryTerm(), startedShard.primary(),
-                        ShardRoutingState.INITIALIZING, startedShard.allocationId(), 1)), false);
+                TestShardRouting.newShardRouting(startedShard.index(), startedShard.id(), startedShard.currentNodeId(),
+                        startedShard.relocatingNodeId(), startedShard.primaryTerm(), startedShard.primary(),
+                        ShardRoutingState.INITIALIZING, startedShard.allocationId())), false);
         assertFalse("duplicate starting of the same shard should be ignored \ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
         logger.info("--> testing starting of relocating shards");
@@ -125,7 +105,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(),
                         relocatingShard.currentNodeId(), relocatingShard.primaryTerm(), relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, targetAllocationId, randomInt())), false);
+                        ShardRoutingState.INITIALIZING, targetAllocationId)), false);
 
         assertTrue("failed to start " + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
         ShardRouting shardRouting = result.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
@@ -138,14 +118,13 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(),
                         relocatingShard.currentNodeId(), relocatingShard.primaryTerm(), relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, relocatingShard.version())));
+                        ShardRoutingState.INITIALIZING)));
         assertFalse("wrong allocation id shouldn't start shard" + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(),
                         relocatingShard.currentNodeId(), relocatingShard.primaryTerm(), relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, relocatingShard.allocationId(), randomInt())), false);
+                        ShardRoutingState.INITIALIZING, relocatingShard.allocationId())), false);
         assertFalse("wrong allocation id shouldn't start shard even if relocatingId==shard.id" + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
-
     }
 }

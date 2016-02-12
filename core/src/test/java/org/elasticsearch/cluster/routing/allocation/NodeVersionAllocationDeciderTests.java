@@ -299,26 +299,26 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
-        ShardId shard1 = new ShardId("test1", 0);
-        ShardId shard2 = new ShardId("test2", 0);
+        ShardId shard1 = new ShardId("test1", "_na_", 0);
+        ShardId shard2 = new ShardId("test2", "_na_", 0);
         final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, Version.CURRENT);
         final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, VersionUtils.getPreviousVersion());
         final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, VersionUtils.getPreviousVersion());
         MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shard1.getIndex()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetaData.builder(shard2.getIndex()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetaData.builder(shard1.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetaData.builder(shard2.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
             .add(IndexRoutingTable.builder(shard1.getIndex())
                 .addIndexShard(new IndexShardRoutingTable.Builder(shard1)
-                    .addShard(TestShardRouting.newShardRouting(shard1.getIndex(), shard1.getId(), newNode.id(), 1, true, ShardRoutingState.STARTED, 10))
-                    .addShard(TestShardRouting.newShardRouting(shard1.getIndex(), shard1.getId(), oldNode1.id(), 1, false, ShardRoutingState.STARTED, 10))
+                    .addShard(TestShardRouting.newShardRouting(shard1.getIndexName(), shard1.getId(), newNode.id(), 1, true, ShardRoutingState.STARTED))
+                    .addShard(TestShardRouting.newShardRouting(shard1.getIndexName(), shard1.getId(), oldNode1.id(), 1, false, ShardRoutingState.STARTED))
                     .build())
             )
             .add(IndexRoutingTable.builder(shard2.getIndex())
                 .addIndexShard(new IndexShardRoutingTable.Builder(shard2)
-                    .addShard(TestShardRouting.newShardRouting(shard2.getIndex(), shard2.getId(), newNode.id(), 1, true, ShardRoutingState.STARTED, 10))
-                    .addShard(TestShardRouting.newShardRouting(shard2.getIndex(), shard2.getId(), oldNode1.id(), 1, false, ShardRoutingState.STARTED, 10))
+                    .addShard(TestShardRouting.newShardRouting(shard2.getIndexName(), shard2.getId(), newNode.id(), 1, true, ShardRoutingState.STARTED))
+                    .addShard(TestShardRouting.newShardRouting(shard2.getIndexName(), shard2.getId(), oldNode1.id(), 1, false, ShardRoutingState.STARTED))
                     .build())
             )
             .build();

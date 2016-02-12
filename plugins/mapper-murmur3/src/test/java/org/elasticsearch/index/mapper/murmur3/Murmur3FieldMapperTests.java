@@ -33,13 +33,21 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     MapperRegistry mapperRegistry;
     IndexService indexService;
@@ -52,7 +60,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
                 Collections.emptyMap());
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
     }
 
     public void testDefaults() throws Exception {
@@ -128,7 +136,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
@@ -144,7 +152,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
             .field("type", "murmur3")

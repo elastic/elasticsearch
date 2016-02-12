@@ -45,8 +45,8 @@ public final class ShardPath {
     public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, String indexUUID, ShardId shardId) {
         assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: " + dataPath.toString();
         assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
-        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex()) : "dataPath must end with index/shardID but didn't: " + dataPath.toString();
-        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex()) : "shardStatePath must end with index/shardID but didn't: " + dataPath.toString();
+        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndexName()) : "dataPath must end with index/shardID but didn't: " + dataPath.toString();
+        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndexName()) : "shardStatePath must end with index/shardID but didn't: " + dataPath.toString();
         if (isCustomDataPath && dataPath.equals(shardStatePath)) {
             throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
         }
@@ -176,7 +176,7 @@ public final class ShardPath {
             totFreeSpace += nodePath.fileStore.getUsableSpace();
         }
 
-        // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
+        // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
         // shard size across the cluster and 5% of the total available free space on this node:
         long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
 
@@ -215,7 +215,7 @@ public final class ShardPath {
             // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
             // how large they will be once they're done copying, instead of a silly guess for such cases:
 
-            // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
+            // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
             // shard size across the cluster and 5% of the total available free space on this node:
             long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
 

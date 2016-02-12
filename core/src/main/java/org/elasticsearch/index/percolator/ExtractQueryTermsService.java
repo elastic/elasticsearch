@@ -85,7 +85,7 @@ public final class ExtractQueryTermsService {
     /**
      * Extracts all query terms from the provided query and adds it to specified list.
      *
-     * From boolean query with no should clauses or phrase queries only the the longest term are selected,
+     * From boolean query with no should clauses or phrase queries only the longest term are selected,
      * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored.
      *
      * If from part of the query, no query terms can be extracted then term extraction is stopped and

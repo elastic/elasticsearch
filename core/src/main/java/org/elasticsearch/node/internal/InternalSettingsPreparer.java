@@ -21,11 +21,11 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -57,7 +57,7 @@ public class InternalSettingsPreparer {
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-    public static final String IGNORE_SYSTEM_PROPERTIES_SETTING = "config.ignore_system_properties";
+    public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING = Setting.boolSetting("config.ignore_system_properties", false, false, Setting.Scope.CLUSTER);
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
@@ -108,13 +108,12 @@ public class InternalSettingsPreparer {
         environment = new Environment(output.build());
 
         // we put back the path.logs so we can use it in the logging configuration file
-        output.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
-
+        output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
         return new Environment(output.build());
     }
 
     private static boolean useSystemProperties(Settings input) {
-        return !input.getAsBoolean(IGNORE_SYSTEM_PROPERTIES_SETTING, false);
+        return !IGNORE_SYSTEM_PROPERTIES_SETTING.get(input);
     }
 
     /**
@@ -155,33 +154,18 @@ public class InternalSettingsPreparer {
         }
         output.replacePropertyPlaceholders();
 
-        // check if name is set in settings, if not look for system property and set it
-        if (output.get("name") == null) {
-            String name = System.getProperty("name");
-            if (name != null) {
-                output.put("name", name);
-            }
-        }
-
         // put the cluster name
-        if (output.get(ClusterName.SETTING) == null) {
-            output.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
-        }
-
-        String v = output.get(Settings.SETTINGS_REQUIRE_UNITS);
-        if (v != null) {
-            Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
+        if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
+            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY));
         }
 
         replacePromptPlaceholders(output, terminal);
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed
-        if (output.get("name") == null) {
-            String name = output.get("node.name");
-            if (name == null || name.isEmpty()) {
-                name = randomNodeName(configDir);
-            }
-            output.put("name", name);
+        String name = output.get("node.name");
+        if (name == null || name.isEmpty()) {
+            name = randomNodeName(configDir);
+            output.put("node.name", name);
         }
     }
 
@@ -253,8 +237,8 @@ public class InternalSettingsPreparer {
         }
 
         if (secret) {
-            return new String(terminal.readSecret("Enter value for [%s]: ", key));
+            return new String(terminal.readSecret("Enter value for [" + key + "]: "));
         }
-        return terminal.readText("Enter value for [%s]: ", key);
+        return terminal.readText("Enter value for [" + key + "]: ");
     }
 }

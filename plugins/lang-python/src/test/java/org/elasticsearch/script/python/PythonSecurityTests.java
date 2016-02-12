@@ -82,6 +82,7 @@ public class PythonSecurityTests extends ESTestCase {
     public void testOK() {
         assertSuccess("1 + 2");
         assertSuccess("from java.lang import Math\nMath.cos(0)");
+        assertSuccess("map(lambda x: x + 1, range(100))");
     }
 
     /** Test some py scripts that should hit security exception */

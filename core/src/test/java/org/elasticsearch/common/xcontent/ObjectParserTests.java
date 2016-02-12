@@ -188,6 +188,25 @@ public class ObjectParserTests extends ESTestCase {
         }
     }
 
+    enum TestEnum {
+        FOO, BAR
+    };
+
+    public void testParseEnumFromString() throws IOException {
+        class TestStruct {
+            public TestEnum test;
+
+            public void set(TestEnum value) {
+                test = value;
+            }
+        }
+        XContentParser parser = XContentType.JSON.xContent().createParser("{ \"test\" : \"FOO\" }");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser("foo");
+        objectParser.declareString((struct, value) -> struct.set(TestEnum.valueOf(value)), new ParseField("test"));
+        TestStruct s = objectParser.parse(parser, new TestStruct());
+        assertEquals(s.test, TestEnum.FOO);
+    }
+
     public void testAllVariants() throws IOException {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
@@ -296,8 +315,8 @@ public class ObjectParserTests extends ESTestCase {
         assertArrayEquals(parse.double_array_field.toArray(), Arrays.asList(2.1d).toArray());
         assertEquals(parse.double_field, 2.1d, 0.0d);
 
-        assertArrayEquals(parse.long_array_field.toArray(), Arrays.asList(4l).toArray());
-        assertEquals(parse.long_field, 4l);
+        assertArrayEquals(parse.long_array_field.toArray(), Arrays.asList(4L).toArray());
+        assertEquals(parse.long_field, 4L);
 
         assertArrayEquals(parse.string_array_field.toArray(), Arrays.asList("5").toArray());
         assertEquals(parse.string_field, "5");

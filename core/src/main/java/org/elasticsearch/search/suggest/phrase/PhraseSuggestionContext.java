@@ -42,7 +42,6 @@ class PhraseSuggestionContext extends SuggestionContext {
     private BytesRef preTag;
     private BytesRef postTag;
     private CompiledScript collateQueryScript;
-    private CompiledScript collateFilterScript;
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
 
     private WordScorer.WordScorerFactory scorer;

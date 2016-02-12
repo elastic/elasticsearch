@@ -20,9 +20,11 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReader.CoreClosedListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,7 +64,7 @@ public final class ShardCoreKeyMap {
             throw new IllegalArgumentException("Could not extract shard id from " + reader);
         }
         final Object coreKey = reader.getCoreCacheKey();
-        final String index = shardId.getIndex();
+        final String index = shardId.getIndexName();
         synchronized (this) {
             if (coreKeyToShard.put(coreKey, shardId) == null) {
                 Set<Object> objects = indexToCoreKey.get(index);
@@ -72,7 +74,7 @@ public final class ShardCoreKeyMap {
                 }
                 final boolean added = objects.add(coreKey);
                 assert added;
-                reader.addCoreClosedListener(ownerCoreCacheKey -> {
+                CoreClosedListener listener = ownerCoreCacheKey -> {
                     assert coreKey == ownerCoreCacheKey;
                     synchronized (ShardCoreKeyMap.this) {
                         coreKeyToShard.remove(ownerCoreCacheKey);
@@ -83,7 +85,20 @@ public final class ShardCoreKeyMap {
                             indexToCoreKey.remove(index);
                         }
                     }
-                });
+                };
+                boolean addedListener = false;
+                try {
+                    reader.addCoreClosedListener(listener);
+                    addedListener = true;
+                } finally {
+                    if (false == addedListener) {
+                        try {
+                            listener.onClose(coreKey);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Blow up trying to recover from failure to add listener", e);
+                        }
+                    }
+                }
             }
         }
     }

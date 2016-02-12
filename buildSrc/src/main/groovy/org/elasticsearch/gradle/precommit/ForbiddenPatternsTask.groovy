@@ -61,7 +61,6 @@ public class ForbiddenPatternsTask extends DefaultTask {
         // add mandatory rules
         patterns.put('nocommit', /nocommit/)
         patterns.put('tab', /\t/)
-        patterns.put('wildcard imports', /^\s*import.*\.\*/)
 
         inputs.property("excludes", filesFilter.excludes)
         inputs.property("rules", patterns)

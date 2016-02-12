@@ -28,7 +28,15 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -323,7 +331,7 @@ class DocumentParser implements Closeable {
                 context.path().remove();
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                 if (builder == null) {
-                    builder = MapperBuilders.object(currentFieldName).enabled(true);
+                    builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
                     // if this is a non root object, then explicitly set the dynamic behavior if set
                     if (!(mapper instanceof RootObjectMapper) && mapper.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
                         ((ObjectMapper.Builder) builder).dynamic(mapper.dynamic());
@@ -442,37 +450,37 @@ class DocumentParser implements Closeable {
         if (fieldType instanceof StringFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
-                builder = MapperBuilders.stringField(currentFieldName);
+                builder = new StringFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof DateFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
             if (builder == null) {
-                builder = MapperBuilders.dateField(currentFieldName);
+                builder = new DateFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType.numericType() != null) {
             switch (fieldType.numericType()) {
             case LONG:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
-                    builder = MapperBuilders.longField(currentFieldName);
+                    builder = new LongFieldMapper.Builder(currentFieldName);
                 }
                 break;
             case DOUBLE:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
-                    builder = MapperBuilders.doubleField(currentFieldName);
+                    builder = new DoubleFieldMapper.Builder(currentFieldName);
                 }
                 break;
             case INT:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
                 if (builder == null) {
-                    builder = MapperBuilders.integerField(currentFieldName);
+                    builder = new IntegerFieldMapper.Builder(currentFieldName);
                 }
                 break;
             case FLOAT:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
                 if (builder == null) {
-                    builder = MapperBuilders.floatField(currentFieldName);
+                    builder = new FloatFieldMapper.Builder(currentFieldName);
                 }
                 break;
             default:
@@ -503,7 +511,7 @@ class DocumentParser implements Closeable {
                             dateTimeFormatter.parser().parseMillis(text);
                             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
                             if (builder == null) {
-                                builder = MapperBuilders.dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter);
+                                builder = new DateFieldMapper.Builder(currentFieldName).dateTimeFormatter(dateTimeFormatter);
                             }
                             return builder;
                         } catch (Exception e) {
@@ -518,7 +526,7 @@ class DocumentParser implements Closeable {
                     Long.parseLong(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                     if (builder == null) {
-                        builder = MapperBuilders.longField(currentFieldName);
+                        builder = new LongFieldMapper.Builder(currentFieldName);
                     }
                     return builder;
                 } catch (NumberFormatException e) {
@@ -528,7 +536,7 @@ class DocumentParser implements Closeable {
                     Double.parseDouble(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                     if (builder == null) {
-                        builder = MapperBuilders.doubleField(currentFieldName);
+                        builder = new DoubleFieldMapper.Builder(currentFieldName);
                     }
                     return builder;
                 } catch (NumberFormatException e) {
@@ -537,7 +545,7 @@ class DocumentParser implements Closeable {
             }
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
-                builder = MapperBuilders.stringField(currentFieldName);
+                builder = new StringFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -545,7 +553,7 @@ class DocumentParser implements Closeable {
             if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
-                    builder = MapperBuilders.longField(currentFieldName);
+                    builder = new LongFieldMapper.Builder(currentFieldName);
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
@@ -554,20 +562,20 @@ class DocumentParser implements Closeable {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = MapperBuilders.floatField(currentFieldName);
+                    builder = new FloatFieldMapper.Builder(currentFieldName);
                 }
                 return builder;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
             if (builder == null) {
-                builder = MapperBuilders.booleanField(currentFieldName);
+                builder = new BooleanFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "binary");
             if (builder == null) {
-                builder = MapperBuilders.binaryField(currentFieldName);
+                builder = new BinaryFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else {
@@ -677,7 +685,7 @@ class DocumentParser implements Closeable {
                                     if (!(parent instanceof RootObjectMapper) && parent.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
                                         ((ObjectMapper.Builder) builder).dynamic(parent.dynamic());
                                     }
-                                    builder = MapperBuilders.object(paths[i]).enabled(true);
+                                    builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                                 }
                                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                                 mapper = (ObjectMapper) builder.build(builderContext);

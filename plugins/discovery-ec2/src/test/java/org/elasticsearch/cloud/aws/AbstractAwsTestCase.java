@@ -23,9 +23,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
+
+import java.util.Collection;
 
 /**
  * Base class for AWS tests that require credentials.
@@ -40,8 +44,7 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.home", createTempDir())
-                .extendArray("plugin.types", Ec2DiscoveryPlugin.class.getName())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("cloud.aws.test.random", randomInt())
                 .put("cloud.aws.test.write_failures", 0.1)
                 .put("cloud.aws.test.read_failures", 0.1);
@@ -51,11 +54,16 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
             if (Strings.hasText(System.getProperty("tests.config"))) {
                 settings.loadFromPath(PathUtils.get(System.getProperty("tests.config")));
             } else {
-                throw new IllegalStateException("to run integration tests, you need to set -Dtest.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
+                throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
             }
         } catch (SettingsException exception) {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
         }
         return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(Ec2DiscoveryPlugin.class);
     }
 }

@@ -44,6 +44,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -205,6 +206,27 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat((double) propertiesCounts[1], equalTo((double) sum / numTag2Docs));
     }
 
+    public void testAsSubAggregation() {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo").field("value").interval(2L).subAggregation(
+                                filters("filters").filter(matchAllQuery()))).get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getBuckets().size(), greaterThanOrEqualTo(1));
+
+        for (Histogram.Bucket bucket : histo.getBuckets()) {
+            Filters filters = bucket.getAggregations().get("filters");
+            assertThat(filters, notNullValue());
+            assertThat(filters.getBuckets().size(), equalTo(1));
+            Filters.Bucket filterBucket = filters.getBuckets().get(0);
+            assertEquals(bucket.getDocCount(), filterBucket.getDocCount());
+        }
+    }
+
     public void testWithContextBasedSubAggregation() throws Exception {
 
         try {
@@ -228,11 +250,11 @@ public class FiltersIT extends ESIntegTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(filters("filters").filter("all", matchAllQuery())))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -243,7 +265,7 @@ public class FiltersIT extends ESIntegTestCase {
         Filters.Bucket all = filters.getBucketByKey("all");
         assertThat(all, Matchers.notNullValue());
         assertThat(all.getKeyAsString(), equalTo("all"));
-        assertThat(all.getDocCount(), is(0l));
+        assertThat(all.getDocCount(), is(0L));
     }
 
     public void testSimpleNonKeyed() throws Exception {

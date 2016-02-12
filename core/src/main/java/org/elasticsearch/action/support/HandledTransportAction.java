@@ -34,8 +34,8 @@ import java.util.function.Supplier;
 /**
  * A TransportAction that self registers a handler into the transport service
  */
-public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<Request,Response>{
-
+public abstract class HandledTransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse>
+        extends TransportAction<Request, Response> {
     protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
@@ -44,13 +44,14 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            messageReceived(request, channel);
+        public final void messageReceived(Request request, TransportChannel channel) throws Exception {
+            throw new UnsupportedOperationException("the task parameter is required for this operation");
         }
 
         @Override
-        public final void messageReceived(Request request, TransportChannel channel) throws Exception {
-            execute(request, new ActionListener<Response>() {
+        public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
+            // We already got the task created on the netty layer - no need to create it again on the transport layer
+            execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {

@@ -28,7 +28,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,9 +45,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class CliToolTests extends CliToolTestCase {
     public void testOK() throws Exception {
@@ -69,9 +68,9 @@ public class CliToolTests extends CliToolTestCase {
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
-            public CliTool.ExitStatus execute(Settings settings, Environment env) {
+            public CliTool.ExitStatus execute(Settings settings, Environment env) throws UserError {
                 executed.set(true);
-                return CliTool.ExitStatus.USAGE;
+                throw new UserError(CliTool.ExitStatus.USAGE, "bad usage");
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
@@ -80,44 +79,12 @@ public class CliToolTests extends CliToolTestCase {
         assertCommandHasBeenExecuted(executed);
     }
 
-    public void testIOError() throws Exception {
-        Terminal terminal = new MockTerminal();
-        final AtomicReference<Boolean> executed = new AtomicReference<>(false);
-        final NamedCommand cmd = new NamedCommand("cmd", terminal) {
-            @Override
-            public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                executed.set(true);
-                throw new IOException("io error");
-            }
-        };
-        SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        CliTool.ExitStatus status = tool.execute();
-        assertStatus(status, CliTool.ExitStatus.IO_ERROR);
-        assertCommandHasBeenExecuted(executed);
-    }
-
-    public void testCodeError() throws Exception {
-        Terminal terminal = new MockTerminal();
-        final AtomicReference<Boolean> executed = new AtomicReference<>(false);
-        final NamedCommand cmd = new NamedCommand("cmd", terminal) {
-            @Override
-            public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                executed.set(true);
-                throw new Exception("random error");
-            }
-        };
-        SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        CliTool.ExitStatus status = tool.execute();
-        assertStatus(status, CliTool.ExitStatus.CODE_ERROR);
-        assertCommandHasBeenExecuted(executed);
-    }
-
-    public void testMultiCommand() {
+    public void testMultiCommand() throws Exception {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
-        final AtomicReference<Boolean>[] executed = new AtomicReference[count];
-        for (int i = 0; i < executed.length; i++) {
-            executed[i] = new AtomicReference<>(false);
+        List<AtomicReference<Boolean>> executed = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            executed.add(new AtomicReference<>(false));
         }
         NamedCommand[] cmds = new NamedCommand[count];
         for (int i = 0; i < count; i++) {
@@ -125,7 +92,7 @@ public class CliToolTests extends CliToolTestCase {
             cmds[i] = new NamedCommand("cmd" + index, terminal) {
                 @Override
                 public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                    executed[index].set(true);
+                    executed.get(index).set(true);
                     return OK;
                 }
             };
@@ -134,17 +101,17 @@ public class CliToolTests extends CliToolTestCase {
         int cmdIndex = randomIntBetween(0, count-1);
         CliTool.ExitStatus status = tool.execute("cmd" + cmdIndex);
         assertThat(status, is(OK));
-        for (int i = 0; i < executed.length; i++) {
-            assertThat(executed[i].get(), is(i == cmdIndex));
+        for (int i = 0; i < count; i++) {
+            assertThat(executed.get(i).get(), is(i == cmdIndex));
         }
     }
 
-    public void testMultiCommandUnknownCommand() {
+    public void testMultiCommandUnknownCommand() throws Exception {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
-        final AtomicReference<Boolean>[] executed = new AtomicReference[count];
-        for (int i = 0; i < executed.length; i++) {
-            executed[i] = new AtomicReference<>(false);
+        List<AtomicReference<Boolean>> executed = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            executed.add(new AtomicReference<>(false));
         }
         NamedCommand[] cmds = new NamedCommand[count];
         for (int i = 0; i < count; i++) {
@@ -152,7 +119,7 @@ public class CliToolTests extends CliToolTestCase {
             cmds[i] = new NamedCommand("cmd" + index, terminal) {
                 @Override
                 public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                    executed[index].set(true);
+                    executed.get(index).set(true);
                     return OK;
                 }
             };
@@ -160,8 +127,8 @@ public class CliToolTests extends CliToolTestCase {
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         CliTool.ExitStatus status = tool.execute("cmd" + count); // "cmd" + count doesn't exist
         assertThat(status, is(CliTool.ExitStatus.USAGE));
-        for (int i = 0; i < executed.length; i++) {
-            assertThat(executed[i].get(), is(false));
+        for (int i = 0; i < count; i++) {
+            assertThat(executed.get(i).get(), is(false));
         }
     }
 
@@ -182,7 +149,7 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
 
-    public void testMultiCommandToolHelp() {
+    public void testMultiCommandToolHelp() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
@@ -204,7 +171,7 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("tool help")));
     }
 
-    public void testMultiCommandCmdHelp() {
+    public void testMultiCommandCmdHelp() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
@@ -226,31 +193,19 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
 
-    public void testThatThrowExceptionCanBeLogged() throws Exception {
+    public void testNonUserErrorPropagates() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                throw new ElasticsearchException("error message");
+                throw new IOException("error message");
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        assertStatus(tool.execute(), CliTool.ExitStatus.CODE_ERROR);
-        assertThat(terminal.getTerminalOutput(), hasSize(1));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("error message")));
-
-        // set env... and log stack trace
-        try {
-            System.setProperty(Terminal.DEBUG_SYSTEM_PROPERTY, "true");
-            terminal = new CaptureOutputTerminal();
-            assertStatus(new SingleCmdTool("tool", terminal, cmd).execute(), CliTool.ExitStatus.CODE_ERROR);
-            assertThat(terminal.getTerminalOutput(), hasSize(2));
-            assertThat(terminal.getTerminalOutput(), hasItem(containsString("error message")));
-            // This class must be part of the stack strace
-            assertThat(terminal.getTerminalOutput(), hasItem(containsString(getClass().getName())));
-        } finally {
-            System.clearProperty(Terminal.DEBUG_SYSTEM_PROPERTY);
-        }
+        IOException e = expectThrows(IOException.class, () -> {
+           tool.execute();
+        });
+        assertEquals("error message", e.getMessage());
     }
 
     public void testMultipleLaunch() throws Exception {
@@ -275,16 +230,14 @@ public class CliToolTests extends CliToolTestCase {
         final AtomicReference<String> promptedTextValue = new AtomicReference<>(null);
         final Terminal terminal = new MockTerminal() {
             @Override
-            public char[] readSecret(String text, Object... args) {
+            public char[] readSecret(String text) {
                 counter.incrementAndGet();
-                assertThat(args, arrayContaining((Object) "foo.password"));
                 return "changeit".toCharArray();
             }
 
             @Override
-            public String readText(String text, Object... args) {
+            public String readText(String text) {
                 counter.incrementAndGet();
-                assertThat(args, arrayContaining((Object) "replace"));
                 return "replaced";
             }
         };

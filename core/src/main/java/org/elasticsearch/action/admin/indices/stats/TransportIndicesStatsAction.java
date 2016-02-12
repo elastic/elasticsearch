@@ -163,6 +163,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         }
 
         return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(),
-                new CommonStats(indexShard, flags), indexShard.commitStats(), indexShard.seqNoStats());
+                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags), indexShard.commitStats(), indexShard.seqNoStats());
     }
 }

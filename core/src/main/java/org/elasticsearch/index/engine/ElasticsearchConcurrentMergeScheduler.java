@@ -36,7 +36,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -67,8 +67,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
 
-    public ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, MergeSchedulerConfig config) {
-        this.config = config;
+    public ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+        this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), this.indexSettings, shardId);
@@ -162,7 +162,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     @Override
     protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         MergeThread thread = super.getMergeThread(writer, merge);
-        thread.setName(EsExecutors.threadName(indexSettings, "[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName()));
+        thread.setName(EsExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName()));
         return thread;
     }
 
@@ -183,7 +183,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         boolean isEnabled = getIORateLimitMBPerSec() != Double.POSITIVE_INFINITY;
         if (config.isAutoThrottle() && isEnabled == false) {
             enableAutoIOThrottle();
-        } else if (config.isAutoThrottle() == false && isEnabled){
+        } else if (config.isAutoThrottle() == false && isEnabled) {
             disableAutoIOThrottle();
         }
     }

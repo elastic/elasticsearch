@@ -1,0 +1,5 @@
+"Ingest attachment plugin installed":
+    - do:
+        cluster.stats: {}
+
+    - match:  { nodes.plugins.0.name: ingest-attachment }

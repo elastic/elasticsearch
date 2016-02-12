@@ -36,13 +36,14 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.ClosedChannelException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -673,6 +674,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a {@link Task.Status} to the current stream.
+     */
+    public void writeTaskStatus(Task.Status status) throws IOException {
+        writeNamedWriteable(status);
+    }
+
+    /**
      * Writes the given {@link GeoPoint} to the stream
      */
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
@@ -688,5 +696,12 @@ public abstract class StreamOutput extends OutputStream {
         for (T obj: list) {
             obj.writeTo(this);
         }
+     }
+
+     /**
+     * Writes a {@link RescoreBuilder} to the current stream
+     */
+    public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
+        writeNamedWriteable(rescorer);
     }
 }

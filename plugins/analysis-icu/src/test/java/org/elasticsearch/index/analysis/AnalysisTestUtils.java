@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -40,13 +39,13 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class AnalysisTestUtils {
 
     public static AnalysisService createAnalysisService(Settings settings) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings indexSettings = settingsBuilder().put(settings)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisICUPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
         final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, indexSettings));

@@ -32,11 +32,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESAllocationTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RoutingTableTests extends ESAllocationTestCase {
 
@@ -74,8 +82,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .build();
 
         this.testRoutingTable = new RoutingTable.Builder()
-                .add(new IndexRoutingTable.Builder(TEST_INDEX_1).initializeAsNew(metaData.index(TEST_INDEX_1)).build())
-                .add(new IndexRoutingTable.Builder(TEST_INDEX_2).initializeAsNew(metaData.index(TEST_INDEX_2)).build())
+                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_1).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_1)).build())
+                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_2).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_2)).build())
                 .build();
         this.versionsPerIndex.clear();
         this.versionsPerIndex.put(TEST_INDEX_1, new long[numberOfShards]);
@@ -179,18 +187,16 @@ public class RoutingTableTests extends ESAllocationTestCase {
         return builder;
     }
 
-    private void assertAllVersionAndPrimaryTerm() {
-        versionsPerIndex.keySet().forEach(this::assertVersionAndPrimaryTerm);
+    private void assertAllPrimaryTerm() {
+        versionsPerIndex.keySet().forEach(this::assertPrimaryTerm);
     }
 
-    private void assertVersionAndPrimaryTerm(String index) {
-        final long[] versions = versionsPerIndex.get(index);
+    private void assertPrimaryTerm(String index) {
         final long[] terms = primaryTermsPerIndex.get(index);
         final IndexMetaData indexMetaData = clusterState.metaData().index(index);
         for (IndexShardRoutingTable shardRoutingTable : this.testRoutingTable.index(index)) {
             final int shard = shardRoutingTable.shardId().id();
             for (ShardRouting routing : shardRoutingTable) {
-                assertThat("wrong version in " + routing, routing.version(), equalTo(versions[shard]));
                 assertThat("wrong primary term in " + routing, routing.primaryTerm(), equalTo(terms[shard]));
             }
             assertThat("primary term mismatch between indexMetaData of [" + index + "] and shard [" + shard + "]'s routing", indexMetaData.primaryTerm(shard), equalTo(terms[shard]));
@@ -216,7 +222,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testIndex() {
-        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex(), is(TEST_INDEX_1));
+        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex().getName(), is(TEST_INDEX_1));
         assertThat(this.testRoutingTable.index("foobar"), is(nullValue()));
     }
 
@@ -252,24 +258,24 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testVersionAndPrimaryTermNormalization() {
-        assertAllVersionAndPrimaryTerm();
+        assertAllPrimaryTerm();
 
         initPrimaries();
-        assertAllVersionAndPrimaryTerm();
+        assertAllPrimaryTerm();
 
         startInitializingShards(TEST_INDEX_1);
-        assertAllVersionAndPrimaryTerm();
+        assertAllPrimaryTerm();
 
         startInitializingShards(TEST_INDEX_2);
-        assertAllVersionAndPrimaryTerm();
+        assertAllPrimaryTerm();
 
         // now start all replicas too
         startInitializingShards(TEST_INDEX_1);
         startInitializingShards(TEST_INDEX_2);
-        assertAllVersionAndPrimaryTerm();
+        assertAllPrimaryTerm();
 
         failSomePrimaries(TEST_INDEX_1);
-        assertAllVersionAndPrimaryTerm();
+        assertAllPrimaryTerm();
     }
 
     public void testActivePrimaryShardsGrouped() {

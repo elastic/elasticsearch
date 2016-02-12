@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -114,7 +115,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         for (String threadName : threadNames) {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
             // or the ones that are occasionally come up from ESSingleNodeTestCase
-            if (threadName.contains("[" + ESSingleNodeTestCase.nodeName() + "]")
+            if (threadName.contains("[node_s_0]") // TODO: this can't possibly be right! single node and integ test are unrelated!
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }
@@ -186,7 +187,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
     public void testThreadPoolLeakingThreadsWithTribeNode() {
         Settings settings = Settings.builder()
                 .put("node.name", "thread_pool_leaking_threads_tribe_node")
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("tribe.t1.cluster.name", "non_existing_cluster")
                         //trigger initialization failure of one of the tribes (doesn't require starting the node)
                 .put("tribe.t1.plugin.mandatory", "non_existing").build();

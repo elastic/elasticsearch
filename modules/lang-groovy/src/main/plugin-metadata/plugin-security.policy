@@ -25,6 +25,7 @@ grant {
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed by GroovyScriptEngineService to close its classloader (why?)
   permission java.lang.RuntimePermission "closeClassLoader";
   // Allow executing groovy scripts with codesource of /untrusted
@@ -48,4 +49,10 @@ grant {
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.vmplugin.v7.IndyInterface";
   permission org.elasticsearch.script.ClassPermission "sun.reflect.ConstructorAccessorImpl";
+  permission org.elasticsearch.script.ClassPermission "sun.reflect.MethodAccessorImpl";
+
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Closure";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.GeneratedClosure";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.MetaClass";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Range";
 };

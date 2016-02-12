@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -40,9 +43,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /** A transport class that doesn't send anything but rather captures all requests for inspection from tests */
 public class CapturingTransport implements Transport {
+
     private TransportServiceAdapter adapter;
 
     static public class CapturedRequest {
@@ -59,11 +65,25 @@ public class CapturingTransport implements Transport {
         }
     }
 
+    private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
         return capturedRequests.toArray(new CapturedRequest[0]);
+    }
+
+    /**
+     * Returns all requests captured so far. This method does clear the
+     * captured requests list. If you do not want the captured requests
+     * list cleared, use {@link #capturedRequests()}.
+     *
+     * @return the captured requests
+     */
+    public CapturedRequest[] getCapturedRequestsAndClear() {
+        CapturedRequest[] capturedRequests = capturedRequests();
+        clear();
+        return capturedRequests;
     }
 
     /**
@@ -83,6 +103,20 @@ public class CapturingTransport implements Transport {
         return map;
     }
 
+    /**
+     * Returns all requests captured so far, grouped by target node.
+     * This method does clear the captured request list. If you do not
+     * want the captured requests list cleared, use
+     * {@link #capturedRequestsByTargetNode()}.
+     *
+     * @return the captured requests grouped by target node
+     */
+    public Map<String, List<CapturedRequest>> getCapturedRequestsByTargetNodeAndClear() {
+        Map<String, List<CapturedRequest>> map = capturedRequestsByTargetNode();
+        clear();
+        return map;
+    }
+
     /** clears captured requests */
     public void clear() {
         capturedRequests.clear();
@@ -93,14 +127,50 @@ public class CapturingTransport implements Transport {
         adapter.onResponseReceived(requestId).handleResponse(response);
     }
 
-    /** simulate a remote error for the given requesTId */
-    public void handleResponse(final long requestId, final Throwable t) {
-        adapter.onResponseReceived(requestId).handleException(new RemoteTransportException("remote failure", t));
+    /**
+     * simulate a local error for the given requestId, will be wrapped
+     * by a {@link SendRequestTransportException}
+     *
+     * @param requestId the id corresponding to the captured send
+     *                  request
+     * @param t the failure to wrap
+     */
+    public void handleLocalError(final long requestId, final Throwable t) {
+        Tuple<DiscoveryNode, String> request = requests.get(requestId);
+        assert request != null;
+        this.handleError(requestId, new SendRequestTransportException(request.v1(), request.v2(), t));
     }
 
+    /**
+     * simulate a remote error for the given requestId, will be wrapped
+     * by a {@link RemoteTransportException}
+     *
+     * @param requestId the id corresponding to the captured send
+     *                  request
+     * @param t the failure to wrap
+     */
+    public void handleRemoteError(final long requestId, final Throwable t) {
+        this.handleError(requestId, new RemoteTransportException("remote failure", t));
+    }
+
+    /**
+     * simulate an error for the given requestId, unlike
+     * {@link #handleLocalError(long, Throwable)} and
+     * {@link #handleRemoteError(long, Throwable)}, the provided
+     * exception will not be wrapped but will be delivered to the
+     * transport layer as is
+     *
+     * @param requestId the id corresponding to the captured send
+     *                  request
+     * @param e the failure
+     */
+    public void handleError(final long requestId, final TransportException e) {
+        adapter.onResponseReceived(requestId).handleException(e);
+    }
 
     @Override
     public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        requests.put(requestId, Tuple.tuple(node, action));
         capturedRequests.add(new CapturedRequest(node, requestId, action, request));
     }
 
@@ -122,7 +192,6 @@ public class CapturingTransport implements Transport {
 
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
-        // WTF
         return new TransportAddress[0];
     }
 
@@ -190,4 +259,5 @@ public class CapturingTransport implements Transport {
     public List<String> getLocalAddresses() {
         return Collections.emptyList();
     }
+
 }

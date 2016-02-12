@@ -50,6 +50,56 @@
                 $/
 
 ---
+"Simple alias with yaml body through Accept header":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_alias
+
+  - do:
+      cat.aliases: {}
+      headers:
+        Accept: application/yaml
+
+  - match:
+      $body: |
+        /^---\n
+          -\s+alias:\s+"test_alias"\s+
+              index:\s+"test"\s+
+              filter:\s+"-"\s+
+              routing.index:\s+"-"\s+
+              routing.search:\s+"-"\s+$/
+---
+"Simple alias with yaml body through format argument":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_alias
+
+  - do:
+      cat.aliases:
+        format: yaml
+
+  - match:
+      $body: |
+        /^---\n
+          -\s+alias:\s+"test_alias"\s+
+              index:\s+"test"\s+
+              filter:\s+"-"\s+
+              routing.index:\s+"-"\s+
+              routing.search:\s+"-"\s+$/
+
+---
 "Complex alias":
 
   - do:
@@ -188,3 +238,31 @@
                 index \s+ alias \n
                 test  \s+ test_1 \n
             $/
+
+---
+"Alias against closed index":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+                /^
+                    test_alias          \s+
+                    test_index          \s+
+                    -                   \s+
+                    -                   \s+
+                    -                   \s+
+                $/
+

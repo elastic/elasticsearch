@@ -30,19 +30,20 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.settings.IndexDynamicSettings;
+import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,25 +60,21 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
 
-    // the value we recognize in the "max" position to mean all the nodes
-    private static final String ALL_NODES_VALUE = "all";
-
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
 
-    private final DynamicSettings dynamicSettings;
-
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, @IndexDynamicSettings DynamicSettings dynamicSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, IndexScopedSettings indexScopedSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService.add(this);
         this.allocationService = allocationService;
-        this.dynamicSettings = dynamicSettings;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
@@ -90,69 +87,43 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final int dataNodeCount = event.state().nodes().dataNodes().size();
 
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
-
         // we need to do this each time in case it was changed by update settings
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            String autoExpandReplicas = indexMetaData.getSettings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
-            if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
-                try {
-                    final int min;
-                    final int max;
+            AutoExpandReplicas autoExpandReplicas = IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetaData.getSettings());
+            if (autoExpandReplicas.isEnabled()) {
+                /*
+                 * we have to expand the number of replicas for this index to at least min and at most max nodes here
+                 * so we are bumping it up if we have to or reduce it depending on min/max and the number of datanodes.
+                 * If we change the number of replicas we just let the shard allocator do it's thing once we updated it
+                 * since it goes through the index metadata to figure out if something needs to be done anyway. Do do that
+                 * we issue a cluster settings update command below and kicks off a reroute.
+                 */
+                final int min = autoExpandReplicas.getMinReplicas();
+                final int max = autoExpandReplicas.getMaxReplicas(dataNodeCount);
+                int numberOfReplicas = dataNodeCount - 1;
+                if (numberOfReplicas < min) {
+                    numberOfReplicas = min;
+                } else if (numberOfReplicas > max) {
+                    numberOfReplicas = max;
+                }
+                // same value, nothing to do there
+                if (numberOfReplicas == indexMetaData.getNumberOfReplicas()) {
+                    continue;
+                }
 
-                    final int dash = autoExpandReplicas.indexOf('-');
-                    if (-1 == dash) {
-                        logger.warn("failed to set [{}] for index [{}], it should be dash delimited [{}]",
-                                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), autoExpandReplicas);
-                        continue;
-                    }
-                    final String sMin = autoExpandReplicas.substring(0, dash);
-                    try {
-                        min = Integer.parseInt(sMin);
-                    } catch (NumberFormatException e) {
-                        logger.warn("failed to set [{}] for index [{}], minimum value is not a number [{}]",
-                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), sMin);
-                        continue;
-                    }
-                    String sMax = autoExpandReplicas.substring(dash + 1);
-                    if (sMax.equals(ALL_NODES_VALUE)) {
-                        max = dataNodeCount - 1;
-                    } else {
-                        try {
-                            max = Integer.parseInt(sMax);
-                        } catch (NumberFormatException e) {
-                            logger.warn("failed to set [{}] for index [{}], maximum value is neither [{}] nor a number [{}]",
-                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), ALL_NODES_VALUE, sMax);
-                            continue;
-                        }
+                if (numberOfReplicas >= min && numberOfReplicas <= max) {
+
+                    if (!nrReplicasChanged.containsKey(numberOfReplicas)) {
+                        nrReplicasChanged.put(numberOfReplicas, new ArrayList<>());
                     }
 
-                    int numberOfReplicas = dataNodeCount - 1;
-                    if (numberOfReplicas < min) {
-                        numberOfReplicas = min;
-                    } else if (numberOfReplicas > max) {
-                        numberOfReplicas = max;
-                    }
-
-                    // same value, nothing to do there
-                    if (numberOfReplicas == indexMetaData.getNumberOfReplicas()) {
-                        continue;
-                    }
-
-                    if (numberOfReplicas >= min && numberOfReplicas <= max) {
-
-                        if (!nrReplicasChanged.containsKey(numberOfReplicas)) {
-                            nrReplicasChanged.put(numberOfReplicas, new ArrayList<String>());
-                        }
-
-                        nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex());
-                    }
-                } catch (Exception e) {
-                    logger.warn("[{}] failed to parse auto expand replicas", e, indexMetaData.getIndex());
+                    nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex().getName());
                 }
             }
         }
 
         if (nrReplicasChanged.size() > 0) {
+            // update settings and kick of a reroute (implicit) for them to take effect
             for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
                 Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<String> indices = nrReplicasChanged.get(fNumberOfReplicas);
@@ -182,42 +153,30 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
-        updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        final Settings normalizedSettings = Settings.settingsBuilder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        Settings.Builder settingsForClosedIndices = Settings.builder();
+        Settings.Builder settingsForOpenIndices = Settings.builder();
+        Settings.Builder skipppedSettings = Settings.builder();
+
+        indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
-        for (String key : updatedSettingsBuilder.internalMap().keySet()) {
-            if (key.equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
+        for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
+            if (entry.getKey().equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
                 listener.onFailure(new IllegalArgumentException("can't change the number of shards for an index"));
                 return;
             }
-        }
-
-        final Settings closeSettings = updatedSettingsBuilder.build();
-
-        final Set<String> removedSettings = new HashSet<>();
-        final Set<String> errors = new HashSet<>();
-        for (Map.Entry<String, String> setting : updatedSettingsBuilder.internalMap().entrySet()) {
-            if (!dynamicSettings.hasDynamicSetting(setting.getKey())) {
-                removedSettings.add(setting.getKey());
+            Setting setting = indexScopedSettings.get(entry.getKey());
+            assert setting != null; // we already validated the normalized settings
+            settingsForClosedIndices.put(entry.getKey(), entry.getValue());
+            if (setting.isDynamic()) {
+                settingsForOpenIndices.put(entry.getKey(), entry.getValue());
             } else {
-                String error = dynamicSettings.validateDynamicSetting(setting.getKey(), setting.getValue(), clusterService.state());
-                if (error != null) {
-                    errors.add("[" + setting.getKey() + "] - " + error);
-                }
+                skipppedSettings.put(entry.getKey(), entry.getValue());
             }
         }
-
-        if (!errors.isEmpty()) {
-            listener.onFailure(new IllegalArgumentException("can't process the settings: " + errors.toString()));
-            return;
-        }
-
-        if (!removedSettings.isEmpty()) {
-            for (String removedSetting : removedSettings) {
-                updatedSettingsBuilder.remove(removedSetting);
-            }
-        }
-        final Settings openSettings = updatedSettingsBuilder.build();
+        final Settings skippedSettigns = skipppedSettings.build();
+        final Settings closedSettings = settingsForClosedIndices.build();
+        final Settings openSettings = settingsForOpenIndices.build();
 
         clusterService.submitStateUpdateTask("update-settings",
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
@@ -245,16 +204,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (closeIndices.size() > 0 && closeSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
+                if (closeIndices.size() > 0 && closedSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update [%s] on closed indices [%s] - can leave index in an unopenable state", IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
                             closeIndices
                     ));
                 }
-                if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings[%s] for open indices [%s]",
-                            removedSettings,
+                            skippedSettigns.getAsMap().keySet(),
                             openIndices
                     ));
                 }
@@ -267,57 +226,37 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                Boolean updatedReadOnly = openSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, null);
-                if (updatedReadOnly != null) {
-                    for (String index : actualIndices) {
-                        if (updatedReadOnly) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                        }
-                    }
-                }
-                Boolean updateMetaDataBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, null);
-                if (updateMetaDataBlock != null) {
-                    for (String index : actualIndices) {
-                        if (updateMetaDataBlock) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
-                        }
-                    }
-                }
-
-                Boolean updateWriteBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, null);
-                if (updateWriteBlock != null) {
-                    for (String index : actualIndices) {
-                        if (updateWriteBlock) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
-                        }
-                    }
-                }
-
-                Boolean updateReadBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, null);
-                if (updateReadBlock != null) {
-                    for (String index : actualIndices) {
-                        if (updateReadBlock) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
-                        }
-                    }
-                }
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK, IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK, IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
 
                 if (!openIndices.isEmpty()) {
-                    String[] indices = openIndices.toArray(new String[openIndices.size()]);
-                    metaDataBuilder.updateSettings(openSettings, indices);
+                    for (String index : openIndices) {
+                        IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                        if (indexMetaData == null) {
+                            throw new IndexNotFoundException(index);
+                        }
+                        Settings.Builder updates = Settings.builder();
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+                        if (indexScopedSettings.updateDynamicSettings(openSettings, indexSettings, updates, index)) {
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                        }
+                    }
                 }
 
                 if (!closeIndices.isEmpty()) {
-                    String[] indices = closeIndices.toArray(new String[closeIndices.size()]);
-                    metaDataBuilder.updateSettings(closeSettings, indices);
+                    for (String index : closeIndices) {
+                        IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                        if (indexMetaData == null) {
+                            throw new IndexNotFoundException(index);
+                        }
+                        Settings.Builder updates = Settings.builder();
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+                        if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index)) {
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                        }
+                    }
                 }
 
 
@@ -326,11 +265,33 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 // now, reroute in case things change that require it (like number of replicas)
                 RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-
+                for (String index : openIndices) {
+                    indexScopedSettings.dryRun(updatedState.metaData().index(index).getSettings());
+                }
+                for (String index : closeIndices) {
+                    indexScopedSettings.dryRun(updatedState.metaData().index(index).getSettings());
+                }
                 return updatedState;
             }
         });
     }
+
+    /**
+     * Updates the cluster block only iff the setting exists in the given settings
+     */
+    private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block, Setting<Boolean> setting, Settings openSettings) {
+        if (setting.exists(openSettings)) {
+            final boolean updateReadBlock = setting.get(openSettings);
+            for (String index : actualIndices) {
+                if (updateReadBlock) {
+                    blocks.addIndexBlock(index, block);
+                } else {
+                    blocks.removeIndexBlock(index, block);
+                }
+            }
+        }
+    }
+
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 

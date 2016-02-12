@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,31 +43,31 @@ public class NetworkService extends AbstractComponent {
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
 
-    private static final String GLOBAL_NETWORK_HOST_SETTING = "network.host";
-    private static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
-    private static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publish_host";
+    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST),
+            s -> s, false, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING = Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING,
+            s -> s, false, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING = Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING,
+            s -> s, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, false, Setting.Scope.CLUSTER);
 
     public static final class TcpSettings {
-        public static final String TCP_NO_DELAY = "network.tcp.no_delay";
-        public static final String TCP_KEEP_ALIVE = "network.tcp.keep_alive";
-        public static final String TCP_REUSE_ADDRESS = "network.tcp.reuse_address";
-        public static final String TCP_SEND_BUFFER_SIZE = "network.tcp.send_buffer_size";
-        public static final String TCP_RECEIVE_BUFFER_SIZE = "network.tcp.receive_buffer_size";
-        public static final String TCP_BLOCKING = "network.tcp.blocking";
-        public static final String TCP_BLOCKING_SERVER = "network.tcp.blocking_server";
-        public static final String TCP_BLOCKING_CLIENT = "network.tcp.blocking_client";
-        public static final String TCP_CONNECT_TIMEOUT = "network.tcp.connect_timeout";
-
-        public static final ByteSizeValue TCP_DEFAULT_SEND_BUFFER_SIZE = null;
-        public static final ByteSizeValue TCP_DEFAULT_RECEIVE_BUFFER_SIZE = null;
-        public static final TimeValue TCP_DEFAULT_CONNECT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+        public static final Setting<Boolean> TCP_NO_DELAY = Setting.boolSetting("network.tcp.no_delay", true, false, Setting.Scope.CLUSTER);
+        public static final Setting<Boolean> TCP_KEEP_ALIVE = Setting.boolSetting("network.tcp.keep_alive", true, false, Setting.Scope.CLUSTER);
+        public static final Setting<Boolean> TCP_REUSE_ADDRESS = Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), false, Setting.Scope.CLUSTER);
+        public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE = Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
+        public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
+        public static final Setting<Boolean> TCP_BLOCKING = Setting.boolSetting("network.tcp.blocking", false, false, Setting.Scope.CLUSTER);
+        public static final Setting<Boolean> TCP_BLOCKING_SERVER = Setting.boolSetting("network.tcp.blocking_server", TCP_BLOCKING, false, Setting.Scope.CLUSTER);
+        public static final Setting<Boolean> TCP_BLOCKING_CLIENT = Setting.boolSetting("network.tcp.blocking_client", TCP_BLOCKING, false, Setting.Scope.CLUSTER);
+        public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT = Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), false, Setting.Scope.CLUSTER);
     }
 
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change
      * the default inet address used in case no settings is provided.
      */
-    public static interface CustomNameResolver {
+    public interface CustomNameResolver {
         /**
          * Resolves the default value if possible. If not, return <tt>null</tt>.
          */
@@ -94,6 +96,7 @@ public class NetworkService extends AbstractComponent {
     /**
      * Resolves {@code bindHosts} to a list of internet addresses. The list will
      * not contain duplicate addresses.
+     *
      * @param bindHosts list of hosts to bind to. this may contain special pseudo-hostnames
      *                  such as _local_ (see the documentation). if it is null, it will be populated
      *                  based on global default settings.
@@ -101,22 +104,23 @@ public class NetworkService extends AbstractComponent {
      */
     public InetAddress[] resolveBindHostAddresses(String bindHosts[]) throws IOException {
         // first check settings
-        if (bindHosts == null) {
-            bindHosts = settings.getAsArray(GLOBAL_NETWORK_BINDHOST_SETTING, settings.getAsArray(GLOBAL_NETWORK_HOST_SETTING, null));
-        }
-        // next check any registered custom resolvers
-        if (bindHosts == null) {
-            for (CustomNameResolver customNameResolver : customNameResolvers) {
-                InetAddress addresses[] = customNameResolver.resolveDefault();
-                if (addresses != null) {
-                    return addresses;
+        if (bindHosts == null || bindHosts.length == 0) {
+            if (GLOBAL_NETWORK_BINDHOST_SETTING.exists(settings) || GLOBAL_NETWORK_HOST_SETTING.exists(settings)) {
+                // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
+                bindHosts = GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+            } else {
+                // next check any registered custom resolvers
+                for (CustomNameResolver customNameResolver : customNameResolvers) {
+                    InetAddress addresses[] = customNameResolver.resolveDefault();
+                    if (addresses != null) {
+                        return addresses;
+                    }
                 }
+                // we know it's not here. get the defaults
+                bindHosts = GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             }
         }
-        // finally, fill with our default
-        if (bindHosts == null) {
-            bindHosts = new String[] { DEFAULT_NETWORK_HOST };
-        }
+
         InetAddress addresses[] = resolveInetAddresses(bindHosts);
 
         // try to deal with some (mis)configuration
@@ -138,6 +142,7 @@ public class NetworkService extends AbstractComponent {
      * only one address is just a current limitation.
      * <p>
      * If {@code publishHosts} resolves to more than one address, <b>then one is selected with magic</b>
+     *
      * @param publishHosts list of hosts to publish as. this may contain special pseudo-hostnames
      *                     such as _local_ (see the documentation). if it is null, it will be populated
      *                     based on global default settings.
@@ -145,23 +150,23 @@ public class NetworkService extends AbstractComponent {
      */
     // TODO: needs to be InetAddress[]
     public InetAddress resolvePublishHostAddresses(String publishHosts[]) throws IOException {
-        // first check settings
-        if (publishHosts == null) {
-            publishHosts = settings.getAsArray(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.getAsArray(GLOBAL_NETWORK_HOST_SETTING, null));
-        }
-        // next check any registered custom resolvers
-        if (publishHosts == null) {
-            for (CustomNameResolver customNameResolver : customNameResolvers) {
-                InetAddress addresses[] = customNameResolver.resolveDefault();
-                if (addresses != null) {
-                    return addresses[0];
+        if (publishHosts == null || publishHosts.length == 0) {
+            if (GLOBAL_NETWORK_PUBLISHHOST_SETTING.exists(settings) || GLOBAL_NETWORK_HOST_SETTING.exists(settings)) {
+                // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
+                publishHosts = GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+            } else {
+                // next check any registered custom resolvers
+                for (CustomNameResolver customNameResolver : customNameResolvers) {
+                    InetAddress addresses[] = customNameResolver.resolveDefault();
+                    if (addresses != null) {
+                        return addresses[0];
+                    }
                 }
+                // we know it's not here. get the defaults
+                publishHosts = GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             }
         }
-        // finally, fill with our default
-        if (publishHosts == null) {
-            publishHosts = new String[] { DEFAULT_NETWORK_HOST };
-        }
+
         InetAddress addresses[] = resolveInetAddresses(publishHosts);
         // TODO: allow publishing multiple addresses
         // for now... the hack begins
@@ -184,17 +189,17 @@ public class NetworkService extends AbstractComponent {
                 throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
-        
+
         // 3. if we end out with multiple publish addresses, select by preference.
         // don't warn the user, or they will get confused by bind_host vs publish_host etc.
         if (addresses.length > 1) {
             List<InetAddress> sorted = new ArrayList<>(Arrays.asList(addresses));
             NetworkUtils.sortAddresses(sorted);
-            addresses = new InetAddress[] { sorted.get(0) };
+            addresses = new InetAddress[]{sorted.get(0)};
         }
         return addresses[0];
     }
-    
+
     /** resolves (and deduplicates) host specification */
     private InetAddress[] resolveInetAddresses(String hosts[]) throws IOException {
         if (hosts.length == 0) {

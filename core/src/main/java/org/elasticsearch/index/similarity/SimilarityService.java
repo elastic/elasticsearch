@@ -52,6 +52,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         buildIn.put("IB", IBSimilarityProvider::new);
         buildIn.put("LMDirichlet", LMDirichletSimilarityProvider::new);
         buildIn.put("LMJelinekMercer", LMJelinekMercerSimilarityProvider::new);
+        buildIn.put("DFI", DFISimilarityProvider::new);
         DEFAULTS = Collections.unmodifiableMap(defaults);
         BUILT_IN = Collections.unmodifiableMap(buildIn);
     }

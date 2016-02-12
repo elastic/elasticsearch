@@ -43,7 +43,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
@@ -55,8 +54,8 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
@@ -65,13 +64,11 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -122,6 +119,11 @@ public class InternalEngine extends Engine {
 
     private final SequenceNumbersService seqNoService;
 
+    // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
+    // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
+    // incoming indexing ops to a single thread:
+    private final AtomicInteger throttleRequestCount = new AtomicInteger();
+
     public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
         super(engineConfig);
         this.versionMap = new LiveVersionMap();
@@ -135,7 +137,7 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.warmer = engineConfig.getWarmer();
             seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings());
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
+            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
@@ -232,21 +234,9 @@ public class InternalEngine extends Engine {
     protected void recoverFromTranslog(EngineConfig engineConfig, Translog.TranslogGeneration translogGeneration) throws IOException {
         int opsRecovered = 0;
         final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            Translog.Operation operation;
-            while ((operation = snapshot.next()) != null) {
-                try {
-                    handler.performRecoveryOperation(this, operation, true);
-                    opsRecovered++;
-                } catch (ElasticsearchException e) {
-                    if (e.status() == RestStatus.BAD_REQUEST) {
-                        // mainly for MapperParsingException and Failure to detect xcontent
-                        logger.info("ignoring recovery of a corrupt translog entry", e);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
+        try {
+            Translog.Snapshot snapshot = translog.newSnapshot();
+            opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
         } catch (Throwable e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
@@ -311,15 +301,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void updateIndexWriterSettings() {
-        try {
-            final LiveIndexWriterConfig iwc = indexWriter.getConfig();
-            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
-        } catch (AlreadyClosedException ex) {
-            // ignore
-        }
-    }
-
     @Override
     public GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
@@ -364,7 +345,6 @@ public class InternalEngine extends Engine {
             maybeFailEngine("index", t);
             throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
         }
-        checkVersionMapRefresh();
         return created;
     }
 
@@ -380,7 +360,7 @@ public class InternalEngine extends Engine {
                     deleted = currentVersion == Versions.NOT_FOUND;
                 } else {
                     deleted = versionValue.delete();
-                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > getGcDeletesInMillis()) {
                         currentVersion = Versions.NOT_FOUND; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -436,33 +416,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /**
-     * Forces a refresh if the versionMap is using too much RAM
-     */
-    private void checkVersionMapRefresh() {
-        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
-            try {
-                if (isClosed.get()) {
-                    // no point...
-                    return;
-                }
-                // Now refresh to clear versionMap:
-                engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            refresh("version_table_full");
-                        } catch (EngineClosedException ex) {
-                            // ignore
-                        }
-                    }
-                });
-            } catch (EsRejectedExecutionException ex) {
-                // that is fine too.. we might be shutting down
-            }
-        }
-    }
-
     @Override
     public void delete(Delete delete) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
@@ -475,13 +428,12 @@ public class InternalEngine extends Engine {
         }
 
         maybePruneDeletedTombstones();
-        checkVersionMapRefresh();
     }
 
     private void maybePruneDeletedTombstones() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
-        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > engineConfig.getGcDeletesInMillis() * 0.25) {
+        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
             pruneDeletedTombstones();
         }
     }
@@ -498,7 +450,7 @@ public class InternalEngine extends Engine {
                     deleted = currentVersion == Versions.NOT_FOUND;
                 } else {
                     deleted = versionValue.delete();
-                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > getGcDeletesInMillis()) {
                         currentVersion = Versions.NOT_FOUND; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -569,6 +521,43 @@ public class InternalEngine extends Engine {
         maybePruneDeletedTombstones();
         versionMapRefreshPending.set(false);
         mergeScheduler.refreshConfig();
+    }
+
+    @Override
+    public void writeIndexingBuffer() throws EngineException {
+
+        // we obtain a read lock here, since we don't want a flush to happen while we are writing
+        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+
+            // TODO: it's not great that we secretly tie searcher visibility to "freeing up heap" here... really we should keep two
+            // searcher managers, one for searching which is only refreshed by the schedule the user requested (refresh_interval, or invoking
+            // refresh API), and another for version map interactions.  See #15768.
+            final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
+            final long indexingBufferBytes = indexWriter.ramBytesUsed();
+
+            final boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes / 4 < versionMapBytes);
+            if (useRefresh) {
+                // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
+                logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
+                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                refresh("write indexing buffer");
+            } else {
+                // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
+                logger.debug("use IndexWriter.flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
+                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                indexWriter.flush();
+            }
+        } catch (AlreadyClosedException e) {
+            ensureOpen();
+            maybeFailEngine("writeIndexingBuffer", e);
+        } catch (EngineClosedException e) {
+            throw e;
+        } catch (Throwable t) {
+            failEngine("writeIndexingBuffer failed", t);
+            throw new RefreshFailedEngineException(shardId, t);
+        }
     }
 
     @Override
@@ -720,7 +709,7 @@ public class InternalEngine extends Engine {
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
                 if (versionValue != null) {
-                    if (timeMSec - versionValue.time() > engineConfig.getGcDeletesInMillis()) {
+                    if (timeMSec - versionValue.time() > getGcDeletesInMillis()) {
                         versionMap.removeTombstoneUnderLock(uid);
                     }
                 }
@@ -822,8 +811,8 @@ public class InternalEngine extends Engine {
             }
             return true;
         } else if (t != null &&
-            ((indexWriter.isOpen() == false && indexWriter.getTragicException() == t)
-                || (translog.isOpen() == false && translog.getTragicException() == t))) {
+                ((indexWriter.isOpen() == false && indexWriter.getTragicException() == t)
+                        || (translog.isOpen() == false && translog.getTragicException() == t))) {
             // this spot on - we are handling the tragic event exception here so we have to fail the engine
             // right away
             failEngine(source, t);
@@ -845,8 +834,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long indexWriterRAMBytesUsed() {
-        return indexWriter.ramBytesUsed();
+    public long getIndexBufferRAMBytesUsed() {
+        return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
     }
 
     @Override
@@ -1068,12 +1057,22 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
     public void activateThrottling() {
-        throttle.activate();
+        int count = throttleRequestCount.incrementAndGet();
+        assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
+        if (count == 1) {
+            throttle.activate();
+        }
     }
 
+    @Override
     public void deactivateThrottling() {
-        throttle.deactivate();
+        int count = throttleRequestCount.decrementAndGet();
+        assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
+        if (count == 0) {
+            throttle.deactivate();
+        }
     }
 
     public long getIndexThrottleTimeInMillis() {
@@ -1081,7 +1080,7 @@ public class InternalEngine extends Engine {
     }
 
     long getGcDeletesInMillis() {
-        return engineConfig.getGcDeletesInMillis();
+        return engineConfig.getIndexSettings().getGcDeletesInMillis();
     }
 
     LiveIndexWriterConfig getCurrentIndexWriterConfig() {
@@ -1092,8 +1091,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, MergeSchedulerConfig config) {
-            super(shardId, indexSettings, config);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+            super(shardId, indexSettings);
         }
 
         @Override
@@ -1186,9 +1185,6 @@ public class InternalEngine extends Engine {
 
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
-        updateIndexWriterSettings();
-        // config().getVersionMapSize() may have changed:
-        checkVersionMapRefresh();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletedTombstones();
     }

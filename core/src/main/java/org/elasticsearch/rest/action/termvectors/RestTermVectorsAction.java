@@ -49,7 +49,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Inject
     public RestTermVectorsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
@@ -91,7 +91,6 @@ public class RestTermVectorsAction extends BaseRestHandler {
         termVectorsRequest.termStatistics(request.paramAsBoolean("term_statistics", termVectorsRequest.termStatistics()));
         termVectorsRequest.fieldStatistics(request.paramAsBoolean("fieldStatistics", termVectorsRequest.fieldStatistics()));
         termVectorsRequest.fieldStatistics(request.paramAsBoolean("field_statistics", termVectorsRequest.fieldStatistics()));
-        termVectorsRequest.dfs(request.paramAsBoolean("dfs", termVectorsRequest.dfs()));
     }
 
     static public void addFieldStringsFromParameter(TermVectorsRequest termVectorsRequest, String fields) {

@@ -65,7 +65,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", autoCreateIndex)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
                 .build();
@@ -217,7 +217,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
                 .build();
@@ -248,10 +248,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         assertExists(getResponse);
 
         SearchResponse countResponse = client().prepareSearch("test1").setSize(0).get();
-        assertHitCount(countResponse, 1l);
+        assertHitCount(countResponse, 1L);
 
         SearchResponse searchResponse = client().prepareSearch("test1").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         countResponse = client().prepareSearch("test2").setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));

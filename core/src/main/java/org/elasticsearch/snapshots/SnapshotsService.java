@@ -488,7 +488,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             if (indexMetaData != null) {
                 int numberOfShards = indexMetaData.getNumberOfShards();
                 for (int i = 0; i < numberOfShards; i++) {
-                    ShardId shardId = new ShardId(index, i);
+                    ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                     SnapshotShardFailure shardFailure = findShardFailure(snapshot.shardFailures(), shardId);
                     if (shardFailure != null) {
                         IndexShardSnapshotStatus shardSnapshotStatus = new IndexShardSnapshotStatus();
@@ -508,7 +508,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     private SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {
         for (SnapshotShardFailure shardFailure : shardFailures) {
-            if (shardId.getIndex().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
+            if (shardId.getIndexName().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
                 return shardFailure;
             }
         }
@@ -751,10 +751,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         Set<String> closed = new HashSet<>();
         for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
             if (entry.value.state() == State.MISSING) {
-                if (metaData.hasIndex(entry.key.getIndex()) && metaData.index(entry.key.getIndex()).getState() == IndexMetaData.State.CLOSE) {
-                    closed.add(entry.key.getIndex());
+                if (metaData.hasIndex(entry.key.getIndex().getName()) && metaData.index(entry.key.getIndex()).getState() == IndexMetaData.State.CLOSE) {
+                    closed.add(entry.key.getIndex().getName());
                 } else {
-                    missing.add(entry.key.getIndex());
+                    missing.add(entry.key.getIndex().getName());
                 }
             }
         }
@@ -796,7 +796,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         ShardSnapshotStatus status = shardStatus.value;
                         if (status.state().failed()) {
                             failures.add(new ShardSearchFailure(status.reason(), new SearchShardTarget(status.nodeId(), shardId.getIndex(), shardId.id())));
-                            shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId.getIndex(), shardId.id(), status.reason()));
+                            shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                         }
                     }
                     Snapshot snapshot = repository.finalizeSnapshot(snapshotId, entry.indices(), entry.startTime(), failure, entry.shards().size(), Collections.unmodifiableList(shardFailures));
@@ -1029,16 +1029,16 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             IndexMetaData indexMetaData = metaData.index(index);
             if (indexMetaData == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
-                builder.put(new ShardId(index, 0), new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "missing index"));
+                builder.put(new ShardId(index, IndexMetaData.INDEX_UUID_NA_VALUE, 0), new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "missing index"));
             } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                    ShardId shardId = new ShardId(index, i);
+                    ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                     builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "index is closed"));
                 }
             } else {
                 IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                    ShardId shardId = new ShardId(index, i);
+                    ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (primary == null || !primary.assignedToNode()) {

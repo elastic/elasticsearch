@@ -25,9 +25,9 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -241,26 +241,26 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment) {
         // read-only dirs
-        addPath(policy, "path.home", environment.binFile(), "read,readlink");
-        addPath(policy, "path.home", environment.libFile(), "read,readlink");
-        addPath(policy, "path.home", environment.modulesFile(), "read,readlink");
-        addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
-        addPath(policy, "path.conf", environment.configFile(), "read,readlink");
-        addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
+        addPath(policy, Environment.PATH_PLUGINS_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
+        addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
         // read-write dirs
         addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, "path.logs", environment.logsFile(), "read,readlink,write,delete");
+        addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
-            addPath(policy, "path.shared_data", environment.sharedDataFile(), "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
         }
         for (Path path : environment.dataFiles()) {
-            addPath(policy, "path.data", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.dataWithClusterFiles()) {
-            addPath(policy, "path.data", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
-            addPath(policy, "path.repo", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.
@@ -270,17 +270,15 @@ final class Security {
 
     static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
         // http is simple
-        String httpRange = settings.get("http.netty.port",
-                               settings.get("http.port",
-                                       NettyHttpServerTransport.DEFAULT_PORT_RANGE));
+        String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
         // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
         // see SocketPermission implies() code
         policy.add(new SocketPermission("*:" + httpRange, "listen,resolve"));
         // transport is waaaay overengineered
-        Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
-        if (!profiles.containsKey(NettyTransport.DEFAULT_PROFILE)) {
+        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups();
+        if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
             profiles = new HashMap<>(profiles);
-            profiles.put(NettyTransport.DEFAULT_PROFILE, Settings.EMPTY);
+            profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
         }
 
         // loop through all profiles and add permissions for each one, if its valid.
@@ -288,12 +286,10 @@ final class Security {
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
-            String transportRange = profileSettings.get("port",
-                                        settings.get("transport.tcp.port",
-                                                NettyTransport.DEFAULT_PORT_RANGE));
+            String transportRange = profileSettings.get("port", TransportSettings.PORT.get(settings));
 
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
-            boolean valid = NettyTransport.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
+            boolean valid = TransportSettings.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
             if (valid) {
                 // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
                 // see SocketPermission implies() code

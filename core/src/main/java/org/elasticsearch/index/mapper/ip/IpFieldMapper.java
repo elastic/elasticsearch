@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.ipField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -66,7 +65,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class IpFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
-    public static final long MAX_IP = 4294967296l;
+    public static final long MAX_IP = 4294967296L;
 
     public static String longToIp(long longIp) {
         int octet3 = (int) ((longIp >> 24) % 256);
@@ -139,7 +138,7 @@ public class IpFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            IpFieldMapper.Builder builder = ipField(name);
+            IpFieldMapper.Builder builder = new Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -213,11 +212,24 @@ public class IpFieldMapper extends NumberFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (value != null) {
-                long[] fromTo;
+                String term;
                 if (value instanceof BytesRef) {
-                    fromTo = Cidrs.cidrMaskToMinMax(((BytesRef) value).utf8ToString());
+                    term = ((BytesRef) value).utf8ToString();
                 } else {
-                    fromTo = Cidrs.cidrMaskToMinMax(value.toString());
+                    term = value.toString();
+                }
+                long[] fromTo;
+                // assume that the term is either a CIDR range or the
+                // term is a single IPv4 address; if either of these
+                // assumptions is wrong, the CIDR parsing will fail
+                // anyway, and that is okay
+                if (term.contains("/")) {
+                    // treat the term as if it is in CIDR notation
+                    fromTo = Cidrs.cidrMaskToMinMax(term);
+                } else {
+                    // treat the term as if it is a single IPv4, and
+                    // apply a CIDR mask equivalent to the host route
+                    fromTo = Cidrs.cidrMaskToMinMax(term + "/32");
                 }
                 if (fromTo != null) {
                     return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],

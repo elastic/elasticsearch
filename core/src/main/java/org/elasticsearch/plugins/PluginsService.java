@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 
@@ -56,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -69,6 +71,7 @@ public class PluginsService extends AbstractComponent {
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
+    public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 
@@ -98,7 +101,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), false, "NA", true, pluginClass.getName(), false);
+            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), "NA", pluginClass.getName(), false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -136,26 +139,18 @@ public class PluginsService extends AbstractComponent {
 
         plugins = Collections.unmodifiableList(pluginsLoaded);
 
-        // We need to build a List of jvm and site plugins for checking mandatory plugins
-        Map<String, Plugin> jvmPlugins = new HashMap<>();
-        List<String> sitePlugins = new ArrayList<>();
-
+        // We need to build a List of plugins for checking mandatory plugins
+        Set<String> pluginsNames = new HashSet<>();
         for (Tuple<PluginInfo, Plugin> tuple : plugins) {
-            PluginInfo info = tuple.v1();
-            if (info.isJvm()) {
-                jvmPlugins.put(info.getName(), tuple.v2());
-            }
-            if (info.isSite()) {
-                sitePlugins.add(info.getName());
-            }
+            pluginsNames.add(tuple.v1().getName());
         }
 
         // Checking expected plugins
-        String[] mandatoryPlugins = settings.getAsArray("plugin.mandatory", null);
-        if (mandatoryPlugins != null) {
+        List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
+        if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
-                if (!jvmPlugins.containsKey(mandatoryPlugin) && !sitePlugins.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
+                if (!pluginsNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
                     missingPlugins.add(mandatoryPlugin);
                 }
             }
@@ -164,7 +159,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
 
-        // we don't log jars in lib/ we really shouldnt log modules,
+        // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
         Set<String> moduleNames = new HashSet<>();
         Set<String> jvmPluginNames = new HashSet<>();
@@ -175,10 +170,11 @@ public class PluginsService extends AbstractComponent {
             jvmPluginNames.add(pluginInfo.getName());
         }
 
-        logger.info("modules {}, plugins {}, sites {}", moduleNames, jvmPluginNames, sitePlugins);
+        logger.info("modules {}, plugins {}", moduleNames, jvmPluginNames);
 
         Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
-        for (Plugin plugin : jvmPlugins.values()) {
+        for (Tuple<PluginInfo, Plugin> pluginEntry : plugins) {
+            Plugin plugin = pluginEntry.v2();
             List<OnModuleReference> list = new ArrayList<>();
             for (Method method : plugin.getClass().getMethods()) {
                 if (!method.getName().equals("onModule")) {
@@ -304,9 +300,6 @@ public class PluginsService extends AbstractComponent {
                     continue; // skip over .DS_Store etc
                 }
                 PluginInfo info = PluginInfo.readFromProperties(module);
-                if (!info.isJvm()) {
-                    throw new IllegalStateException("modules must be jvm plugins: " + info);
-                }
                 if (!info.isIsolated()) {
                     throw new IllegalStateException("modules must be isolated: " + info);
                 }
@@ -353,17 +346,14 @@ public class PluginsService extends AbstractComponent {
                 }
 
                 List<URL> urls = new ArrayList<>();
-                if (info.isJvm()) {
-                    // a jvm plugin: gather urls for jar files
-                    try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                        for (Path jar : jarStream) {
-                            // normalize with toRealPath to get symlinks out of our hair
-                            urls.add(jar.toRealPath().toUri().toURL());
-                        }
+                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                    for (Path jar : jarStream) {
+                        // normalize with toRealPath to get symlinks out of our hair
+                        urls.add(jar.toRealPath().toUri().toURL());
                     }
                 }
                 final Bundle bundle;
-                if (info.isJvm() && info.isIsolated() == false) {
+                if (info.isIsolated() == false) {
                     bundle = bundles.get(0); // purgatory
                 } else {
                     bundle = new Bundle();
@@ -395,15 +385,10 @@ public class PluginsService extends AbstractComponent {
             // create a child to load the plugins in this bundle
             ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), getClass().getClassLoader());
             for (PluginInfo pluginInfo : bundle.plugins) {
-                final Plugin plugin;
-                if (pluginInfo.isJvm()) {
-                    // reload lucene SPI with any new services from the plugin
-                    reloadLuceneSPI(loader);
-                    Class<? extends Plugin> pluginClass = loadPluginClass(pluginInfo.getClassname(), loader);
-                    plugin = loadPlugin(pluginClass, settings);
-                } else {
-                    plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
-                }
+                // reload lucene SPI with any new services from the plugin
+                reloadLuceneSPI(loader);
+                final Class<? extends Plugin> pluginClass = loadPluginClass(pluginInfo.getClassname(), loader);
+                final Plugin plugin = loadPlugin(pluginClass, settings);
                 plugins.add(new Tuple<>(pluginInfo, plugin));
             }
         }

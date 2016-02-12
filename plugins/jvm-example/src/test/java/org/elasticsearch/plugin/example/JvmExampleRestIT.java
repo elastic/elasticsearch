@@ -21,20 +21,13 @@ package org.elasticsearch.plugin.example;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class JvmExampleRestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(JvmExamplePlugin.class);
-    }
 
     public JvmExampleRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

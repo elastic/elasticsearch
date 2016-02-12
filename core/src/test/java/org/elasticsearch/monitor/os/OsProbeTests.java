@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
@@ -50,12 +49,38 @@ public class OsProbeTests extends ESTestCase {
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
         assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1), is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
+        double[] loadAverage = stats.getCpu().loadAverage;
+        if (loadAverage != null) {
+            assertThat(loadAverage.length, equalTo(3));
+        }
         if (Constants.WINDOWS) {
-            // Load average is always -1 on Windows platforms
-            assertThat(stats.getCpu().getLoadAverage(), equalTo((double) -1));
+            // load average is unavailable on Windows
+            assertNull(loadAverage);
+        } else if (Constants.LINUX) {
+            // we should be able to get the load average
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[2], greaterThanOrEqualTo((double) 0));
+        } else if (Constants.FREE_BSD) {
+            // five- and fifteen-minute load averages not available if linprocfs is not mounted at /compat/linux/proc
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+            assertThat(loadAverage[2], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+        } else if (Constants.MAC_OS_X) {
+            // one minute load average is available, but 10-minute and 15-minute load averages are not
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], equalTo((double) -1));
+            assertThat(loadAverage[2], equalTo((double) -1));
         } else {
-            // Load average can be negative if not available or not computed yet, otherwise it should be >= 0
-            assertThat(stats.getCpu().getLoadAverage(), anyOf(lessThan((double) 0), greaterThanOrEqualTo((double) 0)));
+            // unknown system, but the best case is that we have the one-minute load average
+            if (loadAverage != null) {
+                assertThat(loadAverage[0], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+                assertThat(loadAverage[1], equalTo((double) -1));
+                assertThat(loadAverage[2], equalTo((double) -1));
+            }
         }
 
         assertNotNull(stats.getMem());

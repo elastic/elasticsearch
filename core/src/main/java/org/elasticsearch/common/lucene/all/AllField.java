@@ -63,7 +63,7 @@ public class AllField extends Field {
     }
 
     @Override
-    public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+    public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
             if (allEntries.customBoost() && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {

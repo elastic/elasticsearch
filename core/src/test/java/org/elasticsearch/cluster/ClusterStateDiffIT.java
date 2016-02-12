@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -223,11 +224,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Randomly updates index routing table in the cluster state
      */
     private IndexRoutingTable randomIndexRoutingTable(String index, String[] nodeIds) {
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(new Index(index, "_na_"));
         int shardCount = randomInt(10);
 
         for (int i = 0; i < shardCount; i++) {
-            IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, i));
+            IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
             int replicaCount = randomIntBetween(1, 10);
             int term = randomInt(200);
             for (int j = 0; j < replicaCount; j++) {
@@ -237,7 +238,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 indexShard.addShard(
                         TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, term, j == 0,
-                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1, unassignedInfo));
+                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
         }

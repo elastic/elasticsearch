@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -33,6 +32,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";
         Settings settings = settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         AnalysisService analysisService = testSimpleConfiguration(settings);
         TokenFilterFactory filterFactory = analysisService.tokenFilter("phonetic");
@@ -55,10 +55,12 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
     }
 
     private AnalysisService testSimpleConfiguration(Settings settings) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisPhoneticPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
+        SettingsModule settingsModule = new SettingsModule(settings);
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        Injector parentInjector = new ModulesBuilder().add(settingsModule,
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
         return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));

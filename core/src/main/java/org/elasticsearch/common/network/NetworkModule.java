@@ -19,13 +19,17 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.client.support.Headers;
+import java.util.Arrays;
+import java.util.List;
+
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
@@ -36,6 +40,7 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -113,6 +118,10 @@ import org.elasticsearch.rest.action.get.RestGetSourceAction;
 import org.elasticsearch.rest.action.get.RestHeadAction;
 import org.elasticsearch.rest.action.get.RestMultiGetAction;
 import org.elasticsearch.rest.action.index.RestIndexAction;
+import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
+import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
@@ -135,9 +144,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
  * A module to handle registering and binding all network related classes.
  */
@@ -145,16 +151,19 @@ public class NetworkModule extends AbstractModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
-
+    public static final String HTTP_TYPE_KEY = "http.type";
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
-    public static final String HTTP_TYPE_KEY = "http.type";
-    public static final String HTTP_ENABLED = "http.enabled";
+    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", false, Scope.CLUSTER);
+    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, false, Scope.CLUSTER);
+    public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING = Setting.simpleString("transport.service.type", false, Scope.CLUSTER);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", false, Scope.CLUSTER);
+
+
 
     private static final List<Class<? extends RestHandler>> builtinRestHandlers = Arrays.asList(
         RestMainAction.class,
-
         RestNodesInfoAction.class,
         RestNodesStatsAction.class,
         RestNodesHotThreadsAction.class,
@@ -256,7 +265,14 @@ public class NetworkModule extends AbstractModule {
         RestCatAction.class,
 
         // Tasks API
-        RestListTasksAction.class
+        RestListTasksAction.class,
+        RestCancelTasksAction.class,
+
+        // Ingest API
+        RestPutPipelineAction.class,
+        RestGetPipelineAction.class,
+        RestDeletePipelineAction.class,
+        RestSimulatePipelineAction.class
     );
 
     private static final List<Class<? extends AbstractCatAction>> builtinCatHandlers = Arrays.asList(
@@ -291,6 +307,7 @@ public class NetworkModule extends AbstractModule {
     private final ExtensionPoint.ClassSet<RestHandler> restHandlers = new ExtensionPoint.ClassSet<>("rest_handler", RestHandler.class);
     // we must separate the cat rest handlers so RestCatAction can collect them...
     private final ExtensionPoint.ClassSet<AbstractCatAction> catHandlers = new ExtensionPoint.ClassSet<>("cat_handler", AbstractCatAction.class);
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -298,11 +315,13 @@ public class NetworkModule extends AbstractModule {
      * @param networkService A constructed network service object to bind.
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
+     * @param namedWriteableRegistry registry for named writeables for use during streaming
      */
-    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient) {
+    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient, NamedWriteableRegistry namedWriteableRegistry) {
         this.networkService = networkService;
         this.settings = settings;
         this.transportClient = transportClient;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
@@ -354,20 +373,19 @@ public class NetworkModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(NetworkService.class).toInstance(networkService);
-        bind(NamedWriteableRegistry.class).asEagerSingleton();
+        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
         String defaultTransport = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient) {
-            bind(Headers.class).asEagerSingleton();
             bind(TransportProxyClient.class).asEagerSingleton();
             bind(TransportClientNodesService.class).asEagerSingleton();
         } else {
-            if (settings.getAsBoolean(HTTP_ENABLED, true)) {
+            if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
-                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_KEY, NETTY_TRANSPORT);
+                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), NETTY_TRANSPORT);
             }
             bind(RestController.class).asEagerSingleton();
             catHandlers.bind(binder());

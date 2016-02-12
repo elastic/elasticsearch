@@ -24,9 +24,9 @@ import com.spatial4j.core.shape.Rectangle;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.GeoPointInBBoxQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -143,7 +143,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 tester.invalidateCoordinate(builder, true);
                 fail("expected exception for broken " + tester.getClass().getName() + " coordinate");
             } catch (IllegalArgumentException e) {
-                // exptected
+                // expected
             }
         }
     }

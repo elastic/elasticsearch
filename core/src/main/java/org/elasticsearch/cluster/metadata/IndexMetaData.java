@@ -39,6 +39,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.joda.time.DateTime;
@@ -53,7 +55,15 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -65,10 +75,6 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  *
  */
 public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent {
-
-    public static final IndexMetaData PROTO = IndexMetaData.builder("")
-        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-        .numberOfShards(1).numberOfReplicas(0).build();
 
     public interface Custom extends Diffable<Custom>, ToXContent {
 
@@ -149,14 +155,29 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
+    public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = Setting.intSetting(SETTING_NUMBER_OF_SHARDS, 5, 1, false, Setting.Scope.INDEX);
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
+    public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
+    public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING = Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, false, Setting.Scope.INDEX);
+
     public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
+    public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING = Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, false, Setting.Scope.INDEX);
+
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
+    public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
+    public static final Setting<Boolean> INDEX_READ_ONLY_SETTING = Setting.boolSetting(SETTING_READ_ONLY, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_BLOCKS_READ = "index.blocks.read";
+    public static final Setting<Boolean> INDEX_BLOCKS_READ_SETTING = Setting.boolSetting(SETTING_BLOCKS_READ, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
+    public static final Setting<Boolean> INDEX_BLOCKS_WRITE_SETTING = Setting.boolSetting(SETTING_BLOCKS_WRITE, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
+    public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING = Setting.boolSetting(SETTING_BLOCKS_METADATA, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
@@ -164,11 +185,22 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_PRIORITY = "index.priority";
+    public static final Setting<Integer> INDEX_PRIORITY_SETTING = Setting.intSetting("index.priority", 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
+    public static final Setting<String> INDEX_DATA_PATH_SETTING = new Setting<>(SETTING_DATA_PATH, "", Function.identity(), false, Setting.Scope.INDEX);
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
+    public static final Setting<Boolean> INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING = Setting.boolSetting(SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, true, Setting.Scope.INDEX);
     public static final String INDEX_UUID_NA_VALUE = "_na_";
+
+    public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.require.", true, Setting.Scope.INDEX);
+    public static final Setting<Settings> INDEX_ROUTING_INCLUDE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.include.", true, Setting.Scope.INDEX);
+    public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.exclude.", true, Setting.Scope.INDEX);
+
+    public static final IndexMetaData PROTO = IndexMetaData.builder("")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
 
     public static final String KEY_ACTIVE_ALLOCATIONS = "active_allocations";
     static final String KEY_VERSION = "version";
@@ -181,7 +213,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final int numberOfShards;
     private final int numberOfReplicas;
 
-    private final String index;
+    private final Index index;
     private final long version;
     private final long[] primaryTerms;
 
@@ -207,7 +239,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final Version indexUpgradedVersion;
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
 
-    private IndexMetaData(String index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
+    private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> activeAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
@@ -234,12 +266,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
     }
 
-    public String getIndex() {
+    public Index getIndex() {
         return index;
     }
 
     public String getIndexUUID() {
-        return settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+        return index.getUUID();
     }
 
     /**
@@ -261,7 +293,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
-     * a primary shard is assigned after a full cluster restart (see {@link ShardRouting#initialize(java.lang.String, long)}
+     * a primary shard is assigned after a full cluster restart (see {@link ShardRouting#initialize(java.lang.String, java.lang.String, long)}
      * or a replica shard is promoted to a primary (see {@link ShardRouting#moveToPrimary()}).
      **/
     public long primaryTerm(int shardId) {
@@ -292,7 +324,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     public long getCreationDate() {
-        return settings.getAsLong(SETTING_CREATION_DATE, -1l);
+        return settings.getAsLong(SETTING_CREATION_DATE, -1L);
     }
 
     public State getState() {
@@ -469,7 +501,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         private final Diff<ImmutableOpenIntMap<Set<String>>> activeAllocationIds;
 
         public IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
-            index = after.index;
+            index = after.index.getName();
             version = after.version;
             state = after.state;
             settings = after.settings;
@@ -490,17 +522,17 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MappingMetaData.PROTO);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), AliasMetaData.PROTO);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                    @Override
-                    public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readFrom(in);
-                    }
+                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
+                        @Override
+                        public Custom read(StreamInput in, String key) throws IOException {
+                            return lookupPrototypeSafe(key).readFrom(in);
+                        }
 
-                    @Override
-                    public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readDiffFrom(in);
-                    }
-                });
+                        @Override
+                        public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
+                            return lookupPrototypeSafe(key).readDiffFrom(in);
+                        }
+                    });
             activeAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
         }
@@ -567,7 +599,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
+        out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -621,7 +653,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder(IndexMetaData indexMetaData) {
-            this.index = indexMetaData.getIndex();
+            this.index = indexMetaData.getIndex().getName();
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
             this.settings = indexMetaData.getSettings();
@@ -664,10 +696,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
-        public long creationDate() {
-            return settings.getAsLong(SETTING_CREATION_DATE, -1l);
-        }
-
         public Builder settings(Settings.Builder settings) {
             return settings(settings.build());
         }
@@ -679,11 +707,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         public MappingMetaData mapping(String type) {
             return mappings.get(type);
-        }
-
-        public Builder removeMapping(String mappingType) {
-            mappings.remove(mappingType);
-            return this;
         }
 
         public Builder putMapping(String type, String source) throws IOException {
@@ -728,22 +751,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
-        public Builder removeCustom(String type) {
-            this.customs.remove(type);
-            return this;
-        }
-
-        public Custom getCustom(String type) {
-            return this.customs.get(type);
-        }
-
         public Builder putActiveAllocationIds(int shardId, Set<String> allocationIds) {
             activeAllocationIds.put(shardId, new HashSet(allocationIds));
             return this;
-        }
-
-        public Set<String> getActiveAllocationIds(int shardId) {
-            return activeAllocationIds.get(shardId);
         }
 
         public long version() {
@@ -830,22 +840,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     filledActiveAllocationIds.put(i, Collections.emptySet());
                 }
             }
-
-            Map<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
+            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
                 requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
-            Map<String, String> includeMap = settings.getByPrefix("index.routing.allocation.include.").getAsMap();
+            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
                 includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
-            Map<String, String> excludeMap = settings.getByPrefix("index.routing.allocation.exclude.").getAsMap();
+            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;
@@ -873,13 +882,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     + "] but should be equal to number of shards [" + numberOfShards() + "]");
             }
 
-            return new IndexMetaData(index, version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
-                tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, includeFilters, excludeFilters,
-                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion);
+            final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+            return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
+                    tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, includeFilters, excludeFilters,
+                    indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion);
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));

@@ -148,7 +148,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
             int failures = 0;
             List<ShardsSyncedFlushResult> shardsResults = new ArrayList<>();
             for (int shard = 0; shard < shards; shard++) {
-                final ShardId shardId = new ShardId(index, shard);
+                final ShardId shardId = new ShardId(index, "_na_", shard);
                 if (randomInt(5) < 2) {
                     // total shard failure
                     failed += replicas + 1;
@@ -157,8 +157,8 @@ public class SyncedFlushUnitTests extends ESTestCase {
                 } else {
                     Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
                     for (int copy = 0; copy < replicas + 1; copy++) {
-                        final ShardRouting shardRouting = TestShardRouting.newShardRouting(index, shard, "node_" + shardId + "_" + copy, null,
-                            1, copy == 0, ShardRoutingState.STARTED, 0);
+                        final ShardRouting shardRouting = TestShardRouting.newShardRouting(index, shard, "node_" + shardId + "_" + copy,
+                                null, 1, copy == 0, ShardRoutingState.STARTED);
                         if (randomInt(5) < 2) {
                             // shard copy failure
                             failed++;

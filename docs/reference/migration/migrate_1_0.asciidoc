@@ -44,7 +44,7 @@ The <<cluster-state,`cluster_state`>>, <<cluster-nodes-info,`nodes_info`>>,
 <<cluster-nodes-stats,`nodes_stats`>> and <<indices-stats,`indices_stats`>>
 APIs have all been changed to make their format more RESTful and less clumsy.
 
-For instance, if you just want the `nodes` section of the the `cluster_state`,
+For instance, if you just want the `nodes` section of the `cluster_state`,
 instead of:
 
 [source,sh]
@@ -320,7 +320,7 @@ longer be used to return whole objects and it no longer accepts the
 parameters instead.
 
 * Settings, like `index.analysis.analyzer.default` are now returned as proper
-  nested JSON objects, which makes them easier to work with programatically:
+  nested JSON objects, which makes them easier to work with programmatically:
 +
 [source,js]
 ---------------

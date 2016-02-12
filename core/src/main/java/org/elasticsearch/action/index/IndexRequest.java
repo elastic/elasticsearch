@@ -21,7 +21,6 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -155,23 +154,17 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
-    public IndexRequest() {
-    }
+    private String pipeline;
 
-    /**
-     * Creates an index request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public IndexRequest(ActionRequest request) {
-        super(request);
+    public IndexRequest() {
     }
 
     /**
      * Copy constructor that creates a new index request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    public IndexRequest(IndexRequest indexRequest, ActionRequest originalRequest) {
-        super(indexRequest, originalRequest);
+    public IndexRequest(IndexRequest indexRequest) {
+        super(indexRequest);
         this.type = indexRequest.type;
         this.id = indexRequest.id;
         this.routing = indexRequest.routing;
@@ -364,7 +357,22 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * The source of the document to index, recopied to a new array if it is unsage.
+     * Sets the ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequest setPipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    /**
+     * Returns the ingest pipeline to be executed before indexing the document
+     */
+    public String getPipeline() {
+        return this.pipeline;
+    }
+
+    /**
+     * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
         return source;
@@ -658,6 +666,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         refresh = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        pipeline = in.readOptionalString();
     }
 
     @Override
@@ -679,6 +688,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        out.writeOptionalString(pipeline);
     }
 
     @Override

@@ -126,18 +126,6 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void onShardActive(IndexShard indexShard) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.onShardActive(indexShard);
-            } catch (Throwable t) {
-                logger.warn("[{}] failed to invoke on shard active callback", t, indexShard.shardId().getId());
-                throw t;
-            }
-        }
-    }
-
-    @Override
     public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
         for (IndexEventListener listener : listeners) {
             try {
@@ -266,6 +254,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.beforeIndexAddedToCluster(index, indexSettings);
             } catch (Throwable t) {
                 logger.warn("failed to invoke before index added to cluster callback", t);
+                throw t;
+            }
+        }
+    }
+
+    @Override
+    public void onStoreClosed(ShardId shardId) {
+        for (IndexEventListener listener  : listeners) {
+            try {
+                listener.onStoreClosed(shardId);
+            } catch (Throwable t) {
+                logger.warn("failed to invoke on store closed", t);
                 throw t;
             }
         }

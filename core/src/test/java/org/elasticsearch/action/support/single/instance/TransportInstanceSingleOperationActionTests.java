@@ -198,7 +198,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         long requestId = transport.capturedRequests()[0].requestId;
         transport.clear();
         // this should not trigger retry or anything and the listener should report exception immediately
-        transport.handleResponse(requestId, new TransportException("a generic transport exception", new Exception("generic test exception")));
+        transport.handleRemoteError(requestId, new TransportException("a generic transport exception", new Exception("generic test exception")));
 
         try {
             // result should return immediately
@@ -240,7 +240,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         long requestId = transport.capturedRequests()[0].requestId;
         transport.clear();
         DiscoveryNode node = clusterService.state().getNodes().getLocalNode();
-        transport.handleResponse(requestId, new ConnectTransportException(node, "test exception"));
+        transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
         // trigger cluster state observer
         clusterService.setState(ClusterStateCreationUtils.state("test", local, ShardRoutingState.STARTED));
         assertThat(transport.capturedRequests().length, equalTo(1));
@@ -258,7 +258,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         long requestId = transport.capturedRequests()[0].requestId;
         transport.clear();
         DiscoveryNode node = clusterService.state().getNodes().getLocalNode();
-        transport.handleResponse(requestId, new ConnectTransportException(node, "test exception"));
+        transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
 
         // wait until the timeout was triggered and we actually tried to send for the second time
         assertBusy(new Runnable() {
@@ -270,7 +270,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
         // let it fail the second time too
         requestId = transport.capturedRequests()[0].requestId;
-        transport.handleResponse(requestId, new ConnectTransportException(node, "test exception"));
+        transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
         try {
             // result should return immediately
             assertTrue(listener.isDone());

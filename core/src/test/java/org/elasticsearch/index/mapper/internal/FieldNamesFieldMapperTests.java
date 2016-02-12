@@ -148,11 +148,11 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
 
-        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
-        DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
+        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), false, false);
+        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
     }
 
@@ -236,9 +236,9 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         IndicesModule indicesModule = new IndicesModule();
         indicesModule.registerMetadataMapper("_dummy", new DummyMetadataFieldMapper.TypeParser());
         final MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDocument = mapper.parse("index", "type", "id", new BytesArray("{}"));

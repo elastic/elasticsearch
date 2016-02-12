@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -104,15 +105,19 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray("task_failures");
             for (TaskOperationFailure ex : getTaskFailures()){
+                builder.startObject();
                 builder.value(ex);
+                builder.endObject();
             }
             builder.endArray();
         }
 
         if (getNodeFailures() != null && getNodeFailures().size() > 0) {
             builder.startArray("node_failures");
-            for (FailedNodeException ex : getNodeFailures()){
-                builder.value(ex);
+            for (FailedNodeException ex : getNodeFailures()) {
+                builder.startObject();
+                ex.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
         }

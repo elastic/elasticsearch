@@ -52,6 +52,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -89,14 +90,14 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected void doExecute(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
+    protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index(), request.indices());
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.getIndexName(), request.indices());
         return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
     }
 
@@ -163,7 +164,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        final QueryShardContext queryShardContext = indexShard.getQueryShardContext();
+        final QueryShardContext queryShardContext = indexService.newQueryShardContext();
+        queryShardContext.setTypes(request.types());
 
         boolean valid;
         String explanation = null;
@@ -182,11 +184,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             searchContext.preProcess();
 
             valid = true;
-            if (request.explain()) {
-                explanation = searchContext.parsedQuery().query().toString();
-            }
             if (request.rewrite()) {
                 explanation = getRewrittenQuery(searcher.searcher(), searchContext.query());
+            } else if (request.explain()) {
+                explanation = searchContext.filteredQuery().query().toString();
             }
         } catch (QueryShardException|ParsingException e) {
             valid = false;

@@ -39,10 +39,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -58,7 +65,12 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -189,7 +201,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     void setClusterState(TestClusterService clusterService, String index) {
         int numberOfNodes = randomIntBetween(3, 5);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(index, "_na_"));
 
         int shardIndex = -1;
         int totalIndexShards = 0;
@@ -199,9 +211,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             int numberOfShards = randomIntBetween(1, 10);
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
-                final ShardId shardId = new ShardId(index, ++shardIndex);
+                final ShardId shardId = new ShardId(index, "_na_", ++shardIndex);
                 final int primaryTerm = randomInt(200);
-                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), primaryTerm, true, ShardRoutingState.STARTED, 1);
+                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), primaryTerm, true, ShardRoutingState.STARTED);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
                 indexRoutingTable.addIndexShard(indexShard.build());
@@ -241,7 +253,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(request, listener).start();
+            action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
             assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
@@ -256,7 +268,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 .addIndexBlock(TEST_INDEX, new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(request, listener).start();
+            action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
             assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
@@ -267,8 +279,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[]{TEST_INDEX});
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        action.new AsyncAction(request, listener).start();
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
+        action.new AsyncAction(null, request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
@@ -301,9 +313,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
 
-        action.new AsyncAction(request, listener).start();
+        action.new AsyncAction(null, request, listener).start();
 
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         // the master should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
@@ -388,9 +400,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
         }
 
-        action.new AsyncAction(request, listener).start();
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
-        transport.clear();
+        action.new AsyncAction(null, request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
@@ -411,7 +422,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 // simulate node failure
                 totalShards += map.get(entry.getKey()).size();
                 totalFailedShards += map.get(entry.getKey()).size();
-                transport.handleResponse(requestId, new Exception());
+                transport.handleRemoteError(requestId, new Exception());
             } else {
                 List<ShardRouting> shards = map.get(entry.getKey());
                 List<TransportBroadcastByNodeAction.EmptyResult> shardResults = new ArrayList<>();

@@ -50,7 +50,7 @@ public abstract class AbstractComponent {
      * Returns the nodes name from the settings or the empty string if not set.
      */
     public final String nodeName() {
-        return settings.get("name", "");
+        return settings.get("node.name", "");
     }
 
     /**

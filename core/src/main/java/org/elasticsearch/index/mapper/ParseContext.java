@@ -182,11 +182,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public boolean flyweight() {
-            return in.flyweight();
-        }
-
-        @Override
         public DocumentMapperParser docMapperParser() {
             return in.docMapperParser();
         }
@@ -422,11 +417,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public boolean flyweight() {
-            return sourceToParse.flyweight();
-        }
-
-        @Override
         public DocumentMapperParser docMapperParser() {
             return this.docMapperParser;
         }
@@ -601,8 +591,6 @@ public abstract class ParseContext {
         }
     }
 
-    public abstract boolean flyweight();
-
     public abstract DocumentMapperParser docMapperParser();
 
     /**
@@ -679,6 +667,7 @@ public abstract class ParseContext {
 
     public abstract SourceToParse sourceToParse();
 
+    @Nullable
     public abstract BytesReference source();
 
     // only should be used by SourceFieldMapper to update with a compressed source

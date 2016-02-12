@@ -31,8 +31,8 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -51,17 +52,19 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -85,9 +88,9 @@ public class TemplateQueryParserTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .put("path.conf", this.getDataPath("config"))
-                .put("name", getClass().getName())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config"))
+                .put("node.name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         final Client proxy = (Client) Proxy.newProxyInstance(
@@ -95,20 +98,26 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new Class<?>[]{Client.class}, (proxy1, method, args) -> {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
-        Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        ScriptModule scriptModule = new ScriptModule(settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        Index index = idxSettings.getIndex();
+        SettingsModule settingsModule = new SettingsModule(settings);
+        ScriptModule scriptModule = new ScriptModule();
+        scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(MustacheScriptEngineService.class);
+        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings, new SettingsFilter(settings)),
+                settingsModule,
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule() {
+                new SearchModule(settings, new NamedWriteableRegistry()) {
                     @Override
-                    public void configure() {
-                        // skip services
-                        bindQueryParsersExtension();
+                    protected void configureSearch() {
+                        // skip so we don't need transport
+                    }
+                    @Override
+                    protected void configureSuggesters() {
+                        // skip so we don't need IndicesService
                     }
                 },
                 scriptModule,
@@ -129,8 +138,9 @@ public class TemplateQueryParserTests extends ESTestCase {
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
         MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () -> context);
-        IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
+        IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, cache, injector.getInstance(CircuitBreakerService.class), mapperService);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 

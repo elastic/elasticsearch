@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
@@ -81,7 +82,7 @@ public class TransportClient extends AbstractClient {
      */
     public static class Builder {
 
-        private Settings settings = Settings.EMPTY;
+        private Settings providedSettings = Settings.EMPTY;
         private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
 
         /**
@@ -95,7 +96,7 @@ public class TransportClient extends AbstractClient {
          * The settings to configure the transport client with.
          */
         public Builder settings(Settings settings) {
-            this.settings = settings;
+            this.providedSettings = settings;
             return this;
         }
 
@@ -107,27 +108,28 @@ public class TransportClient extends AbstractClient {
             return this;
         }
 
+        private PluginsService newPluginService(final Settings settings) {
+            final Settings.Builder settingsBuilder = settingsBuilder()
+                    .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+                    .put(InternalSettingsPreparer.prepareSettings(settings))
+                    .put(NetworkService.NETWORK_SERVER.getKey(), false)
+                    .put(Node.NODE_CLIENT_SETTING.getKey(), true)
+                    .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
+            return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
+        }
+
         /**
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
-            Settings settings = InternalSettingsPreparer.prepareSettings(this.settings);
-            settings = settingsBuilder()
-                    .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                    .put(settings)
-                    .put("network.server", false)
-                    .put("node.client", true)
-                    .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
-                    .build();
-
-            PluginsService pluginsService = new PluginsService(settings, null, null, pluginClasses);
-            this.settings = pluginsService.updatedSettings();
+            final PluginsService pluginsService = newPluginService(providedSettings);
+            final Settings settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
 
             final ThreadPool threadPool = new ThreadPool(settings);
             final NetworkService networkService = new NetworkService(settings);
-            final SettingsFilter settingsFilter = new SettingsFilter(settings);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;
             try {
                 ModulesBuilder modules = new ModulesBuilder();
@@ -137,18 +139,18 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(this.settings, settingsFilter ));
-                modules.add(new NetworkModule(networkService, this.settings, true));
-                modules.add(new ClusterNameModule(this.settings));
+                modules.add(new SettingsModule(settings));
+                modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+                modules.add(new ClusterNameModule(settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new SearchModule() {
+                modules.add(new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configure() {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(true));
-                modules.add(new CircuitBreakerModule(this.settings));
+                modules.add(new ActionModule(false, true));
+                modules.add(new CircuitBreakerModule(settings));
 
                 pluginsService.processModules(modules);
 
@@ -173,7 +175,7 @@ public class TransportClient extends AbstractClient {
     private final TransportProxyClient proxy;
 
     private TransportClient(Injector injector) {
-        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class), injector.getInstance(Headers.class));
+        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class));
         this.injector = injector;
         nodesService = injector.getInstance(TransportClientNodesService.class);
         proxy = injector.getInstance(TransportProxyClient.class);
@@ -276,7 +278,7 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 }

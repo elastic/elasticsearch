@@ -20,17 +20,20 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -39,6 +42,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -55,6 +60,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -91,9 +98,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // tracer log
 
-    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = Setting.listSetting("transport.tracer.include", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
-    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = Setting.listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME), Function.identity(), true, Setting.Scope.CLUSTER);
-
+    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = listSetting("transport.tracer.include", emptyList(),
+            Function.identity(), true, Scope.CLUSTER);
+    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = listSetting("transport.tracer.exclude",
+            Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME), Function.identity(), true, Scope.CLUSTER);
 
     private final ESLogger tracerLog;
 
@@ -104,11 +112,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     volatile DiscoveryNode localNode = null;
 
     public TransportService(Transport transport, ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, transport, threadPool);
+        this(EMPTY_SETTINGS, transport, threadPool, new NamedWriteableRegistry());
     }
 
     @Inject
-    public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+    public TransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
@@ -116,7 +124,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
-        taskManager = new TaskManager(settings);
+        taskManager = createTaskManager();
+        namedWriteableRegistry.registerPrototype(Task.Status.class, ReplicationTask.Status.PROTOTYPE);
     }
 
     /**
@@ -138,6 +147,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     protected Adapter createAdapter() {
         return new Adapter();
+    }
+
+    protected TaskManager createTaskManager() {
+        return new TaskManager(settings);
     }
 
     // These need to be optional as they don't exist in the context of a transport client
@@ -288,7 +301,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             } else {
                 timeoutHandler = new TimeoutHandler(requestId);
             }
-            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
+            clientHandlers.put(requestId, new RequestHolder<>(new ContextRestoreResponseHandler<T>(threadPool.getThreadContext().newStoredContext(), handler), node, action, timeoutHandler));
             if (started.get() == false) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
                 // it will only notify if the toStop code hasn't done the work yet.
@@ -494,6 +507,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override
         public TransportResponseHandler onResponseReceived(final long requestId) {
             RequestHolder holder = clientHandlers.remove(requestId);
+
             if (holder == null) {
                 checkForTimeout(requestId);
                 return null;
@@ -708,6 +722,41 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
+    /**
+     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
+     * are invoked we restore the context.
+     */
+    private final static class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+        private final TransportResponseHandler<T> delegate;
+        private final ThreadContext.StoredContext threadContext;
+        private ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
+            this.delegate = delegate;
+            this.threadContext = threadContext;
+        }
+
+        @Override
+        public T newInstance() {
+            return delegate.newInstance();
+        }
+
+        @Override
+        public void handleResponse(T response) {
+            threadContext.restore();
+            delegate.handleResponse(response);
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            threadContext.restore();
+            delegate.handleException(exp);
+        }
+
+        @Override
+        public String executor() {
+            return delegate.executor();
+        }
+    }
+
     static class DirectResponseChannel implements TransportChannel {
         final ESLogger logger;
         final DiscoveryNode localNode;
@@ -716,7 +765,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         final TransportServiceAdapter adapter;
         final ThreadPool threadPool;
 
-        public DirectResponseChannel(ESLogger logger, DiscoveryNode localNode, String action, long requestId, TransportServiceAdapter adapter, ThreadPool threadPool) {
+        public DirectResponseChannel(ESLogger logger, DiscoveryNode localNode, String action, long requestId,
+                TransportServiceAdapter adapter, ThreadPool threadPool) {
             this.logger = logger;
             this.localNode = localNode;
             this.action = action;

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.functionscore;
 
+import java.util.Collection;
+
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,8 +37,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-
-import java.util.Collection;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -103,7 +103,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         }
 
         public void onModule(SearchModule scoreModule) {
-            scoreModule.registerFunctionScoreParser(FunctionScorePluginIT.CustomDistanceScoreParser.class);
+            scoreModule.registerFunctionScoreParser(new FunctionScorePluginIT.CustomDistanceScoreParser());
         }
     }
 

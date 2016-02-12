@@ -54,10 +54,10 @@ public class MinTests extends AbstractNumericTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(min("min")))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(min("min")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -76,7 +76,7 @@ public class MinTests extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -123,7 +123,7 @@ public class MinTests extends AbstractNumericTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 

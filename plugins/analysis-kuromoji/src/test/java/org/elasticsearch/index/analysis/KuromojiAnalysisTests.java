@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -38,6 +37,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -198,16 +198,17 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", home)
+                .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-
-        Index index = new Index("test");
+        final SettingsModule settingsModule = new SettingsModule(settings);
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        Index index = new Index("test", "_na_");
 
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisKuromojiPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
+        Injector parentInjector = new ModulesBuilder().add(settingsModule,
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
 

@@ -179,7 +179,7 @@ public class BulkProcessor implements Closeable {
 
 
     private final ScheduledThreadPoolExecutor scheduler;
-    private final ScheduledFuture scheduledFuture;
+    private final ScheduledFuture<?> scheduledFuture;
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
@@ -250,24 +250,24 @@ public class BulkProcessor implements Closeable {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkProcessor add(IndexRequest request) {
-        return add((ActionRequest) request);
+        return add((ActionRequest<?>) request);
     }
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkProcessor add(DeleteRequest request) {
-        return add((ActionRequest) request);
+        return add((ActionRequest<?>) request);
     }
 
     /**
      * Adds either a delete or an index request.
      */
-    public BulkProcessor add(ActionRequest request) {
+    public BulkProcessor add(ActionRequest<?> request) {
         return add(request, null);
     }
 
-    public BulkProcessor add(ActionRequest request, @Nullable Object payload) {
+    public BulkProcessor add(ActionRequest<?> request, @Nullable Object payload) {
         internalAdd(request, payload);
         return this;
     }
@@ -282,18 +282,18 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private synchronized void internalAdd(ActionRequest request, @Nullable Object payload) {
+    private synchronized void internalAdd(ActionRequest<?> request, @Nullable Object payload) {
         ensureOpen();
         bulkRequest.add(request, payload);
         executeIfNeeded();
     }
 
     public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, defaultIndex, defaultType, null);
+        return add(data, defaultIndex, defaultType, null, null);
     }
 
-    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, payload, true);
+    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultPipeline, @Nullable Object payload) throws Exception {
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true);
         executeIfNeeded();
         return this;
     }

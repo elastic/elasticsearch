@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+          "-//Puppy Crawl//DTD Check Configuration 1.3//EN"
+          "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+  <property name="charset" value="UTF-8" />
+
+  <module name="SuppressionFilter">
+    <property name="file" value="${suppressions}" />
+  </module>
+
+  <module name="TreeWalker">
+    <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
+      suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
+      unfair. -->
+    <module name="LineLength">
+      <property name="max" value="140"/>
+    </module>
+
+    <module name="AvoidStarImport" />
+    <!-- Doesn't pass but we could make it pass pretty quick.
+    <module name="UnusedImports">
+      The next property is optional. If we remove it then imports that are
+      only referenced by Javadoc cause the check to fail.
+      <property name="processJavadoc" value="true" />
+    </module>
+    -->
+
+    <!-- Non-inner classes must be in files that match their names. -->
+    <module name="OuterTypeFilename" />
+    <!-- No line wraps inside of import and package statements. -->
+    <module name="NoLineWrap" />
+    <!-- Each java file has only one outer class -->
+    <module name="OneTopLevelClass" />
+    <!-- The suffix L is preferred, because the letter l (ell) is often
+    hard to distinguish from the digit 1 (one). -->
+    <module name="UpperEll"/>
+
+    <module name="EqualsHashCode" />
+
+    <!-- We don't use Java's builtin serialization and we suppress all warning
+      about it. The flip side of that coin is that we shouldn't _try_ to use
+      it. We can't outright ban it with ForbiddenApis because it complain about
+      every we reference a class that implements Serializable like String or
+      Exception.
+      -->
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="serialVersionUID" />
+      <property name="message" value="Do not declare serialVersionUID." />
+      <property name="ignoreComments" value="true" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="java\.io\.Serializable" />
+      <property name="message" value="References java.io.Serializable." />
+      <property name="ignoreComments" value="true" />
+    </module>
+    <!-- end Orwellian suppression of Serializable -->
+  </module>
+</module>

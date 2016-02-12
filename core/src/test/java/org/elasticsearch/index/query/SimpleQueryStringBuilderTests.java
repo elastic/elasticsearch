@@ -288,7 +288,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 Map.Entry<String, Float> field = fieldsIterator.next();
                 assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-            if (queryBuilder.minimumShouldMatch() != null) {
+            if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
                 assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
             }
         } else if (queryBuilder.fields().size() == 1) {
@@ -297,7 +297,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         } else if (queryBuilder.fields().size() == 0) {
             assertTermQuery(query, MetaData.ALL, queryBuilder.value());
         } else {
-            fail("Encountered lucene query type we do not have a validation implementation for in our " + SimpleQueryStringBuilderTests.class.getSimpleName());
+            fail("Encountered lucene query type we do not have a validation implementation for in our "
+                    + SimpleQueryStringBuilderTests.class.getSimpleName());
         }
     }
 
@@ -367,5 +368,38 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
         assertEquals(json, 2, parsed.fields().size());
         assertEquals(json, "snowball", parsed.analyzer());
+    }
+
+    public void testMinimumShouldMatch() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+        int numberOfTerms = randomIntBetween(1, 4);
+        StringBuilder queryString = new StringBuilder();
+        for (int i = 0; i < numberOfTerms; i++) {
+            queryString.append("t" + i + " ");
+        }
+        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder(queryString.toString().trim());
+        if (randomBoolean()) {
+            simpleQueryStringBuilder.defaultOperator(Operator.AND);
+        }
+        int numberOfFields = randomIntBetween(1, 4);
+        for (int i = 0; i < numberOfFields; i++) {
+            simpleQueryStringBuilder.field("f" + i);
+        }
+        int percent = randomIntBetween(1, 100);
+        simpleQueryStringBuilder.minimumShouldMatch(percent + "%");
+        Query query = simpleQueryStringBuilder.toQuery(shardContext);
+
+        // check special case: one term & one field should get simplified to a TermQuery
+        if (numberOfFields * numberOfTerms == 1) {
+            assertThat(query, instanceOf(TermQuery.class));
+        } else {
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery boolQuery = (BooleanQuery) query;
+            int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
+            if (numberOfTerms == 1 || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
+                expectedMinimumShouldMatch = 0;
+            }
+            assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());
+        }
     }
 }

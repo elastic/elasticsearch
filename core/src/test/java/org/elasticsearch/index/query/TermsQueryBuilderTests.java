@@ -33,7 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.indices.TermsLookup;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -242,7 +242,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
             TermsQueryBuilder copy = assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1l, 3l, 4l), values);
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }
     }
 

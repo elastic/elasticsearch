@@ -55,6 +55,6 @@ public class ParentMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes()).type("type").id("1").parent("1122"));
 
-        assertEquals(Uid.createUid("p_type", "1122"), doc.rootDoc().get("_parent"));
+        assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#p_type").utf8ToString());
     }
 }

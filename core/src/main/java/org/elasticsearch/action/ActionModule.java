@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
@@ -149,6 +151,16 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
+import org.elasticsearch.action.ingest.IngestActionFilter;
+import org.elasticsearch.action.ingest.IngestProxyActionFilter;
+import org.elasticsearch.action.ingest.DeletePipelineAction;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineTransportAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
@@ -180,7 +192,6 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
-import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -200,7 +211,7 @@ public class ActionModule extends AbstractModule {
     private final Map<String, ActionEntry> actions = new HashMap<>();
     private final List<Class<? extends ActionFilter>> actionFilters = new ArrayList<>();
 
-    static class ActionEntry<Request extends ActionRequest, Response extends ActionResponse> {
+    static class ActionEntry<Request extends ActionRequest<Request>, Response extends ActionResponse> {
         public final GenericAction<Request, Response> action;
         public final Class<? extends TransportAction<Request, Response>> transportAction;
         public final Class[] supportTransportActions;
@@ -210,13 +221,13 @@ public class ActionModule extends AbstractModule {
             this.transportAction = transportAction;
             this.supportTransportActions = supportTransportActions;
         }
-
-
     }
 
+    private final boolean ingestEnabled;
     private final boolean proxy;
 
-    public ActionModule(boolean proxy) {
+    public ActionModule(boolean ingestEnabled, boolean proxy) {
+        this.ingestEnabled = ingestEnabled;
         this.proxy = proxy;
     }
 
@@ -229,7 +240,7 @@ public class ActionModule extends AbstractModule {
      * @param <Request>               The request type.
      * @param <Response>              The response type.
      */
-    public <Request extends ActionRequest, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
+    public <Request extends ActionRequest<Request>, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
         actions.put(action.name(), new ActionEntry<>(action, transportAction, supportTransportActions));
     }
 
@@ -240,6 +251,13 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        if (proxy == false) {
+            if (ingestEnabled) {
+                registerFilter(IngestActionFilter.class);
+            } else {
+                registerFilter(IngestProxyActionFilter.class);
+            }
+        }
 
         Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
         for (Class<? extends ActionFilter> actionFilter : actionFilters) {
@@ -252,6 +270,7 @@ public class ActionModule extends AbstractModule {
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         registerAction(ListTasksAction.INSTANCE, TransportListTasksAction.class);
+        registerAction(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
         registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
@@ -304,8 +323,7 @@ public class ActionModule extends AbstractModule {
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
-        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class,
-                TransportDfsOnlyAction.class);
+        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
@@ -339,6 +357,11 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
 
         registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
+
+        registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+        registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
+        registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+        registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

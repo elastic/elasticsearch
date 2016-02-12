@@ -1,0 +1,141 @@
+[[modules-scripting-security]]
+=== Scripting and the Java Security Manager
+
+Elasticsearch runs with the https://docs.oracle.com/javase/tutorial/essential/environment/security.html[Java Security Manager]
+enabled by default.  The security policy in Elasticsearch locks down the
+permissions granted to each class to the bare minimum required to operate.
+The benefit of doing this is that it severely limits the attack vectors
+available to a hacker.
+
+Restricting permissions is particularly important with scripting languages
+like Groovy and Javascript which are designed to do anything that can be done
+in Java itself, including writing to the file system, opening sockets to
+remote servers, etc.
+
+[float]
+=== Script Classloader Whitelist
+
+Scripting languages are only allowed to load classes which appear in a
+hardcoded whitelist that can be found in
+https://github.com/elastic/elasticsearch/blob/{branch}/core/src/main/java/org/elasticsearch/script/ClassPermission.java[`org.elasticsearch.script.ClassPermission`].
+
+
+In a script, attempting to load a class that does not appear in the whitelist
+_may_ result in a `ClassNotFoundException`, for instance this script:
+
+[source,json]
+------------------------------
+GET _search
+{
+  "script_fields": {
+    "the_hour": {
+      "script": "use(java.math.BigInteger); new BigInteger(1)"
+    }
+  }
+}
+------------------------------
+
+will return the following exception:
+
+[source,json]
+------------------------------
+{
+  "reason": {
+    "type": "script_exception",
+    "reason": "failed to run inline script [use(java.math.BigInteger); new BigInteger(1)] using lang [groovy]",
+    "caused_by": {
+      "type": "no_class_def_found_error",
+      "reason": "java/math/BigInteger",
+      "caused_by": {
+        "type": "class_not_found_exception",
+        "reason": "java.math.BigInteger"
+      }
+    }
+  }
+}
+------------------------------
+
+However, classloader issues may also result in more difficult to interpret
+exceptions.  For instance, this script:
+
+[source,groovy]
+------------------------------
+use(groovy.time.TimeCategory); new Date(123456789).format('HH')
+------------------------------
+
+Returns the following exception:
+
+[source,json]
+------------------------------
+{
+  "reason": {
+    "type": "script_exception",
+    "reason": "failed to run inline script [use(groovy.time.TimeCategory); new Date(123456789).format('HH')] using lang [groovy]",
+    "caused_by": {
+      "type": "missing_property_exception",
+      "reason": "No such property: groovy for class: 8d45f5c1a07a1ab5dda953234863e283a7586240"
+    }
+  }
+}
+------------------------------
+
+[float]
+== Dealing with Java Security Manager issues
+
+If you encounter issues with the Java Security Manager, you have two options
+for resolving these issues:
+
+[float]
+=== Fix the security problem
+
+The safest and most secure long term solution is to change the code causing
+the security issue.  We recognise that this may take time to do correctly and
+so we provide the following two alternatives.
+
+[float]
+=== Customising the classloader whitelist
+
+The classloader whitelist can be customised by tweaking the local Java
+Security Policy either:
+
+* system wide: `$JAVA_HOME/lib/security/java.policy`,
+* for just the `elasticsearch` user: `/home/elasticsearch/.java.policy`, or
+* from a file specified on the command line: `-Djava.security.policy=someURL`
+
+Permissions may be granted at the class, package, or global level.  For instance:
+
+[source,js]
+----------------------------------
+grant {
+    permission org.elasticsearch.script.ClassPermission "java.util.Base64"; // allow class
+    permission org.elasticsearch.script.ClassPermission "java.util.*"; // allow package
+    permission org.elasticsearch.script.ClassPermission "*"; // allow all (disables filtering basically)
+};
+----------------------------------
+
+Here is an example of how to enable the `groovy.time.TimeCategory` class:
+
+[source,js]
+----------------------------------
+grant {
+    permission org.elasticsearch.script.ClassPermission "java.lang.Class";
+    permission org.elasticsearch.script.ClassPermission "groovy.time.TimeCategory";
+};
+----------------------------------
+
+[TIP]
+======================================
+
+Before adding classes to the whitelist, consider the security impact that it
+will have on Elasticsearch. Do you really need an extra class or can your code
+be rewritten in a more secure way?
+
+It is quite possible that we have not whitelisted a generically useful and
+safe class. If you have a class that you think should be whitelisted by
+default, please open an issue on GitHub and we will consider the impact of
+doing so.
+
+======================================
+
+See http://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html for more information.
+

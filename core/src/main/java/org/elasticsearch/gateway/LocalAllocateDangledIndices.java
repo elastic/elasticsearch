@@ -116,7 +116,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         public void messageReceived(final AllocateDangledRequest request, final TransportChannel channel) throws Exception {
             String[] indexNames = new String[request.indices.length];
             for (int i = 0; i < request.indices.length; i++) {
-                indexNames[i] = request.indices[i].getIndex();
+                indexNames[i] = request.indices[i].getIndex().getName();
             }
             clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask() {
                 @Override
@@ -131,10 +131,10 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetaData indexMetaData : request.indices) {
-                        if (currentState.metaData().hasIndex(indexMetaData.getIndex())) {
+                        if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metaData().hasAlias(indexMetaData.getIndex())) {
+                        if (currentState.metaData().hasAlias(indexMetaData.getIndex().getName())) {
                             logger.warn("ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
                                     indexMetaData.getIndex(), request.fromNode);
                             continue;

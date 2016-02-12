@@ -1,5 +1,5 @@
 @echo off
-SETLOCAL
+SETLOCAL enabledelayedexpansion
 
 TITLE Elasticsearch Service ${project.version}
 
@@ -110,21 +110,24 @@ echo Installing service      :  "%SERVICE_ID%"
 echo Using JAVA_HOME (%ARCH%):  "%JAVA_HOME%"
 
 rem Check JVM server dll first
-set JVM_DLL=%JAVA_HOME%\jre\bin\server\jvm.dll
-if exist "%JVM_DLL%" goto foundJVM
+if exist "%JAVA_HOME%"\jre\bin\server\jvm.dll (
+	set JVM_DLL=\jre\bin\server\jvm.dll
+	goto foundJVM
+)
 
 rem Check 'server' JRE (JRE installed on Windows Server)
-set JVM_DLL=%JAVA_HOME%\bin\server\jvm.dll
-if exist "%JVM_DLL%" goto foundJVM
+if exist "%JAVA_HOME%"\bin\server\jvm.dll (
+	set JVM_DLL=\bin\server\jvm.dll
+	goto foundJVM
+)
 
 rem Fallback to 'client' JRE
-set JVM_DLL=%JAVA_HOME%\bin\client\jvm.dll
-
-if exist "%JVM_DLL%" (
-echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
+if exist "%JAVA_HOME%"\bin\client\jvm.dll (
+	set JVM_DLL=\bin\client\jvm.dll
+	echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
 ) else (
-echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Existing...
-goto:eof
+	echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Exiting...
+	goto:eof
 )
 
 :foundJVM
@@ -159,7 +162,7 @@ if not "%ES_JAVA_OPTS%" == "" set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" ++StartParams start
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" ++StartParams start
 
 
 if not errorlevel 1 goto installed

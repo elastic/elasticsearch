@@ -68,7 +68,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-            assertHitCount(countResponse, 10l);
+            assertHitCount(countResponse, 10L);
         }
 
         logger.info("Increasing the number of replicas from 1 to 2");
@@ -98,7 +98,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-            assertHitCount(countResponse, 10l);
+            assertHitCount(countResponse, 10L);
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
@@ -263,16 +263,16 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
     public void testUpdateWithInvalidNumberOfReplicas() {
         createIndex("test");
+        final int value = randomIntBetween(-10, -1);
         try {
             client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.settingsBuilder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, value)
                 )
                 .execute().actionGet();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("the value of the setting index.number_of_replicas must be a non negative integer"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
         }
     }
 }

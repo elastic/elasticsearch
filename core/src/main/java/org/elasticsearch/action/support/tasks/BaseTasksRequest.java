@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.ChildTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -34,8 +33,7 @@ import java.io.IOException;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<T> {
-
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest<Request> {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
@@ -53,21 +51,14 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
 
     private long parentTaskId = ALL_TASKS;
 
+    private long taskId = ALL_TASKS;
+
     public BaseTasksRequest() {
     }
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    /**
-     * Get information about tasks from nodes based on the nodes ids specified.
-     * If none are passed, information for all nodes will be returned.
-     */
-    public BaseTasksRequest(ActionRequest request, String... nodesIds) {
-        super(request);
-        this.nodesIds = nodesIds;
     }
 
     /**
@@ -82,9 +73,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
      * Sets the list of action masks for the actions that should be returned
      */
     @SuppressWarnings("unchecked")
-    public final T actions(String... actions) {
+    public final Request actions(String... actions) {
         this.actions = actions;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
@@ -99,10 +90,26 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public final T nodesIds(String... nodesIds) {
+    public final Request nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return (T) this;
+        return (Request) this;
     }
+
+    /**
+     * Returns the id of the task that should be processed.
+     *
+     * By default tasks with any ids are returned.
+     */
+    public long taskId() {
+        return taskId;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final Request taskId(long taskId) {
+        this.taskId = taskId;
+        return (Request) this;
+    }
+
 
     /**
      * Returns the parent node id that tasks should be filtered by
@@ -112,9 +119,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public T parentNode(String parentNode) {
+    public Request parentNode(String parentNode) {
         this.parentNode = parentNode;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
@@ -125,9 +132,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public T parentTaskId(long parentTaskId) {
+    public Request parentTaskId(long parentTaskId) {
         this.parentTaskId = parentTaskId;
-        return (T) this;
+        return (Request) this;
     }
 
 
@@ -136,21 +143,22 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         nodesIds = in.readStringArray();
+        taskId = in.readLong();
         actions = in.readStringArray();
         parentNode = in.readOptionalString();
         parentTaskId = in.readLong();
@@ -163,6 +171,7 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
+        out.writeLong(taskId);
         out.writeStringArrayNullable(actions);
         out.writeOptionalString(parentNode);
         out.writeLong(parentTaskId);
@@ -173,20 +182,18 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
         if (actions() != null && actions().length > 0 && Regex.simpleMatch(actions(), task.getAction()) == false) {
             return false;
         }
-        if (parentNode() != null || parentTaskId() != BaseTasksRequest.ALL_TASKS) {
-            if (task instanceof ChildTask) {
-                if (parentNode() != null) {
-                    if (parentNode().equals(((ChildTask) task).getParentNode()) == false) {
-                        return false;
-                    }
-                }
-                if (parentTaskId() != BaseTasksRequest.ALL_TASKS) {
-                    if (parentTaskId() != ((ChildTask) task).getParentId()) {
-                        return false;
-                    }
-                }
-            } else {
-                // This is not a child task and we need to match parent node or id
+        if (taskId() != ALL_TASKS) {
+            if(taskId() != task.getId()) {
+                return false;
+            }
+        }
+        if (parentNode() != null) {
+            if (parentNode().equals(task.getParentNode()) == false) {
+                return false;
+            }
+        }
+        if (parentTaskId() != ALL_TASKS) {
+            if (parentTaskId() != task.getParentId()) {
                 return false;
             }
         }

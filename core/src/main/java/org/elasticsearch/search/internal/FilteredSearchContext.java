@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -62,7 +64,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     public FilteredSearchContext(SearchContext in) {
         //inner_hits in percolator ends up with null inner search context
-        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher(), in);
+        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
     }
 
@@ -117,16 +119,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasTypes() {
-        return in.hasTypes();
-    }
-
-    @Override
-    public String[] types() {
-        return in.types();
-    }
-
-    @Override
     public float queryBoost() {
         return in.queryBoost();
     }
@@ -174,11 +166,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         in.highlight(highlight);
-    }
-
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        in.innerHits(innerHitsContext);
     }
 
     @Override
@@ -334,6 +321,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return in.trackScores();
+    }
+
+    @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        return in.searchAfter(searchAfter);
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return in.searchAfter();
     }
 
     @Override
@@ -519,4 +516,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
 
+    @Override
+    public QueryShardContext getQueryShardContext() {
+        return in.getQueryShardContext();
+    }
 }

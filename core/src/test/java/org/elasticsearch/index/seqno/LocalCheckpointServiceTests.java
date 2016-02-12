@@ -53,7 +53,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
 
     protected LocalCheckpointService getCheckpointService() {
         return new LocalCheckpointService(
-            new ShardId("test", 0),
+            new ShardId("test", "_na_", 0),
             IndexSettingsModule.newIndexSettings("test",
                 Settings.builder()
                     .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE, SMALL_CHUNK_SIZE)

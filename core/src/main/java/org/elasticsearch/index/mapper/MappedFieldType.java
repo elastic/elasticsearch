@@ -199,10 +199,8 @@ public abstract class MappedFieldType extends FieldType {
         if (stored() != other.stored()) {
             conflicts.add("mapper [" + name() + "] has different [store] values");
         }
-        if (hasDocValues() == false && other.hasDocValues()) {
-            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitly set
-            // when the doc_values field data format is configured
-            conflicts.add("mapper [" + name() + "] has different [doc_values] values, cannot change from disabled to enabled");
+        if (hasDocValues() != other.hasDocValues()) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
         }
         if (omitNorms() && !other.omitNorms()) {
             conflicts.add("mapper [" + name() + "] has different [omit_norms] values, cannot change from disable to enabled");
@@ -389,7 +387,12 @@ public abstract class MappedFieldType extends FieldType {
         return false;
     }
 
-    /** Creates a term associated with the field of this mapper for the given value */
+    /**
+     * Creates a term associated with the field of this mapper for the given
+     * value. Its important to use termQuery when building term queries because
+     * things like ParentFieldMapper override it to make more interesting
+     * queries.
+     */
     protected Term createTerm(Object value) {
         return new Term(name(), indexedValueForSearch(value));
     }

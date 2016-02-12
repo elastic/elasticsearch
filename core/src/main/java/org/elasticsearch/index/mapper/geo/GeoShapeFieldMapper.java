@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -52,8 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 
 /**
@@ -137,7 +137,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 return new Explicit<>(coerce, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+                return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.COERCE;
         }
@@ -160,7 +160,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = geoShapeField(name);
+            Builder builder = new Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -184,11 +184,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.fieldType().setStrategyName(fieldNode.toString());
                     iterator.remove();
                 } else if (Names.COERCE.equals(fieldName)) {
-                    builder.coerce(nodeBooleanValue(fieldNode));
+                    builder.coerce(lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
                     && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {
-                    builder.fieldType().setPointsOnly(XContentMapValues.nodeBooleanValue(fieldNode));
+                    builder.fieldType().setPointsOnly(XContentMapValues.lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
                 }
             }

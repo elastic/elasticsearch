@@ -85,6 +85,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -92,7 +93,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -591,7 +592,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_ACTION_NAME, SearchServiceTransportAction.FETCH_ID_ACTION_NAME);
@@ -612,7 +613,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.DFS_ACTION_NAME, SearchServiceTransportAction.QUERY_ID_ACTION_NAME,
@@ -634,7 +635,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_AND_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_FETCH_ACTION_NAME);
@@ -655,7 +656,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_AND_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_QUERY_FETCH_ACTION_NAME);
@@ -784,8 +785,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, transport, threadPool, namedWriteableRegistry);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {
@@ -821,7 +822,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
             }
 
             @Override
-            public void messageReceived(T request, TransportChannel channel) throws Exception {
+            public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
                 synchronized (InterceptingTransportService.this) {
                     if (actions.contains(action)) {
                         List<TransportRequest> requestList = requests.get(action);
@@ -834,7 +835,12 @@ public class IndicesRequestTests extends ESIntegTestCase {
                         }
                     }
                 }
-                requestHandler.messageReceived(request, channel);
+                requestHandler.messageReceived(request, channel, task);
+            }
+
+            @Override
+            public void messageReceived(T request, TransportChannel channel) throws Exception {
+                messageReceived(request, channel, null);
             }
         }
     }

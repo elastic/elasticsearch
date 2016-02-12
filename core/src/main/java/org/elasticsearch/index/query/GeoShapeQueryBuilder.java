@@ -240,7 +240,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         ShapeBuilder shapeToQuery = shape;
         if (shapeToQuery == null) {
             GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
-            getRequest.copyContextAndHeadersFrom(SearchContext.current());
             shapeToQuery = fetch(context.getClient(), getRequest, indexedShapePath);
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);

@@ -49,8 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.object;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  *
@@ -191,11 +190,11 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else {
-                    builder.dynamic(nodeBooleanValue(fieldNode) ? Dynamic.TRUE : Dynamic.FALSE);
+                    builder.dynamic(lenientNodeBooleanValue(fieldNode) ? Dynamic.TRUE : Dynamic.FALSE);
                 }
                 return true;
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(nodeBooleanValue(fieldNode));
+                builder.enabled(lenientNodeBooleanValue(fieldNode));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -207,7 +206,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                builder.includeInAll(nodeBooleanValue(fieldNode));
+                builder.includeInAll(lenientNodeBooleanValue(fieldNode));
                 return true;
             }
             return false;
@@ -230,12 +229,12 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             }
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
-                nestedIncludeInParent = nodeBooleanValue(fieldNode);
+                nestedIncludeInParent = lenientNodeBooleanValue(fieldNode);
                 node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
-                nestedIncludeInRoot = nodeBooleanValue(fieldNode);
+                nestedIncludeInRoot = lenientNodeBooleanValue(fieldNode);
                 node.remove("include_in_root");
             }
             if (nested) {
@@ -300,7 +299,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         }
 
         protected Builder createBuilder(String name) {
-            return object(name);
+            return new Builder(name);
         }
     }
 

@@ -92,7 +92,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         refresh();
 
-        for (Client client : internalCluster()) {
+        for (Client client : internalCluster().getClients()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                     .setExplain(true)
@@ -104,8 +104,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         }
 
-        for (Client client : internalCluster()) {
-                ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+        for (Client client : internalCluster().getClients()) {
+            ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)
                     .execute().actionGet();
@@ -212,6 +212,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=string,analyzer=whitespace")

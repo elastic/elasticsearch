@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+import junit.framework.AssertionFailedError;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -40,14 +41,12 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -160,22 +159,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
-    }
-
-    // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
-
-    @BeforeClass
-    @SuppressForbidden(reason = "sets the number of cpus during tests")
-    public static void setProcessors() {
-        int numCpu = TestUtil.nextInt(random(), 1, 4);
-        System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
-        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(Settings.EMPTY));
-    }
-
-    @AfterClass
-    @SuppressForbidden(reason = "clears the number of cpus during tests")
-    public static void restoreProcessors() {
-        System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
 
     @After
@@ -399,9 +382,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
     }
 
+    private static String[] TIME_SUFFIXES = new String[]{"d", "H", "ms", "s", "S", "w"};
+
+    private static String randomTimeValue(int lower, int upper) {
+        return randomIntBetween(lower, upper) + randomFrom(TIME_SUFFIXES);
+    }
+
     public static String randomTimeValue() {
-        final String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
-        return randomIntBetween(0, 1000) + randomFrom(values);
+        return randomTimeValue(0, 1000);
+    }
+
+    public static String randomPositiveTimeValue() {
+        return randomTimeValue(1, 1000);
     }
 
     /**
@@ -531,8 +523,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath())
-                .putArray("path.data", tmpPaths()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
@@ -645,5 +637,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.getFileName(), actual.getFileName());
         assertEquals(expected.getLineNumber(), actual.getLineNumber());
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
+    }
+
+    /** A runnable that can throw any checked exception. */
+    @FunctionalInterface
+    public interface ThrowingRunnable {
+        void run() throws Throwable;
+    }
+
+    /** Checks a specific exception class is thrown by the given runnable, and returns it. */
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+        try {
+            runnable.run();
+        } catch (Throwable e) {
+            if (expectedType.isInstance(e)) {
+                return expectedType.cast(e);
+            }
+            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName());
+            assertion.initCause(e);
+            throw assertion;
+        }
+        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
     }
 }

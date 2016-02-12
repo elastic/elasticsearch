@@ -56,7 +56,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
      * The index the document was changed in.
      */
     public String getIndex() {
-        return this.shardId.getIndex();
+        return this.shardId.getIndexName();
     }
 
 
@@ -89,8 +89,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
     }
 
     /**
-     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if the operation wasn't
-     * performed (i.e., an update operation that resulted in a NOOP).
+     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if the operation
+     * wasn't performed (i.e., an update operation that resulted in a NOOP).
      */
     public long getSeqNo() {
         return seqNo;
@@ -133,10 +133,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(Fields._INDEX, shardId.getIndex())
-            .field(Fields._TYPE, type)
-            .field(Fields._ID, id)
-            .field(Fields._VERSION, version);
+        builder.field(Fields._INDEX, shardId.getIndexName())
+                .field(Fields._TYPE, type)
+                .field(Fields._ID, id)
+                .field(Fields._VERSION, version);
         shardInfo.toXContent(builder, params);
         //nocommit: i'm not sure we want to expose it in the api but it will be handy for debugging while we work...
         builder.field(Fields._SHARD_ID, shardId.id());

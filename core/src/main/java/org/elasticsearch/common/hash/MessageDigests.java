@@ -19,52 +19,83 @@
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Objects;
 
-public class MessageDigests {
+/**
+ * This MessageDigests class provides convenience methods for obtaining
+ * thread local {@link MessageDigest} instances for MD5, SHA-1, and
+ * SHA-256 message digests.
+ */
+public final class MessageDigests {
 
-    private static final MessageDigest MD5_DIGEST;
-    private static final MessageDigest SHA_1_DIGEST;
-    private static final MessageDigest SHA_256_DIGEST;
-
-    static {
-        try {
-            MD5_DIGEST = MessageDigest.getInstance("MD5");
-            SHA_1_DIGEST = MessageDigest.getInstance("SHA-1");
-            SHA_256_DIGEST = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Unexpected exception creating MessageDigest instance", e);
-        }
+    private static ThreadLocal<MessageDigest> createThreadLocalMessageDigest(String digest) {
+        return ThreadLocal.withInitial(() -> {
+            try {
+                return MessageDigest.getInstance(digest);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("unexpected exception creating MessageDigest instance for [" + digest + "]", e);
+            }
+        });
     }
 
+    private static final ThreadLocal<MessageDigest> MD5_DIGEST = createThreadLocalMessageDigest("MD5");
+    private static final ThreadLocal<MessageDigest> SHA_1_DIGEST = createThreadLocalMessageDigest("SHA-1");
+    private static final ThreadLocal<MessageDigest> SHA_256_DIGEST = createThreadLocalMessageDigest("SHA-256");
+
+    /**
+     * Returns a {@link MessageDigest} instance for MD5 digests; note
+     * that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides MD5 message digest functionality.
+     */
     public static MessageDigest md5() {
-        return clone(MD5_DIGEST);
+        return get(MD5_DIGEST);
     }
 
+    /**
+     * Returns a {@link MessageDigest} instance for SHA-1 digests; note
+     * that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides SHA-1 message digest functionality.
+     */
     public static MessageDigest sha1() {
-        return clone(SHA_1_DIGEST);
+        return get(SHA_1_DIGEST);
     }
 
+    /**
+     * Returns a {@link MessageDigest} instance for SHA-256 digests;
+     * note that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides SHA-256 message digest functionality.
+     */
     public static MessageDigest sha256() {
-        return clone(SHA_256_DIGEST);
+        return get(SHA_256_DIGEST);
     }
 
-    private static MessageDigest clone(MessageDigest messageDigest) {
-        try {
-            return (MessageDigest) messageDigest.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new ElasticsearchException("Unexpected exception cloning MessageDigest instance", e);
-        }
+    private static MessageDigest get(ThreadLocal<MessageDigest> messageDigest) {
+        MessageDigest instance = messageDigest.get();
+        instance.reset();
+        return instance;
     }
 
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+
+    /**
+     * Format a byte array as a hex string.
+     *
+     * @param bytes the input to be represented as hex.
+     * @return a hex representation of the input as a String.
+     */
     public static String toHexString(byte[] bytes) {
-        if (bytes == null) {
-            throw new NullPointerException("bytes");
-        }
+        Objects.requireNonNull(bytes);
         StringBuilder sb = new StringBuilder(2 * bytes.length);
 
         for (int i = 0; i < bytes.length; i++) {
@@ -74,4 +105,5 @@ public class MessageDigests {
 
         return sb.toString();
     }
+
 }

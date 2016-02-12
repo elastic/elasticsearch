@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -123,7 +124,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", getDataPath("/org/elasticsearch/messy/tests/conf"))
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/org/elasticsearch/messy/tests/conf"))
                 .build();
         return settings;
     }
@@ -147,15 +148,15 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         for (Object object : aggregationList) {
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(Map.class));
-            Map<String, Object> map = (Map<String, Object>) object;
+            Map<?, ?> map = (Map<?, ?>) object;
             assertThat(map.size(), lessThanOrEqualTo(1));
             if (map.size() == 1) {
-            assertThat(map.get("count"), notNullValue());
-            assertThat(map.get("count"), instanceOf(Number.class));
-            assertThat((Number) map.get("count"), equalTo((Number) 1));
+                assertThat(map.get("count"), notNullValue());
+                assertThat(map.get("count"), instanceOf(Number.class));
+                assertThat((Number) map.get("count"), equalTo((Number) 1));
                 numShardsRun++;
+            }
         }
-    }
         // We don't know how many shards will have documents but we need to make
         // sure that at least one shard ran the map script
         assertThat(numShardsRun, greaterThan(0));
@@ -278,7 +279,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                 // A particular shard may not have any documents stored on it so
                 // we have to assume the lower bound may be 0. The check at the
                 // bottom of the test method will make sure the count is correct
-                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0l), lessThanOrEqualTo(numDocs)));
+                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(numDocs)));
                 totalCount += numberValue.longValue();
             }
         }
@@ -328,7 +329,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                 // A particular shard may not have any documents stored on it so
                 // we have to assume the lower bound may be 0. The check at the
                 // bottom of the test method will make sure the count is correct
-                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0l), lessThanOrEqualTo(numDocs * 3)));
+                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(numDocs * 3)));
                 totalCount += numberValue.longValue();
             }
         }
@@ -686,7 +687,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(buckets, notNullValue());
         for (Bucket b : buckets) {
             assertThat(b, notNullValue());
-            assertThat(b.getDocCount(), equalTo(1l));
+            assertThat(b.getDocCount(), equalTo(1L));
             Aggregations subAggs = b.getAggregations();
             assertThat(subAggs, notNullValue());
             assertThat(subAggs.asList().size(), equalTo(1));
@@ -702,7 +703,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
             Object object = aggregationList.get(0);
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(Number.class));
-            assertThat(((Number) object).longValue(), equalTo(3l));
+            assertThat(((Number) object).longValue(), equalTo(3L));
         }
     }
 
@@ -715,7 +716,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(
                         scriptedMetric("scripted")
                                 .params(params)
@@ -729,7 +730,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                                                                 "newaggregation = []; sum = 0;for (aggregation in _aggs) { for (a in aggregation) { sum += a} }; newaggregation.add(sum); return newaggregation"))))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -740,6 +741,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(scriptedMetric.getName(), equalTo("scripted"));
         assertThat(scriptedMetric.aggregation(), notNullValue());
         assertThat(scriptedMetric.aggregation(), instanceOf(List.class));
+        @SuppressWarnings("unchecked") // We'll just get a ClassCastException a couple lines down if we're wrong, its ok.
         List<Integer> aggregationResult = (List<Integer>) scriptedMetric.aggregation();
         assertThat(aggregationResult.size(), equalTo(1));
         assertThat(aggregationResult.get(0), equalTo(0));

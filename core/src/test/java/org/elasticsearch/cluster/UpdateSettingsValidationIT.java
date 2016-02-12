@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -36,9 +37,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class UpdateSettingsValidationIT extends ESIntegTestCase {
     public void testUpdateSettingsValidation() throws Exception {
         List<String> nodes = internalCluster().startNodesAsync(
-                settingsBuilder().put("node.data", false).build(),
-                settingsBuilder().put("node.master", false).build(),
-                settingsBuilder().put("node.master", false).build()
+                settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).build(),
+                settingsBuilder().put(Node.NODE_MASTER_SETTING.getKey(), false).build(),
+                settingsBuilder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()
         ).get();
         String master = nodes.get(0);
         String node_1 = nodes.get(1);

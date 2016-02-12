@@ -97,7 +97,7 @@ public class AliasValidator extends AbstractComponent {
 
         assert metaData != null;
         if (metaData.hasIndex(alias)) {
-            throw new InvalidAliasNameException(new Index(index), alias, "an index exists with the same name as the alias");
+            throw new InvalidAliasNameException(metaData.index(alias).getIndex(), alias, "an index exists with the same name as the alias");
         }
     }
 

@@ -26,6 +26,7 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -64,6 +65,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     }
 
     public static final double DATELINE = 180;
+
+    /**
+     * coordinate at [0.0, 0.0]
+     */
+    public static final Coordinate ZERO_ZERO = new Coordinate(0.0, 0.0);
     // TODO how might we use JtsSpatialContextFactory to configure the context (esp. for non-geo)?
     public static final JtsSpatialContext SPATIAL_CONTEXT = JtsSpatialContext.GEO;
     public static final GeometryFactory FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
@@ -81,11 +87,6 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
     protected ShapeBuilder() {
-
-    }
-
-    protected static Coordinate coordinate(double longitude, double latitude) {
-        return new Coordinate(longitude, latitude);
     }
 
     protected JtsGeometry jtsGeometry(Geometry geom) {
@@ -569,7 +570,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
                 lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
             }
-            return ShapeBuilders.newEnvelope().topLeft(uL).bottomRight(lR);
+            return ShapeBuilders.newEnvelope(uL, lR);
         }
 
         protected static void validateMultiPointNode(CoordinateNode coordinates) {
@@ -589,12 +590,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         protected static MultiPointBuilder parseMultiPoint(CoordinateNode coordinates) {
             validateMultiPointNode(coordinates);
-
-            MultiPointBuilder points = new MultiPointBuilder();
+            CoordinatesBuilder points = new CoordinatesBuilder();
             for (CoordinateNode node : coordinates.children) {
-                points.point(node.coordinate);
+                points.coordinate(node.coordinate);
             }
-            return points;
+            return new MultiPointBuilder(points.build());
         }
 
         protected static LineStringBuilder parseLineString(CoordinateNode coordinates) {
@@ -607,11 +607,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)", coordinates.children.size());
             }
 
-            LineStringBuilder line = ShapeBuilders.newLineString();
+            CoordinatesBuilder line = new CoordinatesBuilder();
             for (CoordinateNode node : coordinates.children) {
-                line.point(node.coordinate);
+                line.coordinate(node.coordinate);
             }
-            return line;
+            return ShapeBuilders.newLineString(line);
         }
 
         protected static MultiLineStringBuilder parseMultiLine(CoordinateNode coordinates) {
@@ -659,7 +659,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
             }
 
             LineStringBuilder shell = parseLinearRing(coordinates.children.get(0), coerce);
-            PolygonBuilder polygon = new PolygonBuilder(shell.points, orientation);
+            PolygonBuilder polygon = new PolygonBuilder(shell, orientation);
             for (int i = 1; i < coordinates.children.size(); i++) {
                 polygon.hole(parseLinearRing(coordinates.children.get(i), coerce));
             }

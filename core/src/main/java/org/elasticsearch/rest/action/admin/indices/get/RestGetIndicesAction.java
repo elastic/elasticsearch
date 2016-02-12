@@ -29,7 +29,9 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -52,11 +54,16 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
+    private final IndexScopedSettings indexScopedSettings;
+    private final SettingsFilter settingsFilter;
+
     @Inject
-    public RestGetIndicesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestGetIndicesAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter) {
+        super(settings, client);
+        this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -133,9 +140,15 @@ public class RestGetIndicesAction extends BaseRestHandler {
             }
 
             private void writeSettings(Settings settings, XContentBuilder builder, Params params) throws IOException {
+                final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
                 builder.startObject(Fields.SETTINGS);
                 settings.toXContent(builder, params);
                 builder.endObject();
+                if (renderDefaults) {
+                    builder.startObject("defaults");
+                    settingsFilter.filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings)).toXContent(builder, request);
+                    builder.endObject();
+                }
             }
 
         });
@@ -145,7 +158,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
         static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
         static final XContentBuilderString MAPPINGS = new XContentBuilderString("mappings");
         static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
-        static final XContentBuilderString WARMERS = new XContentBuilderString("warmers");
     }
 
 }

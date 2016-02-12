@@ -287,8 +287,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     .offsets(false)
                     .payloads(false)
                     .fieldStatistics(false)
-                    .termStatistics(false)
-                    .dfs(false);
+                    .termStatistics(false);
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
                 termVectorsRequest.doc(doc, true);
@@ -635,7 +634,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the fied.
+     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the field.
      */
     public MoreLikeThisQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
@@ -704,7 +703,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * Converts an array of String ids to and Item[].
      * @param ids the ids to convert
      * @return the new items array
-     * @deprecated construct the items array externaly and use it in the constructor / setter
+     * @deprecated construct the items array externally and use it in the constructor / setter
      */
     @Deprecated
     public static Item[] ids(String... ids) {
@@ -875,20 +874,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         }
 
-        BooleanQuery boolQuery = new BooleanQuery();
+        BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
         boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
         // exclude the items from the search
         if (!include) {
             handleExclude(boolQuery, likeItems);
         }
-        return boolQuery;
+        return boolQuery.build();
     }
 
     private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
                                                   boolean useDefaultField) {
         if (item.index() == null) {
-            item.index(context.index().name());
+            item.index(context.index().getName());
         }
         if (item.type() == null) {
             if (context.queryTypes().size() > 1) {
@@ -917,7 +916,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         for (Item item : unlikeItems) {
             request.add(item.toTermVectorsRequest());
         }
-        request.copyContextAndHeadersFrom(searchContext);
         return client.multiTermVectors(request).actionGet();
     }
 
@@ -949,7 +947,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 
-    private static void handleExclude(BooleanQuery boolQuery, Item[] likeItems) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (Item item : likeItems) {

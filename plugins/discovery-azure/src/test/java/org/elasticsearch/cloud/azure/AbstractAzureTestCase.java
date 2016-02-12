@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.discovery.azure.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -54,7 +55,7 @@ public abstract class AbstractAzureTestCase extends ESIntegTestCase {
 
     protected Settings readSettingsFromFile() {
         Settings.Builder settings = Settings.builder();
-        settings.put("path.home", createTempDir());
+        settings.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         // if explicit, just load it and don't load from env
         try {

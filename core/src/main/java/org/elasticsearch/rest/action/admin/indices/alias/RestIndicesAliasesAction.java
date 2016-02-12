@@ -47,7 +47,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Inject
     public RestIndicesAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_aliases", this);
     }
 
@@ -133,7 +133,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             }
 
                             if (type == AliasAction.Type.ADD) {
-                                AliasActions aliasActions = new AliasActions(type, indices, aliases);
+                                AliasActions aliasActions = new AliasActions(type, indices, aliases).filter(filter);
                                 if (routingSet) {
                                     aliasActions.routing(routing);
                                 }

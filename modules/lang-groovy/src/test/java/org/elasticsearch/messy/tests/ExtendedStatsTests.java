@@ -71,10 +71,10 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(extendedStats("stats")))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(extendedStats("stats")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -84,7 +84,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats, notNullValue());
         assertThat(stats.getName(), equalTo("stats"));
         assertThat(stats.getSumOfSquares(), equalTo(0.0));
-        assertThat(stats.getCount(), equalTo(0l));
+        assertThat(stats.getCount(), equalTo(0L));
         assertThat(stats.getSum(), equalTo(0.0));
         assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
@@ -101,7 +101,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
                 .addAggregation(extendedStats("stats").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         ExtendedStats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -110,7 +110,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(stats.getSum(), equalTo(0.0));
-        assertThat(stats.getCount(), equalTo(0l));
+        assertThat(stats.getCount(), equalTo(0L));
         assertThat(stats.getSumOfSquares(), equalTo(0.0));
         assertThat(stats.getVariance(), equalTo(Double.NaN));
         assertThat(stats.getStdDeviation(), equalTo(Double.NaN));
@@ -135,7 +135,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(1.0));
         assertThat(stats.getMax(), equalTo(10.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
@@ -159,7 +159,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(1.0));
         assertThat(stats.getMax(), equalTo(10.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
@@ -184,7 +184,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMaxAsString(), equalTo("0010.0"));
         assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
         assertThat(stats.getSumAsString(), equalTo("0055.0"));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getCountAsString(), equalTo("0010.0"));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100));
         assertThat(stats.getSumOfSquaresAsString(), equalTo("0385.0"));
@@ -205,7 +205,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
@@ -258,7 +258,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(1.0));
         assertThat(stats.getMax(), equalTo(10.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
@@ -282,7 +282,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(2.0));
         assertThat(stats.getMax(), equalTo(11.0));
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
@@ -310,7 +310,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(2.0));
         assertThat(stats.getMax(), equalTo(11.0));
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
@@ -334,7 +334,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(2.0));
         assertThat(stats.getMax(), equalTo(12.0));
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
-        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121+9+16+25+36+49+64+81+100+121+144));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
@@ -358,7 +358,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(1.0));
         assertThat(stats.getMax(), equalTo(11.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10+2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100+4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
@@ -386,7 +386,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(1.0));
         assertThat(stats.getMax(), equalTo(11.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10+2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100+4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
@@ -410,7 +410,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(1.0));
         assertThat(stats.getMax(), equalTo(10.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
@@ -437,7 +437,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(2.0));
         assertThat(stats.getMax(), equalTo(11.0));
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
@@ -461,7 +461,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(2.0));
         assertThat(stats.getMax(), equalTo(12.0));
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
-        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121+9+16+25+36+49+64+81+100+121+144));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
@@ -490,7 +490,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(0.0));
         assertThat(stats.getMax(), equalTo(10.0));
         assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10+0+1+2+3+4+5+6+7+8+9));
-        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100+0+1+4+9+16+25+36+49+64+81));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));

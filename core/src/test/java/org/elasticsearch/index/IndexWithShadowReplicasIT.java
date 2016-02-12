@@ -36,11 +36,12 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -86,7 +87,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("path.shared_data", dataPath)
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
     }
@@ -181,7 +182,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB))
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
@@ -443,7 +444,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("path.shared_data", dataPath)
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
@@ -484,7 +485,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     public void sendRequest(DiscoveryNode node, long requestId, String action,
                                             TransportRequest request, TransportRequestOptions options)
                             throws IOException, TransportException {
-                        if (keepFailing.get() && action.equals(RecoveryTarget.Actions.TRANSLOG_OPS)) {
+                        if (keepFailing.get() && action.equals(RecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }
@@ -642,7 +643,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "foo").get();
@@ -724,7 +725,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         // only one node, so all primaries will end up on node1
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         // Index some documents

@@ -189,14 +189,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override
     protected void doStart() {
         add(localNodeMasterListeners);
+        add(taskManager);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
-        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME));
+        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME), threadPool.getThreadContext());
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
         final String nodeId = DiscoveryService.generateNodeId(settings);
         final TransportAddress publishAddress = transportService.boundAddress().publishAddress();
-        DiscoveryNode localNode = new DiscoveryNode(settings.get("name"), nodeId, publishAddress, nodeAttributes, version);
+        DiscoveryNode localNode = new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, nodeAttributes, version);
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id());
         this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).blocks(initialBlocks).build();
         this.transportService.setLocalNode(localNode);
@@ -633,7 +634,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 task.listener.clusterStateProcessed(task.source, previousClusterState, newClusterState);
             }
 
-            executor.clusterStatePublished(newClusterState);
+            try {
+                executor.clusterStatePublished(newClusterState);
+            } catch (Exception e) {
+                logger.error("exception thrown while notifying executor of new cluster state publication [{}]", e, source);
+            }
 
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
             logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.stateUUID());

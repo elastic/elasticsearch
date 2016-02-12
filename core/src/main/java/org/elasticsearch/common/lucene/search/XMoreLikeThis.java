@@ -656,7 +656,7 @@ public final class XMoreLikeThis {
             }
         }
         // term selection is per field, then appended to a single boolean query
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         for (String fieldName : fieldNames) {
             Map<String, Int> termFreqMap = new HashMap<>();
             for (Fields fields : likeFields) {
@@ -667,22 +667,22 @@ public final class XMoreLikeThis {
             }
             addToQuery(createQueue(termFreqMap, fieldName), bq);
         }
-        return bq;
+        return bq.build();
     }
 
     /**
      * Create the More like query from a PriorityQueue
      */
     private Query createQuery(PriorityQueue<ScoreTerm> q) {
-        BooleanQuery query = new BooleanQuery();
+        BooleanQuery.Builder query = new BooleanQuery.Builder();
         addToQuery(q, query);
-        return query;
+        return query.build();
     }
 
     /**
      * Add to an existing boolean query the More Like This query from this PriorityQueue
      */
-    private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery query) {
+    private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery.Builder query) {
         ScoreTerm scoreTerm;
         float bestScore = -1;
 

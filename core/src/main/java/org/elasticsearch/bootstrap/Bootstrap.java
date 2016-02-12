@@ -20,7 +20,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -40,6 +43,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -114,7 +118,11 @@ final class Bootstrap {
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
-                        Bootstrap.stop();
+                        try {
+                            Bootstrap.stop();
+                        } catch (IOException e) {
+                            throw new ElasticsearchException("failed to stop node", e);
+                        }
                         return true;
                     }
                     return false;
@@ -141,10 +149,11 @@ final class Bootstrap {
     }
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        initializeNatives(environment.tmpFile(),
-                          settings.getAsBoolean("bootstrap.mlockall", false),
-                          settings.getAsBoolean("bootstrap.seccomp", true),
-                          settings.getAsBoolean("bootstrap.ctrlhandler", true));
+        initializeNatives(
+                environment.tmpFile(),
+                BootstrapSettings.MLOCKALL_SETTING.get(settings),
+                BootstrapSettings.SECCOMP_SETTING.get(settings),
+                BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed
         initializeProbes();
@@ -153,8 +162,10 @@ final class Bootstrap {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    if (node != null) {
-                        node.close();
+                    try {
+                        IOUtils.close(node);
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to stop node", ex);
                     }
                 }
             });
@@ -164,36 +175,17 @@ final class Bootstrap {
         JarHell.checkJarHell();
 
         // install SM after natives, shutdown hooks, etc.
-        setupSecurity(settings, environment);
+        Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
 
         // We do not need to reload system properties here as we have already applied them in building the settings and
         // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
         // placeholder
         Settings nodeSettings = Settings.settingsBuilder()
                 .put(settings)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
 
         node = new Node(nodeSettings);
-    }
-
-    /**
-     * option for elasticsearch.yml etc to turn off our security manager completely,
-     * for example if you want to have your own configuration or just disable.
-     */
-    // TODO: remove this: http://www.openbsd.org/papers/hackfest2015-pledge/mgp00005.jpg
-    static final String SECURITY_SETTING = "security.manager.enabled";
-    /**
-     * option for elasticsearch.yml to fully respect the system policy, including bad defaults
-     * from java.
-     */
-    // TODO: remove this hack when insecure defaults are removed from java
-    static final String SECURITY_FILTER_BAD_DEFAULTS_SETTING = "security.manager.filter_bad_defaults";
-
-    private void setupSecurity(Settings settings, Environment environment) throws Exception {
-        if (settings.getAsBoolean(SECURITY_SETTING, true)) {
-            Security.configure(environment, settings.getAsBoolean(SECURITY_FILTER_BAD_DEFAULTS_SETTING, true));
-        }
     }
 
     @SuppressForbidden(reason = "Exception#printStackTrace()")
@@ -221,9 +213,9 @@ final class Bootstrap {
         keepAliveThread.start();
     }
 
-    static void stop() {
+    static void stop() throws IOException {
         try {
-            Releasables.close(INSTANCE.node);
+            IOUtils.close(INSTANCE.node);
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }
@@ -254,10 +246,6 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
-        // handle the wrapper system property, if its a service, don't run as a service
-        if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
-            foreground = false;
-        }
 
         Environment environment = initialSettings(foreground);
         Settings settings = environment.settings();
@@ -288,6 +276,9 @@ final class Bootstrap {
             // fail if using broken version
             JVMCheck.check();
 
+            // fail if somebody replaced the lucene jars
+            checkLucene();
+
             INSTANCE.setup(true, settings, environment);
 
             INSTANCE.start();
@@ -302,7 +293,7 @@ final class Bootstrap {
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
+                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("node.name"));
             }
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {
@@ -363,5 +354,12 @@ final class Bootstrap {
     @SuppressForbidden(reason = "Allowed to exit explicitly in bootstrap phase")
     private static void exit(int status) {
         System.exit(status);
+    }
+
+    private static void checkLucene() {
+        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+            throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
+                + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
+        }
     }
 }

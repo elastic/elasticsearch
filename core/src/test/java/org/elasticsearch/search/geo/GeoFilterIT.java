@@ -23,13 +23,14 @@ import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-import org.apache.lucene.util.GeoHashUtils;
-import org.apache.lucene.util.GeoProjectionUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoProjectionUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
@@ -50,8 +52,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
 
@@ -89,6 +93,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public class GeoFilterIT extends ESIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+    }
+
     private static boolean intersectSupport;
     private static boolean disjointSupport;
     private static boolean withinSupport;
@@ -119,30 +128,29 @@ public class GeoFilterIT extends ESIntegTestCase {
     public void testShapeBuilders() {
         try {
             // self intersection polygon
-            ShapeBuilders.newPolygon()
-                    .point(-10, -10)
-                    .point(10, 10)
-                    .point(-10, 10)
-                    .point(10, -10)
-                    .close().build();
+            ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                    .coordinate(-10, -10)
+                    .coordinate(10, 10)
+                    .coordinate(-10, 10)
+                    .coordinate(10, -10)
+                    .close())
+                    .build();
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
 
         // polygon with hole
-        ShapeBuilders.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole(new LineStringBuilder()
-                .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-                .close()).close().build();
-
+        ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
+                .build();
         try {
             // polygon with overlapping hole
-            ShapeBuilders.newPolygon()
-                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                    .hole(new LineStringBuilder()
-                    .point(-5, -5).point(-5, 11).point(5, 11).point(5, -5)
-                    .close()).close().build();
+            ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                    .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                    .hole(new LineStringBuilder(new CoordinatesBuilder()
+                    .coordinate(-5, -5).coordinate(-5, 11).coordinate(5, 11).coordinate(5, -5).close()))
+                    .build();
 
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
@@ -150,30 +158,27 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         try {
             // polygon with intersection holes
-            ShapeBuilders.newPolygon()
-                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                    .hole(new LineStringBuilder()
-                    .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-                    .close())
-                    .hole(new LineStringBuilder()
-                    .point(-5, -6).point(5, -6).point(5, -4).point(-5, -4)
-                    .close())
-                    .close().build();
+            ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                    .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
+                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4).coordinate(-5, -4).close()))
+                    .build();
             fail("Intersection of holes not detected");
         } catch (InvalidShapeException e) {
         }
 
         try {
             // Common line in polygon
-            ShapeBuilders.newPolygon()
-                    .point(-10, -10)
-                    .point(-10, 10)
-                    .point(-5, 10)
-                    .point(-5, -5)
-                    .point(-5, 20)
-                    .point(10, 20)
-                    .point(10, -10)
-                    .close().build();
+            ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                    .coordinate(-10, -10)
+                    .coordinate(-10, 10)
+                    .coordinate(-5, 10)
+                    .coordinate(-5, -5)
+                    .coordinate(-5, 20)
+                    .coordinate(10, 20)
+                    .coordinate(10, -10)
+                    .close())
+                    .build();
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
@@ -181,23 +186,22 @@ public class GeoFilterIT extends ESIntegTestCase {
         // Multipolygon: polygon with hole and polygon within the whole
         ShapeBuilders
                 .newMultiPolygon()
-                .polygon(new PolygonBuilder()
-                        .point(-10, -10)
-                        .point(-10, 10)
-                        .point(10, 10)
-                        .point(10, -10)
-                        .hole(new LineStringBuilder().point(-5, -5)
-                               .point(-5, 5)
-                               .point(5, 5)
-                               .point(5, -5)
-                               .close())
-                        .close())
-                .polygon(new PolygonBuilder()
-                        .point(-4, -4)
-                        .point(-4, 4)
-                        .point(4, 4)
-                        .point(4, -4)
-                        .close())
+                .polygon(new PolygonBuilder(
+                             new CoordinatesBuilder().coordinate(-10, -10)
+                             .coordinate(-10, 10)
+                             .coordinate(10, 10)
+                             .coordinate(10, -10).close())
+                        .hole(new LineStringBuilder(
+                              new CoordinatesBuilder().coordinate(-5, -5)
+                               .coordinate(-5, 5)
+                               .coordinate(5, 5)
+                               .coordinate(5, -5).close())))
+                .polygon(new PolygonBuilder(
+                            new CoordinatesBuilder()
+                            .coordinate(-4, -4)
+                            .coordinate(-4, 4)
+                            .coordinate(4, 4)
+                            .coordinate(4, -4).close()))
                 .build();
     }
 
@@ -226,14 +230,12 @@ public class GeoFilterIT extends ESIntegTestCase {
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
         // the second polygon of size 4x4 equidistant from all sites
         MultiPolygonBuilder polygon = ShapeBuilders.newMultiPolygon()
-                .polygon(new PolygonBuilder()
-                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                    .hole(new LineStringBuilder()
-                        .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5).close())
-                .close())
-                .polygon(new PolygonBuilder()
-                    .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4).close());
-
+                .polygon(new PolygonBuilder(
+                                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                        .hole(new LineStringBuilder(new CoordinatesBuilder()
+                                    .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())))
+                .polygon(new PolygonBuilder(
+                                new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
         BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
 
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
@@ -292,11 +294,10 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
 
         // Create a polygon that fills the empty area of the polygon defined above
-        PolygonBuilder inverse = ShapeBuilders.newPolygon()
-                .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-                .hole(new LineStringBuilder()
-                    .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4).close())
-                .close();
+        PolygonBuilder inverse = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())
+                .hole(new LineStringBuilder(
+                            new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
         data = jsonBuilder().startObject().field("area", inverse).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
@@ -311,16 +312,15 @@ public class GeoFilterIT extends ESIntegTestCase {
         assertFirstHit(result, hasId("2"));
 
         // Create Polygon with hole and common edge
-        PolygonBuilder builder = ShapeBuilders.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole(new LineStringBuilder()
-                    .point(-5, -5).point(-5, 5).point(10, 5).point(10, -5).close())
-                .close();
+        PolygonBuilder builder = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                .hole(new LineStringBuilder(new CoordinatesBuilder()
+                    .coordinate(-5, -5).coordinate(-5, 5).coordinate(10, 5).coordinate(10, -5).close()));
 
         if (withinSupport) {
             // Polygon WithIn Polygon
-            builder = ShapeBuilders.newPolygon()
-                    .point(-30, -30).point(-30, 30).point(30, 30).point(30, -30).close();
+            builder = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                    .coordinate(-30, -30).coordinate(-30, 30).coordinate(30, 30).coordinate(30, -30).close());
 
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
@@ -330,19 +330,17 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
 
         // Create a polygon crossing longitude 180.
-        builder = ShapeBuilders.newPolygon()
-                .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
-                .close();
+        builder = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // Create a polygon crossing longitude 180 with hole.
-        builder = ShapeBuilders.newPolygon()
-                .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
-                    .hole(new LineStringBuilder().point(175, -5).point(185, -5).point(185, 5).point(175, 5).close())
-                .close();
+        builder = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
+                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();

@@ -26,6 +26,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,10 +69,10 @@ public class SumIT extends AbstractNumericTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(sum("sum")))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -89,7 +91,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -136,7 +138,7 @@ public class SumIT extends AbstractNumericTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
@@ -326,7 +328,7 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(ExtractFieldScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.TYPES));
         }
 
     }
@@ -339,22 +341,24 @@ public class SumIT extends AbstractNumericTestCase {
 
         public static final String NAME = "extract_field";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -384,12 +388,6 @@ public class SumIT extends AbstractNumericTestCase {
                     final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
                     return new LeafSearchScript() {
-
-                        @Override
-                        public Object unwrap(Object value) {
-                            return null;
-                        }
-
                         @Override
                         public void setNextVar(String name, Object value) {
                         }
@@ -464,7 +462,7 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(FieldValueScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
         }
 
     }
@@ -477,22 +475,24 @@ public class SumIT extends AbstractNumericTestCase {
 
         public static final String NAME = "field_value";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 

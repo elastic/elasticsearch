@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 /**
  * A base class for operations that needs to be performed on the master node.
  */
-public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
+public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
     protected final TransportService transportService;
     protected final ClusterService clusterService;
 
@@ -113,6 +113,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
             this.request = request;
+            if (task != null) {
+                request.setParentTask(clusterService.localNode().getId(), task.getId());
+            }
             // TODO do we really need to wrap it in a listener? the handlers should be cheap
             if ((listener instanceof ThreadedActionListener) == false) {
                 listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
@@ -121,7 +124,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         public void start() {
-            this.observer = new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger);
+            this.observer = new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
             doStart();
         }
 
@@ -156,6 +159,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         }
                     };
+                    taskManager.registerChildTask(task, nodes.getLocalNodeId());
                     threadPool.executor(executor).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
@@ -168,6 +172,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug("no known master node, scheduling a retry");
                     retry(null, MasterNodeChangePredicate.INSTANCE);
                 } else {
+                    taskManager.registerChildTask(task, nodes.masterNode().getId());
                     transportService.sendRequest(nodes.masterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener) {
                         @Override
                         public Response newInstance() {

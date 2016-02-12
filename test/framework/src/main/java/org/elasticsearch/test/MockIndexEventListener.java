@@ -21,7 +21,9 @@ package org.elasticsearch.test;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -56,6 +58,14 @@ public final class MockIndexEventListener {
         @Override
         public String description() {
             return "a mock index listener for testing only";
+        }
+
+        /**
+         * For tests to pass in to fail on listener invocation
+         */
+        public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, false, Setting.Scope.INDEX);
+        public void onModule(SettingsModule module) {
+            module.registerSetting(INDEX_FAIL);
         }
 
         @Override

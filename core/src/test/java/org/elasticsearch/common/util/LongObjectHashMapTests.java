@@ -20,12 +20,20 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class LongObjectHashMapTests extends ESSingleNodeTestCase {
+
+    private BigArrays randombigArrays() {
+        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
+        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+    }
+
     public void testDuel() {
         final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
-        final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, BigArraysTests.randombigArrays());
+        final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randombigArrays());
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {

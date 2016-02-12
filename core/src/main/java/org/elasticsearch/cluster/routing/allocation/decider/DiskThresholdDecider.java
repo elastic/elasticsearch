@@ -282,7 +282,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     /**
      * Returns the size of all shards that are currently being relocated to
-     * the node, but may not be finished transfering yet.
+     * the node, but may not be finished transferring yet.
      *
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
@@ -330,7 +330,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // a flag for whether the primary shard has been previously allocated
-        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
+        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
         boolean primaryHasBeenAllocated = shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData);
 
         // checks for exact byte comparisons

@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -121,7 +122,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Normalizes all shard routings to the same (highest found) version &amp; primary terms.
      */
-    public IndexShardRoutingTable normalizeVersionsAndPrimaryTerms() {
+    public IndexShardRoutingTable normalizePrimaryTerms() {
         if (shards.isEmpty()) {
             return this;
         }
@@ -129,16 +130,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         if (shards.size() == 1) {
             return this;
         }
-        long highestVersion = shards.get(0).version();
         long highestPrimaryTerm = shards.get(0).primaryTerm();
         boolean requiresNormalization = false;
         for (int i = 1; i < shards.size(); i++) {
-            final long version = shards.get(i).version();
             final long primaryTerm = shards.get(i).primaryTerm();
-            if (highestVersion != version || highestPrimaryTerm != primaryTerm) {
+            if (highestPrimaryTerm != primaryTerm) {
                 requiresNormalization = true;
             }
-            highestVersion = Math.max(highestVersion, version);
             highestPrimaryTerm = Math.max(highestPrimaryTerm, primaryTerm);
         }
         if (!requiresNormalization) {
@@ -146,10 +144,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
         List<ShardRouting> shardRoutings = new ArrayList<>(shards.size());
         for (int i = 0; i < shards.size(); i++) {
-            if (shards.get(i).version() == highestVersion && shards.get(i).primaryTerm() == highestPrimaryTerm) {
+            if (shards.get(i).primaryTerm() == highestPrimaryTerm) {
                 shardRoutings.add(shards.get(i));
             } else {
-                shardRoutings.add(new ShardRouting(shards.get(i), highestVersion, highestPrimaryTerm));
+                shardRoutings.add(new ShardRouting(shards.get(i), highestPrimaryTerm));
             }
         }
         return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(shardRoutings));
@@ -628,11 +626,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
-            String index = in.readString();
+            Index index = Index.readIndex(in);
             return readFromThin(in, index);
         }
 
-        public static IndexShardRoutingTable readFromThin(StreamInput in, String index) throws IOException {
+        public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
             Builder builder = new Builder(new ShardId(index, iShardId));
 
@@ -646,7 +644,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
-            out.writeString(indexShard.shardId().index().name());
+            out.writeString(indexShard.shardId().getIndex().getName());
             writeToThin(indexShard, out);
         }
 

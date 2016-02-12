@@ -65,6 +65,10 @@
           "type" : "enum",
           "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
+        },
+        "pipeline" : {
+          "type" : "string",
+          "description" : "The pipeline id to preprocess incoming documents with"
         }
       }
     },

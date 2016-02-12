@@ -20,10 +20,11 @@ package org.elasticsearch.http.netty;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -39,8 +40,8 @@ public class HttpPublishPortIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
-                .put("http.publish_port", 9080)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                .put(HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT.getKey(), 9080)
                 .build();
     }
 

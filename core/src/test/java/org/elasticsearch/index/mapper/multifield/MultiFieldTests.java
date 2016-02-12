@@ -21,13 +21,9 @@ package org.elasticsearch.index.mapper.multifield;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.GeoUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -38,14 +34,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,9 +47,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperBuilders.doc;
-import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
@@ -147,10 +137,10 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
 
-        DocumentMapper builderDocMapper = doc(rootObject("person").add(
-                stringField("name").store(true)
-                        .addMultiField(stringField("indexed").index(true).tokenized(true))
-                        .addMultiField(stringField("not_indexed").index(false).store(true))
+        DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
+                new StringFieldMapper.Builder("name").store(true)
+                        .addMultiField(new StringFieldMapper.Builder("indexed").index(true).tokenized(true))
+                        .addMultiField(new StringFieldMapper.Builder("not_indexed").index(false).store(true))
         ), indexService.mapperService()).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();
@@ -212,7 +202,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         }
     }
 
-    // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
+    // The fielddata settings need to be the same after deserializing/re-serialsing, else unnecessary mapping sync's can be triggered
     public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
         final String MY_MULTI_FIELD = "multi_field";
 

@@ -27,16 +27,17 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
@@ -52,26 +53,14 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object",
                 "nested1", "type=nested"
-        ).string()), false, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     @Override
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext() {
-            private InnerHitsContext context;
-
-
-            @Override
-            public void innerHits(InnerHitsContext innerHitsContext) {
-                context = innerHitsContext;
-            }
-
-            @Override
-            public InnerHitsContext innerHits() {
-                return context;
-            }
+        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
 
             @Override
             public MapperService mapperService() {
@@ -83,7 +72,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 return fieldData; // need to build / parse inner hits sort fields
             }
         };
-        testSearchContext.setTypes(types);
+        testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
 
@@ -119,7 +108,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME);
             } else {
-                assertNull(SearchContext.current().innerHits());
+                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
@@ -150,45 +139,45 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"nested\" : {\n" + 
-                "    \"query\" : {\n" + 
-                "      \"bool\" : {\n" + 
-                "        \"must\" : [ {\n" + 
-                "          \"match\" : {\n" + 
-                "            \"obj1.name\" : {\n" + 
-                "              \"query\" : \"blue\",\n" + 
-                "              \"type\" : \"boolean\",\n" + 
-                "              \"operator\" : \"OR\",\n" + 
-                "              \"slop\" : 0,\n" + 
-                "              \"prefix_length\" : 0,\n" + 
-                "              \"max_expansions\" : 50,\n" + 
-                "              \"fuzzy_transpositions\" : true,\n" + 
-                "              \"lenient\" : false,\n" + 
-                "              \"zero_terms_query\" : \"NONE\",\n" + 
-                "              \"boost\" : 1.0\n" + 
-                "            }\n" + 
-                "          }\n" + 
-                "        }, {\n" + 
-                "          \"range\" : {\n" + 
-                "            \"obj1.count\" : {\n" + 
-                "              \"from\" : 5,\n" + 
-                "              \"to\" : null,\n" + 
-                "              \"include_lower\" : false,\n" + 
-                "              \"include_upper\" : true,\n" + 
-                "              \"boost\" : 1.0\n" + 
-                "            }\n" + 
-                "          }\n" + 
-                "        } ],\n" + 
-                "        \"disable_coord\" : false,\n" + 
-                "        \"adjust_pure_negative\" : true,\n" + 
-                "        \"boost\" : 1.0\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"path\" : \"obj1\",\n" + 
-                "    \"score_mode\" : \"avg\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"nested\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"bool\" : {\n" +
+                "        \"must\" : [ {\n" +
+                "          \"match\" : {\n" +
+                "            \"obj1.name\" : {\n" +
+                "              \"query\" : \"blue\",\n" +
+                "              \"type\" : \"boolean\",\n" +
+                "              \"operator\" : \"OR\",\n" +
+                "              \"slop\" : 0,\n" +
+                "              \"prefix_length\" : 0,\n" +
+                "              \"max_expansions\" : 50,\n" +
+                "              \"fuzzy_transpositions\" : true,\n" +
+                "              \"lenient\" : false,\n" +
+                "              \"zero_terms_query\" : \"NONE\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }, {\n" +
+                "          \"range\" : {\n" +
+                "            \"obj1.count\" : {\n" +
+                "              \"from\" : 5,\n" +
+                "              \"to\" : null,\n" +
+                "              \"include_lower\" : false,\n" +
+                "              \"include_upper\" : true,\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        } ],\n" +
+                "        \"disable_coord\" : false,\n" +
+                "        \"adjust_pure_negative\" : true,\n" +
+                "        \"boost\" : 1.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"path\" : \"obj1\",\n" +
+                "    \"score_mode\" : \"avg\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);

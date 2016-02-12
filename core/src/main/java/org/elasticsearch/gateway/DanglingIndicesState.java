@@ -120,7 +120,7 @@ public class DanglingIndicesState extends AbstractComponent {
                     IndexMetaData indexMetaData = metaStateService.loadIndexState(indexName);
                     if (indexMetaData != null) {
                         logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state", indexName);
-                        if (!indexMetaData.getIndex().equals(indexName)) {
+                        if (!indexMetaData.getIndex().getName().equals(indexName)) {
                             logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.getIndex());
                             indexMetaData = IndexMetaData.builder(indexMetaData).index(indexName).build();
                         }

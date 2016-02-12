@@ -50,9 +50,8 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class CompoundAnalysisTests extends ESTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
-        Index index = new Index("test");
         Settings settings = getJsonSettings();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings),
                 Collections.emptyMap(),Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.emptyMap(),Collections.emptyMap()).build(idxSettings);
 
@@ -70,8 +69,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
-        Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings),
                 Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.emptyMap(),Collections.emptyMap()).build(idxSettings);
 
@@ -98,7 +96,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         return settingsBuilder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
     }
 
@@ -107,7 +105,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         return settingsBuilder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
     }
 }

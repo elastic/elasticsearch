@@ -627,7 +627,7 @@ public class Lucene {
     }
 
     /**
-     * Parses the version string lenient and returns the the default value if the given string is null or emtpy
+     * Parses the version string lenient and returns the default value if the given string is null or emtpy
      */
     public static Version parseVersionLenient(String toParse, Version defaultValue) {
         return LenientParser.parse(toParse, defaultValue);

@@ -30,6 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,7 +44,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -74,7 +74,6 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class QueryShardContext {
 
-    private static final ThreadLocal<String[]> typesContext = new ThreadLocal<>();
     private final MapperService mapperService;
     private final ScriptService scriptService;
     private final SimilarityService similarityService;
@@ -82,23 +81,14 @@ public class QueryShardContext {
     private final IndexFieldDataService indexFieldDataService;
     private final IndexSettings indexSettings;
     private final Client client;
+    private String[] types = Strings.EMPTY_ARRAY;
 
-    public static void setTypes(String[] types) {
-        typesContext.set(types);
+    public void setTypes(String... types) {
+        this.types = types;
     }
 
-    public static String[] getTypes() {
-        return typesContext.get();
-    }
-
-    public static String[] setTypesWithPrevious(String... types) {
-        String[] old = typesContext.get();
-        setTypes(types);
-        return old;
-    }
-
-    public static void removeTypes() {
-        typesContext.remove();
+    public String[] getTypes() {
+        return types;
     }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
@@ -126,6 +116,7 @@ public class QueryShardContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.indexSettings, source.client, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry);
+        this.types = source.getTypes();
     }
 
 
@@ -236,13 +227,7 @@ public class QueryShardContext {
             throw new QueryShardException(this, "inner_hits unsupported");
         }
 
-        InnerHitsContext innerHitsContext;
-        if (sc.innerHits() == null) {
-            innerHitsContext = new InnerHitsContext(new HashMap<>());
-            sc.innerHits(innerHitsContext);
-        } else {
-            innerHitsContext = sc.innerHits();
-        }
+        InnerHitsContext innerHitsContext = sc.innerHits();
         innerHitsContext.addInnerHitDefinition(name, context);
     }
 
@@ -288,20 +273,14 @@ public class QueryShardContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (allowUnmappedFields) {
+    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+        if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+            StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
-            Version indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
-                throw new QueryShardException(this, "Strict field resolution and no field mapping can be found for the field with name ["
-                        + name + "]");
-            } else {
-                return fieldMapping;
-            }
+            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
     }
 
@@ -364,8 +343,8 @@ public class QueryShardContext {
     /*
     * Executes the given template, and returns the response.
     */
-    public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
-        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.emptyMap());
+    public BytesReference executeQueryTemplate(Template template) {
+        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, Collections.emptyMap());
         return (BytesReference) executable.run();
     }
 

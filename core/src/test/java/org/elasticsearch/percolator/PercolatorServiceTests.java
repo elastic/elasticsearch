@@ -42,22 +42,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.percolator.ExtractQueryTermsService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +58,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -93,9 +85,12 @@ public class PercolatorServiceTests extends ESTestCase {
 
     public void testCount() throws Exception {
         PercolateContext context = mock(PercolateContext.class);
-        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", "_index", 0));
+        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", new Index("_index", "_na_"), 0));
         when(context.percolatorTypeFilter()).thenReturn(new MatchAllDocsQuery());
         when(context.isOnlyCount()).thenReturn(true);
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.shardId()).thenReturn(new ShardId("_index", "_na_", 0));
+        when(context.indexShard()).thenReturn(shard);
 
         PercolatorQueriesRegistry registry = createRegistry();
         addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, registry);
@@ -118,9 +113,12 @@ public class PercolatorServiceTests extends ESTestCase {
 
     public void testTopMatching() throws Exception {
         PercolateContext context = mock(PercolateContext.class);
-        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", "_index", 0));
+        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", new Index("_index", "_na_"), 0));
         when(context.percolatorTypeFilter()).thenReturn(new MatchAllDocsQuery());
         when(context.size()).thenReturn(10);
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.shardId()).thenReturn(new ShardId("_index", "_na_", 0));
+        when(context.indexShard()).thenReturn(shard);
 
         PercolatorQueriesRegistry registry = createRegistry();
         addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, registry);
@@ -158,14 +156,12 @@ public class PercolatorServiceTests extends ESTestCase {
     }
 
     PercolatorQueriesRegistry createRegistry() {
-        Index index = new Index("_index");
+        Index index = new Index("_index", "_na_");
         IndexSettings indexSettings = new IndexSettings(new IndexMetaData.Builder("_index").settings(
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .build(),
-                Settings.EMPTY, Collections.emptyList()
-        );
+                .build(), Settings.EMPTY);
         return new PercolatorQueriesRegistry(
                 new ShardId(index, 0),
                 indexSettings,

@@ -184,11 +184,11 @@ public class MissingIT extends ESIntegTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(missing("missing")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -197,7 +197,7 @@ public class MissingIT extends ESIntegTestCase {
         Missing missing = bucket.getAggregations().get("missing");
         assertThat(missing, Matchers.notNullValue());
         assertThat(missing.getName(), equalTo("missing"));
-        assertThat(missing.getDocCount(), is(0l));
+        assertThat(missing.getDocCount(), is(0L));
     }
 
 

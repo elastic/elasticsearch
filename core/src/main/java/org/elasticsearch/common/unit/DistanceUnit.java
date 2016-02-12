@@ -22,6 +22,7 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ import java.io.IOException;
  * the earth ellipsoid defined in {@link GeoUtils}. The default unit used within
  * this project is <code>METERS</code> which is defined by <code>DEFAULT</code>
  */
-public enum DistanceUnit {
+public enum DistanceUnit implements Writeable<DistanceUnit> {
     INCH(0.0254, "in", "inch"),
     YARD(0.9144, "yd", "yards"),
     FEET(0.3048, "ft", "feet"),
@@ -321,5 +322,25 @@ public enum DistanceUnit {
             }
             return new Distance(Double.parseDouble(distance), defaultUnit);
         }
+    }
+
+    private static final DistanceUnit PROTOTYPE = DEFAULT;
+
+    @Override
+    public DistanceUnit readFrom(StreamInput in) throws IOException {
+        int ordinal = in.readVInt();
+        if (ordinal < 0 || ordinal >= values().length) {
+            throw new IOException("Unknown DistanceUnit ordinal [" + ordinal + "]");
+        }
+        return values()[ordinal];
+    }
+
+    public static DistanceUnit readUnitFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(this.ordinal());
     }
 }

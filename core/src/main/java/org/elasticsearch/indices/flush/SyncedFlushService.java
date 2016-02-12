@@ -119,7 +119,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             final IndexMetaData indexMetaData = state.metaData().index(index);
             totalNumberOfShards += indexMetaData.getTotalNumberOfShards();
             numberOfShards += indexMetaData.getNumberOfShards();
-            results.put(index, Collections.synchronizedList(new ArrayList<ShardsSyncedFlushResult>()));
+            results.put(index, Collections.synchronizedList(new ArrayList<>()));
 
         }
         if (numberOfShards == 0) {
@@ -130,9 +130,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         final CountDown countDown = new CountDown(numberOfShards);
 
         for (final String index : concreteIndices) {
-            final int indexNumberOfShards = state.metaData().index(index).getNumberOfShards();
+            final IndexMetaData indexMetaData = state.metaData().index(index);
+            final int indexNumberOfShards = indexMetaData.getNumberOfShards();
             for (int shard = 0; shard < indexNumberOfShards; shard++) {
-                final ShardId shardId = new ShardId(index, shard);
+                final ShardId shardId = new ShardId(indexMetaData.getIndex(), shard);
                 attemptSyncedFlush(shardId, new ActionListener<ShardsSyncedFlushResult>() {
                     @Override
                     public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
@@ -237,13 +238,13 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     }
 
     final IndexShardRoutingTable getShardRoutingTable(ShardId shardId, ClusterState state) {
-        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
+        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.getIndexName());
         if (indexRoutingTable == null) {
-            IndexMetaData index = state.getMetaData().index(shardId.index().getName());
+            IndexMetaData index = state.getMetaData().index(shardId.getIndexName());
             if (index != null && index.getState() == IndexMetaData.State.CLOSE) {
-                throw new IndexClosedException(shardId.index());
+                throw new IndexClosedException(shardId.getIndex());
             }
-            throw new IndexNotFoundException(shardId.index().getName());
+            throw new IndexNotFoundException(shardId.getIndexName());
         }
         final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
         if (shardRoutingTable == null) {
@@ -434,7 +435,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         if (indexShard.routingEntry().primary() == false) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
-        int opCount = indexShard.getOperationsCount();
+        int opCount = indexShard.getActiveOperationsCount();
         logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
         return new InFlightOpsResponse(opCount);
     }

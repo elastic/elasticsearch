@@ -19,8 +19,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -29,99 +27,34 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.Locale;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 /**
  *
  */
 public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testThatDefaultAndStandardAnalyzerAreTheSameInstance() {
         Analyzer currentStandardAnalyzer = PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT);
         Analyzer currentDefaultAnalyzer = PreBuiltAnalyzers.DEFAULT.getAnalyzer(Version.CURRENT);
 
         // special case, these two are the same instance
         assertThat(currentDefaultAnalyzer, is(currentStandardAnalyzer));
-    }
-
-    public void testThatDefaultAndStandardAnalyzerChangedIn10Beta1() throws IOException {
-        Analyzer currentStandardAnalyzer = PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_1_0_0_Beta1);
-        Analyzer currentDefaultAnalyzer = PreBuiltAnalyzers.DEFAULT.getAnalyzer(Version.V_1_0_0_Beta1);
-
-        // special case, these two are the same instance
-        assertThat(currentDefaultAnalyzer, is(currentStandardAnalyzer));
-        PreBuiltAnalyzers.DEFAULT.getAnalyzer(Version.V_1_0_0_Beta1);
-        final int n = scaledRandomIntBetween(10, 100);
-        Version version = Version.CURRENT;
-        for(int i = 0; i < n; i++) {
-            if (version.equals(Version.V_1_0_0_Beta1)) {
-                assertThat(currentDefaultAnalyzer, is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version)));
-            } else {
-                assertThat(currentDefaultAnalyzer, not(is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version))));
-            }
-            Analyzer analyzer = PreBuiltAnalyzers.DEFAULT.getAnalyzer(version);
-            TokenStream ts = analyzer.tokenStream("foo", "This is it Dude");
-            ts.reset();
-            CharTermAttribute charTermAttribute = ts.addAttribute(CharTermAttribute.class);
-            List<String> list = new ArrayList<>();
-            while(ts.incrementToken()) {
-                list.add(charTermAttribute.toString());
-            }
-            if (version.onOrAfter(Version.V_1_0_0_Beta1)) {
-                assertThat(list.size(), is(4));
-                assertThat(list, contains("this", "is", "it", "dude"));
-
-            } else {
-                assertThat(list.size(), is(1));
-                assertThat(list, contains("dude"));
-            }
-            ts.close();
-            version = randomVersion(random());
-        }
-    }
-
-    public void testAnalyzerChangedIn10RC1() throws IOException {
-        Analyzer pattern = PreBuiltAnalyzers.PATTERN.getAnalyzer(Version.V_1_0_0_RC1);
-        Analyzer standardHtml = PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(Version.V_1_0_0_RC1);
-        final int n = scaledRandomIntBetween(10, 100);
-        Version version = Version.CURRENT;
-        for(int i = 0; i < n; i++) {
-            if (version.equals(Version.V_1_0_0_RC1)) {
-                assertThat(pattern, is(PreBuiltAnalyzers.PATTERN.getAnalyzer(version)));
-                assertThat(standardHtml, is(PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(version)));
-            } else {
-                assertThat(pattern, not(is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version))));
-                assertThat(standardHtml, not(is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version))));
-            }
-            Analyzer analyzer = randomBoolean() ? PreBuiltAnalyzers.PATTERN.getAnalyzer(version) :  PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(version);
-            TokenStream ts = analyzer.tokenStream("foo", "This is it Dude");
-            ts.reset();
-            CharTermAttribute charTermAttribute = ts.addAttribute(CharTermAttribute.class);
-            List<String> list = new ArrayList<>();
-            while(ts.incrementToken()) {
-                list.add(charTermAttribute.toString());
-            }
-            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
-                assertThat(list.toString(), list.size(), is(4));
-                assertThat(list, contains("this", "is", "it", "dude"));
-
-            } else {
-                assertThat(list.size(), is(1));
-                assertThat(list, contains("dude"));
-            }
-            ts.close();
-            version = randomVersion(random());
-        }
     }
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {

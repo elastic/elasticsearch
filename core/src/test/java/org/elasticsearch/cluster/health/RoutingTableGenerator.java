@@ -48,11 +48,11 @@ class RoutingTableGenerator {
 
         switch (state) {
             case STARTED:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primaryTerm, primary, ShardRoutingState.STARTED, 1);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primaryTerm, primary, ShardRoutingState.STARTED);
             case INITIALIZING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primaryTerm, primary, ShardRoutingState.INITIALIZING, 1);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primaryTerm, primary, ShardRoutingState.INITIALIZING);
             case RELOCATING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primaryTerm, primary, ShardRoutingState.RELOCATING, 1);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primaryTerm, primary, ShardRoutingState.RELOCATING);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }
@@ -60,7 +60,7 @@ class RoutingTableGenerator {
     }
 
     public IndexShardRoutingTable genShardRoutingTable(String index, int shardId, int replicas, ShardCounter counter) {
-        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, shardId));
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
         ShardRouting shardRouting = genShardRouting(index, shardId, true);
         counter.update(shardRouting);
         builder.addShard(shardRouting);
@@ -76,7 +76,7 @@ class RoutingTableGenerator {
     public IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
         for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex(), shard, indexMetaData.getNumberOfReplicas(), counter));
+            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard, indexMetaData.getNumberOfReplicas(), counter));
         }
         return builder.build();
     }

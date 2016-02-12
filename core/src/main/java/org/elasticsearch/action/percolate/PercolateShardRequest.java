@@ -52,10 +52,6 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         this.startTime = request.startTime;
     }
 
-    public PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
-        super(shardId, originalIndices);
-    }
-
     PercolateShardRequest(ShardId shardId, PercolateRequest request) {
         super(shardId, request);
         this.documentType = request.documentType();

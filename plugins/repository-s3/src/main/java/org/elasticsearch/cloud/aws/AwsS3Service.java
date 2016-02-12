@@ -19,66 +19,132 @@
 
 package org.elasticsearch.cloud.aws;
 
+import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+
+import java.util.Locale;
+import java.util.function.Function;
 
 /**
  *
  */
 public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
 
-    final class CLOUD_AWS {
-        public static final String KEY = "cloud.aws.access_key";
-        public static final String SECRET = "cloud.aws.secret_key";
-        public static final String PROTOCOL = "cloud.aws.protocol";
-        public static final String PROXY_HOST = "cloud.aws.proxy.host";
-        public static final String PROXY_PORT = "cloud.aws.proxy.port";
-        public static final String PROXY_USERNAME = "cloud.aws.proxy.username";
-        public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
-        public static final String SIGNER = "cloud.aws.signer";
-        public static final String REGION = "cloud.aws.region";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.proxy_port";
+    // Global AWS settings (shared between discovery-ec2 and repository-s3)
+    // Each setting starting with `cloud.aws` also exists in discovery-ec2 project. Don't forget to update
+    // the code there if you change anything here.
+    /**
+     * cloud.aws.access_key: AWS Access key. Shared with discovery-ec2 plugin
+     */
+    Setting<String> KEY_SETTING = Setting.simpleString("cloud.aws.access_key", false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.secret_key: AWS Secret key. Shared with discovery-ec2 plugin
+     */
+    Setting<String> SECRET_SETTING = Setting.simpleString("cloud.aws.secret_key", false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with discovery-ec2 plugin
+     */
+    Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
+        false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.proxy.host: In case of proxy, define its hostname/IP. Shared with discovery-ec2 plugin
+     */
+    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.proxy.port: In case of proxy, define its port. Defaults to 80. Shared with discovery-ec2 plugin
+     */
+    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with discovery-ec2 plugin
+     */
+    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with discovery-ec2 plugin
+     */
+    Setting<String> PROXY_PASSWORD_SETTING = Setting.simpleString("cloud.aws.proxy.password", false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with discovery-ec2 plugin
+     */
+    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", false, Setting.Scope.CLUSTER);
+    /**
+     * cloud.aws.region: Region. Shared with discovery-ec2 plugin
+     */
+    Setting<String> REGION_SETTING = new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+
+    /**
+     * Defines specific s3 settings starting with cloud.aws.s3.
+     */
+    interface CLOUD_S3 {
+        /**
+         * cloud.aws.s3.access_key: AWS Access key specific for S3 API calls. Defaults to cloud.aws.access_key.
+         * @see AwsS3Service#KEY_SETTING
+         */
+        Setting<String> KEY_SETTING =
+            new Setting<>("cloud.aws.s3.access_key", AwsS3Service.KEY_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.secret_key: AWS Secret key specific for S3 API calls. Defaults to cloud.aws.secret_key.
+         * @see AwsS3Service#SECRET_SETTING
+         */
+        Setting<String> SECRET_SETTING =
+            new Setting<>("cloud.aws.s3.secret_key", AwsS3Service.SECRET_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.protocol: Protocol for AWS API specific for S3 API calls: http or https. Defaults to cloud.aws.protocol.
+         * @see AwsS3Service#PROTOCOL_SETTING
+         */
+        Setting<Protocol> PROTOCOL_SETTING =
+            new Setting<>("cloud.aws.s3.protocol", AwsS3Service.PROTOCOL_SETTING, s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false,
+                Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.proxy.host: In case of proxy, define its hostname/IP specific for S3 API calls. Defaults to cloud.aws.proxy.host.
+         * @see AwsS3Service#PROXY_HOST_SETTING
+         */
+        Setting<String> PROXY_HOST_SETTING =
+            new Setting<>("cloud.aws.s3.proxy.host", AwsS3Service.PROXY_HOST_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.proxy.port: In case of proxy, define its port specific for S3 API calls.  Defaults to cloud.aws.proxy.port.
+         * @see AwsS3Service#PROXY_PORT_SETTING
+         */
+        Setting<Integer> PROXY_PORT_SETTING =
+            new Setting<>("cloud.aws.s3.proxy.port", AwsS3Service.PROXY_PORT_SETTING,
+                s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.s3.proxy.port"), false, Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.proxy.username: In case of proxy with auth, define the username specific for S3 API calls.
+         * Defaults to cloud.aws.proxy.username.
+         * @see AwsS3Service#PROXY_USERNAME_SETTING
+         */
+        Setting<String> PROXY_USERNAME_SETTING =
+            new Setting<>("cloud.aws.s3.proxy.username", AwsS3Service.PROXY_USERNAME_SETTING, Function.identity(), false,
+                Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.proxy.password: In case of proxy with auth, define the password specific for S3 API calls.
+         * Defaults to cloud.aws.proxy.password.
+         * @see AwsS3Service#PROXY_PASSWORD_SETTING
+         */
+        Setting<String> PROXY_PASSWORD_SETTING =
+            new Setting<>("cloud.aws.s3.proxy.password", AwsS3Service.PROXY_PASSWORD_SETTING, Function.identity(), false,
+                Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.signer: If you are using an old AWS API version, you can define a Signer. Specific for S3 API calls.
+         * Defaults to cloud.aws.signer.
+         * @see AwsS3Service#SIGNER_SETTING
+         */
+        Setting<String> SIGNER_SETTING =
+            new Setting<>("cloud.aws.s3.signer", AwsS3Service.SIGNER_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.region: Region specific for S3 API calls. Defaults to cloud.aws.region.
+         * @see AwsS3Service#REGION_SETTING
+         */
+        Setting<String> REGION_SETTING =
+            new Setting<>("cloud.aws.s3.region", AwsS3Service.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT), false,
+                Setting.Scope.CLUSTER);
+        /**
+         * cloud.aws.s3.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
+         */
+        Setting<String> ENDPOINT_SETTING =
+            Setting.simpleString("cloud.aws.s3.endpoint", false, Setting.Scope.CLUSTER);
     }
 
-    final class CLOUD_S3 {
-        public static final String KEY = "cloud.aws.s3.access_key";
-        public static final String SECRET = "cloud.aws.s3.secret_key";
-        public static final String PROTOCOL = "cloud.aws.s3.protocol";
-        public static final String PROXY_HOST = "cloud.aws.s3.proxy.host";
-        public static final String PROXY_PORT = "cloud.aws.s3.proxy.port";
-        public static final String PROXY_USERNAME = "cloud.aws.s3.proxy.username";
-        public static final String PROXY_PASSWORD = "cloud.aws.s3.proxy.password";
-        public static final String SIGNER = "cloud.aws.s3.signer";
-        public static final String ENDPOINT = "cloud.aws.s3.endpoint";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.s3.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.s3.proxy_port";
-    }
-
-    final class REPOSITORY_S3 {
-        public static final String BUCKET = "repositories.s3.bucket";
-        public static final String ENDPOINT = "repositories.s3.endpoint";
-        public static final String PROTOCOL = "repositories.s3.protocol";
-        public static final String REGION = "repositories.s3.region";
-        public static final String SERVER_SIDE_ENCRYPTION = "repositories.s3.server_side_encryption";
-        public static final String BUFFER_SIZE = "repositories.s3.buffer_size";
-        public static final String MAX_RETRIES = "repositories.s3.max_retries";
-        public static final String CHUNK_SIZE = "repositories.s3.chunk_size";
-        public static final String COMPRESS = "repositories.s3.compress";
-        public static final String STORAGE_CLASS = "repositories.s3.storage_class";
-        public static final String CANNED_ACL = "repositories.s3.canned_acl";
-        public static final String BASE_PATH = "repositories.s3.base_path";
-    }
-
-
-
-    AmazonS3 client();
-
-    AmazonS3 client(String endpoint, String protocol, String region, String account, String key);
-
-    AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries);
+    AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries);
 }

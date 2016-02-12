@@ -26,6 +26,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -83,12 +85,12 @@ public class ValueCountIT extends ESIntegTestCase {
                 .addAggregation(count("count").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(0l));
+        assertThat(valueCount.getValue(), equalTo(0L));
     }
 
     public void testSingleValuedField() throws Exception {
@@ -102,7 +104,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(10l));
+        assertThat(valueCount.getValue(), equalTo(10L));
     }
 
     public void testSingleValuedFieldGetProperty() throws Exception {
@@ -114,14 +116,14 @@ public class ValueCountIT extends ESIntegTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
         ValueCount valueCount = global.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(10l));
+        assertThat(valueCount.getValue(), equalTo(10L));
         assertThat((ValueCount) global.getProperty("count"), equalTo(valueCount));
         assertThat((double) global.getProperty("count.value"), equalTo(10d));
         assertThat((double) valueCount.getProperty("value"), equalTo(10d));
@@ -138,7 +140,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(10l));
+        assertThat(valueCount.getValue(), equalTo(10L));
     }
 
     public void testMultiValuedField() throws Exception {
@@ -152,7 +154,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(20l));
+        assertThat(valueCount.getValue(), equalTo(20L));
     }
 
     public void testSingleValuedScript() throws Exception {
@@ -164,7 +166,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(10l));
+        assertThat(valueCount.getValue(), equalTo(10L));
     }
 
     public void testMultiValuedScript() throws Exception {
@@ -176,7 +178,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(20l));
+        assertThat(valueCount.getValue(), equalTo(20L));
     }
 
     public void testSingleValuedScriptWithParams() throws Exception {
@@ -189,7 +191,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(10l));
+        assertThat(valueCount.getValue(), equalTo(10L));
     }
 
     public void testMultiValuedScriptWithParams() throws Exception {
@@ -202,7 +204,7 @@ public class ValueCountIT extends ESIntegTestCase {
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(20l));
+        assertThat(valueCount.getValue(), equalTo(20L));
     }
 
     /**
@@ -221,7 +223,7 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(FieldValueScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
         }
 
     }
@@ -233,22 +235,24 @@ public class ValueCountIT extends ESIntegTestCase {
 
         public static final String NAME = "field_value";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 

@@ -45,6 +45,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,9 +58,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @BeforeClass
+    public static void before() throws Exception {
         MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
@@ -68,7 +68,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), false, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
@@ -77,26 +77,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), false, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     @Override
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext() {
-            private InnerHitsContext context;
-
-
-            @Override
-            public void innerHits(InnerHitsContext innerHitsContext) {
-                context = innerHitsContext;
-            }
-
-            @Override
-            public InnerHitsContext innerHits() {
-                return context;
-            }
+        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
 
             @Override
             public MapperService mapperService() {
@@ -108,7 +96,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 return fieldData; // need to build / parse inner hits sort fields
             }
         };
-        testSearchContext.setTypes(types);
+        testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
 
@@ -149,7 +137,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME);
             } else {
-                assertNull(SearchContext.current().innerHits());
+                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
@@ -242,11 +230,12 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
     public void testToQueryInnerQueryType() throws IOException {
         String[] searchTypes = new String[]{PARENT_TYPE};
-        QueryShardContext.setTypes(searchTypes);
+        QueryShardContext shardContext = createShardContext();
+        shardContext.setTypes(searchTypes);
         HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(CHILD_TYPE, new IdsQueryBuilder().addIds("id"));
-        Query query = hasChildQueryBuilder.toQuery(createShardContext());
+        Query query = hasChildQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
-        assertThat(QueryShardContext.getTypes(), equalTo(searchTypes));
+        assertThat(shardContext.getTypes(), equalTo(searchTypes));
         assertLateParsingQuery(query, CHILD_TYPE, "id");
     }
 
@@ -265,7 +254,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
         assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
         BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
-        assertThat(booleanTermsQuery.clauses().size(), equalTo(1));
+        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
         assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();

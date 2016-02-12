@@ -21,13 +21,14 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.apache.lucene.util.GeoDistanceUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+
+import static org.apache.lucene.spatial.util.GeoDistanceUtils.maxRadialDistanceMeters;
 
 import java.io.IOException;
 
@@ -70,7 +71,7 @@ public class GeoUtils {
      * maximum distance/radius from the point 'center' before overlapping
      **/
     public static double maxRadialDistance(GeoPoint center, double initialRadius) {
-        final double maxRadius = GeoDistanceUtils.maxRadialDistanceMeters(center.lon(), center.lat());
+        final double maxRadius = maxRadialDistanceMeters(center.lon(), center.lat());
         return Math.min(initialRadius, maxRadius);
     }
 
@@ -179,7 +180,7 @@ public class GeoUtils {
             final double width = Math.sqrt((meters*meters)/(ratio*ratio)); // convert to cell width
             final long part = Math.round(Math.ceil(EARTH_EQUATOR / width));
             final int level = Long.SIZE - Long.numberOfLeadingZeros(part)-1; // (log_2)
-            return (part<=(1l<<level)) ?level :(level+1); // adjust level
+            return (part<=(1L<<level)) ?level :(level+1); // adjust level
         }
     }
 

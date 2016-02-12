@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -44,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
@@ -144,9 +144,30 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            StringFieldMapper.Builder builder = stringField(name);
-            parseTextField(builder, name, node, parserContext);
+        public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            StringFieldMapper.Builder builder = new StringFieldMapper.Builder(fieldName);
+            // hack for the fact that string can't just accept true/false for
+            // the index property and still accepts no/not_analyzed/analyzed
+            final Object index = node.remove("index");
+            if (index != null) {
+                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                switch (normalizedIndex) {
+                case "analyzed":
+                    builder.tokenized(true);
+                    node.put("index", true);
+                    break;
+                case "not_analyzed":
+                    builder.tokenized(false);
+                    node.put("index", true);
+                    break;
+                case "no":
+                    node.put("index", false);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                }
+            }
+            parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -160,7 +181,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 } else if (propName.equals("search_quote_analyzer")) {
                     NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                     if (analyzer == null) {
-                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + fieldName + "]");
                     }
                     builder.searchQuotedAnalyzer(analyzer);
                     iterator.remove();
@@ -185,7 +206,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -369,8 +390,20 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     @Override
+    protected String indexTokenizeOption(boolean indexed, boolean tokenized) {
+        if (!indexed) {
+            return "no";
+        } else if (tokenized) {
+            return "analyzed";
+        } else {
+            return "not_analyzed";
+        }
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+        doXContentAnalyzers(builder, includeDefaults);
 
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());
@@ -384,16 +417,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
         }
-        NamedAnalyzer searchQuoteAnalyzer = fieldType().searchQuoteAnalyzer();
-        if (searchQuoteAnalyzer != null && !searchQuoteAnalyzer.name().equals(fieldType().searchAnalyzer().name())) {
-            builder.field("search_quote_analyzer", searchQuoteAnalyzer.name());
-        } else if (includeDefaults) {
-            if (searchQuoteAnalyzer == null) {
-                builder.field("search_quote_analyzer", "default");
-            } else {
-                builder.field("search_quote_analyzer", searchQuoteAnalyzer.name());
-            }
-        }
+
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }

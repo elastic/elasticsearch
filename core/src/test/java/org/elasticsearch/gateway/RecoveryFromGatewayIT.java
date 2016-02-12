@@ -33,17 +33,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -56,10 +58,19 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class RecoveryFromGatewayIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockFSIndexStore.TestPlugin.class);
+    }
+
     public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode();
@@ -113,7 +124,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         for (ObjectCursor<IndexMetaData> cursor : state.metaData().indices().values()) {
             final IndexMetaData indexMetaData = cursor.value;
-            final String index = indexMetaData.getIndex();
+            final String index = indexMetaData.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetaData.getNumberOfShards()).mapToLong(indexMetaData::primaryTerm).toArray();
             if (previous == null) {
@@ -128,7 +139,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
-            final long[] terms = result.get(indexRoutingTable.index());
+            final long[] terms = result.get(indexRoutingTable.getIndex().getName());
             for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
                 for (ShardRouting routing : shardRoutingTable.shards()) {
                     assertThat("wrong primary term for " + routing, routing.primaryTerm(), equalTo(terms[routing.shardId().id()]));
@@ -348,8 +359,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             .setTemplate("te*")
                             .setOrder(0)
                             .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                                    .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                                    .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                                    .startObject("field1").field("type", "string").field("store", true).endObject()
+                                    .startObject("field2").field("type", "keyword").field("store", true).endObject()
                                     .endObject().endObject().endObject())
                             .execute().actionGet();
                     client.admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
@@ -379,12 +390,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
-                .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
+                .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                 .put("gateway.recover_after_nodes", 4)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING, 4)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING, 4)
-                .put(MockFSDirectoryService.CRASH_INDEX, false).build();
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4)
+                .put(MockFSDirectoryService.CRASH_INDEX_SETTING.getKey(), false).build();
 
         internalCluster().startNodesAsync(4, settings).get();
         // prevent any rebalance actions during the peer recovery
@@ -392,7 +402,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // we reuse the files on disk after full restarts for replicas.
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {
@@ -461,7 +471,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                         recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
                 assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
                 assertThat("no files should be recovered except of the segments file", recoveryState.getIndex().recoveredFileCount(), equalTo(1));
@@ -473,7 +483,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
-                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
@@ -491,11 +501,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
+        final String node_1 = internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
+        internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         ensureGreen();
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);

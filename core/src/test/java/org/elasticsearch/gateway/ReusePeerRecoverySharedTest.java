@@ -65,7 +65,7 @@ public class ReusePeerRecoverySharedTest {
          * for replicas.
          */
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put(indexSettings)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("30s").get();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {
@@ -127,7 +127,7 @@ public class ReusePeerRecoverySharedTest {
                         recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
                 assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(),
                         equalTo(recoveryState.getIndex().totalBytes() - recovered));
@@ -142,7 +142,7 @@ public class ReusePeerRecoverySharedTest {
                             recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
-                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));

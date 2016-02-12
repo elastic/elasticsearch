@@ -164,7 +164,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     }
 
     /**
-     * The source of the document to index, recopied to a new array if it is unsage.
+     * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
         return source;

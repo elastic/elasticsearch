@@ -26,13 +26,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CustomBoostMappingTests extends ESSingleNodeTestCase {
 
     private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testBackCompatCustomBoostValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -50,7 +59,7 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .startObject("s_field").field("value", "s_value").field("boost", 2.0f).endObject()
-                .startObject("l_field").field("value", 1l).field("boost", 3.0f).endObject()
+                .startObject("l_field").field("value", 1L).field("boost", 3.0f).endObject()
                 .startObject("i_field").field("value", 1).field("boost", 4.0f).endObject()
                 .startObject("sh_field").field("value", 1).field("boost", 5.0f).endObject()
                 .startObject("b_field").field("value", 1).field("boost", 6.0f).endObject()

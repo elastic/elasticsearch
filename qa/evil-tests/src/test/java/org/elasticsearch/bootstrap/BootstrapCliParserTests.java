@@ -24,15 +24,20 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
@@ -47,12 +52,20 @@ public class BootstrapCliParserTests extends CliToolTestCase {
 
     private CaptureOutputTerminal terminal = new CaptureOutputTerminal();
     private List<String> propertiesToClear = new ArrayList<>();
+    private Map<Object, Object> properties;
+
+    @Before
+    public void before() {
+        this.properties = new HashMap<>(System.getProperties());
+    }
 
     @After
     public void clearProperties() {
         for (String property : propertiesToClear) {
             System.clearProperty(property);
         }
+        propertiesToClear.clear();
+        assertEquals("properties leaked", properties, new HashMap<>(System.getProperties()));
     }
 
     public void testThatVersionIsReturned() throws Exception {
@@ -167,7 +180,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertThatTerminalOutput(containsString("Parameter [network.host] needs value"));
     }
 
-    public void testParsingErrors() {
+    public void testParsingErrors() throws Exception {
         BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
 
         // unknown params
@@ -229,12 +242,11 @@ public class BootstrapCliParserTests extends CliToolTestCase {
 
     public void testThatHelpfulErrorMessageIsGivenWhenParametersAreOutOfOrder() throws Exception {
         BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        try {
-            parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
-            fail("expected IllegalArgumentException for out-of-order parameters");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
-        }
+        UserError e = expectThrows(UserError.class, () -> {
+                parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
+        });
+        assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
+        assertNull(System.getProperty("es.foo"));
     }
 
     private void registerProperties(String ... systemProperties) {

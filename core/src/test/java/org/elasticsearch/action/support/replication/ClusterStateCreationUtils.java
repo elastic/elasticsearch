@@ -57,12 +57,12 @@ public class ClusterStateCreationUtils {
     /**
      * Creates cluster state with and index that has one shard and #(replicaStates) replicas
      *
-     * @param index         name of the index
-     * @param primaryLocal  if primary should coincide with the local node in the cluster state
-     * @param primaryState  state of primary
-     * @param replicaStates states of the replicas. length of this array determines also the number of replicas
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param primaryState       state of primary
+     * @param replicaStates      states of the replicas. length of this array determines also the number of replicas
      */
-    public static ClusterState state(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
+    public static ClusterState state(String index, boolean activePrimaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
         final int numberOfReplicas = replicaStates.length;
 
         int numberOfNodes = numberOfReplicas + 1;
@@ -75,7 +75,7 @@ public class ClusterStateCreationUtils {
             }
         }
         numberOfNodes = Math.max(2, numberOfNodes); // we need a non-local master to test shard failures
-        final ShardId shardId = new ShardId(index, 0);
+        final ShardId shardId = new ShardId(index, "_na_", 0);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> unassignedNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes + 1; i++) {
@@ -99,11 +99,13 @@ public class ClusterStateCreationUtils {
         String relocatingNode = null;
         UnassignedInfo unassignedInfo = null;
         if (primaryState != ShardRoutingState.UNASSIGNED) {
-            if (primaryLocal) {
+            if (activePrimaryLocal) {
                 primaryNode = newNode(0).id();
                 unassignedNodes.remove(primaryNode);
             } else {
-                primaryNode = selectAndRemove(unassignedNodes);
+                Set<String> unassignedNodesExecludingPrimary = new HashSet<>(unassignedNodes);
+                unassignedNodesExecludingPrimary.remove(newNode(0).id());
+                primaryNode = selectAndRemove(unassignedNodesExecludingPrimary);
             }
             if (primaryState == ShardRoutingState.RELOCATING) {
                 relocatingNode = selectAndRemove(unassignedNodes);
@@ -111,8 +113,8 @@ public class ClusterStateCreationUtils {
         } else {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
-        indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, null, primaryTerm,
-                true, primaryState, 0, unassignedInfo));
+        indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, null, primaryTerm, true,
+                primaryState, unassignedInfo));
 
         for (ShardRoutingState replicaState : replicaStates) {
             String replicaNode = null;
@@ -128,14 +130,13 @@ public class ClusterStateCreationUtils {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, primaryTerm, false,
-                            replicaState, 0, unassignedInfo));
+                    TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, primaryTerm, false, replicaState, unassignedInfo));
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
-        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())).build());
+        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetaData.getIndex()).addIndexShard(indexShardRoutingBuilder.build())).build());
         return state.build();
     }
 
@@ -159,17 +160,17 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
         final int primaryTerm = randomInt(200);
         for (int i = 0; i < numberOfShards; i++) {
             RoutingTable.Builder routing = new RoutingTable.Builder();
             routing.addAsNew(indexMetaData);
-            final ShardId shardId = new ShardId(index, i);
+            final ShardId shardId = new ShardId(index, "_na_", i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
             indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(0).id(), null, null, primaryTerm, true,
-                    ShardRoutingState.STARTED, 0, null));
+                    ShardRoutingState.STARTED, null));
             indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(1).id(), null, null, primaryTerm, false,
-                    ShardRoutingState.STARTED, 0, null));
+                    ShardRoutingState.STARTED, null));
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
         }
         state.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
@@ -180,13 +181,13 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with and index that has one shard and as many replicas as numberOfReplicas.
      * Primary will be STARTED in cluster state but replicas will be one of UNASSIGNED, INITIALIZING, STARTED or RELOCATING.
      *
-     * @param index            name of the index
-     * @param primaryLocal     if primary should coincide with the local node in the cluster state
-     * @param numberOfReplicas number of replicas
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param numberOfReplicas   number of replicas
      */
-    public static ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
+    public static ClusterState stateWithActivePrimary(String index, boolean activePrimaryLocal, int numberOfReplicas) {
         int assignedReplicas = randomIntBetween(0, numberOfReplicas);
-        return stateWithStartedPrimary(index, primaryLocal, assignedReplicas, numberOfReplicas - assignedReplicas);
+        return stateWithActivePrimary(index, activePrimaryLocal, assignedReplicas, numberOfReplicas - assignedReplicas);
     }
 
     /**
@@ -195,11 +196,11 @@ public class ClusterStateCreationUtils {
      * some (assignedReplicas) will be one of INITIALIZING, STARTED or RELOCATING.
      *
      * @param index              name of the index
-     * @param primaryLocal       if primary should coincide with the local node in the cluster state
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
      * @param assignedReplicas   number of replicas that should have INITIALIZING, STARTED or RELOCATING state
      * @param unassignedReplicas number of replicas that should be unassigned
      */
-    public static ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int assignedReplicas, int unassignedReplicas) {
+    public static ClusterState stateWithActivePrimary(String index, boolean activePrimaryLocal, int assignedReplicas, int unassignedReplicas) {
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         // no point in randomizing - node assignment later on does it too.
         for (int i = 0; i < assignedReplicas; i++) {
@@ -208,7 +209,7 @@ public class ClusterStateCreationUtils {
         for (int i = assignedReplicas; i < replicaStates.length; i++) {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
-        return state(index, primaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
+        return state(index, activePrimaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
     }
 
     /**

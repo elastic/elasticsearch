@@ -47,6 +47,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestChannel;
@@ -100,7 +101,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start 2 nodes");
         Settings nodeSettings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
         internalCluster().startNode(nodeSettings);
@@ -609,7 +610,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startNode();
         logger.info("--> start second node");
         // Make sure the first node is elected as master
-        internalCluster().startNode(settingsBuilder().put("node.master", false));
+        internalCluster().startNode(settingsBuilder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         // Register mock repositories
         for (int i = 0; i < 5; i++) {
             client().admin().cluster().preparePutRepository("test-repo" + i)
@@ -766,7 +767,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> update index settings to back to normal");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-*").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "node")
         ));
 
         // Make sure that snapshot finished - doesn't matter if it failed or succeeded
@@ -784,8 +785,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testMasterShutdownDuringSnapshot() throws Exception {
-        Settings masterSettings = settingsBuilder().put("node.data", false).build();
-        Settings dataSettings = settingsBuilder().put("node.master", false).build();
+        Settings masterSettings = settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+        Settings dataSettings = settingsBuilder().put(Node.NODE_MASTER_SETTING.getKey(), false).build();
 
         logger.info("-->  starting two master nodes and two data nodes");
         internalCluster().startNode(masterSettings);
@@ -888,11 +889,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         assertAcked(client().admin().indices().prepareUpdateSettings(name).setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "all")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), between(100, 50000))
         ));
     }
-
 
     static {
         MetaData.registerPrototype(SnapshottableMetadata.TYPE, SnapshottableMetadata.PROTO);

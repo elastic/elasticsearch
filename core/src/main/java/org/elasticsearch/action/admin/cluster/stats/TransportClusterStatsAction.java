@@ -106,7 +106,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
                     shardsStats.add(new ShardStats(indexShard.routingEntry(), indexShard.shardPath(),
-                            new CommonStats(indexShard, SHARD_STATS_FLAGS), indexShard.commitStats(), indexShard.seqNoStats()));
+                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS), indexShard.commitStats(),
+                            indexShard.seqNoStats()));
                 }
             }
         }
@@ -133,7 +134,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         }
 
         ClusterStatsNodeRequest(String nodeId, ClusterStatsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

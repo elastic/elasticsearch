@@ -139,7 +139,8 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         try {
             client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", "bad")).get();
             fail();
-        } catch (SettingsException ex) {
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [bad] for setting [index.number_of_shards]", ex.getMessage());
             // Expected
         }
 

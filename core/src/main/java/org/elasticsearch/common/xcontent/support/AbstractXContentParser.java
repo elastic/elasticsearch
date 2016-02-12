@@ -38,16 +38,16 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private ParseFieldMatcher matcher = ParseFieldMatcher.STRICT;
 
-    //Currently this is not a setting that can be changed and is a policy
+    // Currently this is not a setting that can be changed and is a policy
     // that relates to how parsing of things like "boost" are done across
     // the whole of Elasticsearch (eg if String "1.0" is a valid float).
     // The idea behind keeping it as a constant is that we can track
     // references to this policy decision throughout the codebase and find
     // and change any code that needs to apply an alternative policy.
-    public static final boolean DEFAULT_NUMBER_COEERCE_POLICY = true;
+    public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
 
-    private static void checkCoerceString(boolean coeerce, Class<? extends Number> clazz) {
-        if (!coeerce) {
+    private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
+        if (!coerce) {
             //Need to throw type IllegalArgumentException as current catch logic in
             //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
@@ -102,7 +102,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public short shortValue() throws IOException {
-        return shortValue(DEFAULT_NUMBER_COEERCE_POLICY);
+        return shortValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
     @Override
@@ -121,7 +121,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public int intValue() throws IOException {
-        return intValue(DEFAULT_NUMBER_COEERCE_POLICY);
+        return intValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
 
@@ -141,7 +141,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public long longValue() throws IOException {
-        return longValue(DEFAULT_NUMBER_COEERCE_POLICY);
+        return longValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
     @Override
@@ -160,7 +160,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public float floatValue() throws IOException {
-        return floatValue(DEFAULT_NUMBER_COEERCE_POLICY);
+        return floatValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
     @Override
@@ -178,7 +178,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public double doubleValue() throws IOException {
-        return doubleValue(DEFAULT_NUMBER_COEERCE_POLICY);
+        return doubleValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
     @Override

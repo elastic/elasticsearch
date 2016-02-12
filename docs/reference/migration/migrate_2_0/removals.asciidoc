@@ -38,7 +38,7 @@ can install the plugin with:
 
 [source,sh]
 ------------------
-./bin/plugin install delete-by-query
+./bin/elasticsearch-plugin install delete-by-query
 ------------------
 
 See {plugins}/plugins-delete-by-query.html for more information.
@@ -55,10 +55,8 @@ still need to use multicast discovery, you can install the plugin with:
 
 [source,sh]
 ------------------
-./bin/plugin install discovery-multicast
+./bin/elasticsearch-plugin install discovery-multicast
 ------------------
-
-See {plugins}/discovery-multicast.html for more information.
 
 ==== `_shutdown` API
 
@@ -72,7 +70,7 @@ out of core and is available as a plugin. It can be installed as:
 
 [source,sh]
 ------------------
-./bin/plugin install mapper-murmur3
+./bin/elasticsearch-plugin install mapper-murmur3
 ------------------
 
 ==== `_size` is now a plugin
@@ -83,7 +81,7 @@ can be installed as:
 
 [source,sh]
 ------------------
-./bin/plugin install mapper-size
+./bin/elasticsearch-plugin install mapper-size
 ------------------
 
 ==== Thrift and memcached transport

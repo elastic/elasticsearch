@@ -38,7 +38,8 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
+import org.elasticsearch.search.rescore.QueryRescoreMode;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -118,7 +119,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f))
                                 .setRescoreQueryWeight(2), 5).execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
@@ -537,11 +538,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
         String[] scoreModes = new String[]{ "max", "min", "avg", "total", "multiply", "" };
         String[] descriptionModes = new String[]{ "max of:", "min of:", "avg of:", "sum of:", "product of:", "sum of:" };
         for (int innerMode = 0; innerMode < scoreModes.length; innerMode++) {
-            QueryRescorer innerRescoreQuery = RescoreBuilder.queryRescorer(QueryBuilders.matchQuery("field1", "the quick brown").boost(4.0f))
+            QueryRescorerBuilder innerRescoreQuery = RescoreBuilder.queryRescorer(QueryBuilders.matchQuery("field1", "the quick brown").boost(4.0f))
                 .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
             if (!"".equals(scoreModes[innerMode])) {
-                innerRescoreQuery.setScoreMode(scoreModes[innerMode]);
+                innerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[innerMode]));
             }
 
             SearchResponse searchResponse = client()
@@ -560,18 +561,18 @@ public class QueryRescorerIT extends ESIntegTestCase {
             }
 
             for (int outerMode = 0; outerMode < scoreModes.length; outerMode++) {
-                QueryRescorer outerRescoreQuery = RescoreBuilder.queryRescorer(QueryBuilders.matchQuery("field1", "the quick brown")
+                QueryRescorerBuilder outerRescoreQuery = RescoreBuilder.queryRescorer(QueryBuilders.matchQuery("field1", "the quick brown")
                         .boost(4.0f)).setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
                 if (!"".equals(scoreModes[outerMode])) {
-                    outerRescoreQuery.setScoreMode(scoreModes[outerMode]);
+                    outerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[outerMode]));
                 }
 
                 searchResponse = client()
                         .prepareSearch()
                         .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                         .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                        .addRescorer(innerRescoreQuery, 5).addRescorer(outerRescoreQuery, 10)
+                        .addRescorer(innerRescoreQuery, 5).addRescorer(outerRescoreQuery.windowSize(10))
                         .setExplain(true).get();
                 assertHitCount(searchResponse, 3);
                 assertFirstHit(searchResponse, hasId("1"));
@@ -598,7 +599,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             for (int i = 0; i < numDocs - 4; i++) {
                 String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2), English.intToEnglish(i + 3) };
 
-                QueryRescorer rescoreQuery = RescoreBuilder
+                QueryRescorerBuilder rescoreQuery = RescoreBuilder
                         .queryRescorer(
                                 QueryBuilders.boolQuery()
                                         .disableCoord(true)
@@ -612,7 +613,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .setRescoreQueryWeight(secondaryWeight);
 
                 if (!"".equals(scoreMode)) {
-                    rescoreQuery.setScoreMode(scoreMode);
+                    rescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreMode));
                 }
 
                 SearchResponse rescored = client()
@@ -681,13 +682,13 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     public void testMultipleRescores() throws Exception {
         int numDocs = indexRandomNumbers("keyword", 1, true);
-        QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(
+        QueryRescorerBuilder eightIsGreat = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8)),
-                        ScoreFunctionBuilders.weightFactorFunction(1000.0f)).boostMode(CombineFunction.REPLACE)).setScoreMode("total");
-        QueryRescorer sevenIsBetter = RescoreBuilder.queryRescorer(
+                        ScoreFunctionBuilders.weightFactorFunction(1000.0f)).boostMode(CombineFunction.REPLACE)).setScoreMode(QueryRescoreMode.Total);
+        QueryRescorerBuilder sevenIsBetter = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(7)),
                         ScoreFunctionBuilders.weightFactorFunction(10000.0f)).boostMode(CombineFunction.REPLACE))
-                .setScoreMode("total");
+                .setScoreMode(QueryRescoreMode.Total);
 
         // First set the rescore window large enough that both rescores take effect
         SearchRequestBuilder request = client().prepareSearch();
@@ -702,12 +703,12 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // We have no idea what the second hit will be because we didn't get a chance to look for seven
 
         // Now use one rescore to drag the number we're looking for into the window of another
-        QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
+        QueryRescorerBuilder ninetyIsGood = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*"), ScoreFunctionBuilders.weightFactorFunction(1000.0f))
-                        .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
-        QueryRescorer oneToo = RescoreBuilder.queryRescorer(
+                        .boostMode(CombineFunction.REPLACE)).setScoreMode(QueryRescoreMode.Total);
+        QueryRescorerBuilder oneToo = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*"), ScoreFunctionBuilders.weightFactorFunction(1000.0f))
-                        .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
+                        .boostMode(CombineFunction.REPLACE)).setScoreMode(QueryRescoreMode.Total);
         request.clearRescorers().addRescorer(ninetyIsGood, numDocs).addRescorer(oneToo, 10);
         response = request.setSize(2).get();
         assertFirstHit(response, hasId("91"));

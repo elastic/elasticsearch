@@ -41,7 +41,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Inject
     public RestGetSnapshotsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
     }
 

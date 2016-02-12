@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
@@ -50,6 +52,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,7 +70,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    private void reset() {
+    private void reset() throws IOException {
         assert NODE != null;
         stopNode();
         startNode();
@@ -82,13 +85,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertFalse(clusterHealthResponse.isTimedOut());
     }
 
-    private static void stopNode() {
+    private static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
-        Releasables.close(node);
+        IOUtils.close(node);
     }
 
-    private void cleanup(boolean resetNode) {
+    private void cleanup(boolean resetNode) throws IOException {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
             reset();
@@ -125,7 +128,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void tearDownClass() {
+    public static void tearDownClass() throws IOException {
         stopNode();
     }
 
@@ -157,21 +160,21 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private Node newNode() {
         Settings settings = Settings.builder()
-            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put("path.home", createTempDir())
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
-            .put("path.shared_data", createTempDir().getParent())
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("script.inline", "on")
-            .put("script.indexed", "on")
-            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+            .put("script.inline", "true")
+            .put("script.indexed", "true")
+            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
-            .put("node.local", true)
-            .put("node.data", true)
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
+            .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+            .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();
@@ -182,49 +185,49 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Returns a client to the single-node cluster.
      */
-    public static Client client() {
+    public Client client() {
         return NODE.client();
     }
 
     /**
      * Returns the single test nodes name.
      */
-    public static String nodeName() {
+    public String nodeName() {
         return "node_s_0";
     }
 
     /**
      * Return a reference to the singleton node.
      */
-    protected static Node node() {
+    protected Node node() {
         return NODE;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
-    protected static <T> T getInstanceFromNode(Class<T> clazz) {
+    protected <T> T getInstanceFromNode(Class<T> clazz) {
         return NODE.injector().getInstance(clazz);
     }
 
     /**
      * Create a new index on the singleton node with empty index settings.
      */
-    protected static IndexService createIndex(String index) {
+    protected IndexService createIndex(String index) {
         return createIndex(index, Settings.EMPTY);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings) {
+    protected IndexService createIndex(String index, Settings settings) {
         return createIndex(index, settings, null, (XContentBuilder) null);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
@@ -235,7 +238,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
@@ -243,7 +246,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return createIndex(index, createIndexRequestBuilder);
     }
 
-    protected static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
+    protected IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
@@ -258,7 +261,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new search context.
      */
-    protected static SearchContext createSearchContext(IndexService indexService) {
+    protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getIndexServices().getBigArrays();
         ThreadPool threadPool = indexService.getIndexServices().getThreadPool();
         PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);

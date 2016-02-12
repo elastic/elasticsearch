@@ -1048,16 +1048,21 @@ public final class Base64 {
 
         int len34 = len * 3 / 4;       // Estimate on array size
         byte[] outBuff = new byte[len34]; // Upper limit on size of output
-        int outBuffPosn = 0;             // Keep track of where we're writing
 
+        int outBuffPosn = decode(source, off, len, options, DECODABET, outBuff);
+
+        byte[] out = new byte[outBuffPosn];
+        System.arraycopy(outBuff, 0, out, 0, outBuffPosn);
+        return out;
+    }   // end decode
+
+    private static int decode(byte[] source, int off, int len, int options, byte[] DECODABET, byte[] outBuff) throws IOException {
+        int outBuffPosn = 0;             // Keep track of where we're writing
         byte[] b4 = new byte[4];     // Four byte buffer from source, eliminating white space
         int b4Posn = 0;               // Keep track of four byte input buffer
-        int i = 0;               // Source array counter
-        byte sbiDecode = 0;               // Special value from DECODABET
+        for (int i = off; i < off + len; i++) {  // Loop through source
 
-        for (i = off; i < off + len; i++) {  // Loop through source
-
-            sbiDecode = DECODABET[source[i] & 0xFF];
+            byte sbiDecode = DECODABET[source[i] & 0xFF];
 
             // White space, Equals sign, or legit Base64 character
             // Note the values such as -5 and -9 in the
@@ -1073,7 +1078,7 @@ public final class Base64 {
                         if (source[i] == EQUALS_SIGN) {
                             // check if the equals sign is somewhere in between
                             if (i+1 < len + off) {
-                              throw new java.io.IOException(String.format(Locale.ROOT,
+                              throw new IOException(String.format(Locale.ROOT,
                                       "Found equals sign at position %d of the base64 string, not at the end", i));
                             }
                             break;
@@ -1081,7 +1086,7 @@ public final class Base64 {
                     }   // end if: quartet built
                     else {
                       if (source[i] == EQUALS_SIGN && len + off > i && source[i+1] != EQUALS_SIGN) {
-                        throw new java.io.IOException(String.format(Locale.ROOT,
+                        throw new IOException(String.format(Locale.ROOT,
                                 "Found equals sign at position %d of the base64 string, not at the end", i));
                       } // enf if: equals sign and next character not as well
                     } // end else:
@@ -1089,15 +1094,12 @@ public final class Base64 {
             }   // end if: white space, equals sign or better
             else {
                 // There's a bad input character in the Base64 stream.
-                throw new java.io.IOException(String.format(Locale.ROOT,
+                throw new IOException(String.format(Locale.ROOT,
                         "Bad Base64 input character decimal %d in array position %d", ((int) source[i]) & 0xFF, i));
             }   // end else:
         }   // each input character
-
-        byte[] out = new byte[outBuffPosn];
-        System.arraycopy(outBuff, 0, out, 0, outBuffPosn);
-        return out;
-    }   // end decode
+        return outBuffPosn;
+    }
 
 
     /**

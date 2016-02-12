@@ -942,17 +942,10 @@ public final class Base64 {
      *                                  or there is not enough room in the array.
      * @since 1.3
      */
-    private static int decode4to3(
-            byte[] source, int srcOffset,
-            byte[] destination, int destOffset, int options) {
-
+    private static int decode4to3(byte[] source, int srcOffset, byte[] destination, int destOffset, int options) {
         // Lots of error checking and exception throwing
-        if (source == null) {
-            throw new NullPointerException("Source array was null.");
-        }   // end if
-        if (destination == null) {
-            throw new NullPointerException("Destination array was null.");
-        }   // end if
+        Objects.requireNonNull(source, "Source array was null.");
+        Objects.requireNonNull(destination, "Destination array was null.");
         if (srcOffset < 0 || srcOffset + 3 >= source.length) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Source array with length %d cannot have offset of %d and still process four bytes.", source.length, srcOffset));
@@ -962,56 +955,36 @@ public final class Base64 {
                     "Destination array with length %d cannot have offset of %d and still store three bytes.", destination.length, destOffset));
         }   // end if
 
-
         byte[] DECODABET = getDecodabet(options);
+
+
+        // Two ways to do the same thing. Don't know which way I like best.
+        //int outBuff =   ( ( DECODABET[ source[ srcOffset    ] ] << 24 ) >>>  6 )
+        //              | ( ( DECODABET[ source[ srcOffset + 1] ] << 24 ) >>> 12 );
+        int outBuff = ((DECODABET[source[srcOffset]] & 0xFF) << 18)
+                | ((DECODABET[source[srcOffset + 1]] & 0xFF) << 12);
+
+        destination[destOffset] = (byte) (outBuff >>> 16);
 
         // Example: Dk==
         if (source[srcOffset + 2] == EQUALS_SIGN) {
-            // Two ways to do the same thing. Don't know which way I like best.
-            //int outBuff =   ( ( DECODABET[ source[ srcOffset    ] ] << 24 ) >>>  6 )
-            //              | ( ( DECODABET[ source[ srcOffset + 1] ] << 24 ) >>> 12 );
-            int outBuff = ((DECODABET[source[srcOffset]] & 0xFF) << 18)
-                    | ((DECODABET[source[srcOffset + 1]] & 0xFF) << 12);
-
-            destination[destOffset] = (byte) (outBuff >>> 16);
             return 1;
         }
 
-        // Example: DkL=
-        else if (source[srcOffset + 3] == EQUALS_SIGN) {
-            // Two ways to do the same thing. Don't know which way I like best.
-            //int outBuff =   ( ( DECODABET[ source[ srcOffset     ] ] << 24 ) >>>  6 )
-            //              | ( ( DECODABET[ source[ srcOffset + 1 ] ] << 24 ) >>> 12 )
-            //              | ( ( DECODABET[ source[ srcOffset + 2 ] ] << 24 ) >>> 18 );
-            int outBuff = ((DECODABET[source[srcOffset]] & 0xFF) << 18)
-                    | ((DECODABET[source[srcOffset + 1]] & 0xFF) << 12)
-                    | ((DECODABET[source[srcOffset + 2]] & 0xFF) << 6);
+        outBuff |= ((DECODABET[source[srcOffset + 2]] & 0xFF) << 6);
+        destination[destOffset + 1] = (byte) (outBuff >>> 8);
 
-            destination[destOffset] = (byte) (outBuff >>> 16);
-            destination[destOffset + 1] = (byte) (outBuff >>> 8);
+        // Example: DkL=
+        if (source[srcOffset + 3] == EQUALS_SIGN) {
             return 2;
         }
 
+        outBuff |= ((DECODABET[source[srcOffset + 3]] & 0xFF));
+        destination[destOffset + 2] = (byte) (outBuff);
+
         // Example: DkLE
-        else {
-            // Two ways to do the same thing. Don't know which way I like best.
-            //int outBuff =   ( ( DECODABET[ source[ srcOffset     ] ] << 24 ) >>>  6 )
-            //              | ( ( DECODABET[ source[ srcOffset + 1 ] ] << 24 ) >>> 12 )
-            //              | ( ( DECODABET[ source[ srcOffset + 2 ] ] << 24 ) >>> 18 )
-            //              | ( ( DECODABET[ source[ srcOffset + 3 ] ] << 24 ) >>> 24 );
-            int outBuff = ((DECODABET[source[srcOffset]] & 0xFF) << 18)
-                    | ((DECODABET[source[srcOffset + 1]] & 0xFF) << 12)
-                    | ((DECODABET[source[srcOffset + 2]] & 0xFF) << 6)
-                    | ((DECODABET[source[srcOffset + 3]] & 0xFF));
-
-
-            destination[destOffset] = (byte) (outBuff >> 16);
-            destination[destOffset + 1] = (byte) (outBuff >> 8);
-            destination[destOffset + 2] = (byte) (outBuff);
-
-            return 3;
-        }
-    }   // end decodeToBytes
+        return 3;
+    }
 
 
     /**
@@ -1056,13 +1029,9 @@ public final class Base64 {
      * @throws java.io.IOException If bogus characters exist in source data
      * @since 1.3
      */
-    public static byte[] decode(byte[] source, int off, int len, int options)
-            throws java.io.IOException {
-
+    public static byte[] decode(byte[] source, int off, int len, int options) throws java.io.IOException {
         // Lots of error checking and exception throwing
-        if (source == null) {
-            throw new NullPointerException("Cannot decode null source array.");
-        }   // end if
+        Objects.requireNonNull(source, "Cannot decode null source array.");
         if (off < 0 || off + len > source.length) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Source array with length %d cannot have offset of %d and process %d bytes.", source.length, off, len));

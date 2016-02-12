@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.common;
 
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * <p>Encodes and decodes to and from Base64 notation.</p>
@@ -161,7 +163,7 @@ import java.util.Locale;
  * @author rob@iharder.net
  * @version 2.3.7
  */
-public class Base64 {
+public final class Base64 {
 
 /* ********  P U B L I C   F I E L D S  ******** */
 
@@ -791,10 +793,7 @@ public class Base64 {
      * @since 2.3.1
      */
     public static byte[] encodeBytesToBytes(byte[] source, int off, int len, int options) throws java.io.IOException {
-
-        if (source == null) {
-            throw new NullPointerException("Cannot serialize a null array.");
-        }   // end if: null
+        Objects.requireNonNull(source, "Cannot serialize a null array.");
 
         if (off < 0) {
             throw new IllegalArgumentException("Cannot have negative offset: " + off);
@@ -809,102 +808,108 @@ public class Base64 {
                     String.format(Locale.ROOT, "Cannot have offset of %d and length of %d with array of length %d", off, len, source.length));
         }   // end if: off < 0
 
-
         // Compress?
         if ((options & GZIP) != 0) {
-            java.io.ByteArrayOutputStream baos = null;
-            java.util.zip.GZIPOutputStream gzos = null;
-            Base64.OutputStream b64os = null;
-
-            try {
-                // GZip -> Base64 -> ByteArray
-                baos = new java.io.ByteArrayOutputStream();
-                b64os = new Base64.OutputStream(baos, ENCODE | options);
-                gzos = new java.util.zip.GZIPOutputStream(b64os);
-
-                gzos.write(source, off, len);
-                gzos.close();
-            }   // end try
-            catch (java.io.IOException e) {
-                // Catch it and then throw it immediately so that
-                // the finally{} block is called for cleanup.
-                throw e;
-            }   // end catch
-            finally {
-                try {
-                    gzos.close();
-                } catch (Exception e) {
-                }
-                try {
-                    b64os.close();
-                } catch (Exception e) {
-                }
-                try {
-                    baos.close();
-                } catch (Exception e) {
-                }
-            }   // end finally
-
-            return baos.toByteArray();
+            return encodeCompressedBytes(source, off, len, options);
         }   // end if: compress
 
         // Else, don't compress. Better not to use streams at all then.
         else {
-            boolean breakLines = (options & DO_BREAK_LINES) != 0;
-
-            //int    len43   = len * 4 / 3;
-            //byte[] outBuff = new byte[   ( len43 )                      // Main 4:3
-            //                           + ( (len % 3) > 0 ? 4 : 0 )      // Account for padding
-            //                           + (breakLines ? ( len43 / MAX_LINE_LENGTH ) : 0) ]; // New lines
-            // Try to determine more precisely how big the array needs to be.
-            // If we get it right, we don't have to do an array copy, and
-            // we save a bunch of memory.
-            int encLen = (len / 3) * 4 + (len % 3 > 0 ? 4 : 0); // Bytes needed for actual encoding
-            if (breakLines) {
-                encLen += encLen / MAX_LINE_LENGTH; // Plus extra newline characters
-            }
-            byte[] outBuff = new byte[encLen];
-
-
-            int d = 0;
-            int e = 0;
-            int len2 = len - 2;
-            int lineLength = 0;
-            for (; d < len2; d += 3, e += 4) {
-                encode3to4(source, d + off, 3, outBuff, e, options);
-
-                lineLength += 4;
-                if (breakLines && lineLength >= MAX_LINE_LENGTH) {
-                    outBuff[e + 4] = NEW_LINE;
-                    e++;
-                    lineLength = 0;
-                }   // end if: end of line
-            }   // en dfor: each piece of array
-
-            if (d < len) {
-                encode3to4(source, d + off, len - d, outBuff, e, options);
-                e += 4;
-            }   // end if: some padding needed
-
-
-            // Only resize array if we didn't guess it right.
-            if (e <= outBuff.length - 1) {
-                // If breaking lines and the last byte falls right at
-                // the line length (76 bytes per line), there will be
-                // one extra byte, and the array will need to be resized.
-                // Not too bad of an estimate on array size, I'd say.
-                byte[] finalOut = new byte[e];
-                System.arraycopy(outBuff, 0, finalOut, 0, e);
-                //System.err.println("Having to resize array from " + outBuff.length + " to " + e );
-                return finalOut;
-            } else {
-                //System.err.println("No need to resize array.");
-                return outBuff;
-            }
-
+            return encodeNonCompressedBytes(source, off, len, options);
         }   // end else: don't compress
 
     }   // end encodeBytesToBytes
+
+    private static byte[] encodeNonCompressedBytes(byte[] source, int off, int len, int options) {
+        boolean breakLines = (options & DO_BREAK_LINES) != 0;
+
+        //int    len43   = len * 4 / 3;
+        //byte[] outBuff = new byte[   ( len43 )                      // Main 4:3
+        //                           + ( (len % 3) > 0 ? 4 : 0 )      // Account for padding
+        //                           + (breakLines ? ( len43 / MAX_LINE_LENGTH ) : 0) ]; // New lines
+        // Try to determine more precisely how big the array needs to be.
+        // If we get it right, we don't have to do an array copy, and
+        // we save a bunch of memory.
+        int encLen = (len / 3) * 4 + (len % 3 > 0 ? 4 : 0); // Bytes needed for actual encoding
+        if (breakLines) {
+            encLen += encLen / MAX_LINE_LENGTH; // Plus extra newline characters
+        }
+        byte[] outBuff = new byte[encLen];
+
+
+        int d = 0;
+        int e = 0;
+        int len2 = len - 2;
+        int lineLength = 0;
+        for (; d < len2; d += 3, e += 4) {
+            encode3to4(source, d + off, 3, outBuff, e, options);
+
+            lineLength += 4;
+            if (breakLines && lineLength >= MAX_LINE_LENGTH) {
+                outBuff[e + 4] = NEW_LINE;
+                e++;
+                lineLength = 0;
+            }   // end if: end of line
+        }   // en dfor: each piece of array
+
+        if (d < len) {
+            encode3to4(source, d + off, len - d, outBuff, e, options);
+            e += 4;
+        }   // end if: some padding needed
+
+
+        // Only resize array if we didn't guess it right.
+        if (e <= outBuff.length - 1) {
+            // If breaking lines and the last byte falls right at
+            // the line length (76 bytes per line), there will be
+            // one extra byte, and the array will need to be resized.
+            // Not too bad of an estimate on array size, I'd say.
+            byte[] finalOut = new byte[e];
+            System.arraycopy(outBuff, 0, finalOut, 0, e);
+            //System.err.println("Having to resize array from " + outBuff.length + " to " + e );
+            return finalOut;
+        } else {
+            //System.err.println("No need to resize array.");
+            return outBuff;
+        }
+    }
+
+    private static byte[] encodeCompressedBytes(byte[] source, int off, int len, int options) throws IOException {
+        java.io.ByteArrayOutputStream baos = null;
+        java.util.zip.GZIPOutputStream gzos = null;
+        OutputStream b64os = null;
+
+        try {
+            // GZip -> Base64 -> ByteArray
+            baos = new java.io.ByteArrayOutputStream();
+            b64os = new OutputStream(baos, ENCODE | options);
+            gzos = new java.util.zip.GZIPOutputStream(b64os);
+
+            gzos.write(source, off, len);
+            gzos.close();
+        }   // end try
+        catch (IOException e) {
+            // Catch it and then throw it immediately so that
+            // the finally{} block is called for cleanup.
+            throw e;
+        }   // end catch
+        finally {
+            try {
+                gzos.close();
+            } catch (Exception e) {
+            }
+            try {
+                b64os.close();
+            } catch (Exception e) {
+            }
+            try {
+                baos.close();
+            } catch (Exception e) {
+            }
+        }   // end finally
+
+        return baos.toByteArray();
+    }
 
 
 /* ********  D E C O D I N G   M E T H O D S  ******** */

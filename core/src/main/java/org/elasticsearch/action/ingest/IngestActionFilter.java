@@ -103,7 +103,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, throwable) -> {
-            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), throwable);
+            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", throwable, indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id());
             bulkRequestModifier.markCurrentItemAsFailed(throwable);
         }, (throwable) -> {
             if (throwable != null) {

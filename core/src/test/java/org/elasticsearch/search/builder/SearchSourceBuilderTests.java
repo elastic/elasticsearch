@@ -373,7 +373,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
         }
         SearchSourceBuilder newBuilder = SearchSourceBuilder.parseSearchSource(parser, parseContext);
-        assertNotSame(testBuilder, newBuilder);
+        assertNull(parser.nextToken());
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
     }

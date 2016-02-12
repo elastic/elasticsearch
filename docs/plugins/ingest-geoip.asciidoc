@@ -1,5 +1,5 @@
 [[ingest-geoip]]
-== Ingest Geoip Processor Plugin
+=== Ingest Geoip Processor Plugin
 
 The GeoIP processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
 This processor adds this information by default under the `geoip` field.
@@ -19,10 +19,11 @@ is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too
 | `source_field`         | yes       | -                                                                                  | The field to get the ip address or hostname from for the geographical lookup.
 | `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
 | `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip plugin ships with the GeoLite2-City.mmdb and GeoLite2-Country.mmdb files.
-| `fields`               | no        | [`continent_name`, `country_iso_code`, `region_name`, `city_name`, `location`] <1> | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `fields`               | no        | [`continent_name`, `country_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 |======
 
-<1> Depends on what is available in `database_field`:
+*Depends on what is available in `database_field`:
+
 * If the GeoLite2 City database is used then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name`, `continent_name`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
 and `location`. The fields actually added depend on what has been found and which fields were configured in `fields`.

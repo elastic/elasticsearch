@@ -39,7 +39,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 

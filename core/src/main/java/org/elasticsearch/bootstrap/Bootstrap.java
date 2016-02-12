@@ -175,7 +175,7 @@ final class Bootstrap {
         JarHell.checkJarHell();
 
         // install SM after natives, shutdown hooks, etc.
-        setupSecurity(settings, environment);
+        Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
 
         // We do not need to reload system properties here as we have already applied them in building the settings and
         // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
@@ -186,14 +186,6 @@ final class Bootstrap {
                 .build();
 
         node = new Node(nodeSettings);
-    }
-
-
-
-    private void setupSecurity(Settings settings, Environment environment) throws Exception {
-        if (BootstrapSettings.SECURITY_MANAGER_ENABLED_SETTING.get(settings)) {
-            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
-        }
     }
 
     @SuppressForbidden(reason = "Exception#printStackTrace()")

@@ -27,14 +27,6 @@ public final class BootstrapSettings {
     private BootstrapSettings() {
     }
 
-    // TODO: remove this: http://www.openbsd.org/papers/hackfest2015-pledge/mgp00005.jpg
-    /**
-     * option to turn off our security manager completely, for example
-     * if you want to have your own configuration or just disable
-     */
-    public static final Setting<Boolean> SECURITY_MANAGER_ENABLED_SETTING =
-            Setting.boolSetting("security.manager.enabled", true, false, Scope.CLUSTER);
-
     // TODO: remove this hack when insecure defaults are removed from java
     public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING =
             Setting.boolSetting("security.manager.filter_bad_defaults", true, false, Scope.CLUSTER);

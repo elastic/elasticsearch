@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointDistanceQuery;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -229,14 +230,19 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
 
-        if (shardContext.indexVersionCreated().before(Version.V_2_2_0)) {
+        final Version indexVersionCreated = shardContext.indexVersionCreated();
+        if (indexVersionCreated.before(Version.V_2_2_0)) {
             GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
             IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
             return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         }
 
+        // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+        // if index created V_2_3 > use prefix encoded postings format
+        final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
+            GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
         normDistance = GeoUtils.maxRadialDistance(center, normDistance);
-        return new GeoPointDistanceQuery(fieldType.name(), center.lon(), center.lat(), normDistance);
+        return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lon(), center.lat(), normDistance);
     }
 
     @Override

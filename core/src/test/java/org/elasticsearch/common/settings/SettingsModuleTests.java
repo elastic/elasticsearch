@@ -127,4 +127,26 @@ public class SettingsModuleTests extends ModuleTestCase {
         }
 
     }
+
+    public void testRegisterSettingsFilter() {
+        Settings settings = Settings.builder().put("foo.bar", "false").put("bar.foo", false).put("bar.baz", false).build();
+        SettingsModule module = new SettingsModule(settings);
+        module.registerSetting(Setting.boolSetting("foo.bar", true, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("bar.foo", true, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("bar.baz", true, false, Setting.Scope.CLUSTER));
+
+        module.registerSettingsFilter("foo.*");
+        module.registerSettingsFilterIfMissing("bar.foo");
+        try {
+            module.registerSettingsFilter("bar.foo");
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("filter [bar.foo] has already been registered", ex.getMessage());
+        }
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().size() == 1);
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("bar.baz"));
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().get("bar.baz").equals("false"));
+
+    }
 }

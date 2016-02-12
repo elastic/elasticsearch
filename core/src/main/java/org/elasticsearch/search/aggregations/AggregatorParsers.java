@@ -218,13 +218,13 @@ public class AggregatorParsers {
                         parser.getTokenLocation());
             } else if (aggFactory != null) {
                 assert pipelineAggregatorFactory == null;
-                if (metaData != null) {
+            if (metaData != null) {
                     aggFactory.setMetaData(metaData);
-                }
+            }
 
-                if (subFactories != null) {
+            if (subFactories != null) {
                     aggFactory.subAggregations(subFactories);
-                }
+            }
 
                 factories.addAggregator(aggFactory);
             } else {
@@ -233,6 +233,9 @@ public class AggregatorParsers {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Aggregation [" + aggregationName + "] cannot define sub-aggregations",
                             parser.getTokenLocation());
+                }
+                if (metaData != null) {
+                    pipelineAggregatorFactory.setMetaData(metaData);
                 }
                 factories.addPipelineAggregator(pipelineAggregatorFactory);
             }

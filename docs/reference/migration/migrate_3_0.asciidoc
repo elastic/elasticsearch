@@ -20,6 +20,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_packaging>>
 * <<breaking_30_scripting>>
 * <<breaking_30_term_vectors>>
+* <<breaking_30_security>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -272,6 +273,12 @@ now doesn't accept a value less than `100ms` which prevents fsyncing too often i
 
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
+
+`indices.requests.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
+==== Field Data Cache Settings
+
+`indices.fielddata.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
 
 ==== Allocation settings
 
@@ -767,3 +774,10 @@ The term vectors APIs no longer persist unmapped fields in the mappings.
 
 The `dfs` parameter has been removed completely, term vectors don't support
 distributed document frequencies anymore.
+
+[[breaking_30_security]]
+=== Security
+
+The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
+permissions to elasticsearch users must tweak the local Java Security Policy.
+

@@ -291,7 +291,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"string\",\"index\":\"not_analyzed\"}}}}";
+        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"keyword\"}}}}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
         String[] cat1v1 = {"constant", "one"};
         String[] cat1v2 = {"constant", "uno"};

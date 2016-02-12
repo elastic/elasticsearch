@@ -20,9 +20,10 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.GeoPointField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -59,8 +60,6 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setNumericType(FieldType.NumericType.LONG);
-            FIELD_TYPE.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
@@ -83,6 +82,10 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
                                          DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          CopyTo copyTo) {
             fieldType.setTokenized(false);
+            if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
+                fieldType.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
+                fieldType.setNumericType(FieldType.NumericType.LONG);
+            }
             setupFieldType(context);
             return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper,
                     geoHashMapper, multiFields, ignoreMalformed, copyTo);
@@ -90,6 +93,10 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
 
         @Override
         public GeoPointFieldMapper build(BuilderContext context) {
+            if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
+                fieldType.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
+                fieldType.setNumericType(FieldType.NumericType.LONG);
+            }
             return super.build(context);
         }
     }

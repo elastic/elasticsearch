@@ -43,7 +43,6 @@ import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.tokenCountField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -98,7 +97,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @Override
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            TokenCountFieldMapper.Builder builder = tokenCountField(name);
+            TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());

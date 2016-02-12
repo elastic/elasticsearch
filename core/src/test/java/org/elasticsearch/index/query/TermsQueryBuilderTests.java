@@ -33,7 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.indices.TermsLookup;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

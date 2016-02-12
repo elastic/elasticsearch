@@ -73,11 +73,11 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -1687,7 +1687,7 @@ public class InternalEngineTests extends ESTestCase {
 
     private Mapping dynamicUpdate() {
         BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
-        final RootObjectMapper root = MapperBuilders.rootObject("some_type").build(context);
+        final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(context);
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
 

@@ -82,7 +82,7 @@ Returns the following exception:
 [float]
 == Dealing with Java Security Manager issues
 
-If you encounter issues with the Java Security Manager, you have three options
+If you encounter issues with the Java Security Manager, you have two options
 for resolving these issues:
 
 [float]
@@ -91,25 +91,6 @@ for resolving these issues:
 The safest and most secure long term solution is to change the code causing
 the security issue.  We recognise that this may take time to do correctly and
 so we provide the following two alternatives.
-
-[float]
-=== Disable the Java Security Manager
-
-deprecated[2.2.0,The ability to disable the Java Security Manager will be removed in a future version]
-
-You can disable the Java Security Manager entirely with the
-`security.manager.enabled` command line flag:
-
-[source,sh]
------------------------------
-./bin/elasticsearch --security.manager.enabled false
------------------------------
-
-WARNING: This disables the Security Manager entirely and makes Elasticsearch
-much more vulnerable to attacks! It is an option that should only be used in
-the most urgent of situations and for the shortest amount of time possible.
-Optional security is not secure at all because it **will** be disabled and
-leave the system vulnerable.  This option will be removed in a future version.
 
 [float]
 === Customising the classloader whitelist

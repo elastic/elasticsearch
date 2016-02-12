@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -150,10 +150,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             if (shardSize < -1) {
                 throw new IllegalArgumentException(
                         "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
-            }
+                }
             this.shardSize = shardSize;
             return this;
-        }
+            }
 
         public int shardSize() {
             return shardSize;
@@ -164,23 +164,23 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
                 ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                         throws IOException {
             int shardSize = this.shardSize;
-            if (shardSize == 0) {
-                shardSize = Integer.MAX_VALUE;
-            }
+        if (shardSize == 0) {
+            shardSize = Integer.MAX_VALUE;
+        }
 
             int requiredSize = this.requiredSize;
-            if (requiredSize == 0) {
-                requiredSize = Integer.MAX_VALUE;
-            }
+        if (requiredSize == 0) {
+            requiredSize = Integer.MAX_VALUE;
+        }
 
-            if (shardSize < 0) {
+        if (shardSize < 0) {
                 // Use default heuristic to avoid any wrong-ranking caused by distributed counting
                 shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.searchContext().numberOfShards());
-            }
+        }
 
-            if (shardSize < requiredSize) {
-                shardSize = requiredSize;
-            }
+        if (shardSize < requiredSize) {
+            shardSize = requiredSize;
+        }
             return new GeoHashGridAggregatorFactory(name, type, config, precision, requiredSize, shardSize, context, parent,
                     subFactoriesBuilder, metaData);
         }
@@ -201,7 +201,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             out.writeVInt(precision);
             out.writeVInt(requiredSize);
             out.writeVInt(shardSize);
-        }
+    }
 
         @Override
         protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
@@ -222,7 +222,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             }
             if (shardSize != other.shardSize) {
                 return false;
-            }
+                }
             return true;
         }
 

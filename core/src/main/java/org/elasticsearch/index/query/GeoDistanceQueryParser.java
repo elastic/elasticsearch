@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -177,8 +178,12 @@ public class GeoDistanceQueryParser implements QueryParser {
         if (parseContext.indexVersionCreated().before(Version.V_2_2_0)) {
             query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         } else {
+            // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+            // if index created V_2_3 > use prefix encoded postings format
+            final GeoPointField.TermEncoding encoding = (parseContext.indexVersionCreated().before(Version.V_2_3_0)) ?
+                GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
             distance = GeoUtils.maxRadialDistance(point, distance);
-            query = new GeoPointDistanceQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(), distance);
+            query = new GeoPointDistanceQuery(indexFieldData.getFieldNames().indexName(), encoding, point.lon(), point.lat(), distance);
         }
 
         if (queryName != null) {

@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -85,7 +85,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     /**
      * Create a new {@link GeolocationContextMapping} with a given precision
-     * 
+     *
      * @param precision
      *            length of the geohashes
      * @param neighbors
@@ -114,7 +114,7 @@ public class GeolocationContextMapping extends ContextMapping {
      * <li>neighbors [<code>Boolean</code>] defines if the last level of the
      * geohash should be extended by neighbor cells</li>
      * </ul>
-     * 
+     *
      * @param config
      *            Configuration for {@link GeolocationContextMapping}
      * @return new {@link GeolocationContextMapping} configured by the parameters of
@@ -173,7 +173,7 @@ public class GeolocationContextMapping extends ContextMapping {
             if (def != null) {
                 if (def instanceof Iterable) {
                     for (Object location : (Iterable)def) {
-                        builder.addDefaultLocation(location.toString());    
+                        builder.addDefaultLocation(location.toString());
                     }
                 } else if (def instanceof String) {
                     builder.addDefaultLocation(def.toString());
@@ -248,13 +248,13 @@ public class GeolocationContextMapping extends ContextMapping {
             // or a single location
             return Collections.singleton(GeoUtils.parseGeoPoint(parser).geohash());
         }
-    } 
-    
+    }
+
     @Override
     public ContextConfig defaultConfig() {
         return defaultConfig;
     }
-    
+
     @Override
     public ContextConfig parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
 
@@ -264,7 +264,7 @@ public class GeolocationContextMapping extends ContextMapping {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
         }
-        
+
         Collection<String> locations;
         if(parser.currentToken() == Token.VALUE_NULL) {
             locations = null;
@@ -276,7 +276,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     /**
      * Create a new geolocation query from a given GeoPoint
-     * 
+     *
      * @param point
      *            query location
      * @return new geolocation query
@@ -287,7 +287,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     /**
      * Create a new geolocation query from a given geocoordinate
-     * 
+     *
      * @param lat
      *            latitude of the location
      * @param lon
@@ -308,7 +308,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     /**
      * Create a new geolocation query from a given geohash
-     * 
+     *
      * @param geohash
      *            geohash of the location
      * @return new geolocation query
@@ -316,7 +316,7 @@ public class GeolocationContextMapping extends ContextMapping {
     public static GeoQuery query(String name, String geohash, int ... precisions) {
         return new GeoQuery(name, geohash, precisions);
     }
-    
+
     private static final int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
         switch (parser.currentToken()) {
         case VALUE_STRING:
@@ -341,7 +341,7 @@ public class GeolocationContextMapping extends ContextMapping {
             double lon = Double.NaN;
             GeoPoint point = null;
             int[] precision = null;
-            
+
             while (parser.nextToken() != Token.END_OBJECT) {
                 final String fieldName = parser.currentName();
                 if("lat".equals(fieldName)) {
@@ -411,7 +411,7 @@ public class GeolocationContextMapping extends ContextMapping {
             return new GeoQuery(name, GeoUtils.parseGeoPoint(parser).getGeohash(), precision);
         }
     }
-    
+
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -422,7 +422,7 @@ public class GeolocationContextMapping extends ContextMapping {
         result = prime * result + Arrays.hashCode(precision);
         return result;
     }
-   
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
@@ -458,7 +458,7 @@ public class GeolocationContextMapping extends ContextMapping {
         private boolean neighbors; // take neighbor cell on the lowest level into account
         private HashSet<String> defaultLocations = new HashSet<>();
         private String fieldName = null;
-        
+
         protected Builder(String name) {
             this(name, true, null);
         }
@@ -475,7 +475,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param precision
          *            precision as distance with {@link DistanceUnit}. Default:
          *            meters
@@ -487,7 +487,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param precision
          *            precision value
          * @param unit
@@ -500,23 +500,23 @@ public class GeolocationContextMapping extends ContextMapping {
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param meters
          *            precision as distance in meters
          * @return this
          */
         public Builder precision(double meters) {
             int level = GeoUtils.geoHashLevelsForPrecision(meters);
-            // Ceiling precision: we might return more results 
+            // Ceiling precision: we might return more results
             if (GeoUtils.geoHashCellSize(level) < meters) {
-               level = Math.max(1, level - 1); 
+               level = Math.max(1, level - 1);
             }
             return precision(level);
         }
 
         /**
          * Set the precision use o make suggestions
-         * 
+         *
          * @param level
          *            maximum length of geohashes
          * @return this
@@ -528,7 +528,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
         /**
          * Set neighborhood usage
-         * 
+         *
          * @param neighbors
          *            should neighbor cells also be valid
          * @return this
@@ -541,7 +541,7 @@ public class GeolocationContextMapping extends ContextMapping {
         /**
          * Set a default location that should be used, if no location is
          * provided by the query
-         * 
+         *
          * @param geohash
          *            geohash of the default location
          * @return this
@@ -554,7 +554,7 @@ public class GeolocationContextMapping extends ContextMapping {
         /**
          * Set a default location that should be used, if no location is
          * provided by the query
-         * 
+         *
          * @param geohashes
          *            geohash of the default location
          * @return this
@@ -567,7 +567,7 @@ public class GeolocationContextMapping extends ContextMapping {
         /**
          * Set a default location that should be used, if no location is
          * provided by the query
-         * 
+         *
          * @param lat
          *            latitude of the default location
          * @param lon
@@ -582,7 +582,7 @@ public class GeolocationContextMapping extends ContextMapping {
         /**
          * Set a default location that should be used, if no location is
          * provided by the query
-         * 
+         *
          * @param point
          *            location
          * @return this
@@ -591,7 +591,7 @@ public class GeolocationContextMapping extends ContextMapping {
             this.defaultLocations.add(point.geohash());
             return this;
         }
-        
+
         /**
          * Set the name of the field containing a geolocation to use
          * @param fieldName name of the field
@@ -701,7 +701,7 @@ public class GeolocationContextMapping extends ContextMapping {
     private static class GeoQuery extends ContextQuery {
         private final String location;
         private final int[] precisions;
-        
+
         public GeoQuery(String name, String location, int...precisions) {
             super(name);
             this.location = location;

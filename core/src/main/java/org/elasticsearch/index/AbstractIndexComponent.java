@@ -32,7 +32,7 @@ public abstract class AbstractIndexComponent implements IndexComponent {
     protected final ESLogger logger;
     protected final DeprecationLogger deprecationLogger;
     protected final Index index;
-    private final Settings indexSettings;
+    protected final Settings indexSettings;
 
     /**
      * Constructs a new index component, with the index name and its settings.

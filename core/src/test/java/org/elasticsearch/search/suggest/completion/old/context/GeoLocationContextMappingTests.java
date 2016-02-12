@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion.old.context;
 
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -50,7 +50,7 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
     }
-    
+
 
     @Test
     public void testUseWithDefaultGeoHash() throws Exception {
@@ -64,8 +64,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         config.put("default", geohash);
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
-    }    
-    
+    }
+
     @Test
     public void testUseWithDefaultLatLon() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
@@ -80,8 +80,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         config.put("default", pointAsMap);
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
-    } 
-    
+    }
+
     @Test
     public void testUseWithDefaultBadLatLon() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
@@ -103,8 +103,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
             expected = e;
         }
         assertNotNull(expected);
-    }  
-    
+    }
+
     @Test
     public void testUseWithMultiplePrecisions() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
@@ -121,7 +121,7 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
     }
-    
+
     @Test
     public void testHashcode() throws Exception {
         HashMap<String, Object> config = new HashMap<>();

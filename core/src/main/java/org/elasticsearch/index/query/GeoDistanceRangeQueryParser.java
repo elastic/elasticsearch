@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.GeoDistanceUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceRangeQuery;
+import org.apache.lucene.spatial.util.GeoDistanceUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -37,7 +38,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.GeoUtils.TOLERANCE;
+import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 
 /**
  * <pre>
@@ -241,9 +242,14 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
         if (indexCreatedBeforeV2_2 == true) {
             query = new GeoDistanceRangeQuery(point, from, to, includeLower, includeUpper, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         } else {
-            query = new GeoPointDistanceRangeQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(),
-                    (includeLower) ? from : from + TOLERANCE,
-                    (includeUpper) ? to : to - TOLERANCE);
+            // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+            // if index created V_2_3 > use prefix encoded postings format
+            final GeoPointField.TermEncoding encoding = (parseContext.indexVersionCreated().before(Version.V_2_3_0)) ?
+                GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
+
+            query = new GeoPointDistanceRangeQuery(indexFieldData.getFieldNames().indexName(), encoding, point.lon(), point.lat(),
+                (includeLower) ? from : from + TOLERANCE,
+                (includeUpper) ? to : to - TOLERANCE);
         }
 
         if (queryName != null) {

@@ -46,7 +46,8 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
             return new StringField(fieldName, point.lat()+","+point.lon(), store);
         }
         final GeoPointField.TermEncoding termEncoding;
-        termEncoding = indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_2_3_0) ?
+        termEncoding = indexService.indexSettings()
+            .getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).onOrAfter(Version.V_2_3_0) ?
             GeoPointField.TermEncoding.PREFIX : GeoPointField.TermEncoding.NUMERIC;
         return new GeoPointField(fieldName, point.lon(), point.lat(), termEncoding, store);
     }
@@ -54,7 +55,8 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
     @Override
     protected boolean hasDocValues() {
         // prior to 22 docValues were not required
-        if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
+        if (indexService.indexSettings()
+            .getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_2_2_0)) {
             return false;
         }
         return true;
@@ -62,7 +64,8 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
 
     @Override
     protected long minRamBytesUsed() {
-        if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
+        if (indexService.indexSettings()
+            .getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_2_2_0)) {
             return super.minRamBytesUsed();
         }
         return 0;

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointInBBoxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -196,8 +197,14 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
         Query query;
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_2_0)) {
-            query = new GeoPointInBBoxQuery(fieldType.names().fullName(), topLeft.lon(), bottomRight.lat(), bottomRight.lon(), topLeft.lat());
+        final Version indexVersionCreated = parseContext.indexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
+            // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+            // if index created V_2_3 > use prefix encoded postings format
+            final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
+                GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
+            query = new GeoPointInBBoxQuery(fieldType.names().fullName(), encoding, topLeft.lon(), bottomRight.lat(),
+                bottomRight.lon(), topLeft.lat());
         } else if ("indexed".equals(type)) {
             query = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoFieldType);
         } else if ("memory".equals(type)) {

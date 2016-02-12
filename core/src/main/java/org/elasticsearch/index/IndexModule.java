@@ -37,7 +37,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 

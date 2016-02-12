@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cache.query.terms;
+package org.elasticsearch.indices;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

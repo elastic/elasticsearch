@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cache.query;
+package org.elasticsearch.indices;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -50,15 +50,18 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         // which used to not work well with the query cache because of the handles stream output
         // see #9500
         final SearchResponse r1 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
+            .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00")
+                .minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
         assertSearchResponse(r1);
 
         // The cached is actually used
-        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
+            .getMemorySizeInBytes(), greaterThan(0L));
 
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
+                    .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0)
+                        .interval(DateHistogramInterval.MONTH)).get();
             assertSearchResponse(r2);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");

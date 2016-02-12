@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cache.query.terms;
+package org.elasticsearch.indices;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -123,11 +123,12 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
                     path = parser.text();
                     break;
                 default:
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName
-                            + "] within lookup element");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME +
+                        "] query does not support [" + currentFieldName + "] within lookup element");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token ["
+                    + token + "] after [" + currentFieldName + "]");
             }
         }
         return new TermsLookup(index, type, id, path).routing(routing);

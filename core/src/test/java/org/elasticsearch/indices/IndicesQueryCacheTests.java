@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cache.query;
+package org.elasticsearch.indices;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
@@ -35,9 +35,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

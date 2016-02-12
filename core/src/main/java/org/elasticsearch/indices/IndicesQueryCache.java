@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cache.query;
+package org.elasticsearch.indices;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;

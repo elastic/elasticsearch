@@ -54,7 +54,7 @@ import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -131,8 +131,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     private final FetchPhase fetchPhase;
 
-    private final IndicesRequestCache indicesQueryCache;
-
     private final long defaultKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
@@ -161,7 +159,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
-        this.indicesQueryCache = indicesService.getIndicesRequestCache();
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
@@ -250,9 +247,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context,
             final QueryPhase queryPhase) throws Exception {
-        final boolean canCache = indicesQueryCache.canCache(request, context);
+        final boolean canCache = indicesService.canCache(request, context);
         if (canCache) {
-            indicesQueryCache.loadIntoContext(request, context, queryPhase);
+            indicesService.loadIntoContext(request, context, queryPhase);
         } else {
             queryPhase.execute(context);
         }

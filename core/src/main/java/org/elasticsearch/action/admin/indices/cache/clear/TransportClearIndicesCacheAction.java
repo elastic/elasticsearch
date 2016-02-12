@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -98,7 +97,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
             }
             if (request.requestCache()) {
                 clearedAtLeastOne = true;
-                indicesService.getIndicesRequestCache().clear(shard);
+                indicesService.clearRequestCache(shard);
             }
             if (request.recycler()) {
                 logger.debug("Clear CacheRecycler on index [{}]", service.index());
@@ -114,7 +113,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
                 } else {
                     service.cache().clear("api");
                     service.fieldData().clear();
-                    indicesService.getIndicesRequestCache().clear(shard);
+                    indicesService.clearRequestCache(shard);
                 }
             }
         }

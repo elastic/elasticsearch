@@ -224,7 +224,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.searchService = new ShardSearchStats(slowLog);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
-        this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
+        this.shardQueryCache = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
         this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);

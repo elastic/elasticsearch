@@ -230,16 +230,20 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             }
         };
 
-        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService, null, new IndicesModule().getMapperRegistry(),
-                null) {
+        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService, null,
+                                                               new IndicesModule().getMapperRegistry(), null) {
             @Override
             public MappedFieldType fullName(String fullName) {
-                return new StringFieldType();
+                StringFieldType type = new StringFieldType();
+                if (randomBoolean()) {
+                    type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
+                }
+                return type;
             }
         };
 
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, scriptService,
-                null) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null,
+                                                                      scriptService, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
@@ -255,7 +259,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
             if (suggestionBuilder.text() == null) {
                 // we either need suggestion text or global text
-                suggestBuilder.setText(randomAsciiOfLengthBetween(5, 50));
+                suggestBuilder.setGlobalText(randomAsciiOfLengthBetween(5, 50));
             }
             if (suggestionBuilder.text() != null && suggestionBuilder.prefix() != null) {
                 suggestionBuilder.prefix(null);

@@ -318,7 +318,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             // NORELEASE need a random suggest builder method
-            builder.suggest(new SuggestBuilder().setText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
+            builder.suggest(new SuggestBuilder().setGlobalText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
                     SuggestBuilders.termSuggestion(randomAsciiOfLengthBetween(1, 5))));
         }
         if (randomBoolean()) {

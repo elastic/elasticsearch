@@ -500,9 +500,10 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
 
     @Override
-    public SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionContext innerBuild(QueryShardContext context) throws IOException {
         PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(context);
         MapperService mapperService = context.getMapperService();
+        // copy over common settings to each suggestion builder
         populateCommonFields(mapperService, suggestionContext);
 
         suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
@@ -537,23 +538,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 suggestionContext.setCollateScriptParams(this.collateParams);
             }
             suggestionContext.setCollatePrune(this.collatePrune);
-        }
-
-        // TODO remove this when field is mandatory in builder ctor
-        if (suggestionContext.getField() == null) {
-            throw new IllegalArgumentException("The required field option is missing");
-        }
-
-        MappedFieldType fieldType = mapperService.fullName(suggestionContext.getField());
-        if (fieldType == null) {
-            throw new IllegalArgumentException("No mapping found for field [" + suggestionContext.getField() + "]");
-        } else if (suggestionContext.getAnalyzer() == null) {
-            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldType.searchAnalyzer() == null) {
-                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
-            } else {
-                suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
-            }
         }
 
         if (suggestionContext.model() == null) {

@@ -49,7 +49,6 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -171,17 +170,6 @@ public final class SuggestUtils {
         }
     }
 
-    public static Suggest.Suggestion.Sort resolveSort(String sortVal) {
-        sortVal = sortVal.toLowerCase(Locale.US);
-        if ("score".equals(sortVal)) {
-            return Suggest.Suggestion.Sort.SCORE;
-        } else if ("frequency".equals(sortVal)) {
-            return Suggest.Suggestion.Sort.FREQUENCY;
-        } else {
-            throw new IllegalArgumentException("Illegal suggest sort " + sortVal);
-        }
-    }
-
     public static StringDistance resolveDistance(String distanceVal) {
         distanceVal = distanceVal.toLowerCase(Locale.US);
         if ("internal".equals(distanceVal)) {
@@ -227,7 +215,7 @@ public final class SuggestUtils {
             } else if (parseFieldMatcher.match(fieldName, Fields.SUGGEST_MODE)) {
                 suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.SORT)) {
-                suggestion.sort(SuggestUtils.resolveSort(parser.text()));
+                suggestion.sort(SortBy.resolve(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
                 suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_EDITS)) {
@@ -242,7 +230,7 @@ public final class SuggestUtils {
             } else if (parseFieldMatcher.match(fieldName, Fields.PREFIX_LENGTH)) {
                 suggestion.prefixLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_WORD_LENGTH)) {
-                suggestion.minQueryLength(parser.intValue());
+                suggestion.minWordLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
                 suggestion.minDocFreq(parser.floatValue());
             } else {
@@ -272,8 +260,6 @@ public final class SuggestUtils {
         }
         return true;
     }
-
-
 
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults

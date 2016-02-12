@@ -185,9 +185,13 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    protected SuggestionContext build(QueryShardContext context) throws IOException {
+    protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+        CompletionSuggestionContext suggestionContext = new CompletionSuggestionContext(context);
+        // copy over common settings to each suggestion builder
+        populateCommonFields(context.getMapperService(), suggestionContext);
         // NORELEASE
-        throw new UnsupportedOperationException();
+        // still need to populate CompletionSuggestionContext's specific settings
+        return suggestionContext;
     }
 
     @Override

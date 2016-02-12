@@ -19,6 +19,12 @@
 
 package org.elasticsearch.search.suggest.term;
 
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
+import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -384,9 +392,23 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    protected SuggestionContext build(QueryShardContext context) throws IOException {
-        // NORELEASE
-        throw new UnsupportedOperationException();
+    protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+        TermSuggestionContext suggestionContext = new TermSuggestionContext(context);
+        // copy over common settings to each suggestion builder
+        populateCommonFields(context.getMapperService(), suggestionContext);
+        // Transfers the builder settings to the target TermSuggestionContext
+        DirectSpellcheckerSettings settings = suggestionContext.getDirectSpellCheckerSettings();
+        settings.accuracy(accuracy);
+        settings.maxEdits(maxEdits);
+        settings.maxInspections(maxInspections);
+        settings.maxTermFreq(maxTermFreq);
+        settings.minDocFreq(minDocFreq);
+        settings.minWordLength(minWordLength);
+        settings.prefixLength(prefixLength);
+        settings.sort(sort);
+        settings.stringDistance(stringDistance.toLucene());
+        settings.suggestMode(suggestMode.toLucene());
+        return suggestionContext;
     }
 
     @Override
@@ -447,11 +469,23 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /** An enum representing the valid suggest modes. */
     public enum SuggestMode implements Writeable<SuggestMode> {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
-        MISSING,
+        MISSING {
+            public org.apache.lucene.search.spell.SuggestMode toLucene() {
+                return org.apache.lucene.search.spell.SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+            }
+        },
         /** Only suggest terms that occur in more docs then the original suggest text term. */
-        POPULAR,
+        POPULAR {
+            public org.apache.lucene.search.spell.SuggestMode toLucene() {
+                return org.apache.lucene.search.spell.SuggestMode.SUGGEST_MORE_POPULAR;
+            }
+        },
         /** Suggest any matching suggest terms based on tokens in the suggest text. */
-        ALWAYS;
+        ALWAYS {
+            public org.apache.lucene.search.spell.SuggestMode toLucene() {
+              return org.apache.lucene.search.spell.SuggestMode.SUGGEST_ALWAYS;
+            }
+        };
 
         protected static SuggestMode PROTOTYPE = MISSING;
 
@@ -473,50 +507,43 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             Objects.requireNonNull(str, "Input string is null");
             return valueOf(str.toUpperCase(Locale.ROOT));
         }
-    }
 
-    /** An enum representing the valid sorting options */
-    public enum SortBy implements Writeable<SortBy> {
-        /** Sort should first be based on score, then document frequency and then the term itself. */
-        SCORE,
-        /** Sort should first be based on document frequency, then score and then the term itself. */
-        FREQUENCY;
-
-        protected static SortBy PROTOTYPE = SCORE;
-
-        @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
-        }
-
-        @Override
-        public SortBy readFrom(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown SortBy ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
-        }
-
-        public static SortBy resolve(final String str) {
-            Objects.requireNonNull(str, "Input string is null");
-            return valueOf(str.toUpperCase(Locale.ROOT));
-        }
+        public abstract org.apache.lucene.search.spell.SuggestMode toLucene();
     }
 
     /** An enum representing the valid string edit distance algorithms for determining suggestions. */
     public enum StringDistanceImpl implements Writeable<StringDistanceImpl> {
         /** This is the default and is based on <code>damerau_levenshtein</code>, but highly optimized
          * for comparing string distance for terms inside the index. */
-        INTERNAL,
+        INTERNAL {
+            public StringDistance toLucene() {
+                return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+            }
+        },
         /** String distance algorithm based on Damerau-Levenshtein algorithm. */
-        DAMERAU_LEVENSHTEIN,
+        DAMERAU_LEVENSHTEIN {
+            public StringDistance toLucene() {
+                return new LuceneLevenshteinDistance();
+            }
+        },
         /** String distance algorithm based on Levenstein edit distance algorithm. */
-        LEVENSTEIN,
+        LEVENSTEIN {
+            public StringDistance toLucene() {
+                return new LevensteinDistance();
+            }
+        },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
-        JAROWINKLER,
+        JAROWINKLER {
+            public StringDistance toLucene() {
+                return new JaroWinklerDistance();
+            }
+        },
         /** String distance algorithm based on character n-grams. */
-        NGRAM;
+        NGRAM {
+            public StringDistance toLucene() {
+                return new NGramDistance();
+            }
+        };
 
         protected static StringDistanceImpl PROTOTYPE = INTERNAL;
 
@@ -552,6 +579,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }
+
+        public abstract StringDistance toLucene();
     }
 
 }

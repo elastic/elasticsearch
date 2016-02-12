@@ -620,6 +620,10 @@ to index a document only if it doesn't already exist.
 
 The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
 
+==== SuggestBuilder
+
+The `setText` method has been changed to `setGlobalText` to make the intent more clear, and a `getGlobalText` method has been added.
+
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
 

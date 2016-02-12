@@ -63,7 +63,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
      * The suggest text gets analyzed by the suggest analyzer or the suggest field search analyzer.
      * For each analyzed token, suggested terms are suggested if possible.
      */
-    public SuggestBuilder setText(@Nullable String globalText) {
+    public SuggestBuilder setGlobalText(@Nullable String globalText) {
         this.globalText = globalText;
         return this;
     }
@@ -71,8 +71,9 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
     /**
      * Gets the global suggest text
      */
-    public String getText() {
-        return this.globalText;
+    @Nullable
+    public String getGlobalText() {
+        return globalText;
     }
 
     /**
@@ -123,7 +124,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (parseFieldMatcher.match(fieldName, GLOBAL_TEXT_FIELD)) {
-                    suggestBuilder.setText(parser.text());
+                    suggestBuilder.setGlobalText(parser.text());
                 } else {
                     throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                 }

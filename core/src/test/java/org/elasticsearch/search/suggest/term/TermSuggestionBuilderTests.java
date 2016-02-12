@@ -20,8 +20,9 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
+import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
+import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SortBy;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
@@ -37,11 +38,6 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     /**
      *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
      */
-    @Override
-    public void testBuild() throws IOException {
-        // skip for now
-    }
-
     @Override
     protected TermSuggestionBuilder randomSuggestionBuilder() {
         TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLength(10));
@@ -256,7 +252,32 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     @Override
     protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
-        // put assertions on TermSuggestionContext here
+        @SuppressWarnings("unchecked")
+        TermSuggestionContext oldContext = (TermSuggestionContext) oldSuggestion;
+        @SuppressWarnings("unchecked")
+        TermSuggestionContext newContext = (TermSuggestionContext) newSuggestion;
+        assertSpellcheckerSettings(oldContext.getDirectSpellCheckerSettings(), newContext.getDirectSpellCheckerSettings());
+
+    }
+
+    private void assertSpellcheckerSettings(DirectSpellcheckerSettings oldSettings, DirectSpellcheckerSettings newSettings) {
+        final double delta = 0.0d;
+        // make sure the objects aren't the same
+        assertNotSame(oldSettings, newSettings);
+        // make sure the objects aren't null
+        assertNotNull(oldSettings);
+        assertNotNull(newSettings);
+        // and now, make sure they are equal..
+        assertEquals(oldSettings.accuracy(), newSettings.accuracy(), delta);
+        assertEquals(oldSettings.maxEdits(), newSettings.maxEdits());
+        assertEquals(oldSettings.maxInspections(), newSettings.maxInspections());
+        assertEquals(oldSettings.maxTermFreq(), newSettings.maxTermFreq(), delta);
+        assertEquals(oldSettings.minDocFreq(), newSettings.minDocFreq(), delta);
+        assertEquals(oldSettings.minWordLength(), newSettings.minWordLength());
+        assertEquals(oldSettings.prefixLength(), newSettings.prefixLength());
+        assertEquals(oldSettings.sort(), newSettings.sort());
+        assertEquals(oldSettings.stringDistance().getClass(), newSettings.stringDistance().getClass());
+        assertEquals(oldSettings.suggestMode().getClass(), newSettings.suggestMode().getClass());
     }
 
 }

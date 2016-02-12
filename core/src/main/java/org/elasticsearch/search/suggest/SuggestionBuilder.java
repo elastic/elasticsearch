@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -73,7 +74,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     }
 
     /**
-     * Same as in {@link SuggestBuilder#setText(String)}, but in the suggestion scope.
+     * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
      */
     @SuppressWarnings("unchecked")
     public T text(String text) {
@@ -197,7 +198,16 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
 
-    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+    public SuggestionContext build(QueryShardContext context) throws IOException {
+        SuggestionContext suggestionContext = innerBuild(context);
+        // TODO make field mandatory in the builder, then remove this
+        if (suggestionContext.getField() == null) {
+            throw new IllegalArgumentException("The required field option is missing");
+        }
+        return suggestionContext;
+    }
+
+    protected abstract SuggestionContext innerBuild(QueryShardContext context) throws IOException;
 
     /**
      * Transfers the text, prefix, regex, analyzer, fieldname, size and shard size settings from the
@@ -206,17 +216,27 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     protected void populateCommonFields(MapperService mapperService,
             SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
 
-        if (analyzer != null) {
+        Objects.requireNonNull(fieldname, "fieldname must not be null");
+
+        MappedFieldType fieldType = mapperService.fullName(fieldname);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("no mapping found for field [" + fieldname + "]");
+        } else if (analyzer == null) {
+            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
+            if (fieldType.searchAnalyzer() == null) {
+                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
+            } else {
+                suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
+            }
+        } else {
             Analyzer luceneAnalyzer = mapperService.analysisService().analyzer(analyzer);
             if (luceneAnalyzer == null) {
-                throw new IllegalArgumentException("Analyzer [" + luceneAnalyzer + "] doesn't exists");
+                throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
             }
             suggestionContext.setAnalyzer(luceneAnalyzer);
         }
 
-        if (fieldname != null) {
-            suggestionContext.setField(fieldname);
-        }
+        suggestionContext.setField(fieldname);
 
         if (size != null) {
             suggestionContext.setSize(size);
@@ -261,6 +281,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
      */
     @SuppressWarnings("unchecked")
     public T field(String field) {
+        Objects.requireNonNull(field, "fieldname must not be null");
         this.fieldname = field;
         return (T)this;
     }

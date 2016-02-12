@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
+import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -44,7 +45,6 @@ import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SortBy;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -306,12 +306,12 @@ public class SuggestSearchTests extends ESIntegTestCase {
         phraseSuggestion.field("nosuchField");
         {
             SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
-            searchBuilder.suggest(new SuggestBuilder().setText("tetsting sugestion").addSuggestion(phraseSuggestion));
+            searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion(phraseSuggestion));
             assertThrows(searchBuilder, SearchPhaseExecutionException.class);
         }
         {
             SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
-            searchBuilder.suggest(new SuggestBuilder().setText("tetsting sugestion").addSuggestion(phraseSuggestion));
+            searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion(phraseSuggestion));
             assertThrows(searchBuilder, SearchPhaseExecutionException.class);
         }
     }
@@ -837,14 +837,14 @@ public class SuggestSearchTests extends ESIntegTestCase {
         // When searching on a shard with a non existing mapping, we should fail
         SearchRequestBuilder request = client().prepareSearch().setSize(0)
                 .suggest(
-                        new SuggestBuilder().setText("tetsting sugestion").addSuggestion(
+                        new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion(
                                 phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f)));
         assertThrows(request, SearchPhaseExecutionException.class);
 
         // When searching on a shard which does not hold yet any document of an existing type, we should not fail
         SearchResponse searchResponse = client().prepareSearch().setSize(0)
                 .suggest(
-                        new SuggestBuilder().setText("tetsting sugestion").addSuggestion(
+                        new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion(
                                 phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f)))
             .get();
         ElasticsearchAssertions.assertNoFailures(searchResponse);
@@ -883,7 +883,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setSize(0)
                 .suggest(
-                        new SuggestBuilder().setText("tetsting sugestion").addSuggestion(
+                        new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion(
                                 phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f)))
                 .get();
 
@@ -1272,7 +1272,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
             SearchRequestBuilder builder = client().prepareSearch().setSize(0);
             SuggestBuilder suggestBuilder = new SuggestBuilder();
             if (suggestText != null) {
-                suggestBuilder.setText(suggestText);
+                suggestBuilder.setGlobalText(suggestText);
             }
             for (SuggestionBuilder<?> suggestion : suggestions) {
                 suggestBuilder.addSuggestion(suggestion);

@@ -152,7 +152,8 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         QueryBuilder<?> builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(queryShardContext()));
         builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
-        assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"), builder.rewrite(queryShardContext()));
+        assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
+            builder.rewrite(queryShardContext()));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {

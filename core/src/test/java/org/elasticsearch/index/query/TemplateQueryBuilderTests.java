@@ -143,7 +143,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
         builder = new TemplateQueryBuilder(new Template(query, ScriptType.INLINE, "mockscript",
             XContentType.JSON, Collections.emptyMap())).queryName("outer");
-        assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"), builder.rewrite(queryShardContext()));
+        assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
+            builder.rewrite(queryShardContext()));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {

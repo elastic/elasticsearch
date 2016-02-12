@@ -77,7 +77,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      * Add a sub aggregation to this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AB subAggregation(PipelineAggregatorBuilder aggregation) {
+    public AB subAggregation(PipelineAggregatorBuilder<?> aggregation) {
         if (aggregation == null) {
             throw new IllegalArgumentException("[aggregation] must not be null: [" + name + "]");
         }
@@ -103,6 +103,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return (AB) this;
     }
 
+    @SuppressWarnings("unchecked")
     public AB setMetaData(Map<String, Object> metaData) {
         if (metaData == null) {
             throw new IllegalArgumentException("[metaData] must not be null: [" + name + "]");
@@ -183,6 +184,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
             return false;
         if (getClass() != obj.getClass())
             return false;
+        @SuppressWarnings("unchecked")
         AggregatorBuilder<AB> other = (AggregatorBuilder<AB>) obj;
         if (!Objects.equals(name, other.name))
             return false;

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -55,6 +54,7 @@ public class IpRangeParser extends RangeParser {
     protected IPv4RangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(aggregationName);
+        @SuppressWarnings("unchecked")
         List<IPv4RangeAggregatorBuilder.Range> ranges = (List<IPv4RangeAggregatorBuilder.Range>) otherOptions
                 .get(RangeAggregator.RANGES_FIELD);
         for (IPv4RangeAggregatorBuilder.Range range : ranges) {
@@ -68,7 +68,7 @@ public class IpRangeParser extends RangeParser {
         }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public IPv4RangeAggregatorBuilder getFactoryPrototypes() {
         return IPv4RangeAggregatorBuilder.PROTOTYPE;
     }
 

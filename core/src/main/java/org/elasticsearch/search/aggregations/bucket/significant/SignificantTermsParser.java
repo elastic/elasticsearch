@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
@@ -107,7 +106,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public SignificantTermsAggregatorBuilder getFactoryPrototypes() {
         return SignificantTermsAggregatorBuilder.PROTOTYPE;
     }
 

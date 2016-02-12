@@ -198,6 +198,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return interval;
         }
 
+        @SuppressWarnings("unchecked")
         public AB interval(long interval) {
             if (interval < 1) {
                 throw new IllegalArgumentException("[interval] must be 1 or greater for histogram aggregation [" + name + "]");
@@ -210,6 +211,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return offset;
         }
 
+        @SuppressWarnings("unchecked")
         public AB offset(long offset) {
             this.offset = offset;
             return (AB) this;
@@ -219,6 +221,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return order;
         }
 
+        @SuppressWarnings("unchecked")
         public AB order(Histogram.Order order) {
             if (order == null) {
                 throw new IllegalArgumentException("[order] must not be null: [" + name + "]");
@@ -231,6 +234,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return keyed;
         }
 
+        @SuppressWarnings("unchecked")
         public AB keyed(boolean keyed) {
             this.keyed = keyed;
             return (AB) this;
@@ -240,6 +244,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return minDocCount;
         }
 
+        @SuppressWarnings("unchecked")
         public AB minDocCount(long minDocCount) {
             if (minDocCount < 0) {
                 throw new IllegalArgumentException(
@@ -253,6 +258,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return extendedBounds;
         }
 
+        @SuppressWarnings("unchecked")
         public AB extendedBounds(ExtendedBounds extendedBounds) {
             if (extendedBounds == null) {
                 throw new IllegalArgumentException("[extendedBounds] must not be null: [" + name + "]");
@@ -294,6 +300,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return InternalHistogram.TYPE.name();
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
                 throws IOException {
@@ -343,7 +350,7 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            AbstractBuilder other = (AbstractBuilder) obj;
+            AbstractBuilder<?> other = (AbstractBuilder<?>) obj;
             return Objects.equals(interval, other.interval)
                     && Objects.equals(offset, other.offset)
                     && Objects.equals(order, other.order)

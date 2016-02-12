@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -58,7 +57,7 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public GeoCentroidAggregator.GeoCentroidAggregatorBuilder getFactoryPrototypes() {
         return GeoCentroidAggregator.GeoCentroidAggregatorBuilder.PROTOTYPE;
     }
 }

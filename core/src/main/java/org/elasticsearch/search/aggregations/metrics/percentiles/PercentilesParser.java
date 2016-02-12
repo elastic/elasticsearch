@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
@@ -70,7 +69,7 @@ public class PercentilesParser extends AbstractPercentilesParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public PercentilesAggregatorBuilder getFactoryPrototypes() {
         return PercentilesAggregatorBuilder.PROTOTYPE;
     }
 

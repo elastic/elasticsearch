@@ -20,25 +20,16 @@ package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.FieldsParseElement;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
-import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.highlight.HighlighterParseElement;
-import org.elasticsearch.search.sort.SortParseElement;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,25 +38,6 @@ import java.util.List;
  *
  */
 public class TopHitsParser implements Aggregator.Parser {
-
-    private final SortParseElement sortParseElement;
-    private final FetchSourceParseElement sourceParseElement;
-    private final HighlighterParseElement highlighterParseElement;
-    private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
-    private final ScriptFieldsParseElement scriptFieldsParseElement;
-    private final FieldsParseElement fieldsParseElement;
-
-    @Inject
-    public TopHitsParser(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement,
-            HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement,
-            ScriptFieldsParseElement scriptFieldsParseElement, FieldsParseElement fieldsParseElement) {
-        this.sortParseElement = sortParseElement;
-        this.sourceParseElement = sourceParseElement;
-        this.highlighterParseElement = highlighterParseElement;
-        this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
-        this.scriptFieldsParseElement = scriptFieldsParseElement;
-        this.fieldsParseElement = fieldsParseElement;
-    }
 
     @Override
     public String type() {
@@ -206,7 +178,7 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public TopHitsAggregator.TopHitsAggregatorBuilder getFactoryPrototypes() {
         return TopHitsAggregator.TopHitsAggregatorBuilder.PROTOTYPE;
     }
 

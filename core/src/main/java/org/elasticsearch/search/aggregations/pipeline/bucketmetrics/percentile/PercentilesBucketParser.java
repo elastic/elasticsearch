@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.text.ParseException;
@@ -39,8 +37,8 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
-            Map<String, Object> unparsedParams) throws ParseException {
+    protected PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
 
         double[] percents = null;
         int counter = 0;
@@ -48,8 +46,8 @@ public class PercentilesBucketParser extends BucketMetricsParser {
 
         if (percentParam != null) {
             if (percentParam instanceof List) {
-                percents = new double[((List) percentParam).size()];
-                for (Object p : (List) percentParam) {
+                percents = new double[((List<?>) percentParam).size()];
+                for (Object p : (List<?>) percentParam) {
                     if (p instanceof Double) {
                         percents[counter] = (Double) p;
                         counter += 1;
@@ -74,7 +72,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder getFactoryPrototype() {
         return PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

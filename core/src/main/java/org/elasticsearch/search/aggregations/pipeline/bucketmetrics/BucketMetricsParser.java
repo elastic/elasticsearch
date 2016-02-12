@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -46,8 +44,8 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
-            throws IOException {
+    public final BucketMetricsPipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -89,7 +87,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]");
         }
 
-        BucketMetricsPipelineAggregatorBuilder factory = null;
+        BucketMetricsPipelineAggregatorBuilder<?> factory = null;
         try {
             factory = buildFactory(pipelineAggregatorName, bucketsPaths[0], leftover);
             if (format != null) {
@@ -112,7 +110,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         return factory;
     }
 
-    protected abstract BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPaths,
+    protected abstract BucketMetricsPipelineAggregatorBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
             Map<String, Object> unparsedParams) throws ParseException;
 
 }

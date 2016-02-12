@@ -67,13 +67,14 @@ public abstract class PipelineAggregator implements Streamable {
          * @throws java.io.IOException
          *             When parsing fails
          */
-        PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context) throws IOException;
+        PipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
+                throws IOException;
 
         /**
          * @return an empty {@link PipelineAggregatorBuilder} instance for this
          *         parser that can be used for deserialization
          */
-        PipelineAggregatorBuilder getFactoryPrototype();
+        PipelineAggregatorBuilder<?> getFactoryPrototype();
 
     }
 

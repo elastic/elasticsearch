@@ -27,8 +27,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
@@ -54,7 +52,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder parse(String aggregationName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         Script initScript = null;
         Script mapScript = null;
         Script combineScript = null;
@@ -161,7 +160,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder getFactoryPrototypes() {
         return ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder.PROTOTYPE;
     }
 

@@ -62,7 +62,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
+        AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
 
         /**
          * @return an empty {@link AggregatorBuilder} instance for this parser

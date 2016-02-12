@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.util.Map;
@@ -32,13 +30,13 @@ public class StatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
-            Map<String, Object> unparsedParams) {
+    protected StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> unparsedParams) {
         return new StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
         return StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg;
 
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.util.Map;
@@ -32,13 +30,13 @@ public class AvgBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+    protected AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
             Map<String, Object> unparsedParams) {
         return new AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder getFactoryPrototype() {
         return AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

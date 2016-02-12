@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,8 +41,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
-            throws IOException {
+    public DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -106,7 +104,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder getFactoryPrototype() {
         return DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder.PROTOTYPE;
     }
 

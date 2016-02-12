@@ -24,8 +24,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-
 import java.io.IOException;
 
 /**
@@ -53,7 +51,7 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public FilterAggregator.FilterAggregatorBuilder getFactoryPrototypes() {
         return FilterAggregator.FilterAggregatorBuilder.PROTOTYPE;
     }
 

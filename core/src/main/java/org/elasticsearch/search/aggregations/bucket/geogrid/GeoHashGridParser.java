@@ -34,7 +34,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
@@ -70,7 +69,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return InternalGeoHashGrid.TYPE.name();
     }
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public GeoGridAggregatorBuilder getFactoryPrototypes() {
         return GeoGridAggregatorBuilder.PROTOTYPE;
     }
 

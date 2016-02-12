@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
 
@@ -57,8 +56,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
-            throws IOException {
+    public MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -177,7 +176,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder getFactoryPrototype() {
         return MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder.PROTOTYPE;
     }
 

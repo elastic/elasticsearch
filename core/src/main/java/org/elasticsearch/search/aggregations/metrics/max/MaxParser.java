@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.max;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -56,7 +55,7 @@ public class MaxParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public MaxAggregator.MaxAggregatorBuilder getFactoryPrototypes() {
         return MaxAggregator.MaxAggregatorBuilder.PROTOTYPE;
     }
 

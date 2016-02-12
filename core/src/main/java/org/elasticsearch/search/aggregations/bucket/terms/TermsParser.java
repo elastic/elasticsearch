@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -53,6 +52,7 @@ public class TermsParser extends AbstractTermsParser {
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
             IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
         TermsAggregatorBuilder factory = new TermsAggregatorBuilder(aggregationName, targetValueType);
+        @SuppressWarnings("unchecked")
         List<OrderElement> orderElements = (List<OrderElement>) otherOptions.get(TermsAggregatorBuilder.ORDER_FIELD);
         if (orderElements != null) {
             List<Terms.Order> orders = new ArrayList<>(orderElements.size());
@@ -179,7 +179,7 @@ public class TermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public TermsAggregatorBuilder getFactoryPrototypes() {
         return TermsAggregatorBuilder.PROTOTYPE;
     }
 

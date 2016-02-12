@@ -88,6 +88,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     /**
      * Sets the field to use for this aggregation.
      */
+    @SuppressWarnings("unchecked")
     public AB field(String field) {
         if (field == null) {
             throw new IllegalArgumentException("[field] must not be null: [" + name + "]");
@@ -106,6 +107,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     /**
      * Sets the script to use for this aggregation.
      */
+    @SuppressWarnings("unchecked")
     public AB script(Script script) {
         if (script == null) {
             throw new IllegalArgumentException("[script] must not be null: [" + name + "]");
@@ -124,6 +126,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     /**
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
+    @SuppressWarnings("unchecked")
     public AB valueType(ValueType valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
@@ -142,6 +145,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     /**
      * Sets the format to use for the output of the aggregation.
      */
+    @SuppressWarnings("unchecked")
     public AB format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
@@ -161,6 +165,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * Sets the value to use when the aggregation finds a missing value in a
      * document
      */
+    @SuppressWarnings("unchecked")
     public AB missing(Object missing) {
         if (missing == null) {
             throw new IllegalArgumentException("[missing] must not be null: [" + name + "]");
@@ -180,6 +185,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     /**
      * Sets the time zone to use for this aggregation
      */
+    @SuppressWarnings("unchecked")
     public AB timeZone(DateTimeZone timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
@@ -217,6 +223,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
         if (field == null) {
             if (script == null) {
+                @SuppressWarnings("unchecked")
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSourceType.ANY);
                 config.format = resolveFormat(null, valueType);
                 return config;
@@ -255,7 +262,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
         IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
 
-        ValuesSourceConfig config;
+        ValuesSourceConfig<VS> config;
         if (valuesSourceType == ValuesSourceType.ANY) {
             if (indexFieldData instanceof IndexNumericFieldData) {
                 config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
@@ -340,6 +347,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
+    @SuppressWarnings("unchecked")
     @Override
     protected final AB doReadFrom(String name, StreamInput in) throws IOException {
         ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);

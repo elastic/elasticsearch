@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.util.Map;
@@ -33,13 +31,13 @@ public class MinBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+    protected MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
             Map<String, Object> unparsedParams) {
         return new MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder getFactoryPrototype() {
         return MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 

@@ -209,26 +209,20 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FieldsParseElement;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
-import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
-import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -413,8 +407,7 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new GeoHashGridParser());
         registerAggregatorParser(new NestedParser());
         registerAggregatorParser(new ReverseNestedParser());
-        registerAggregatorParser(new TopHitsParser(new SortParseElement(), new FetchSourceParseElement(), new HighlighterParseElement(),
-                new FieldDataFieldsParseElement(), new ScriptFieldsParseElement(), new FieldsParseElement()));
+        registerAggregatorParser(new TopHitsParser());
         registerAggregatorParser(new GeoBoundsParser());
         registerAggregatorParser(new GeoCentroidParser());
         registerAggregatorParser(new ScriptedMetricParser());

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -47,6 +46,7 @@ public class DateRangeParser extends RangeParser {
     protected DateRangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder(aggregationName);
+        @SuppressWarnings("unchecked")
         List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {
             factory.addRange(range);
@@ -59,7 +59,7 @@ public class DateRangeParser extends RangeParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public DateRangeAggregatorBuilder getFactoryPrototypes() {
         return DateRangeAggregatorBuilder.PROTOTYPE;
     }
 }

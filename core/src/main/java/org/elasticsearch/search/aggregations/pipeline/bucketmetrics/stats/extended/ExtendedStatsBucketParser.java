@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.text.ParseException;
@@ -36,8 +34,8 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
-            Map<String, Object> unparsedParams) throws ParseException {
+    protected ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
 
         Double sigma = null;
         Object param = unparsedParams.get(SIGMA.getPreferredName());
@@ -60,7 +58,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
         return ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

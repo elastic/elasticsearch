@@ -22,8 +22,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-
 import java.io.IOException;
 
 /**
@@ -37,7 +35,8 @@ public class NestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public NestedAggregator.NestedAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
         String path = null;
 
         XContentParser.Token token;
@@ -66,7 +65,7 @@ public class NestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
+    public NestedAggregator.NestedAggregatorBuilder getFactoryPrototypes() {
         return NestedAggregator.NestedAggregatorBuilder.PROTOTYPE;
     }
 }

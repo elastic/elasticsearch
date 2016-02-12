@@ -27,8 +27,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,7 +45,8 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorBuilder parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
+    public BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;
@@ -122,7 +121,7 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorBuilder getFactoryPrototype() {
+    public BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder getFactoryPrototype() {
         return BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder.PROTOTYPE;
     }
 

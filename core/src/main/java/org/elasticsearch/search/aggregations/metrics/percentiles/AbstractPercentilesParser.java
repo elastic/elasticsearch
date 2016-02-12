@@ -40,8 +40,6 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
     public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
     public static final ParseField NUMBER_SIGNIFICANT_DIGITS_FIELD = new ParseField("number_of_significant_value_digits");
 
-    private boolean formattable;
-
     public AbstractPercentilesParser(boolean formattable) {
         super(true, formattable, false);
     }

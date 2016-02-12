@@ -41,7 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -485,7 +485,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     public void sendRequest(DiscoveryNode node, long requestId, String action,
                                             TransportRequest request, TransportRequestOptions options)
                             throws IOException, TransportException {
-                        if (keepFailing.get() && action.equals(RecoveryTarget.Actions.TRANSLOG_OPS)) {
+                        if (keepFailing.get() && action.equals(RecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }
@@ -643,7 +643,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "foo").get();
@@ -725,7 +725,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         // only one node, so all primaries will end up on node1
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         // Index some documents

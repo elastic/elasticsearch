@@ -37,6 +37,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,9 +47,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
-import static org.elasticsearch.index.mapper.MapperBuilders.integerField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
@@ -130,26 +130,26 @@ public class AttachmentMapper extends FieldMapper {
 
         private Mapper.Builder<?, ?> contentBuilder;
 
-        private Mapper.Builder<?, ?> titleBuilder = stringField(FieldNames.TITLE);
+        private Mapper.Builder<?, ?> titleBuilder = new StringFieldMapper.Builder(FieldNames.TITLE);
 
-        private Mapper.Builder<?, ?> nameBuilder = stringField(FieldNames.NAME);
+        private Mapper.Builder<?, ?> nameBuilder = new StringFieldMapper.Builder(FieldNames.NAME);
 
-        private Mapper.Builder<?, ?> authorBuilder = stringField(FieldNames.AUTHOR);
+        private Mapper.Builder<?, ?> authorBuilder = new StringFieldMapper.Builder(FieldNames.AUTHOR);
 
-        private Mapper.Builder<?, ?> keywordsBuilder = stringField(FieldNames.KEYWORDS);
+        private Mapper.Builder<?, ?> keywordsBuilder = new StringFieldMapper.Builder(FieldNames.KEYWORDS);
 
-        private Mapper.Builder<?, ?> dateBuilder = dateField(FieldNames.DATE);
+        private Mapper.Builder<?, ?> dateBuilder = new DateFieldMapper.Builder(FieldNames.DATE);
 
-        private Mapper.Builder<?, ?> contentTypeBuilder = stringField(FieldNames.CONTENT_TYPE);
+        private Mapper.Builder<?, ?> contentTypeBuilder = new StringFieldMapper.Builder(FieldNames.CONTENT_TYPE);
 
-        private Mapper.Builder<?, ?> contentLengthBuilder = integerField(FieldNames.CONTENT_LENGTH);
+        private Mapper.Builder<?, ?> contentLengthBuilder = new IntegerFieldMapper.Builder(FieldNames.CONTENT_LENGTH);
 
-        private Mapper.Builder<?, ?> languageBuilder = stringField(FieldNames.LANGUAGE);
+        private Mapper.Builder<?, ?> languageBuilder = new StringFieldMapper.Builder(FieldNames.LANGUAGE);
 
         public Builder(String name) {
             super(name, new AttachmentFieldType(), new AttachmentFieldType());
             this.builder = this;
-            this.contentBuilder = stringField(FieldNames.CONTENT);
+            this.contentBuilder = new StringFieldMapper.Builder(FieldNames.CONTENT);
         }
 
         public Builder content(Mapper.Builder<?, ?> content) {

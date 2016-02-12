@@ -402,8 +402,8 @@ public class ChildrenIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("index")
-                .addMapping("parentType", "name", "type=string,index=not_analyzed", "town", "type=string,index=not_analyzed")
-                .addMapping("childType", "_parent", "type=parentType", "name", "type=string,index=not_analyzed", "age", "type=integer")
+                .addMapping("parentType", "name", "type=keyword", "town", "type=keyword")
+                .addMapping("childType", "_parent", "type=parentType", "name", "type=keyword", "age", "type=integer")
         );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("index", "parentType", "1").setSource("name", "Bob", "town", "Memphis"));

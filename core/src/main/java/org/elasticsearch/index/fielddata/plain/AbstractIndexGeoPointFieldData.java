@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.IndexSettings;
@@ -45,7 +47,7 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
     }
 
     protected static class GeoPointTermsEnum extends BaseGeoPointTermsEnum {
-        protected GeoPointTermsEnum(BytesRefIterator termsEnum) {
+        protected GeoPointTermsEnum(BytesRefIterator termsEnum, GeoPointField.TermEncoding termEncoding) {
             super(termsEnum);
         }
 

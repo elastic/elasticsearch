@@ -254,7 +254,7 @@ public class ShardRoutingTests extends ESTestCase {
             }
 
             try {
-                routing.initialize("boom", -1);
+                routing.initialize("boom", null, -1);
                 fail("must be frozen");
             } catch (IllegalStateException ex) {
                 // expected

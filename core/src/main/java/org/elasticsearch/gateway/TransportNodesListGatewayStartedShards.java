@@ -335,5 +335,28 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 out.writeBoolean(false);
             }
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
+
+            if (legacyVersion != that.legacyVersion) return false;
+            if (primary != that.primary) return false;
+            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) return false;
+            return storeException != null ? storeException.equals(that.storeException) : that.storeException == null;
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Long.hashCode(legacyVersion);
+            result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
+            result = 31 * result + (primary ? 1 : 0);
+            result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
+            return result;
+        }
     }
 }

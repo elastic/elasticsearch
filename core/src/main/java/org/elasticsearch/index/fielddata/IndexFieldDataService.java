@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -94,6 +95,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     static {
         Map<String, IndexFieldData.Builder> buildersByTypeBuilder = new HashMap<>();
         buildersByTypeBuilder.put("string", new PagedBytesIndexFieldData.Builder());
+        buildersByTypeBuilder.put(KeywordFieldMapper.CONTENT_TYPE, MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("float", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("double", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("byte", MISSING_DOC_VALUES_BUILDER);
@@ -110,6 +112,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
         docValuesBuildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
                 .put("string", new DocValuesIndexFieldData.Builder())
+                .put(KeywordFieldMapper.CONTENT_TYPE, new DocValuesIndexFieldData.Builder())
                 .put("float", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
                 .put("double", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.DOUBLE))
                 .put("byte", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BYTE))
@@ -125,6 +128,9 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 .put(Tuple.tuple("string", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DISABLED_FORMAT), DISABLED_BUILDER)
+
+                .put(Tuple.tuple(KeywordFieldMapper.CONTENT_TYPE, DOC_VALUES_FORMAT),  new DocValuesIndexFieldData.Builder())
+                .put(Tuple.tuple(KeywordFieldMapper.CONTENT_TYPE, DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("float", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
                 .put(Tuple.tuple("float", DISABLED_FORMAT), DISABLED_BUILDER)

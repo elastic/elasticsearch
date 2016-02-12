@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESTestCase;
 public class BootstrapSettingsTests extends ESTestCase {
 
     public void testDefaultSettings() {
-        assertTrue(BootstrapSettings.SECURITY_MANAGER_ENABLED_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(Settings.EMPTY));
         assertFalse(BootstrapSettings.MLOCKALL_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.SECCOMP_SETTING.get(Settings.EMPTY));

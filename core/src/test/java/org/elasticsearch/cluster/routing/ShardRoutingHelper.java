@@ -25,7 +25,7 @@ package org.elasticsearch.cluster.routing;
 public class ShardRoutingHelper {
 
     public static void relocate(ShardRouting routing, String nodeId) {
-        relocate(routing, nodeId, -1);
+        relocate(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     public static void relocate(ShardRouting routing, String nodeId, long expectedByteSize) {
@@ -37,11 +37,11 @@ public class ShardRoutingHelper {
     }
 
     public static void initialize(ShardRouting routing, String nodeId) {
-        initialize(routing, nodeId, -1);
+        initialize(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     public static void initialize(ShardRouting routing, String nodeId, long expectedSize) {
-        routing.initialize(nodeId, expectedSize);
+        routing.initialize(nodeId, null, expectedSize);
     }
 
     public static void reinit(ShardRouting routing) {

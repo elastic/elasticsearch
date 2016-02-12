@@ -295,7 +295,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 mappings.add("type=boolean");
             } else if (types.get(i) instanceof Text) {
                 mappings.add("field" + Integer.toString(i));
-                mappings.add("type=string,index=not_analyzed");
+                mappings.add("type=keyword");
             } else {
                 fail("Can't match type [" + type + "]");
             }

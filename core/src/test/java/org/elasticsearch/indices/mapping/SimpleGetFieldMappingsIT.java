@@ -60,7 +60,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     private XContentBuilder getMappingForType(String type) throws IOException {
         return jsonBuilder().startObject().startObject(type).startObject("properties")
                 .startObject("field1").field("type", "string").endObject()
-                .startObject("obj").startObject("properties").startObject("subfield").field("type", "string").field("index", "not_analyzed").endObject().endObject().endObject()
+                .startObject("obj").startObject("properties").startObject("subfield").field("type", "keyword").endObject().endObject().endObject()
                 .endObject().endObject().endObject();
     }
     
@@ -147,8 +147,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"), hasEntry("type", (Object) "long"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"), hasEntry("index", (Object) "analyzed"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"), hasEntry("type", (Object) "string"));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"), hasEntry("index", (Object) "not_analyzed"));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "string"));
+        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "keyword"));
 
 
     }

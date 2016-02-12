@@ -187,8 +187,7 @@ public class FieldSortIT extends ESIntegTestCase {
                         "{\"$type\": "
                         + " {\"properties\": "
                         + "     {\"grantee\": "
-                        + "         {\"index\": "
-                        + "             \"not_analyzed\", "
+                        + "         {   \"index\": \"not_analyzed\", "
                         + "             \"term_vector\": \"with_positions_offsets\", "
                         + "             \"type\": \"string\", "
                         + "             \"analyzer\": \"snowball\", "
@@ -265,12 +264,10 @@ public class FieldSortIT extends ESIntegTestCase {
                                 .startObject("type")
                                 .startObject("properties")
                                 .startObject("sparse_bytes")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
+                                .field("type", "keyword")
                                 .endObject()
                                 .startObject("dense_bytes")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
+                                .field("type", "keyword")
                                 .endObject()
                                 .endObject()
                                 .endObject()
@@ -518,7 +515,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
 .addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("str_value")
-                        .field("type", "string").field("index", "not_analyzed").startObject("fielddata")
+                        .field("type", "keyword").startObject("fielddata")
                         .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("boolean_value")
                         .field("type", "boolean").endObject().startObject("byte_value").field("type", "byte").startObject("fielddata")
                         .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("short_value")
@@ -826,8 +823,7 @@ public class FieldSortIT extends ESIntegTestCase {
                         .startObject("type1")
                         .startObject("properties")
                         .startObject("value")
-                        .field("type", "string")
-                        .field("index", "not_analyzed")
+                        .field("type", "keyword")
                         .endObject()
                         .endObject()
                         .endObject()
@@ -950,7 +946,7 @@ public class FieldSortIT extends ESIntegTestCase {
                         .field("type", "float").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
                         .endObject().endObject().startObject("double_values").field("type", "double").startObject("fielddata")
                         .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("string_values")
-                        .field("type", "string").field("index", "not_analyzed").startObject("fielddata")
+                        .field("type", "keyword").startObject("fielddata")
                         .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().endObject().endObject()
                         .endObject()));
         ensureGreen();
@@ -1259,7 +1255,7 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testSortOnRareField() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("string_values")
-                        .field("type", "string").field("index", "not_analyzed").startObject("fielddata")
+                        .field("type", "keyword").startObject("fielddata")
                         .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().endObject().endObject()
                         .endObject()));
         ensureGreen();
@@ -1437,8 +1433,7 @@ public class FieldSortIT extends ESIntegTestCase {
                                                         .field("type", "string")
                                                         .startObject("fields")
                                                             .startObject("sub")
-                                                                .field("type", "string")
-                                                                .field("index", "not_analyzed")
+                                                                .field("type", "keyword")
                                                             .endObject()
                                                         .endObject()
                                                     .endObject()

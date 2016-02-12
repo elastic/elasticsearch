@@ -50,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.object;
 
 /**
  *
@@ -300,7 +299,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         }
 
         protected Builder createBuilder(String name) {
-            return object(name);
+            return new Builder(name);
         }
     }
 

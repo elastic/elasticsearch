@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointInBBoxQuery;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
@@ -105,7 +106,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
                 // we do not check longitudes as the query generation code can deal with flipped left/right values
         }
-        
+
         topLeft.reset(top, left);
         bottomRight.reset(bottom, right);
         return this;
@@ -133,7 +134,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public GeoPoint topLeft() {
         return topLeft;
     }
-    
+
     /** Returns the bottom right corner of the bounding box. */
     public GeoPoint bottomRight() {
         return bottomRight;
@@ -168,7 +169,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         this.validationMethod = method;
         return this;
     }
-    
+
     /**
      * Returns geo coordinate validation method to use.
      * */
@@ -264,8 +265,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        if (context.indexVersionCreated().onOrAfter(Version.V_2_2_0)) {
-            return new GeoPointInBBoxQuery(fieldType.name(), luceneTopLeft.lon(), luceneBottomRight.lat(),
+        final Version indexVersionCreated = context.indexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
+            // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+            // if index created V_2_3 > use prefix encoded postings format
+            final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
+                GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
+            return new GeoPointInBBoxQuery(fieldType.name(), encoding, luceneTopLeft.lon(), luceneBottomRight.lat(),
                     luceneBottomRight.lon(), luceneTopLeft.lat());
         }
 

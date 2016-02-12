@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Point;
-import org.apache.lucene.search.GeoPointDistanceQuery;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.GeoUtils;
+import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -205,7 +205,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         if (queryBuilder.geoDistance() != null) {
             distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
             distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
-            assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
+            assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoEncodingUtils.TOLERANCE));
         }
     }
 

@@ -22,11 +22,11 @@
 #    build_randomization.rb [-d] [-l|t]
 #
 # DESCRIPTION
-#    This script takes the randomization choices described in RANDOM_CHOICE and generates apporpriate JAVA property file 'prop.txt'
+#    This script takes the randomization choices described in RANDOM_CHOICE and generates appropriate JAVA property file 'prop.txt'
 #    This property file also contain the appropriate JDK selection, randomized.  JDK randomization is based on what is available on the Jenkins tools
 #    directory.  This script is used by Jenkins test system to conduct Elasticsearch server randomization testing.
 #
-#    In hash RANDOM_CHOISES, the key of randomization hash maps to key of java property.  The value of the hash describes the possible value of the randomization
+#    In hash RANDOM_CHOICES, the key of randomization hash maps to key of java property.  The value of the hash describes the possible value of the randomization
 #
 #    For example  RANDOM_CHOICES = { 'es.node.mode' => {:choices => ['local', 'network'], :method => :get_random_one} } means
 #    es.node.mode will be set to either 'local' or 'network', each with 50% of probability
@@ -36,7 +36,7 @@
 #
 #       -d, --debug   Increase logging verbosity for debugging purpose
 #       -t, --test    Run in test mode.  The script will execute unit tests.
-#       -l, --local   Run in local mode.  In this mode, directory structure will be created under current directory to mimick 
+#       -l, --local   Run in local mode.  In this mode, directory structure will be created under current directory to mimic
 #                     Jenkins' server directory layout. This mode is mainly used for development.
 require 'enumerator'
 require 'getoptlong'
@@ -70,7 +70,7 @@ C = {:local => false, :test => false}
 
 
 OptionParser.new do |opts|
-  opts.banner = "Usage: build_ranodimzatin.rb [options]"
+  opts.banner = "Usage: build_randomization.rb [options]"
 
   opts.on("-d", "--debug", "Debug mode") do |d|
     L.level = DEBUG

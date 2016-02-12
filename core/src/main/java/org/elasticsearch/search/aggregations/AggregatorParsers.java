@@ -232,6 +232,9 @@ public class AggregatorParsers {
                     pipelineAggregatorFactory
                             .validate(null, factories.getAggregatorFactories(), factories.getPipelineAggregatorFactories());
                 }
+                if (metaData != null) {
+                    pipelineAggregatorFactory.setMetaData(metaData);
+                }
                 factories.addPipelineAggregator(pipelineAggregatorFactory);
             }
         }

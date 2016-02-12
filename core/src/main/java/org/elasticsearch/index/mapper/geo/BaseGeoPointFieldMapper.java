@@ -21,7 +21,8 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 
 import java.io.IOException;
@@ -50,8 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
@@ -159,8 +158,8 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
             context.path().add(name);
             if (enableLatLon) {
-                NumberFieldMapper.Builder<?, ?> latMapperBuilder = doubleField(Names.LAT).includeInAll(false);
-                NumberFieldMapper.Builder<?, ?> lonMapperBuilder = doubleField(Names.LON).includeInAll(false);
+                NumberFieldMapper.Builder<?, ?> latMapperBuilder = new DoubleFieldMapper.Builder(Names.LAT).includeInAll(false);
+                NumberFieldMapper.Builder<?, ?> lonMapperBuilder = new DoubleFieldMapper.Builder(Names.LON).includeInAll(false);
                 if (precisionStep != null) {
                     latMapperBuilder.precisionStep(precisionStep);
                     lonMapperBuilder.precisionStep(precisionStep);
@@ -172,7 +171,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             StringFieldMapper geoHashMapper = null;
             if (enableGeoHash || enableGeoHashPrefix) {
                 // TODO: possible also implicitly enable geohash if geohash precision is set
-                geoHashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).store(fieldType.stored())
+                geoHashMapper = new StringFieldMapper.Builder(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).store(fieldType.stored())
                         .omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
                 geoPointFieldType.setGeoHashEnabled(geoHashMapper.fieldType(), geoHashPrecision, enableGeoHashPrefix);
             }

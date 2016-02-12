@@ -83,11 +83,11 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         prepareCreate("idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
+                .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
                 .execute().actionGet();
 
         prepareCreate("idx-multi")
-                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
+                .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
                 .execute().actionGet();
 
         createIndex("idx_unmapped");

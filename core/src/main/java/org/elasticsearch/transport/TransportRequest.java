@@ -23,7 +23,7 @@ import org.elasticsearch.tasks.Task;
 
 /**
  */
-public abstract class TransportRequest extends TransportMessage<TransportRequest> {
+public abstract class TransportRequest extends TransportMessage {
 
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();

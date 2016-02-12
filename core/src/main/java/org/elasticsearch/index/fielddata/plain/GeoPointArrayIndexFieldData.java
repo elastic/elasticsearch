@@ -23,10 +23,10 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -79,7 +79,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
-        return (Version.fromString(indexSettings.get(IndexMetaData.SETTING_VERSION_CREATED)).before(Version.V_2_2_0)) ?
+        return (Version.indexCreated(indexSettings).before(Version.V_2_2_0)) ?
             loadLegacyFieldData(reader, estimator, terms, data) : loadFieldData22(reader, estimator, terms, data);
     }
 
@@ -93,10 +93,17 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
                 OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
+            final TermsEnum termsEnum;
             final GeoPointField.TermEncoding termEncoding;
-            termEncoding = Version.fromString(indexSettings.get(IndexMetaData.SETTING_VERSION_CREATED))
-                .onOrAfter(Version.V_2_3_0) ? GeoPointField.TermEncoding.PREFIX : GeoPointField.TermEncoding.NUMERIC;
-            final GeoPointTermsEnum iter = new GeoPointTermsEnum(builder.buildFromTerms(OrdinalsBuilder.wrapNumeric64Bit(terms.iterator())), termEncoding);
+            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_3_0)) {
+                termEncoding = GeoPointField.TermEncoding.PREFIX;
+                termsEnum = OrdinalsBuilder.wrapGeoPointTerms(terms.iterator());
+            } else {
+                termEncoding = GeoPointField.TermEncoding.NUMERIC;
+                termsEnum = OrdinalsBuilder.wrapNumeric64Bit(terms.iterator());
+            }
+
+            final GeoPointTermsEnum iter = new GeoPointTermsEnum(builder.buildFromTerms(termsEnum), termEncoding);
             Long hashedPoint;
             long numTerms = 0;
             while ((hashedPoint = iter.next()) != null) {

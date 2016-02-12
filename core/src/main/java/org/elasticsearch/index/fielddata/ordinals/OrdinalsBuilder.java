@@ -23,7 +23,16 @@ import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.*;
+
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
@@ -407,6 +416,23 @@ public final class OrdinalsBuilder implements Closeable {
         } else {
             return new SinglePackedOrdinals(this, acceptableOverheadRatio);
         }
+    }
+
+    /**
+     * A {@link TermsEnum} that iterates only highest resolution geo prefix coded terms.
+     *
+     * @see #buildFromTerms(TermsEnum)
+     */
+    public static TermsEnum wrapGeoPointTerms(TermsEnum termsEnum) {
+        return new FilteredTermsEnum(termsEnum, false) {
+            @Override
+            protected AcceptStatus accept(BytesRef term) throws IOException {
+                // accept only the max resolution terms
+                // todo is this necessary?
+                return GeoEncodingUtils.getPrefixCodedShift(term) == GeoPointField.PRECISION_STEP * 4 ?
+                    AcceptStatus.YES : AcceptStatus.END;
+            }
+        };
     }
 
     /**

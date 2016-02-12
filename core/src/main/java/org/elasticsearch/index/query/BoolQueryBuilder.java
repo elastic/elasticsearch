@@ -263,13 +263,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        final int numClauses = mustNotClauses.size() + filterClauses.size() + shouldClauses.size() + mustClauses.size();
-        if (numClauses == 1 && must().size() == 1 && boost() == DEFAULT_BOOST) {
-            // we really only optimize this for testing since we use this to rewrite
-            // named queries TemplateQueryBuilder and WrapperQueryBuilder.
-            // it's equivalent but will anyways happen later down the road in the BQ#rewrite method
-            return mustClauses.get(0).toQuery(context);
-        }
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         booleanQueryBuilder.setDisableCoord(disableCoord);
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);

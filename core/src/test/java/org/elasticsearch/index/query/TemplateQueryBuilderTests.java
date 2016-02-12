@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -58,7 +60,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected void doAssertLuceneQuery(TemplateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertEquals(QueryBuilder.rewriteQuery(templateBase, context).toQuery(context), query);
+        assertEquals(rewrite(QueryBuilder.rewriteQuery(templateBase, context).toQuery(context)), rewrite(query));
     }
 
     public void testIllegalArgument() {
@@ -156,5 +158,17 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         builder = new TemplateQueryBuilder(new Template(query.toString(), ScriptType.INLINE, "mockscript",
             XContentType.JSON, Collections.emptyMap())).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(queryShardContext()));
+    }
+
+    @Override
+    protected Query rewrite(Query query) throws IOException {
+        // TemplateQueryBuilder adds some optimization if the template and query builder have boosts / query names that wraps
+        // the actual QueryBuilder that comes from the template into a BooleanQueryBuilder to give it an outer boost / name
+        // this causes some queries to be not exactly equal but equivalent such that we need to rewrite them before comparing.
+        if (query != null) {
+            MemoryIndex idx = new MemoryIndex();
+            return idx.createSearcher().rewrite(query);
+        }
+        return new MatchAllDocsQuery(); // null == *:*
     }
 }

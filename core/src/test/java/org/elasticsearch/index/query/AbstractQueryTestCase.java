@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -538,7 +539,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
             SearchContext.removeCurrent();
 
-            assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
+            assertEquals("two equivalent query builders lead to different lucene queries", rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
 
             // if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
             if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
@@ -546,8 +547,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 setSearchContext(randomTypes);
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 SearchContext.removeCurrent();
-                assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery,
-                        not(equalTo(thirdLuceneQuery)));
+                assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
+                        rewrite(thirdLuceneQuery));
             }
         }
     }
@@ -988,4 +989,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
         queryBuilder.toQuery(context);
     }
+
+    protected Query rewrite(Query query) throws IOException {
+        return query;
+    }
+
 }

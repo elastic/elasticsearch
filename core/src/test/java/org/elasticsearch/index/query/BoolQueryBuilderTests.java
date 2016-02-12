@@ -195,14 +195,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     public void testDefaultMinShouldMatch() throws Exception {
         // Queries have a minShouldMatch of 0
-        BooleanQuery bq = (BooleanQuery) parseQuery(boolQuery().filter(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
+        BooleanQuery bq = (BooleanQuery) parseQuery(boolQuery().must(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
         assertEquals(0, bq.getMinimumNumberShouldMatch());
 
         bq = (BooleanQuery) parseQuery(boolQuery().should(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
         assertEquals(0, bq.getMinimumNumberShouldMatch());
 
         // Filters have a minShouldMatch of 0/1
-        ConstantScoreQuery csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().filter(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
+        ConstantScoreQuery csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().must(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
         bq = (BooleanQuery) csq.getQuery();
         assertEquals(0, bq.getMinimumNumberShouldMatch());
 
@@ -213,7 +213,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     public void testMinShouldMatchFilterWithoutShouldClauses() throws Exception {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.filter(new BoolQueryBuilder().filter(new MatchAllQueryBuilder()));
+        boolQueryBuilder.filter(new BoolQueryBuilder().must(new MatchAllQueryBuilder()));
         Query query = boolQueryBuilder.toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
@@ -227,7 +227,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
         BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
-        assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(innerBooleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
     }
 

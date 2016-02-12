@@ -394,17 +394,32 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         public FilterFunctionBuilder readFrom(StreamInput in) throws IOException {
             return new FilterFunctionBuilder(in.readQuery(), in.readScoreFunction());
         }
+
+        public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
+            QueryBuilder<?> rewrite = filter.rewrite(context);
+            if (rewrite != filter) {
+                return new FilterFunctionBuilder(rewrite, scoreFunction);
+            }
+            return this;
+        }
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder<?> queryBuilder = this.query.rewrite(queryShardContext);
-        if (queryBuilder != query) {
-            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder<?> queryBuilder = this.query.rewrite(queryRewriteContext);
+        FilterFunctionBuilder[] rewrittenBuilders = new FilterFunctionBuilder[this.filterFunctionBuilders.length];
+        boolean rewritten = false;
+        for (int i = 0; i < rewrittenBuilders.length; i++) {
+            FilterFunctionBuilder rewrite = filterFunctionBuilders[i].rewrite(queryRewriteContext);
+            rewritten |= rewrite != filterFunctionBuilders[i];
+            rewrittenBuilders[i] = rewrite;
+        }
+        if (queryBuilder != query || rewritten) {
+            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, rewrittenBuilders);
             newQueryBuilder.scoreMode = scoreMode;
             newQueryBuilder.minScore = minScore;
             newQueryBuilder.maxBoost = maxBoost;
-            return newQueryBuilder.queryName(queryName()).boost(boost());
+            return newQueryBuilder;
         }
         return this;
     }

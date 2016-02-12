@@ -316,18 +316,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    public QueryBuilder<TermsQueryBuilder> rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (this.termsLookup != null) {
             TermsLookup termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) { // TODO this should go away?
-                if (queryRewriteContext.hasIndex()) {
+                if (queryRewriteContext.getIndexSettings() != null) {
                     termsLookup.index(queryRewriteContext.getIndexSettings().getIndex().getName());
                 } else {
                     return this; // can't rewrite until we have index scope on the shard
                 }
             }
             List<Object> values = fetch(termsLookup, queryRewriteContext.getClient());
-            return new TermsQueryBuilder(this.fieldName, values).boost(boost()).queryName(queryName());
+            return new TermsQueryBuilder(this.fieldName, values);
         }
         return this;
     }

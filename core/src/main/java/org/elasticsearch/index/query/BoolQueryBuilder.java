@@ -263,6 +263,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        final int numClauses = mustNotClauses.size() + filterClauses.size() + shouldClauses.size() + mustClauses.size();
+        if (numClauses == 1 && must().size() == 1 && boost() == DEFAULT_BOOST) {
+            // we really only optimize this for testing since we use this to rewrite
+            // named queries TemplateQueryBuilder and WrapperQueryBuilder.
+            // it's equivalent but will anyways happen later down the road in the BQ#rewrite method
+            return mustClauses.get(0).toQuery(context);
+        }
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         booleanQueryBuilder.setDisableCoord(disableCoord);
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
@@ -273,6 +280,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (booleanQuery.clauses().isEmpty()) {
             return new MatchAllDocsQuery();
         }
+
         final String minimumShouldMatch;
         if (context.isFilter() && this.minimumShouldMatch == null && shouldClauses.size() > 0) {
             minimumShouldMatch = "1";
@@ -349,7 +357,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         BoolQueryBuilder newBuilder = new BoolQueryBuilder();
         boolean changed = false;
         final int clauses = mustClauses.size() + mustNotClauses.size() + filterClauses.size() + shouldClauses.size();
@@ -372,14 +380,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return this;
     }
 
-    private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders, Consumer<QueryBuilder<?>> conusmer) throws IOException {
+    private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders, Consumer<QueryBuilder<?>> consumer) throws IOException {
         boolean changed = false;
         for (QueryBuilder builder : builders) {
             QueryBuilder result = builder.rewrite(queryRewriteContext);
             if (result != builder) {
                 changed = true;
             }
-            conusmer.accept(result);
+            consumer.accept(result);
         }
         return changed;
     }

@@ -235,7 +235,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(QueryShardContext context) {
         if (shape == null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
@@ -449,12 +449,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     @Override
-    public QueryBuilder<GeoShapeQueryBuilder> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder<GeoShapeQueryBuilder> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         if (this.shape == null) {
             GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
             ShapeBuilder shape = fetch(queryShardContext.getClient(), getRequest, indexedShapePath);
-            return new GeoShapeQueryBuilder(this.fieldName, shape).relation(relation).strategy(strategy)
-                .boost(boost()).queryName(queryName());
+            return new GeoShapeQueryBuilder(this.fieldName, shape).relation(relation).strategy(strategy);
         }
         return this;
     }

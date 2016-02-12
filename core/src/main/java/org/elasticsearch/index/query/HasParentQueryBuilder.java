@@ -257,13 +257,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder rewrite = query.rewrite(queryShardContext);
         if (rewrite != query) {
             HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrite);
             hasParentQueryBuilder.score = score;
             hasParentQueryBuilder.innerHit = innerHit;
-            return hasParentQueryBuilder.queryName(queryName()).boost(boost());
+            return hasParentQueryBuilder;
         }
         return this;
     }

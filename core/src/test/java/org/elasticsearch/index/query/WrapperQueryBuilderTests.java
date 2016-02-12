@@ -133,4 +133,34 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        TermQueryBuilder tqb = new TermQueryBuilder("foo", "bar");
+        WrapperQueryBuilder qb = new WrapperQueryBuilder(tqb.toString());
+        try {
+            qb.toQuery(queryShardContext());
+            fail();
+        } catch (UnsupportedOperationException e) {
+            assertEquals("this query must be rewritten first", e.getMessage());
+        }
+        QueryBuilder<?> rewrite = qb.rewrite(queryShardContext());
+        assertEquals(tqb, rewrite);
+    }
+
+    public void testRewriteWithInnerName() throws IOException {
+        QueryBuilder<?> builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
+        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(queryShardContext()));
+        builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
+        assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"), builder.rewrite(queryShardContext()));
+    }
+
+    public void testRewriteWithInnerBoost() throws IOException {
+        final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
+        QueryBuilder<?> builder = new WrapperQueryBuilder(query.toString());
+        assertEquals(query, builder.rewrite(queryShardContext()));
+        builder = new WrapperQueryBuilder(query.toString()).boost(3);
+        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(queryShardContext()));
+    }
+
 }

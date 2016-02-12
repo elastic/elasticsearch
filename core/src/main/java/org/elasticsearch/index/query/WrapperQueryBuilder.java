@@ -105,7 +105,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-       throw new UnsupportedOperationException("this query must be rewritten first");
+        throw new UnsupportedOperationException("this query must be rewritten first");
     }
 
     @Override
@@ -129,17 +129,16 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
             QueryParseContext parseContext = context.newParseContext();
             parseContext.reset(qSourceParser);
 
             final QueryBuilder<?> queryBuilder = parseContext.parseInnerQueryBuilder();
-            if (queryBuilder.boost() == DEFAULT_BOOST) {
-                queryBuilder.boost(boost());
-            }
-            if (queryName() != null) { // we inherit the name
-                queryBuilder.queryName(queryName());
+            if (boost() != DEFAULT_BOOST || queryName() != null) {
+                final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must(queryBuilder);
+                return boolQueryBuilder;
             }
             return queryBuilder;
         }

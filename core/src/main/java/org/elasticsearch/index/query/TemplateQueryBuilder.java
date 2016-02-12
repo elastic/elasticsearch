@@ -127,7 +127,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
             ScriptContext.Standard.SEARCH, Collections.emptyMap());
         BytesReference querySource = (BytesReference) executable.run();
@@ -135,11 +135,10 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             queryParseContext.reset(qSourceParser);
             final QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
-            if (queryBuilder.boost() == DEFAULT_BOOST) {
-                queryBuilder.boost(boost()); // only pass down the boost if it has it's own boost
-            }
-            if (queryName() != null) {
-                queryBuilder.queryName(queryName());
+            if (boost() != DEFAULT_BOOST || queryName() != null) {
+                final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must(queryBuilder);
+                return boolQueryBuilder;
             }
             return queryBuilder;
         }

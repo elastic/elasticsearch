@@ -24,6 +24,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
 /**
+ * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
     protected final ScriptService scriptService;
@@ -38,26 +39,34 @@ public class QueryRewriteContext {
         this.parseContext = new QueryParseContext(indicesQueriesRegistry);
     }
 
+    /**
+     * Returns a clients to fetch resources from local or remove nodes.
+     */
     public final Client getClient() {
         return scriptService.getClient();
     }
 
+    /**
+     * Returns the index settings for this context. This might return null if the
+     * context has not index scope.
+     */
     public final IndexSettings getIndexSettings() {
         return indexSettings;
     }
 
+    /**
+     * Returns a script service to fetch scripts.
+     */
     public final ScriptService getScriptService() {
         return scriptService;
     }
 
+    /**
+     * Returns a new {@link QueryParseContext} to parse template or wrapped queries.
+     */
     public QueryParseContext newParseContext() {
         QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
         queryParseContext.parseFieldMatcher(parseContext.parseFieldMatcher());
         return queryParseContext;
     }
-
-    public boolean hasIndex() {
-        return indexSettings != null;
-    }
-
 }

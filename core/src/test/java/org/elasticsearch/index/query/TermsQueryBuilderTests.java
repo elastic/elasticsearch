@@ -272,5 +272,17 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         assertEquals(json, 2, parsed.values().size());
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        try {
+            termsQueryBuilder.toQuery(queryShardContext());
+            fail();
+        } catch (UnsupportedOperationException ex) {
+            assertEquals("query must be rewritten first", ex.getMessage());
+        }
+        assertEquals(termsQueryBuilder.rewrite(queryShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME, randomTerms));
+    }
 }
 

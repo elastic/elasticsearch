@@ -191,10 +191,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return unmodifiableMap(new HashMap<>(namedQueries));
     }
 
-    public void combineNamedQueries(QueryShardContext context) {
-        namedQueries.putAll(context.namedQueries);
-    }
-
     /**
      * Return whether we are currently parsing a filter or a query.
      */

@@ -106,10 +106,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewrite = filterBuilder.rewrite(queryShardContext);
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
         if (rewrite != filterBuilder) {
-            return new ConstantScoreQueryBuilder(rewrite).boost(boost()).queryName(queryName());
+            return new ConstantScoreQueryBuilder(rewrite);
         }
         return this;
     }

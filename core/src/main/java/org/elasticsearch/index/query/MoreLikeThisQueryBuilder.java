@@ -1052,7 +1052,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }

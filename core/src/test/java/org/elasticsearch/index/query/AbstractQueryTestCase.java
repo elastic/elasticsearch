@@ -554,6 +554,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private QueryBuilder<?> rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
         QueryBuilder<?> rewritten = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
+        // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
     }
@@ -974,5 +975,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             return builder.toString();
         }
         return "";
+    }
+
+    /**
+     * This test ensures that queries that need to be rewritten have dedicated tests.
+     * These queries must override this method accordingly.
+     */
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        QB queryBuilder = createTestQueryBuilder();
+        setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
+        queryBuilder.toQuery(context);
     }
 }

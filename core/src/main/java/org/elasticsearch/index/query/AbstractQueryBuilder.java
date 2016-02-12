@@ -258,4 +258,23 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         return queries;
     }
+
+    @Override
+    public final QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewritten = doRewrite(queryShardContext);
+        if (rewritten == this) {
+            return rewritten;
+        }
+        if (queryName() != null && rewritten.queryName() == null) { // we inherit the name
+            rewritten.queryName(queryName());
+        }
+        if (boost() != DEFAULT_BOOST && rewritten.boost() == DEFAULT_BOOST) {
+            rewritten.boost(boost());
+        }
+        return rewritten;
+    }
+
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        return this;
+    }
 }

@@ -226,10 +226,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     @Override
-    public QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewrite = query.rewrite(queryShardContext);
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
-            return new NestedQueryBuilder(path, rewrite).queryName(queryName()).boost(boost()).scoreMode(scoreMode);
+            return new NestedQueryBuilder(path, rewrite).scoreMode(scoreMode);
         }
         return this;
     }

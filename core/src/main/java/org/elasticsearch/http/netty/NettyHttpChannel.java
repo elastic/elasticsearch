@@ -43,6 +43,8 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
 
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -196,101 +198,59 @@ public class NettyHttpChannel extends HttpChannel {
 
     private static final HttpResponseStatus TOO_MANY_REQUESTS = new HttpResponseStatus(429, "Too Many Requests");
 
-    private HttpResponseStatus getStatus(RestStatus status) {
-        switch (status) {
-            case CONTINUE:
-                return HttpResponseStatus.CONTINUE;
-            case SWITCHING_PROTOCOLS:
-                return HttpResponseStatus.SWITCHING_PROTOCOLS;
-            case OK:
-                return HttpResponseStatus.OK;
-            case CREATED:
-                return HttpResponseStatus.CREATED;
-            case ACCEPTED:
-                return HttpResponseStatus.ACCEPTED;
-            case NON_AUTHORITATIVE_INFORMATION:
-                return HttpResponseStatus.NON_AUTHORITATIVE_INFORMATION;
-            case NO_CONTENT:
-                return HttpResponseStatus.NO_CONTENT;
-            case RESET_CONTENT:
-                return HttpResponseStatus.RESET_CONTENT;
-            case PARTIAL_CONTENT:
-                return HttpResponseStatus.PARTIAL_CONTENT;
-            case MULTI_STATUS:
-                // no status for this??
-                return HttpResponseStatus.INTERNAL_SERVER_ERROR;
-            case MULTIPLE_CHOICES:
-                return HttpResponseStatus.MULTIPLE_CHOICES;
-            case MOVED_PERMANENTLY:
-                return HttpResponseStatus.MOVED_PERMANENTLY;
-            case FOUND:
-                return HttpResponseStatus.FOUND;
-            case SEE_OTHER:
-                return HttpResponseStatus.SEE_OTHER;
-            case NOT_MODIFIED:
-                return HttpResponseStatus.NOT_MODIFIED;
-            case USE_PROXY:
-                return HttpResponseStatus.USE_PROXY;
-            case TEMPORARY_REDIRECT:
-                return HttpResponseStatus.TEMPORARY_REDIRECT;
-            case BAD_REQUEST:
-                return HttpResponseStatus.BAD_REQUEST;
-            case UNAUTHORIZED:
-                return HttpResponseStatus.UNAUTHORIZED;
-            case PAYMENT_REQUIRED:
-                return HttpResponseStatus.PAYMENT_REQUIRED;
-            case FORBIDDEN:
-                return HttpResponseStatus.FORBIDDEN;
-            case NOT_FOUND:
-                return HttpResponseStatus.NOT_FOUND;
-            case METHOD_NOT_ALLOWED:
-                return HttpResponseStatus.METHOD_NOT_ALLOWED;
-            case NOT_ACCEPTABLE:
-                return HttpResponseStatus.NOT_ACCEPTABLE;
-            case PROXY_AUTHENTICATION:
-                return HttpResponseStatus.PROXY_AUTHENTICATION_REQUIRED;
-            case REQUEST_TIMEOUT:
-                return HttpResponseStatus.REQUEST_TIMEOUT;
-            case CONFLICT:
-                return HttpResponseStatus.CONFLICT;
-            case GONE:
-                return HttpResponseStatus.GONE;
-            case LENGTH_REQUIRED:
-                return HttpResponseStatus.LENGTH_REQUIRED;
-            case PRECONDITION_FAILED:
-                return HttpResponseStatus.PRECONDITION_FAILED;
-            case REQUEST_ENTITY_TOO_LARGE:
-                return HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
-            case REQUEST_URI_TOO_LONG:
-                return HttpResponseStatus.REQUEST_URI_TOO_LONG;
-            case UNSUPPORTED_MEDIA_TYPE:
-                return HttpResponseStatus.UNSUPPORTED_MEDIA_TYPE;
-            case REQUESTED_RANGE_NOT_SATISFIED:
-                return HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE;
-            case EXPECTATION_FAILED:
-                return HttpResponseStatus.EXPECTATION_FAILED;
-            case UNPROCESSABLE_ENTITY:
-                return HttpResponseStatus.BAD_REQUEST;
-            case LOCKED:
-                return HttpResponseStatus.BAD_REQUEST;
-            case FAILED_DEPENDENCY:
-                return HttpResponseStatus.BAD_REQUEST;
-            case TOO_MANY_REQUESTS:
-                return TOO_MANY_REQUESTS;
-            case INTERNAL_SERVER_ERROR:
-                return HttpResponseStatus.INTERNAL_SERVER_ERROR;
-            case NOT_IMPLEMENTED:
-                return HttpResponseStatus.NOT_IMPLEMENTED;
-            case BAD_GATEWAY:
-                return HttpResponseStatus.BAD_GATEWAY;
-            case SERVICE_UNAVAILABLE:
-                return HttpResponseStatus.SERVICE_UNAVAILABLE;
-            case GATEWAY_TIMEOUT:
-                return HttpResponseStatus.GATEWAY_TIMEOUT;
-            case HTTP_VERSION_NOT_SUPPORTED:
-                return HttpResponseStatus.HTTP_VERSION_NOT_SUPPORTED;
-            default:
-                return HttpResponseStatus.INTERNAL_SERVER_ERROR;
-        }
+    static Map<RestStatus, HttpResponseStatus> MAP;
+
+    static {
+        EnumMap<RestStatus, HttpResponseStatus> map = new EnumMap<>(RestStatus.class);
+        map.put(RestStatus.CONTINUE, HttpResponseStatus.CONTINUE);
+        map.put(RestStatus.SWITCHING_PROTOCOLS, HttpResponseStatus.SWITCHING_PROTOCOLS);
+        map.put(RestStatus.OK, HttpResponseStatus.OK);
+        map.put(RestStatus.CREATED, HttpResponseStatus.CREATED);
+        map.put(RestStatus.ACCEPTED, HttpResponseStatus.ACCEPTED);
+        map.put(RestStatus.NON_AUTHORITATIVE_INFORMATION, HttpResponseStatus.NON_AUTHORITATIVE_INFORMATION);
+        map.put(RestStatus.NO_CONTENT, HttpResponseStatus.NO_CONTENT);
+        map.put(RestStatus.RESET_CONTENT, HttpResponseStatus.RESET_CONTENT);
+        map.put(RestStatus.PARTIAL_CONTENT, HttpResponseStatus.PARTIAL_CONTENT);
+        map.put(RestStatus.MULTI_STATUS, HttpResponseStatus.INTERNAL_SERVER_ERROR); // no status for this??
+        map.put(RestStatus.MULTIPLE_CHOICES, HttpResponseStatus.MULTIPLE_CHOICES);
+        map.put(RestStatus.MOVED_PERMANENTLY, HttpResponseStatus.MOVED_PERMANENTLY);
+        map.put(RestStatus.FOUND, HttpResponseStatus.FOUND);
+        map.put(RestStatus.SEE_OTHER, HttpResponseStatus.SEE_OTHER);
+        map.put(RestStatus.NOT_MODIFIED, HttpResponseStatus.NOT_MODIFIED);
+        map.put(RestStatus.USE_PROXY, HttpResponseStatus.USE_PROXY);
+        map.put(RestStatus.TEMPORARY_REDIRECT, HttpResponseStatus.TEMPORARY_REDIRECT);
+        map.put(RestStatus.BAD_REQUEST, HttpResponseStatus.BAD_REQUEST);
+        map.put(RestStatus.UNAUTHORIZED, HttpResponseStatus.UNAUTHORIZED);
+        map.put(RestStatus.PAYMENT_REQUIRED, HttpResponseStatus.PAYMENT_REQUIRED);
+        map.put(RestStatus.FORBIDDEN, HttpResponseStatus.FORBIDDEN);
+        map.put(RestStatus.NOT_FOUND, HttpResponseStatus.NOT_FOUND);
+        map.put(RestStatus.METHOD_NOT_ALLOWED, HttpResponseStatus.METHOD_NOT_ALLOWED);
+        map.put(RestStatus.NOT_ACCEPTABLE, HttpResponseStatus.NOT_ACCEPTABLE);
+        map.put(RestStatus.PROXY_AUTHENTICATION, HttpResponseStatus.PROXY_AUTHENTICATION_REQUIRED);
+        map.put(RestStatus.REQUEST_TIMEOUT, HttpResponseStatus.REQUEST_TIMEOUT);
+        map.put(RestStatus.CONFLICT, HttpResponseStatus.CONFLICT);
+        map.put(RestStatus.GONE, HttpResponseStatus.GONE);
+        map.put(RestStatus.LENGTH_REQUIRED, HttpResponseStatus.LENGTH_REQUIRED);
+        map.put(RestStatus.PRECONDITION_FAILED, HttpResponseStatus.PRECONDITION_FAILED);
+        map.put(RestStatus.REQUEST_ENTITY_TOO_LARGE, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+        map.put(RestStatus.REQUEST_URI_TOO_LONG, HttpResponseStatus.REQUEST_URI_TOO_LONG);
+        map.put(RestStatus.UNSUPPORTED_MEDIA_TYPE, HttpResponseStatus.UNSUPPORTED_MEDIA_TYPE);
+        map.put(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        map.put(RestStatus.EXPECTATION_FAILED, HttpResponseStatus.EXPECTATION_FAILED);
+        map.put(RestStatus.UNPROCESSABLE_ENTITY, HttpResponseStatus.BAD_REQUEST);
+        map.put(RestStatus.LOCKED, HttpResponseStatus.BAD_REQUEST);
+        map.put(RestStatus.FAILED_DEPENDENCY, HttpResponseStatus.BAD_REQUEST);
+        map.put(RestStatus.TOO_MANY_REQUESTS, TOO_MANY_REQUESTS);
+        map.put(RestStatus.INTERNAL_SERVER_ERROR, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+        map.put(RestStatus.NOT_IMPLEMENTED, HttpResponseStatus.NOT_IMPLEMENTED);
+        map.put(RestStatus.BAD_GATEWAY, HttpResponseStatus.BAD_GATEWAY);
+        map.put(RestStatus.SERVICE_UNAVAILABLE, HttpResponseStatus.SERVICE_UNAVAILABLE);
+        map.put(RestStatus.GATEWAY_TIMEOUT, HttpResponseStatus.GATEWAY_TIMEOUT);
+        map.put(RestStatus.HTTP_VERSION_NOT_SUPPORTED, HttpResponseStatus.HTTP_VERSION_NOT_SUPPORTED);
+        MAP = Collections.unmodifiableMap(map);
+    }
+
+    private static HttpResponseStatus getStatus(RestStatus status) {
+        return MAP.getOrDefault(status, HttpResponseStatus.INTERNAL_SERVER_ERROR);
     }
 }

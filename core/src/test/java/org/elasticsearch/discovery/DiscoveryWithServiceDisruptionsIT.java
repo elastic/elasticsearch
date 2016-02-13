@@ -138,6 +138,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return 1;
     }
 
+    @Override
+    protected void beforeIndexDeletion() {
+        try {
+            // some test may leave opeations in flight. Wait for them to be finnished
+            assertBusy(() -> super.beforeIndexDeletion());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
         return startCluster(numberOfNodes, -1);
     }

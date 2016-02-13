@@ -1435,16 +1435,4 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(profile, other.profile);
     }
 
-    /**
-     * Rewrites the internal query builders in-place
-     */
-    public void rewrite(QueryRewriteContext rewriteContext) throws IOException {
-        if (queryBuilder != null) {
-            queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
-        }
-        if (postQueryBuilder != null) {
-            postQueryBuilder = QueryBuilder.rewriteQuery(postQueryBuilder, rewriteContext);
-        }
-    }
-
 }

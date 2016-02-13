@@ -488,14 +488,4 @@ public class SearchSourceBuilderTests extends ESTestCase {
         String query = "{ \"post_filter\": {} }";
         assertParseSearchSource(builder, new BytesArray(query));
     }
-
-    public void testRewrite() throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.query(new BoolQueryBuilder());
-        TermQueryBuilder tqb = new TermQueryBuilder("foo", "bar");
-        builder.postFilter(new WrapperQueryBuilder(tqb.toString()));
-        builder.rewrite(new QueryRewriteContext(null, null, indicesQueriesRegistry));
-        assertEquals(new MatchAllQueryBuilder(), builder.query());
-        assertEquals(tqb, builder.postFilter());
-    }
 }

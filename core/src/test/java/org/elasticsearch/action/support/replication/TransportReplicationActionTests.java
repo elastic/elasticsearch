@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ReplicationResponse;
@@ -1098,11 +1096,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId) {
+        protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId, Request request) {
             return getOrCreateIndexShardOperationsCounter();
         }
 
-        protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId) {
+        protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId, Request request) {
             return getOrCreateIndexShardOperationsCounter();
         }
     }

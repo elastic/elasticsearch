@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -141,7 +142,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() {
         try {
-            // some test may leave opeations in flight. Wait for them to be finnished
+            // some test may leave operations in flight. Wait for them to be finished
+            assertBusy(() -> TransportReplicationAction.assertAllShardReferencesAreCleaned());
             assertBusy(() -> super.beforeIndexDeletion());
         } catch (Exception e) {
             throw new AssertionError(e);

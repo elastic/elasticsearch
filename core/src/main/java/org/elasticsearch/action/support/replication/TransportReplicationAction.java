@@ -80,6 +80,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -402,7 +403,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         protected void doRun() throws Exception {
             setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
-            try (Releasable ignored = getIndexShardReferenceOnReplica(request.shardId())) {
+            try (Releasable ignored = getIndexShardReferenceOnReplica(request.shardId(), request)) {
                 shardOperationOnReplica(request);
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(), request);
@@ -675,7 +676,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             // closed in finishAsFailed(e) in the case of error
-            indexShardReference = getIndexShardReferenceOnPrimary(shardId);
+            indexShardReference = getIndexShardReferenceOnPrimary(shardId, request);
             if (indexShardReference.isRelocated() == false) {
                 // execute locally
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(state.metaData(), request);
@@ -780,24 +781,64 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
+
+    static ConcurrentMap<IndexShardReference, String> openShardReferences;
+
+    static boolean setupShardReferenceAssertions() {
+        openShardReferences = new ConcurrentHashMap<>();
+        return true;
+    }
+
+    static boolean addShardReference(IndexShardReference ref, String desc) {
+        String prev = openShardReferences.put(ref, desc);
+        if (prev != null) {
+            throw new AssertionError("shard ref " + ref + " is added twice. current [" + desc + "] prev [" + prev + "]");
+        }
+        return true;
+    }
+
+    static boolean removeShardReference(IndexShardReference ref) {
+        assert openShardReferences.remove(ref) != null : "failed to find ref [" + ref + "]";
+        return true;
+    }
+
+    static {
+        assert setupShardReferenceAssertions();
+    }
+
+    static public void assertAllShardReferencesAreCleaned() {
+        if (openShardReferences == null || openShardReferences.isEmpty()) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String desc : openShardReferences.values()) {
+            sb.append(desc).append("\n");
+        }
+        assert sb.length() == 0 : "Found unclosed shard references:\n" + sb;
+    }
+
     /**
      * returns a new reference to {@link IndexShard} to perform a primary operation. Released after performing primary operation locally
      * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationPhase}).
      */
-    protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId) {
+    protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId, Request request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        return new IndexShardReferenceImpl(indexShard, true);
+        IndexShardReference ref = new IndexShardReferenceImpl(indexShard, true);
+        assert addShardReference(ref, "primary: " + request.toString());
+        return ref;
     }
 
     /**
      * returns a new reference to {@link IndexShard} on a node that the request is replicated to. The reference is closed as soon as
      * replication is completed on the node.
      */
-    protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId) {
+    protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId, ReplicaRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        return new IndexShardReferenceImpl(indexShard, false);
+        IndexShardReference ref = new IndexShardReferenceImpl(indexShard, false);
+        assert addShardReference(ref, "replica: " + request.toString());
+        return ref;
     }
 
     /**
@@ -995,7 +1036,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                 indexShardReference.failShard(message, shardFailedError);
                                                 forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                             } else {
-                                                assert shardFailedError.getMessage().contains("TransportService is closed ") :
+                                                assert shardFailedError.getMessage().contains("TransportService is closed") :
                                                         shardFailedError;
                                                 onReplicaFailure(nodeId, exp);
                                             }
@@ -1105,6 +1146,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public void close() {
             operationLock.close();
+            assert removeShardReference(this);
         }
 
         @Override

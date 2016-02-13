@@ -32,7 +32,6 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.joda.time.DateTimeZone;
@@ -527,29 +526,35 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 return expressions;
             }
 
-            if (expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0))) || Regex.isMatchAllPattern(expressions.get(0)))) {
-                if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                    return Arrays.asList(metaData.concreteAllIndices());
-                } else if (options.expandWildcardsOpen()) {
-                    return Arrays.asList(metaData.concreteAllOpenIndices());
-                } else if (options.expandWildcardsClosed()) {
-                    return Arrays.asList(metaData.concreteAllClosedIndices());
-                } else {
-                    return Collections.emptyList();
-                }
+            if (isEmptyOrTrivialWildcard(expressions)) {
+                return resolveEmptyOrTrivialWildcard(options, metaData, true);
             }
 
+            Set<String> result = innerResolve(context, expressions, options, metaData);
+
+            if (result == null) {
+                return expressions;
+            }
+            if (result.isEmpty() && !options.allowNoIndices()) {
+                IndexNotFoundException infe = new IndexNotFoundException((String)null);
+                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
+                throw infe;
+            }
+            return new ArrayList<>(result);
+        }
+
+        private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
-                if (metaData.getAliasAndIndexLookup().containsKey(expression)) {
+                if (aliasOrIndexExists(metaData, expression)) {
                     if (result != null) {
                         result.add(expression);
                     }
                     continue;
                 }
                 if (Strings.isEmpty(expression)) {
-                    throw new IndexNotFoundException(expression);
+                    throw infe(expression);
                 }
                 boolean add = true;
                 if (expression.charAt(0) == '+') {
@@ -557,32 +562,19 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     if (i == 0) {
                         result = new HashSet<>();
                     }
-                    add = true;
                     expression = expression.substring(1);
                 } else if (expression.charAt(0) == '-') {
                     // if its the first, fill it with all the indices...
                     if (i == 0) {
-                        String[] concreteIndices;
-                        if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                            concreteIndices = metaData.concreteAllIndices();
-                        } else if (options.expandWildcardsOpen()) {
-                            concreteIndices = metaData.concreteAllOpenIndices();
-                        } else if (options.expandWildcardsClosed()) {
-                            concreteIndices = metaData.concreteAllClosedIndices();
-                        } else {
-                            assert false : "Shouldn't end up here";
-                            concreteIndices = Strings.EMPTY_ARRAY;
-                        }
-                        result = new HashSet<>(Arrays.asList(concreteIndices));
+                        List<String> concreteIndices = resolveEmptyOrTrivialWildcard(options, metaData, false);
+                        result = new HashSet<>(concreteIndices);
                     }
                     add = false;
                     expression = expression.substring(1);
                 }
                 if (!Regex.isSimpleMatchPattern(expression)) {
-                    if (!options.ignoreUnavailable() && !metaData.getAliasAndIndexLookup().containsKey(expression)) {
-                        IndexNotFoundException infe = new IndexNotFoundException(expression);
-                        infe.setResources("index_or_alias", expression);
-                        throw infe;
+                    if (!unavailableIgnoredOrExists(options, metaData, expression)) {
+                        throw infe(expression);
                     }
                     if (result != null) {
                         if (add) {
@@ -595,77 +587,119 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
                 if (result == null) {
                     // add all the previous ones...
-                    result = new HashSet<>();
-                    result.addAll(expressions.subList(0, i));
+                    result = new HashSet<>(expressions.subList(0, i));
                 }
 
-                final IndexMetaData.State excludeState;
-                if (options.expandWildcardsOpen() && options.expandWildcardsClosed()){
-                    excludeState = null;
-                } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
-                    excludeState = IndexMetaData.State.CLOSE;
-                } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
-                    excludeState = IndexMetaData.State.OPEN;
-                } else {
-                    assert false : "this shouldn't get called if wildcards expand to none";
-                    excludeState = null;
-                }
-
-                final Map<String, AliasOrIndex> matches;
-                if (Regex.isMatchAllPattern(expression)) {
-                    // Can only happen if the expressions was initially: '-*'
-                    matches = metaData.getAliasAndIndexLookup();
-                } else if (expression.indexOf("*") == expression.length() - 1) {
-                    // Suffix wildcard:
-                    assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
-                    String fromPrefix = expression.substring(0, expression.length() - 1);
-                    char[] toPrefixCharArr = fromPrefix.toCharArray();
-                    toPrefixCharArr[toPrefixCharArr.length - 1]++;
-                    String toPrefix = new String(toPrefixCharArr);
-                    matches = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
-                } else {
-                    // Other wildcard expressions:
-                    final String pattern = expression;
-                    matches = metaData.getAliasAndIndexLookup()
-                            .entrySet()
-                            .stream()
-                            .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                }
-                Set<String> expand = new HashSet<>();
-                for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
-                    AliasOrIndex aliasOrIndex = entry.getValue();
-                    if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
-                        expand.add(entry.getKey());
-                    } else {
-                        for (IndexMetaData meta : aliasOrIndex.getIndices()) {
-                            if (excludeState == null || meta.getState() != excludeState) {
-                                expand.add(meta.getIndex().getName());
-                            }
-                        }
-                    }
-                }
+                final IndexMetaData.State excludeState = excludeState(options);
+                final Map<String, AliasOrIndex> matches = matches(metaData, expression);
+                Set<String> expand = expand(context, excludeState, matches);
                 if (add) {
                     result.addAll(expand);
                 } else {
                     result.removeAll(expand);
                 }
 
-                if (matches.isEmpty() && options.allowNoIndices() == false) {
-                    IndexNotFoundException infe = new IndexNotFoundException(expression);
-                    infe.setResources("index_or_alias", expression);
-                    throw infe;
+                if (!noIndicesAllowedOrMatches(options, matches)) {
+                    throw infe(expression);
                 }
             }
-            if (result == null) {
-                return expressions;
+            return result;
+        }
+
+        private boolean noIndicesAllowedOrMatches(IndicesOptions options, Map<String, AliasOrIndex> matches) {
+            return options.allowNoIndices() || !matches.isEmpty();
+        }
+
+        private boolean unavailableIgnoredOrExists(IndicesOptions options, MetaData metaData, String expression) {
+            return options.ignoreUnavailable() || aliasOrIndexExists(metaData, expression);
+        }
+
+        private boolean aliasOrIndexExists(MetaData metaData, String expression) {
+            return metaData.getAliasAndIndexLookup().containsKey(expression);
+        }
+
+        private static IndexNotFoundException infe(String expression) {
+            IndexNotFoundException infe = new IndexNotFoundException(expression);
+            infe.setResources("index_or_alias", expression);
+            return infe;
+        }
+
+        private static IndexMetaData.State excludeState(IndicesOptions options) {
+            final IndexMetaData.State excludeState;
+            if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+                excludeState = null;
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
+                excludeState = IndexMetaData.State.CLOSE;
+            } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
+                excludeState = IndexMetaData.State.OPEN;
+            } else {
+                assert false : "this shouldn't get called if wildcards expand to none";
+                excludeState = null;
             }
-            if (result.isEmpty() && !options.allowNoIndices()) {
-                IndexNotFoundException infe = new IndexNotFoundException((String)null);
-                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
-                throw infe;
+            return excludeState;
+        }
+
+        private static Map<String, AliasOrIndex> matches(MetaData metaData, String expression) {
+            if (Regex.isMatchAllPattern(expression)) {
+                // Can only happen if the expressions was initially: '-*'
+                return metaData.getAliasAndIndexLookup();
+            } else if (expression.indexOf("*") == expression.length() - 1) {
+                return suffixWildcard(metaData, expression);
+            } else {
+                return otherWildcard(metaData, expression);
             }
-            return new ArrayList<>(result);
+        }
+
+        private static Map<String, AliasOrIndex> suffixWildcard(MetaData metaData, String expression) {
+            assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
+            String fromPrefix = expression.substring(0, expression.length() - 1);
+            char[] toPrefixCharArr = fromPrefix.toCharArray();
+            toPrefixCharArr[toPrefixCharArr.length - 1]++;
+            String toPrefix = new String(toPrefixCharArr);
+            return metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
+        }
+
+        private static Map<String, AliasOrIndex> otherWildcard(MetaData metaData, String expression) {
+            final String pattern = expression;
+            return metaData.getAliasAndIndexLookup()
+                .entrySet()
+                .stream()
+                .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+
+        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches) {
+            Set<String> expand = new HashSet<>();
+            for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
+                AliasOrIndex aliasOrIndex = entry.getValue();
+                if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
+                    expand.add(entry.getKey());
+                } else {
+                    for (IndexMetaData meta : aliasOrIndex.getIndices()) {
+                        if (excludeState == null || meta.getState() != excludeState) {
+                            expand.add(meta.getIndex().getName());
+                        }
+                    }
+                }
+            }
+            return expand;
+        }
+
+        private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
+            return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0))) || Regex.isMatchAllPattern(expressions.get(0)));
+        }
+
+        private List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData, boolean assertEmpty) {
+            if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+                return Arrays.asList(metaData.concreteAllIndices());
+            } else if (options.expandWildcardsOpen()) {
+                return Arrays.asList(metaData.concreteAllOpenIndices());
+            } else if (options.expandWildcardsClosed()) {
+                return Arrays.asList(metaData.concreteAllClosedIndices());
+            } else {
+                assert assertEmpty : "Shouldn't end up here";
+                return Collections.emptyList();
+            }
         }
     }
 

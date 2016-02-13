@@ -825,7 +825,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         IndexShardReference ref = new IndexShardReferenceImpl(indexShard, true);
-        assert addShardReference(ref, "primary: " + request.toString());
+        assert addShardReference(ref, "primary: " + request.toString() + " " + ref.routingEntry());
         return ref;
     }
 
@@ -837,7 +837,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         IndexShardReference ref = new IndexShardReferenceImpl(indexShard, false);
-        assert addShardReference(ref, "replica: " + request.toString());
+        assert addShardReference(ref, "replica: " + request.toString() + " " + ref.routingEntry());
         return ref;
     }
 
@@ -1030,9 +1030,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                         @Override
                                         public void onFailure(Throwable shardFailedError) {
                                             if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
-                                                ShardRouting primaryShard = indexShardReference.routingEntry();
-                                                String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
+                                                String message = "unknown";
                                                 try {
+                                                    ShardRouting primaryShard = indexShardReference.routingEntry();
+                                                    message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
                                                     // we are no longer the primary, fail ourselves and start over
                                                     indexShardReference.failShard(message, shardFailedError);
                                                 } catch (Throwable t) {

@@ -767,7 +767,13 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void failShard(String reason, @Nullable Throwable e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
-        getEngine().failEngine(reason, e);
+        final Engine engine = getEngineOrNull();
+        if (engine == null) {
+            logger.trace("ignoring request to fail the shard, we're already closed. (reason: [{}])", e, reason);
+
+        } else {
+            engine.failEngine(reason, e);
+        }
     }
 
     public Engine.Searcher acquireSearcher(String source) {

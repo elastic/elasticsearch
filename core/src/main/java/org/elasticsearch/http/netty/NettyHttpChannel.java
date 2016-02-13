@@ -53,10 +53,7 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.CLOSE;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 
-/**
- *
- */
-public class NettyHttpChannel extends HttpChannel {
+public final class NettyHttpChannel extends HttpChannel {
 
     private final NettyHttpServerTransport transport;
     private final Channel channel;
@@ -94,18 +91,11 @@ public class NettyHttpChannel extends HttpChannel {
 
         String opaque = nettyRequest.headers().get("X-Opaque-Id");
         if (opaque != null) {
-            resp.headers().add("X-Opaque-Id", opaque);
+            setHeaderField(resp, "X-Opaque-Id", opaque);
         }
 
         // Add all custom headers
-        Map<String, List<String>> customHeaders = response.getHeaders();
-        if (customHeaders != null) {
-            for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
-                for (String headerValue : headerEntry.getValue()) {
-                    resp.headers().add(headerEntry.getKey(), headerValue);
-                }
-            }
-        }
+        addCustomHeaders(response, resp);
 
         BytesReference content = response.content();
         ChannelBuffer buffer;
@@ -115,30 +105,11 @@ public class NettyHttpChannel extends HttpChannel {
             resp.setContent(buffer);
 
             // If our response doesn't specify a content-type header, set one
-            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_TYPE)) {
-                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
-            }
-
+            setHeaderField(resp, HttpHeaders.Names.CONTENT_TYPE, response.contentType(), false);
             // If our response has no content-length, calculate and set one
-            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_LENGTH)) {
-                resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
-            }
+            setHeaderField(resp, HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()), false);
 
-            if (transport.resetCookies) {
-                String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
-                if (cookieString != null) {
-                    CookieDecoder cookieDecoder = new CookieDecoder();
-                    Set<Cookie> cookies = cookieDecoder.decode(cookieString);
-                    if (!cookies.isEmpty()) {
-                        // Reset the cookies if necessary.
-                        CookieEncoder cookieEncoder = new CookieEncoder(true);
-                        for (Cookie cookie : cookies) {
-                            cookieEncoder.addCookie(cookie);
-                        }
-                        resp.headers().add(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
-                    }
-                }
-            }
+            addCookies(resp);
 
             ChannelFuture future;
 
@@ -162,6 +133,45 @@ public class NettyHttpChannel extends HttpChannel {
         } finally {
             if (!addedReleaseListener && content instanceof Releasable) {
                 ((Releasable) content).close();
+            }
+        }
+    }
+
+    private void setHeaderField(HttpResponse resp, String headerField, String value) {
+        setHeaderField(resp, headerField, value, true);
+    }
+
+    private void setHeaderField(HttpResponse resp, String headerField, String value, boolean override) {
+        if (override || !resp.headers().contains(headerField)) {
+            resp.headers().add(headerField, value);
+        }
+    }
+
+    private void addCookies(HttpResponse resp) {
+        if (transport.resetCookies) {
+            String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
+            if (cookieString != null) {
+                CookieDecoder cookieDecoder = new CookieDecoder();
+                Set<Cookie> cookies = cookieDecoder.decode(cookieString);
+                if (!cookies.isEmpty()) {
+                    // Reset the cookies if necessary.
+                    CookieEncoder cookieEncoder = new CookieEncoder(true);
+                    for (Cookie cookie : cookies) {
+                        cookieEncoder.addCookie(cookie);
+                    }
+                    setHeaderField(resp, HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
+                }
+            }
+        }
+    }
+
+    private void addCustomHeaders(RestResponse response, HttpResponse resp) {
+        Map<String, List<String>> customHeaders = response.getHeaders();
+        if (customHeaders != null) {
+            for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
+                for (String headerValue : headerEntry.getValue()) {
+                    setHeaderField(resp, headerEntry.getKey(), headerValue);
+                }
             }
         }
     }

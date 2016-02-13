@@ -715,7 +715,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             }
                         }
                         if (logger.isTraceEnabled()) {
-                            logger.trace("No eligable node found to assign shard [{}] decision [{}]", shard, decision.type());
+                            logger.trace("No eligible node found to assign shard [{}] decision [{}]", shard, decision.type());
                         }
                     } else if (logger.isTraceEnabled()) {
                         logger.trace("No Node found to assign shard [{}]", shard);

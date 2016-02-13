@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -92,15 +93,17 @@ public class UserTests extends ESTestCase {
                     generateRandomStringArray(16, 30, false), SystemUser.INSTANCE);
             fail("should not be able to create a runAs user with the system user");
         } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), containsString("system"));
+            assertThat(e.getMessage(), containsString("invalid run_as user"));
         }
     }
 
     public void testUserToString() throws Exception {
-        User sudo = new User("root", new String[]{"r3"});
-        User u = new User("bob", new String[]{"r1", "r2"}, sudo);
-        assertEquals("User[username=root,roles=[r3,]]", sudo.toString());
-        assertEquals("User[username=bob,roles=[r1,r2,],runAs=[User[username=root,roles=[r3,]]]]",
-                u.toString());
+        User user = new User("u1", "r1");
+        assertThat(user.toString(), is("User[username=u1,roles=[r1],fullName=null,email=null,metadata={}]"));
+        user = new User("u1", new String[] { "r1", "r2" }, "user1", "user1@domain.com", Collections.singletonMap("key", "val"));
+        assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=user1,email=user1@domain.com,metadata={key=val}]"));
+        user = new User("u1", new String[] {"r1", "r2"}, new User("u2", "r3"));
+        assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=null,email=null,metadata={},runAs=[User[username=u2," +
+                "roles=[r3],fullName=null,email=null,metadata={}]]]"));
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.shield.rest.action.user;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -18,17 +17,16 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.shield.action.user.AddUserRequest;
-import org.elasticsearch.shield.action.user.AddUserResponse;
+import org.elasticsearch.shield.action.user.PutUserResponse;
 import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest endpoint to add a User to the shield index
  */
-public class RestAddUserAction extends BaseRestHandler {
+public class RestPutUserAction extends BaseRestHandler {
 
     @Inject
-    public RestAddUserAction(Settings settings, RestController controller, Client client) {
+    public RestPutUserAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/_shield/user/{username}", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_shield/user/{username}", this);
@@ -36,18 +34,15 @@ public class RestAddUserAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        AddUserRequest addUserReq = new AddUserRequest();
-        addUserReq.username(request.param("username"));
-        addUserReq.source(request.content());
-
-        new SecurityClient(client).addUser(addUserReq, new RestBuilderListener<AddUserResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(AddUserResponse addUserResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK,
-                        builder.startObject()
-                                .field("user", (ToXContent) addUserResponse)
-                                .endObject());
-            }
-        });
+        new SecurityClient(client).preparePutUser(request.param("username"), request.content())
+                .execute(new RestBuilderListener<PutUserResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
+                        return new BytesRestResponse(RestStatus.OK,
+                                builder.startObject()
+                                        .field("user", putUserResponse)
+                                        .endObject());
+                    }
+                });
     }
 }

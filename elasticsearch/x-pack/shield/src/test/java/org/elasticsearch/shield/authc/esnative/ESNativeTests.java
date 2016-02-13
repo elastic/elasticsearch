@@ -44,7 +44,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
     public void testDeletingNonexistingUserAndRole() throws Exception {
         SecurityClient c = securityClient();
-        DeleteUserResponse resp = c.prepareDeleteUser().user("joe").get();
+        DeleteUserResponse resp = c.prepareDeleteUser("joe").get();
         assertFalse("user shouldn't be found", resp.found());
         DeleteRoleResponse resp2 = c.prepareDeleteRole().role("role").get();
         assertFalse("role shouldn't be found", resp2.found());
@@ -52,8 +52,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
     public void testGettingUserThatDoesntExist() throws Exception {
         SecurityClient c = securityClient();
-        GetUsersResponse resp = c.prepareGetUsers().users("joe").get();
-        assertFalse("user should not exist", resp.isExists());
+        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        assertFalse("user should not exist", resp.hasUsers());
         GetRolesResponse resp2 = c.prepareGetRoles().roles("role").get();
         assertFalse("role should not exist", resp2.isExists());
     }
@@ -61,46 +61,34 @@ public class ESNativeTests extends ShieldIntegTestCase {
     public void testAddAndGetUser() throws Exception {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3kirt")
-                .roles("role1", "user")
-                .get();
+        c.preparePutUser("joe", "s3kirt".toCharArray(), "role1", "user").get();
         logger.error("--> waiting for .shield index");
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().users("joe").get();
-        assertTrue("user should exist", resp.isExists());
-        User joe = resp.users().get(0);
+        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        assertTrue("user should exist", resp.hasUsers());
+        User joe = resp.users()[0];
         assertEquals(joe.principal(), "joe");
         assertArrayEquals(joe.roles(), new String[]{"role1", "user"});
 
         logger.info("--> adding two more users");
-        c.prepareAddUser()
-                .username("joe2")
-                .password("s3kirt2")
-                .roles("role2", "user")
-                .get();
-        c.prepareAddUser()
-                .username("joe3")
-                .password("s3kirt3")
-                .roles("role3", "user")
-                .get();
+        c.preparePutUser("joe2", "s3kirt2".toCharArray(), "role2", "user").get();
+        c.preparePutUser("joe3", "s3kirt3".toCharArray(), "role3", "user").get();
         // Since getting multiple users relies on them being visible to search, perform a refresh
         refresh();
         GetUsersResponse allUsersResp = c.prepareGetUsers().get();
-        assertTrue("users should exist", allUsersResp.isExists());
-        assertEquals("should be 3 users total", 3, allUsersResp.users().size());
+        assertTrue("users should exist", allUsersResp.hasUsers());
+        assertEquals("should be 3 users total", 3, allUsersResp.users().length);
         List<String> names = new ArrayList<>(3);
         for (User u : allUsersResp.users()) {
             names.add(u.principal());
         }
         CollectionUtil.timSort(names);
-        assertArrayEquals(new String[]{"joe", "joe2", "joe3"}, names.toArray(Strings.EMPTY_ARRAY));
+        assertArrayEquals(new String[] { "joe", "joe2", "joe3" }, names.toArray(Strings.EMPTY_ARRAY));
 
-        GetUsersResponse someUsersResp = c.prepareGetUsers().users("joe", "joe3").get();
-        assertTrue("users should exist", someUsersResp.isExists());
-        assertEquals("should be 2 users returned", 2, someUsersResp.users().size());
+        GetUsersResponse someUsersResp = c.prepareGetUsers().usernames("joe", "joe3").get();
+        assertTrue("users should exist", someUsersResp.hasUsers());
+        assertEquals("should be 2 users returned", 2, someUsersResp.users().length);
         names = new ArrayList<>(2);
         for (User u : someUsersResp.users()) {
             names.add(u.principal());
@@ -109,11 +97,11 @@ public class ESNativeTests extends ShieldIntegTestCase {
         assertArrayEquals(new String[]{"joe", "joe3"}, names.toArray(Strings.EMPTY_ARRAY));
 
         logger.info("--> deleting user");
-        DeleteUserResponse delResp = c.prepareDeleteUser().user("joe").get();
+        DeleteUserResponse delResp = c.prepareDeleteUser("joe").get();
         assertTrue(delResp.found());
         logger.info("--> retrieving user");
-        resp = c.prepareGetUsers().users("joe").get();
-        assertFalse("user should not exist after being deleted", resp.isExists());
+        resp = c.prepareGetUsers().usernames("joe").get();
+        assertFalse("user should not exist after being deleted", resp.hasUsers());
     }
 
     public void testAddAndGetRole() throws Exception {
@@ -180,17 +168,13 @@ public class ESNativeTests extends ShieldIntegTestCase {
                         new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                 .get();
         logger.error("--> creating user");
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3krit")
-                .roles("test_role")
-                .get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
         refresh();
         logger.error("--> waiting for .shield index");
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().users("joe").get();
-        assertTrue("user should exist", resp.isExists());
+        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        assertTrue("user should exist", resp.hasUsers());
 
         createIndex("idx");
         ensureGreen("idx");
@@ -206,18 +190,14 @@ public class ESNativeTests extends ShieldIntegTestCase {
     public void testUpdatingUserAndAuthentication() throws Exception {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3krit")
-                .roles(ShieldSettingsSource.DEFAULT_ROLE)
-                .get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
         refresh();
         logger.error("--> waiting for .shield index");
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().users("joe").get();
-        assertTrue("user should exist", resp.isExists());
-        assertThat(resp.users().get(0).roles(), arrayContaining(ShieldSettingsSource.DEFAULT_ROLE));
+        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        assertTrue("user should exist", resp.hasUsers());
+        assertThat(resp.users()[0].roles(), arrayContaining(ShieldSettingsSource.DEFAULT_ROLE));
 
         createIndex("idx");
         ensureGreen("idx");
@@ -228,11 +208,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
 
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3krit2")
-                .roles(ShieldSettingsSource.DEFAULT_ROLE)
-                .get();
+        c.preparePutUser("joe", "s3krit2".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
 
         try {
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -250,18 +226,14 @@ public class ESNativeTests extends ShieldIntegTestCase {
     public void testCreateDeleteAuthenticate() {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3krit")
-                .roles(ShieldSettingsSource.DEFAULT_ROLE)
-                .get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
         refresh();
         logger.error("--> waiting for .shield index");
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().users("joe").get();
-        assertTrue("user should exist", resp.isExists());
-        assertThat(resp.users().get(0).roles(), arrayContaining(ShieldSettingsSource.DEFAULT_ROLE));
+        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        assertTrue("user should exist", resp.hasUsers());
+        assertThat(resp.users()[0].roles(), arrayContaining(ShieldSettingsSource.DEFAULT_ROLE));
 
         createIndex("idx");
         ensureGreen("idx");
@@ -272,7 +244,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
 
-        DeleteUserResponse response = c.prepareDeleteUser().user("joe").get();
+        DeleteUserResponse response = c.prepareDeleteUser("joe").get();
         assertThat(response.found(), is(true));
         try {
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -294,11 +266,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
                         new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                 .get();
         logger.error("--> creating user");
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3krit")
-                .roles("test_role")
-                .get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
         refresh();
         logger.error("--> waiting for .shield index");
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
@@ -348,11 +316,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
                 .addIndices(new String[]{"*"}, new String[]{"read"},
                         new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                 .get();
-        c.prepareAddUser()
-                .username("joe")
-                .password("s3krit")
-                .roles("test_role")
-                .get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
         refresh();
         logger.error("--> waiting for .shield index");
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);

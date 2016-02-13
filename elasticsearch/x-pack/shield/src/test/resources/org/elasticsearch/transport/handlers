@@ -15,7 +15,7 @@ cluster:admin/shield/roles/cache/clear[n]
 cluster:admin/shield/role/add
 cluster:admin/shield/role/delete
 cluster:admin/shield/role/get
-cluster:admin/shield/user/add
+cluster:admin/shield/user/put
 cluster:admin/shield/user/delete
 cluster:admin/shield/user/get
 indices:admin/analyze[s]

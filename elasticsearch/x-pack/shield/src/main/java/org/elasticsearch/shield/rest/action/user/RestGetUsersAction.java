@@ -37,13 +37,13 @@ public class RestGetUsersAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String[] users = Strings.splitStringByCommaToArray(request.param("username"));
+        String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
 
-        new SecurityClient(client).prepareGetUsers().users(users).execute(new RestBuilderListener<GetUsersResponse>(channel) {
+        new SecurityClient(client).prepareGetUsers().usernames(usernames).execute(new RestBuilderListener<GetUsersResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetUsersResponse getUsersResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field("found", getUsersResponse.isExists());
+                builder.field("found", getUsersResponse.hasUsers());
                 builder.startArray("users");
                 for (User user : getUsersResponse.users()) {
                     user.toXContent(builder, ToXContent.EMPTY_PARAMS);

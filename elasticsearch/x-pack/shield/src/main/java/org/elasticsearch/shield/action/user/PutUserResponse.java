@@ -17,15 +17,14 @@ import java.io.IOException;
  * Response when adding a user to the shield administrative index. Returns a
  * single boolean field for whether the user was created or updated.
  */
-public class AddUserResponse extends ActionResponse implements ToXContent {
+public class PutUserResponse extends ActionResponse implements ToXContent {
 
     private boolean created;
 
-    public AddUserResponse() {
-
+    public PutUserResponse() {
     }
 
-    public AddUserResponse(boolean created) {
+    public PutUserResponse(boolean created) {
         this.created = created;
     }
 

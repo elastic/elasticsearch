@@ -34,10 +34,9 @@ public class RestDeleteUserAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String user = request.param("username");
-        DeleteUserRequest delUserRequest = new DeleteUserRequest(user);
+        String username = request.param("username");
 
-        new SecurityClient(client).deleteUser(delUserRequest, new RestBuilderListener<DeleteUserResponse>(channel) {
+        new SecurityClient(client).prepareDeleteUser(username).execute(new RestBuilderListener<DeleteUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteUserResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,

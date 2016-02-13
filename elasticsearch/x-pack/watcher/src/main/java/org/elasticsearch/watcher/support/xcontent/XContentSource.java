@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -117,7 +118,7 @@ public class XContentSource implements ToXContent {
     private Object data() {
         if (data == null) {
             try (XContentParser parser = parser()) {
-                data = WatcherXContentUtils.readValue(parser, parser.nextToken());
+                data = XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);
             }

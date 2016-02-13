@@ -49,9 +49,8 @@ import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
-import org.elasticsearch.shield.action.user.AddUserRequest;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
-import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.action.user.PutUserRequest;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
@@ -79,6 +78,15 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class ESNativeUsersStore extends AbstractComponent implements ClusterStateListener {
 
+    public enum State {
+        INITIALIZED,
+        STARTING,
+        STARTED,
+        STOPPING,
+        STOPPED,
+        FAILED
+    }
+
     // TODO - perhaps separate indices for users/roles instead of types?
     public static final String INDEX_USER_TYPE = "user";
 
@@ -93,34 +101,16 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
     private ScheduledFuture<?> versionChecker;
     private Client client;
-    private AuthenticationService authService;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
 
     private volatile boolean shieldIndexExists = false;
 
     @Inject
-    public ESNativeUsersStore(Settings settings, Provider<InternalClient> clientProvider,
-                              Provider<AuthenticationService> authProvider, ThreadPool threadPool) {
+    public ESNativeUsersStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
         super(settings);
         this.clientProvider = clientProvider;
         this.threadPool = threadPool;
-    }
-
-    @Nullable
-    private UserAndPassword transformUser(Map<String, Object> sourceMap) {
-        if (sourceMap == null) {
-            return null;
-        }
-        try {
-            String username = (String) sourceMap.get(Fields.USERNAME);
-            String password = (String) sourceMap.get(Fields.PASSWORD);
-            String[] roles = ((List<String>) sourceMap.get(Fields.ROLES)).toArray(Strings.EMPTY_ARRAY);
-            return new UserAndPassword(new User(username, roles), password.toCharArray());
-        } catch (Exception e) {
-            logger.error("error in the format of get response for user", e);
-            return null;
-        }
     }
 
     /**
@@ -296,7 +286,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
     }
 
-    public void addUser(final AddUserRequest addUserRequest, final ActionListener<Boolean> listener) {
+    public void putUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             listener.onFailure(new IllegalStateException("user cannot be added as native user service has not been started"));
             return;
@@ -304,10 +294,13 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
         try {
             IndexRequest request = client.prepareIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_USER_TYPE, addUserRequest.username())
-                    .setSource("username", addUserRequest.username(),
-                            "password", String.valueOf(addUserRequest.passwordHash()),
-                            "roles", addUserRequest.roles())
+                    INDEX_USER_TYPE, putUserRequest.username())
+                    .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
+                            User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                            User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                            User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                            User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
                     .request();
 
             client.index(request, new ActionListener<IndexResponse>() {
@@ -319,7 +312,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                         return;
                     }
 
-                    clearRealmCache(addUserRequest.username(), listener, indexResponse.isCreated());
+                    clearRealmCache(putUserRequest.username(), listener, indexResponse.isCreated());
                 }
 
                 @Override
@@ -333,7 +326,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
     }
 
-    public void removeUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
+    public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             listener.onFailure(new IllegalStateException("user cannot be deleted as native user service has not been started"));
             return;
@@ -341,12 +334,12 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
         try {
             DeleteRequest request = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_USER_TYPE, deleteUserRequest.user()).request();
+                    INDEX_USER_TYPE, deleteUserRequest.username()).request();
             request.indicesOptions().ignoreUnavailable();
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
-                    clearRealmCache(deleteUserRequest.user(), listener, deleteResponse.isFound());
+                    clearRealmCache(deleteUserRequest.username(), listener, deleteResponse.isFound());
                 }
 
                 @Override
@@ -504,18 +497,27 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         this.versionMap.clear();
         this.listeners.clear();
         this.client = null;
-        this.authService = null;
         this.shieldIndexExists = false;
         this.state.set(State.INITIALIZED);
     }
 
-    public enum State {
-        INITIALIZED,
-        STARTING,
-        STARTED,
-        STOPPING,
-        STOPPED,
-        FAILED
+    @Nullable
+    private UserAndPassword transformUser(Map<String, Object> sourceMap) {
+        if (sourceMap == null) {
+            return null;
+        }
+        try {
+            String username = (String) sourceMap.get(User.Fields.USERNAME.getPreferredName());
+            String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
+            String[] roles = ((List<String>) sourceMap.get(User.Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
+            String fullName = (String) sourceMap.get(User.Fields.FULL_NAME.getPreferredName());
+            String email = (String) sourceMap.get(User.Fields.EMAIL.getPreferredName());
+            Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(User.Fields.METADATA.getPreferredName());
+            return new UserAndPassword(new User(username, roles, fullName, email, metadata), password.toCharArray());
+        } catch (Exception e) {
+            logger.error("error in the format of get response for user", e);
+            return null;
+        }
     }
 
     private class UserStorePoller extends AbstractRunnable {
@@ -647,12 +649,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             State state = state();
             return state == State.STOPPED || state == State.STOPPING;
         }
-    }
-
-    public static class Fields {
-        static String USERNAME = "username";
-        static String PASSWORD = "password";
-        static String ROLES = "roles";
     }
 
     interface ChangeListener {

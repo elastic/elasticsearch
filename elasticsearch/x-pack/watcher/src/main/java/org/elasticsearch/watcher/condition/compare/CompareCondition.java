@@ -11,7 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.support.xcontent.WatcherXContentUtils;
+import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -114,7 +114,7 @@ public class CompareCondition implements Condition {
                             "operation [{}] must either be a numeric, string, boolean or null value, but found [{}] instead", TYPE,
                             watchId, path, op.name().toLowerCase(Locale.ROOT), token);
                 }
-                value = WatcherXContentUtils.readValue(parser, token);
+                value = XContentUtils.readValue(parser, token);
                 token = parser.nextToken();
                 if (token != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected end of path object, " +

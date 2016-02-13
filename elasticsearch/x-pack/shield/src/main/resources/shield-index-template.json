@@ -1,64 +1,101 @@
 {
-  "template": ".shield",
-  "order": 1000,
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0,
-    "auto_expand_replicas": "0-all"
+  "template" : ".shield",
+  "order" : 1000,
+  "settings" : {
+    "number_of_shards" : 1,
+    "number_of_replicas" : 0,
+    "auto_expand_replicas" : "0-all",
+    "analysis" : {
+      "filter" : {
+        "email" : {
+          "type" : "pattern_capture",
+          "preserve_original" : 1,
+          "patterns" : [
+            "([^@]+)",
+            "(\\p{L}+)",
+            "(\\d+)",
+            "@(.+)"
+          ]
+        }
+      },
+      "analyzer" : {
+        "email" : {
+          "tokenizer" : "uax_url_email",
+          "filter" : [
+            "email",
+            "lowercase",
+            "unique"
+          ]
+        }
+      }
+    }
   },
-  "mappings": {
-    "user": {
-      "dynamic": "strict",
-      "properties": {
-        "username": {
-          "type": "string",
-          "index": "not_analyzed"
+  "mappings" : {
+    "user" : {
+      "dynamic" : "strict",
+      "properties" : {
+        "username" : {
+          "type" : "string",
+          "index" : "not_analyzed"
         },
-        "roles": {
-          "type": "string",
-          "index": "not_analyzed"
+        "roles" : {
+          "type" : "string",
+          "index" : "not_analyzed"
         },
-        "password": {
-          "type": "string",
-          "index": "no"
+        "password" : {
+          "type" : "string",
+          "index" : "no"
+        },
+        "full_name" : {
+          "type" : "string",
+          "index" : "analyzed"
+        },
+        "email" : {
+          "type" : "string",
+          "index" : "analyzed",
+          "analyzer" : "email"
+        },
+        "metadata" : {
+          "type" : "object",
+          "dynamic" : true
         }
       }
     },
     "role" : {
-      "dynamic": "strict",
+      "dynamic" : "strict",
       "properties" : {
         "cluster" : {
           "type" : "string",
-          "index": "not_analyzed"
+          "index" : "not_analyzed"
         },
         "indices" : {
-          "type": "object",
+          "type" : "object",
           "properties" : {
             "fields" : {
               "type" : "string",
-              "index": "not_analyzed"
+              "index" : "not_analyzed"
             },
             "names" : {
               "type" : "string",
-              "index": "not_analyzed"
+              "index" : "not_analyzed"
             },
             "privileges" : {
               "type" : "string",
-              "index": "not_analyzed"
+              "index" : "not_analyzed"
             },
             "query" : {
               "type" : "string",
-              "index": "not_analyzed"
+              "index" : "not_analyzed"
             }
           }
         },
         "name" : {
           "type" : "string",
-          "index": "not_analyzed"
+          "index" : "not_analyzed"
         },
         "run_as" : {
           "type" : "string",
-          "index": "not_analyzed"
+          "index" : "not_analyzed"
         }
       }
     }

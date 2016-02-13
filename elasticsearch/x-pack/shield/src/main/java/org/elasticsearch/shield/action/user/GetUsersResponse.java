@@ -11,52 +11,53 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.shield.User;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Collection;
 
 /**
  * Response containing a User retrieved from the shield administrative index
  */
 public class GetUsersResponse extends ActionResponse {
-    private List<User> users;
 
-    public GetUsersResponse() {
-        this.users = Collections.emptyList();
-    }
+    private User[] users;
 
-    public GetUsersResponse(User user) {
-        this.users = Collections.singletonList(user);
-    }
-
-    public GetUsersResponse(List<User> users) {
+    public GetUsersResponse(User... users) {
         this.users = users;
     }
 
-    public List<User> users() {
+    public GetUsersResponse(Collection<User> users) {
+        this(users.toArray(new User[users.size()]));
+    }
+
+    public User[] users() {
         return users;
     }
 
-    public boolean isExists() {
-        return users != null && users.size() > 0;
+    public boolean hasUsers() {
+        return users != null && users.length > 0;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        users = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            users.add(User.readFrom(in));
+        if (size < 0) {
+            users = null;
+        } else {
+            users = new User[size];
+            for (int i = 0; i < size; i++) {
+                users[i] = User.readFrom(in);
+            }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(users == null ? 0 : users.size());
-        for (User u : users) {
-            User.writeTo(u, out);
+        out.writeVInt(users == null ? -1 : users.length);
+        if (users != null) {
+            for (User user : users) {
+                User.writeTo(user, out);
+            }
         }
     }
 

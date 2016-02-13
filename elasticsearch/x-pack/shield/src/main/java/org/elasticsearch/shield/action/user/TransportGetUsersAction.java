@@ -34,8 +34,8 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
     @Override
     protected void doExecute(final GetUsersRequest request, final ActionListener<GetUsersResponse> listener) {
-        if (request.users().length == 1) {
-            final String username = request.users()[0];
+        if (request.usernames().length == 1) {
+            final String username = request.usernames()[0];
             // We can fetch a single user with a get, much cheaper:
             usersStore.getUser(username, new ActionListener<User>() {
                 @Override
@@ -54,7 +54,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                 }
             });
         } else {
-            usersStore.getUsers(request.users(), new ActionListener<List<User>>() {
+            usersStore.getUsers(request.usernames(), new ActionListener<List<User>>() {
                 @Override
                 public void onResponse(List<User> users) {
                     listener.onResponse(new GetUsersResponse(users));
@@ -63,7 +63,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                 @Override
                 public void onFailure(Throwable e) {
                     logger.error("failed to retrieve user [{}]", e,
-                            Strings.arrayToDelimitedString(request.users(), ","));
+                            Strings.arrayToDelimitedString(request.usernames(), ","));
                     listener.onFailure(e);
                 }
             });

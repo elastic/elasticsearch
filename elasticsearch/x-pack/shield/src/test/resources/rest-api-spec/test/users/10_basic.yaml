@@ -12,9 +12,15 @@
         username: "joe"
         body:  >
             {
-              "username": "joe",
-              "password": "s3krit",
-              "roles" : [ "admin" ]
+              "username" : "joe",
+              "password" : "s3krit",
+              "roles" : [ "admin" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
             }
   - match: { user: { created: true } }
 
@@ -30,3 +36,7 @@
   - match: { found: true }
   - match: { users.0.username: "joe" }
   - match: { users.0.roles.0:  "admin" }
+  - match: { users.0.full_name:  "Bazooka Joe" }
+  - match: { users.0.email:  "joe@bazooka.gum" }
+  - match: { users.0.metadata.key1:  "val1" }
+  - match: { users.0.metadata.key2:  "val2" }

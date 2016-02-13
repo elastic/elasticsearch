@@ -15,7 +15,7 @@ import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportAddUserAction extends HandledTransportAction<AddUserRequest, AddUserResponse> {
+public class TransportAddUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
     private final ESNativeUsersStore usersStore;
 
@@ -23,13 +23,13 @@ public class TransportAddUserAction extends HandledTransportAction<AddUserReques
     public TransportAddUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   ESNativeUsersStore usersStore, TransportService transportService) {
-        super(settings, AddUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, AddUserRequest::new);
+        super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutUserRequest::new);
         this.usersStore = usersStore;
     }
 
     @Override
-    protected void doExecute(final AddUserRequest request, final ActionListener<AddUserResponse> listener) {
-        usersStore.addUser(request, new ActionListener<Boolean>() {
+    protected void doExecute(final PutUserRequest request, final ActionListener<PutUserResponse> listener) {
+        usersStore.putUser(request, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean created) {
                 if (created) {
@@ -37,7 +37,7 @@ public class TransportAddUserAction extends HandledTransportAction<AddUserReques
                 } else {
                     logger.info("updated user [{}]", request.username());
                 }
-                listener.onResponse(new AddUserResponse(created));
+                listener.onResponse(new PutUserResponse(created));
             }
 
             @Override

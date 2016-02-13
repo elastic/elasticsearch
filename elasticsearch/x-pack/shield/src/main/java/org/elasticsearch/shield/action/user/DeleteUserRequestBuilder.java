@@ -18,8 +18,8 @@ public class DeleteUserRequestBuilder extends ActionRequestBuilder<DeleteUserReq
         super(client, action, new DeleteUserRequest());
     }
 
-    public DeleteUserRequestBuilder user(String username) {
-        request.user(username);
+    public DeleteUserRequestBuilder username(String username) {
+        request.username(username);
         return this;
     }
 }

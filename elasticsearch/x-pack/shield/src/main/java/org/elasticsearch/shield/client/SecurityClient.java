@@ -8,10 +8,19 @@ package org.elasticsearch.shield.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheRequestBuilder;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.shield.action.role.AddRoleAction;
 import org.elasticsearch.shield.action.role.AddRoleRequest;
 import org.elasticsearch.shield.action.role.AddRoleRequestBuilder;
 import org.elasticsearch.shield.action.role.AddRoleResponse;
+import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
+import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
+import org.elasticsearch.shield.action.role.ClearRolesCacheRequestBuilder;
+import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.shield.action.role.DeleteRoleAction;
 import org.elasticsearch.shield.action.role.DeleteRoleRequest;
 import org.elasticsearch.shield.action.role.DeleteRoleRequestBuilder;
@@ -20,10 +29,6 @@ import org.elasticsearch.shield.action.role.GetRolesAction;
 import org.elasticsearch.shield.action.role.GetRolesRequest;
 import org.elasticsearch.shield.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
-import org.elasticsearch.shield.action.user.AddUserAction;
-import org.elasticsearch.shield.action.user.AddUserRequest;
-import org.elasticsearch.shield.action.user.AddUserRequestBuilder;
-import org.elasticsearch.shield.action.user.AddUserResponse;
 import org.elasticsearch.shield.action.user.DeleteUserAction;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.action.user.DeleteUserRequestBuilder;
@@ -32,14 +37,12 @@ import org.elasticsearch.shield.action.user.GetUsersAction;
 import org.elasticsearch.shield.action.user.GetUsersRequest;
 import org.elasticsearch.shield.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.shield.action.user.GetUsersResponse;
-import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
-import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
-import org.elasticsearch.shield.action.realm.ClearRealmCacheRequestBuilder;
-import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
-import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
-import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
-import org.elasticsearch.shield.action.role.ClearRolesCacheRequestBuilder;
-import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.shield.action.user.PutUserAction;
+import org.elasticsearch.shield.action.user.PutUserRequest;
+import org.elasticsearch.shield.action.user.PutUserRequestBuilder;
+import org.elasticsearch.shield.action.user.PutUserResponse;
+
+import java.io.IOException;
 
 /**
  * A wrapper to elasticsearch clients that exposes all Shield related APIs
@@ -114,9 +117,7 @@ public class SecurityClient {
         return client.execute(ClearRolesCacheAction.INSTANCE, request);
     }
 
-    /****************
-     * admin things *
-     ****************/
+    /** User Management */
 
     public GetUsersRequestBuilder prepareGetUsers() {
         return new GetUsersRequestBuilder(client);
@@ -126,21 +127,27 @@ public class SecurityClient {
         client.execute(GetUsersAction.INSTANCE, request, listener);
     }
 
-    public DeleteUserRequestBuilder prepareDeleteUser() {
-        return new DeleteUserRequestBuilder(client);
+    public DeleteUserRequestBuilder prepareDeleteUser(String username) {
+        return new DeleteUserRequestBuilder(client).username(username);
     }
 
     public void deleteUser(DeleteUserRequest request, ActionListener<DeleteUserResponse> listener) {
         client.execute(DeleteUserAction.INSTANCE, request, listener);
     }
 
-    public AddUserRequestBuilder prepareAddUser() {
-        return new AddUserRequestBuilder(client);
+    public PutUserRequestBuilder preparePutUser(String username, BytesReference source) throws IOException {
+        return new PutUserRequestBuilder(client).username(username).source(source);
     }
 
-    public void addUser(AddUserRequest request, ActionListener<AddUserResponse> listener) {
-        client.execute(AddUserAction.INSTANCE, request, listener);
+    public PutUserRequestBuilder preparePutUser(String username, char[] password, String... roles) {
+        return new PutUserRequestBuilder(client).username(username).password(password).roles(roles);
     }
+
+    public void putUser(PutUserRequest request, ActionListener<PutUserResponse> listener) {
+        client.execute(PutUserAction.INSTANCE, request, listener);
+    }
+
+    /** Role Management */
 
     public GetRolesRequestBuilder prepareGetRoles() {
         return new GetRolesRequestBuilder(client);

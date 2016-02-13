@@ -1032,8 +1032,12 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                             if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
                                                 ShardRouting primaryShard = indexShardReference.routingEntry();
                                                 String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
-                                                // we are no longer the primary, fail ourselves and start over
-                                                indexShardReference.failShard(message, shardFailedError);
+                                                try {
+                                                    // we are no longer the primary, fail ourselves and start over
+                                                    indexShardReference.failShard(message, shardFailedError);
+                                                } catch (Throwable t) {
+                                                    shardFailedError.addSuppressed(t);
+                                                }
                                                 forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                             } else {
                                                 assert shardFailedError.getMessage().contains("TransportService is closed") :

@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -991,6 +992,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void failShard(String reason, @Nullable Throwable e) {
                 isShardFailed.set(true);
+                if (randomBoolean()) {
+                    throw new AlreadyClosedException("simulated shard already failed");
+                }
             }
 
             @Override

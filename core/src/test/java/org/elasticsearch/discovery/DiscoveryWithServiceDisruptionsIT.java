@@ -528,8 +528,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
                 logger.info("stopping disruption");
                 disruptionScheme.stopDisrupting();
-                ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
-                        DISRUPTION_HEALING_OVERHEAD.millis()));
+                for (String node : internalCluster().getNodeNames()) {
+                    ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
+                            DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
+                }
                 ensureGreen("test");
 
                 logger.info("validating successful docs");

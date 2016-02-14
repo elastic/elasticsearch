@@ -41,9 +41,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
@@ -368,7 +373,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
         }
         SearchSourceBuilder newBuilder = SearchSourceBuilder.parseSearchSource(parser, parseContext);
-        assertNotSame(testBuilder, newBuilder);
+        assertNull(parser.nextToken());
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
     }

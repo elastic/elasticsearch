@@ -81,7 +81,6 @@ public class SearchServiceTransportAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.searchService = searchService;
-
         transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ScrollFreeContextRequest::new, ThreadPool.Names.SAME, new FreeContextTransportHandler<>());
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest::new, ThreadPool.Names.SAME, new FreeContextTransportHandler<SearchFreeContextRequest>());
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ClearScrollContextsRequest::new, ThreadPool.Names.SAME, new ClearScrollContextsTransportHandler());

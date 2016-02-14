@@ -68,26 +68,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public GetRequest(GetRequest getRequest) {
-        this.index = getRequest.index;
-        this.type = getRequest.type;
-        this.id = getRequest.id;
-        this.routing = getRequest.routing;
-        this.parent = getRequest.parent;
-        this.preference = getRequest.preference;
-        this.fields = getRequest.fields;
-        this.fetchSourceContext = getRequest.fetchSourceContext;
-        this.refresh = getRequest.refresh;
-        this.realtime = getRequest.realtime;
-        this.version = getRequest.version;
-        this.versionType = getRequest.versionType;
-        this.ignoreErrorsOnGeneratedFields = getRequest.ignoreErrorsOnGeneratedFields;
-    }
-
-    /**
      * Constructs a new get request against the specified index. The {@link #type(String)} and {@link #id(String)}
      * must be set.
      */

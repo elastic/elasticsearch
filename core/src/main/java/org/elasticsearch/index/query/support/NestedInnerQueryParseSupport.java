@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -91,7 +92,8 @@ public class NestedInnerQueryParseSupport {
         if (path != null) {
             setPathLevel();
             try {
-                innerFilter = parseContext.parseInnerQueryBuilder().toFilter(this.shardContext);
+                innerFilter = QueryBuilder.rewriteQuery(parseContext.parseInnerQueryBuilder(),
+                    this.shardContext).toFilter(this.shardContext);
             } finally {
                 resetPathLevel();
             }
@@ -147,7 +149,8 @@ public class NestedInnerQueryParseSupport {
             try {
                 XContentParser innerParser = XContentHelper.createParser(source);
                 parseContext.parser(innerParser);
-                innerFilter = parseContext.parseInnerQueryBuilder().toFilter(this.shardContext);
+                innerFilter = QueryBuilder.rewriteQuery(parseContext.parseInnerQueryBuilder(),
+                    this.shardContext).toFilter(this.shardContext);
                 filterParsed = true;
                 return innerFilter;
             } finally {

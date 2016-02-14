@@ -156,6 +156,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16645")
     public void testRequiredRoutingMapping() throws Exception {
         client().admin().indices().prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())

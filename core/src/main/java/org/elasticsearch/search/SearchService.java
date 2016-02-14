@@ -532,7 +532,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
-
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());

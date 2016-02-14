@@ -411,4 +411,10 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
+    }
 }

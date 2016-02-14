@@ -250,7 +250,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.suspendableRefContainer = new SuspendableRefContainer();
         this.searcherWrapper = indexSearcherWrapper;
-        QueryShardContext queryShardContext = new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
+        QueryShardContext queryShardContext = new QueryShardContext(idxSettings, indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryShardContext);
     }
 

@@ -84,7 +84,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
         Map<String, QueryParser<?>> parsers = singletonMap("term", new TermQueryParser());
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers);
 
-        queryShardContext = new QueryShardContext(indexSettings, null, null, null, mapperService, null, null, indicesQueriesRegistry);
+        queryShardContext = new QueryShardContext(indexSettings, null, null, mapperService, null, null, indicesQueriesRegistry);
 
         HighlightPhase highlightPhase = new HighlightPhase(Settings.EMPTY, new Highlighters());
         AggregatorParsers aggregatorParsers = new AggregatorParsers(Collections.emptySet(), Collections.emptySet());

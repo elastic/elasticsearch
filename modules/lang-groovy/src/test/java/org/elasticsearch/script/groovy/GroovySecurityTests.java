@@ -90,6 +90,7 @@ public class GroovySecurityTests extends ESTestCase {
         // Groovy closures
         assertSuccess("[1, 2, 3, 4].findAll { it % 2 == 0 }");
         assertSuccess("def buckets=[ [2, 4, 6, 8], [10, 12, 16, 14], [18, 22, 20, 24] ]; buckets[-3..-1].every { it.every { i -> i % 2 == 0 } }");
+        assertSuccess("def val = \"\"; [1, 2, 3, 4].each { val += it }; val");
         // Groovy uses reflection to invoke closures. These reflective calls are optimized by the JVM after "sun.reflect.inflationThreshold"
         // invocations. After the inflation step, access to sun.reflect.MethodAccessorImpl is required from the security manager. This test,
         // assuming a inflation threshold below 100 (15 is current value on Oracle JVMs), checks that the relevant permission is available.

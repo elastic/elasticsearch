@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -1041,8 +1042,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                 }
                                                 forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                             } else {
-                                                assert shardFailedError.getMessage() != null &&
-                                                        shardFailedError.getMessage().contains("TransportService is closed") :
+                                                assert (shardFailedError instanceof EsRejectedExecutionException) ||
+                                                        (shardFailedError.getMessage() != null &&
+                                                                shardFailedError.getMessage().contains("TransportService is closed")) :
                                                         shardFailedError;
                                                 onReplicaFailure(nodeId, exp);
                                             }

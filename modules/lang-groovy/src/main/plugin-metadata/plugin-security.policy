@@ -55,4 +55,5 @@ grant {
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.GeneratedClosure";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.MetaClass";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Range";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Reference";
 };

@@ -262,22 +262,7 @@ class DocumentParser implements Closeable {
 
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
-            context = context.createNestedContext(mapper.fullPath());
-            ParseContext.Document nestedDoc = context.doc();
-            ParseContext.Document parentDoc = nestedDoc.getParent();
-            // pre add the uid field if possible (id was already provided)
-            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
-            if (uidField != null) {
-                // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                // we also rely on this for UidField#loadVersion
-
-                // this is a deeply nested field
-                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            }
-            // the type of the nested doc starts with __, so we can identify that its a nested one in filters
-            // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
-            // across types (for example, with similar nested objects)
-            nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
+            context = nestedContext(context, mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -290,6 +275,15 @@ class DocumentParser implements Closeable {
         }
 
         ObjectMapper update = null;
+        update = innerParseObject(context, mapper, parser, currentFieldName, token, update);
+        // restore the enable path flag
+        if (nested.isNested()) {
+            nested(context, nested);
+        }
+        return update;
+    }
+
+    private static ObjectMapper innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser, String currentFieldName, XContentParser.Token token, ObjectMapper update) throws IOException {
         while (token != XContentParser.Token.END_OBJECT) {
             ObjectMapper newUpdate = null;
             if (token == XContentParser.Token.START_OBJECT) {
@@ -314,34 +308,50 @@ class DocumentParser implements Closeable {
                 }
             }
         }
-        // restore the enable path flag
-        if (nested.isNested()) {
-            ParseContext.Document nestedDoc = context.doc();
-            ParseContext.Document parentDoc = nestedDoc.getParent();
-            if (nested.isIncludeInParent()) {
-                for (IndexableField field : nestedDoc.getFields()) {
-                    if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
-                        continue;
-                    } else {
-                        parentDoc.add(field);
-                    }
-                }
-            }
-            if (nested.isIncludeInRoot()) {
-                ParseContext.Document rootDoc = context.rootDoc();
-                // don't add it twice, if its included in parent, and we are handling the master doc...
-                if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
-                    for (IndexableField field : nestedDoc.getFields()) {
-                        if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
-                            continue;
-                        } else {
-                            rootDoc.add(field);
-                        }
-                    }
-                }
+        return update;
+    }
+
+    private static void nested(ParseContext context, ObjectMapper.Nested nested) {
+        ParseContext.Document nestedDoc = context.doc();
+        ParseContext.Document parentDoc = nestedDoc.getParent();
+        if (nested.isIncludeInParent()) {
+            addFields(nestedDoc, parentDoc);
+        }
+        if (nested.isIncludeInRoot()) {
+            ParseContext.Document rootDoc = context.rootDoc();
+            // don't add it twice, if its included in parent, and we are handling the master doc...
+            if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
+                addFields(nestedDoc, rootDoc);
             }
         }
-        return update;
+    }
+
+    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+        for (IndexableField field : nestedDoc.getFields()) {
+            if (!field.name().equals(UidFieldMapper.NAME) && !field.name().equals(TypeFieldMapper.NAME)) {
+                rootDoc.add(field);
+            }
+        }
+    }
+
+    private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
+        context = context.createNestedContext(mapper.fullPath());
+        ParseContext.Document nestedDoc = context.doc();
+        ParseContext.Document parentDoc = nestedDoc.getParent();
+        // pre add the uid field if possible (id was already provided)
+        IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
+        if (uidField != null) {
+            // we don't need to add it as a full uid field in nested docs, since we don't need versioning
+            // we also rely on this for UidField#loadVersion
+
+            // this is a deeply nested field
+            nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        }
+        // the type of the nested doc starts with __, so we can identify that its a nested one in filters
+        // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
+        // across types (for example, with similar nested objects)
+        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
+        return context;
     }
 
     private static Mapper parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {

@@ -94,6 +94,8 @@ public class GroovySecurityTests extends ESTestCase {
         // invocations. After the inflation step, access to sun.reflect.MethodAccessorImpl is required from the security manager. This test,
         // assuming a inflation threshold below 100 (15 is current value on Oracle JVMs), checks that the relevant permission is available.
         assertSuccess("(1..100).collect{ it + 1 }");
+        // Groovy reference
+        assertSuccess("def val = 0; [1, 2, 3, 4].each{ val += it }");
 
         // Fail cases:
         assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()", MissingPropertyException.class);

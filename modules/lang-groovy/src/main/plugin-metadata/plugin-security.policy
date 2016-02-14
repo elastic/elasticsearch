@@ -40,6 +40,7 @@ grant {
   permission org.elasticsearch.script.ClassPermission "groovy.lang.GString";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Script";
   permission org.elasticsearch.script.ClassPermission "groovy.util.GroovyCollections";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Reference";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.ast.builder.AstBuilderTransformation";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.reflection.ClassInfo";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.GStringImpl";

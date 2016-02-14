@@ -26,8 +26,11 @@ be cacheable. Filter context is introduced by:
   aggregations or index aliases
 --
 
-As a result of this change, the `execution` option of the `terms` filter is now
-deprecated and ignored if provided.
+==== `terms` query and filter
+
+The `execution` option of the `terms` filter is now deprecated and is ignored
+if provided. Similarly, the `terms` query no longer supports the
+`minimum_should_match` parameter.
 
 ==== `or` and `and` now implemented via `bool`
 

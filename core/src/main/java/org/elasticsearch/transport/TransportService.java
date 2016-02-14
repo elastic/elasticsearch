@@ -167,6 +167,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     void setTracerLogExclude(List<String> tracelLogExclude) {
         this.tracelLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
+
     @Override
     protected void doStart() {
         adapter.rxMetric.clear();
@@ -326,12 +327,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 // callback that an exception happened, but on a different thread since we don't
                 // want handlers to worry about stack overflows
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        holderToNotify.handler().handleException(sendRequestException);
-                    }
-                });
+                holderToNotify.handler().handleException(sendRequestException);
             }
         }
     }
@@ -405,10 +401,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     /**
      * Registers a new request handler
-     * @param action The action the request handler is associated with
+     *
+     * @param action         The action the request handler is associated with
      * @param requestFactory a callable to be used construct new instances for streaming
-     * @param executor The executor the request handling will be executed on
-     * @param handler The handler itself that implements the request handling
+     * @param executor       The executor the request handling will be executed on
+     * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
@@ -417,11 +414,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     /**
      * Registers a new request handler
-     * @param action The action the request handler is associated with
-     * @param request The request class that will be used to constrcut new instances for streaming
-     * @param executor The executor the request handling will be executed on
+     *
+     * @param action         The action the request handler is associated with
+     * @param request        The request class that will be used to constrcut new instances for streaming
+     * @param executor       The executor the request handling will be executed on
      * @param forceExecution Force execution on the executor queue and never reject it
-     * @param handler The handler itself that implements the request handling
+     * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
@@ -729,6 +727,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     private final static class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
+
         private ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
             this.delegate = delegate;
             this.threadContext = threadContext;
@@ -766,7 +765,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         final ThreadPool threadPool;
 
         public DirectResponseChannel(ESLogger logger, DiscoveryNode localNode, String action, long requestId,
-                TransportServiceAdapter adapter, ThreadPool threadPool) {
+                                     TransportServiceAdapter adapter, ThreadPool threadPool) {
             this.logger = logger;
             this.localNode = localNode;
             this.action = action;

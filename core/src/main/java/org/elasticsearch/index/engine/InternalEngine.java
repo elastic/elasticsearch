@@ -362,13 +362,12 @@ public class InternalEngine extends Engine {
             }
 
             long expectedVersion = index.version();
-            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (index.origin() == Operation.Origin.RECOVERY) {
-                    return false;
-                } else {
+            if (isVersionConflictForWrites(index, currentVersion, deleted, expectedVersion)) {
+                if (index.origin() != Operation.Origin.RECOVERY) {
                     throw new VersionConflictEngineException(shardId, index.type(), index.id(),
-                            index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+                        index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 }
+                return false;
             }
             long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
 
@@ -378,22 +377,9 @@ public class InternalEngine extends Engine {
             if (currentVersion == Versions.NOT_FOUND) {
                 // document does not exists, we can optimize for create
                 created = true;
-                if (index.docs().size() > 1) {
-                    indexWriter.addDocuments(index.docs());
-                } else {
-                    indexWriter.addDocument(index.docs().get(0));
-                }
+                index(index, indexWriter);
             } else {
-                if (versionValue != null) {
-                    created = versionValue.delete(); // we have a delete which is not GC'ed...
-                } else {
-                    created = false;
-                }
-                if (index.docs().size() > 1) {
-                    indexWriter.updateDocuments(index.uid(), index.docs());
-                } else {
-                    indexWriter.updateDocument(index.uid(), index.docs().get(0));
-                }
+                created = update(index, versionValue, indexWriter);
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
@@ -401,6 +387,33 @@ public class InternalEngine extends Engine {
             index.setTranslogLocation(translogLocation);
             return created;
         }
+    }
+
+    private static boolean update(Index index, VersionValue versionValue, IndexWriter indexWriter) throws IOException {
+        boolean created;
+        if (versionValue != null) {
+            created = versionValue.delete(); // we have a delete which is not GC'ed...
+        } else {
+            created = false;
+        }
+        if (index.docs().size() > 1) {
+            indexWriter.updateDocuments(index.uid(), index.docs());
+        } else {
+            indexWriter.updateDocument(index.uid(), index.docs().get(0));
+        }
+        return created;
+    }
+
+    private static void index(Index index, IndexWriter indexWriter) throws IOException {
+        if (index.docs().size() > 1) {
+            indexWriter.addDocuments(index.docs());
+        } else {
+            indexWriter.addDocument(index.docs().get(0));
+        }
+    }
+
+    private boolean isVersionConflictForWrites(Index index, long currentVersion, boolean deleted, long expectedVersion) {
+        return index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted);
     }
 
     @Override

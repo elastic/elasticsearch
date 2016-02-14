@@ -67,7 +67,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportChannelResponseHandler;
 import org.elasticsearch.transport.TransportException;
@@ -1042,7 +1041,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                     }
                                                     forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                                 } else {
-                                                    assert shardFailedError instanceof SendRequestTransportException ||
+                                                    assert shardFailedError instanceof TransportException ||
                                                             shardFailedError instanceof NodeClosedException : shardFailedError;
                                                     onReplicaFailure(nodeId, exp);
                                                 }

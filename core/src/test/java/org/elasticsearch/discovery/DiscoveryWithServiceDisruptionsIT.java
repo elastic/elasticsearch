@@ -143,7 +143,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     protected void beforeIndexDeletion() {
         try {
             // some test may leave operations in flight. Wait for them to be finished
-            assertBusy(() -> TransportReplicationAction.assertAllShardReferencesAreCleaned());
+            assertBusy(() -> TransportReplicationAction.assertAllShardReferencesAreCleaned(), 40, TimeUnit.SECONDS);
             assertBusy(() -> super.beforeIndexDeletion());
         } catch (Exception e) {
             throw new AssertionError(e);

@@ -115,7 +115,6 @@ public class RestNodesAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
-        table.addCell("host", "alias:h;desc:host name");
         table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
 
@@ -242,7 +241,6 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
-            table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
             if (node.address() instanceof InetSocketTransportAddress) {
                 table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());

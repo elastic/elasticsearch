@@ -208,9 +208,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         FutureUtils.cancel(this.reconnectToNodes);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
-            onGoingTimeout.listener.onClose();
         }
         ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
+        postAppliedListeners.stream().filter(listener -> listener instanceof TimeoutClusterStateListener)
+                .forEach(listener -> ((TimeoutClusterStateListener) listener).onClose());
         remove(localNodeMasterListeners);
     }
 

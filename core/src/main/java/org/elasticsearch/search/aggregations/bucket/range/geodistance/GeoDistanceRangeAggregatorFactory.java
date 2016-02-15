@@ -70,7 +70,7 @@ public class GeoDistanceRangeAggregatorFactory
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new Unmapped(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
+        return new Unmapped<Range>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
     }
 
     @Override

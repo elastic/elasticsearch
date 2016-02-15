@@ -61,30 +61,30 @@ public class RangeAggregator extends BucketsAggregator {
 
     public static class Range implements Writeable<Range>, ToXContent {
 
-        public static final Range PROTOTYPE = new Range(null, -1, null, -1, null);
+        public static final Range PROTOTYPE = new Range(null, null, null, null, null);
         public static final ParseField KEY_FIELD = new ParseField("key");
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField TO_FIELD = new ParseField("to");
 
-        protected String key;
-        protected double from = Double.NEGATIVE_INFINITY;
-        protected String fromAsStr;
-        protected double to = Double.POSITIVE_INFINITY;
-        protected String toAsStr;
+        protected final String key;
+        protected final double from;
+        protected final String fromAsStr;
+        protected final double to;
+        protected final String toAsStr;
 
         public Range(String key, Double from, Double to) {
-            this(key, from == null ? Double.NEGATIVE_INFINITY : from, null, to == null ? Double.POSITIVE_INFINITY : to, null);
+            this(key, from, null, to, null);
         }
 
         public Range(String key, String from, String to) {
-            this(key, Double.NEGATIVE_INFINITY, from, Double.POSITIVE_INFINITY, to);
+            this(key, null, from, null, to);
         }
 
-        protected Range(String key, double from, String fromAsStr, double to, String toAsStr) {
+        protected Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
-            this.from = from;
+            this.from = from == null ? Double.NEGATIVE_INFINITY : from;
             this.fromAsStr = fromAsStr;
-            this.to = to;
+            this.to = to == null ? Double.POSITIVE_INFINITY : to;
             this.toAsStr = toAsStr;
         }
 
@@ -97,14 +97,17 @@ public class RangeAggregator extends BucketsAggregator {
             return "[" + from + " to " + to + ")";
         }
 
-        public void process(ValueParser parser, SearchContext context) {
+        public Range process(ValueParser parser, SearchContext context) {
             assert parser != null;
+            Double from = this.from;
+            Double to = this.to;
             if (fromAsStr != null) {
                 from = parser.parseDouble(fromAsStr, context);
             }
             if (toAsStr != null) {
                 to = parser.parseDouble(toAsStr, context);
             }
+            return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
         @Override
@@ -219,11 +222,11 @@ public class RangeAggregator extends BucketsAggregator {
         this.formatter = format.formatter();
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-        this.ranges = ranges.toArray(new Range[ranges.size()]);
 
+        this.ranges = new Range[ranges.size()];
         ValueParser parser = format != null ? format.parser() : ValueParser.RAW;
         for (int i = 0; i < this.ranges.length; i++) {
-            this.ranges[i].process(parser, context.searchContext());
+            this.ranges[i] = ranges.get(i).process(parser, context.searchContext());
         }
         sortRanges(this.ranges);
 
@@ -359,23 +362,24 @@ public class RangeAggregator extends BucketsAggregator {
         }.sort(0, ranges.length);
     }
 
-    public static class Unmapped extends NonCollectingAggregator {
+    public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
 
-        private final List<? extends RangeAggregator.Range> ranges;
+        private final List<R> ranges;
         private final boolean keyed;
         private final InternalRange.Factory factory;
         private final ValueFormatter formatter;
 
-        public Unmapped(String name, List<? extends RangeAggregator.Range> ranges, boolean keyed, ValueFormat format,
+        @SuppressWarnings("unchecked")
+        public Unmapped(String name, List<R> ranges, boolean keyed, ValueFormat format,
                 AggregationContext context,
                 Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 
             super(name, context, parent, pipelineAggregators, metaData);
-            this.ranges = ranges;
+            this.ranges = new ArrayList<>();
             ValueParser parser = format != null ? format.parser() : ValueParser.RAW;
-            for (Range range : this.ranges) {
-                range.process(parser, context.searchContext());
+            for (R range : ranges) {
+                this.ranges.add((R) range.process(parser, context.searchContext()));
             }
             this.keyed = keyed;
             this.formatter = format.formatter();

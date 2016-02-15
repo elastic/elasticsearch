@@ -33,6 +33,8 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -142,46 +144,53 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
 
     public static class Range extends RangeAggregator.Range {
 
-        static final Range PROTOTYPE = new Range(null, -1, null, -1, null, null);
+        static final Range PROTOTYPE = new Range(null, null, null, null, null, null);
         static final ParseField MASK_FIELD = new ParseField("mask");
 
-        private String cidr;
+        private final String cidr;
 
-        public Range(String key, double from, double to) {
-            super(key, from, to);
+        public Range(String key, Double from, Double to) {
+            this(key, from, null, to, null, null);
         }
 
         public Range(String key, String from, String to) {
-            super(key, from, to);
+            this(key, null, from, null, to, null);
         }
 
         public Range(String key, String cidr) {
-            super(key, -1, null, -1, null);
-            this.cidr = cidr;
-            if (cidr != null) {
-                parseMaskRange();
-            }
+            this(key, null, null, null, null, cidr);
         }
 
-        private Range(String key, double from, String fromAsStr, double to, String toAsStr, String cidr) {
+        private Range(String key, Double from, String fromAsStr, Double to, String toAsStr, String cidr) {
             super(key, from, fromAsStr, to, toAsStr);
             this.cidr = cidr;
-            if (cidr != null) {
-                parseMaskRange();
-            }
         }
 
         public String mask() {
             return cidr;
         }
 
-        private void parseMaskRange() throws IllegalArgumentException {
-            long[] fromTo = Cidrs.cidrMaskToMinMax(cidr);
-            from = fromTo[0] == 0 ? Double.NEGATIVE_INFINITY : fromTo[0];
-            to = fromTo[1] == InternalIPv4Range.MAX_IP ? Double.POSITIVE_INFINITY : fromTo[1];
-            if (key == null) {
-                key = cidr;
+        @Override
+        public Range process(ValueParser parser, SearchContext context) {
+            assert parser != null;
+            Double from = this.from;
+            Double to = this.to;
+            String key = this.key;
+            if (fromAsStr != null) {
+                from = parser.parseDouble(fromAsStr, context);
             }
+            if (toAsStr != null) {
+                to = parser.parseDouble(toAsStr, context);
+            }
+            if (cidr != null) {
+                long[] fromTo = Cidrs.cidrMaskToMinMax(cidr);
+                from = fromTo[0] == 0 ? Double.NEGATIVE_INFINITY : fromTo[0];
+                to = fromTo[1] == InternalIPv4Range.MAX_IP ? Double.POSITIVE_INFINITY : fromTo[1];
+                if (this.key == null) {
+                    key = cidr;
+                }
+            }
+            return new Range(key, from, to);
         }
 
         @Override

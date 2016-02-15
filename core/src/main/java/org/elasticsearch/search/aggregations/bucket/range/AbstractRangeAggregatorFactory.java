@@ -55,7 +55,7 @@ public class AbstractRangeAggregatorFactory<AF extends AbstractRangeAggregatorFa
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new Unmapped(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
+        return new Unmapped<R>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
     }
 
     @Override

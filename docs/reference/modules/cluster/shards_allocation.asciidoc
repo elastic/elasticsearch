@@ -77,9 +77,9 @@ Enable or disable rebalancing for specific kinds of shards:
 Specify when shard rebalancing is allowed:
 
 
-* `always` -                    (default) Always allow rebalancing.
+* `always` -                    Always allow rebalancing.
 * `indices_primaries_active` -  Only when all primaries in the cluster are allocated.
-* `indices_all_active` -        Only when all shards (primaries and replicas) in the cluster are allocated.
+* `indices_all_active` -        (default) Only when all shards (primaries and replicas) in the cluster are allocated.
 --
 
 `cluster.routing.allocation.cluster_concurrent_rebalance`::

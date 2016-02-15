@@ -362,7 +362,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
-            assertThat(e.getMessage(), containsString("[type : string]"));
+            assertThat(e.getMessage(), containsString("[type : text]"));
         }
     }
 
@@ -374,7 +374,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
-            assertThat(e.getMessage(), containsString("type=string"));
+            assertThat(e.getMessage(), containsString("type=text"));
         }
     }
 
@@ -386,7 +386,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
-            assertThat(e.getMessage(), containsString("type=string"));
+            assertThat(e.getMessage(), containsString("type=text"));
         }
     }
 
@@ -451,7 +451,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     public void testAutoBoost() throws Exception {
         for (boolean boost : new boolean[] {false, true}) {
             String index = "test_" + boost;
-            IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=string" + (boost ? ",boost=2" : "")));
+            IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=text" + (boost ? ",boost=2" : "")));
             client().prepareIndex(index, "type").setSource("foo", "bar").get();
             client().admin().indices().prepareRefresh(index).get();
             Query query = indexService.mapperService().documentMapper("type").allFieldMapper().fieldType().termQuery("bar", null);

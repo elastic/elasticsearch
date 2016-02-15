@@ -295,8 +295,8 @@ children("non-existing", "xyz")
         String childType = "variantsku";
         assertAcked(
                 prepareCreate(indexName)
-                        .addMapping(masterType, "brand", "type=string", "name", "type=string", "material", "type=string")
-                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=string", "size", "type=string")
+                        .addMapping(masterType, "brand", "type=text", "name", "type=text", "material", "type=text")
+                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=text", "size", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();

@@ -10,13 +10,12 @@
                 "dynamic":false,
                 "properties":{
                     "first":{
-                        "type":"string",
+                        "type":"text",
                         "store":true,
                         "include_in_all":false
                     },
                     "last":{
-                        "type":"string",
-                        "index":"not_analyzed"
+                        "type":"keyword"
                     }
                 }
             },
@@ -27,7 +26,7 @@
                     "first":{
                         "properties":{
                             "location":{
-                                "type":"string",
+                                "type":"text",
                                 "store":true
                             }
                         }
@@ -35,7 +34,7 @@
                     "last":{
                         "properties":{
                             "location":{
-                                "type":"string",
+                                "type":"text",
                                 "include_in_all":true
                             }
                         }

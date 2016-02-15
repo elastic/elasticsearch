@@ -1430,7 +1430,7 @@ public class FieldSortIT extends ESIntegTestCase {
                                                 .field("type", "nested")
                                                 .startObject("properties")
                                                     .startObject("foo")
-                                                        .field("type", "string")
+                                                        .field("type", "text")
                                                         .startObject("fields")
                                                             .startObject("sub")
                                                                 .field("type", "keyword")

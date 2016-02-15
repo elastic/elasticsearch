@@ -61,12 +61,12 @@ public class SamplerIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(
-                "book", "author", "type=keyword", "name", "type=string,index=analyzed", "genre",
+                "book", "author", "type=keyword", "name", "type=text", "genre",
                 "type=keyword", "price", "type=float"));
         createIndex("idx_unmapped");
         // idx_unmapped_author is same as main index but missing author field
         assertAcked(prepareCreate("idx_unmapped_author").setSettings(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS, SETTING_NUMBER_OF_REPLICAS, 0)
-                .addMapping("book", "name", "type=string,index=analyzed", "genre", "type=keyword", "price", "type=float"));
+                .addMapping("book", "name", "type=text", "genre", "type=keyword", "price", "type=float"));
 
         ensureGreen();
         String data[] = {

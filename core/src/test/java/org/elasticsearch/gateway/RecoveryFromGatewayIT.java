@@ -69,7 +69,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
+                .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
@@ -109,7 +109,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer").endObject().endObject()
                 .endObject().endObject().string();
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
@@ -301,7 +301,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             .setTemplate("te*")
                             .setOrder(0)
                             .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                                    .startObject("field1").field("type", "string").field("store", true).endObject()
+                                    .startObject("field1").field("type", "text").field("store", true).endObject()
                                     .startObject("field2").field("type", "keyword").field("store", true).endObject()
                                     .endObject().endObject().endObject())
                             .execute().actionGet();

@@ -220,7 +220,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("Creating _default_ mappings with an analyzed field");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "string").field("index", "analyzed").endObject().endObject()
+                        .startObject("properties").startObject("f").field("type", "text").field("index", true).endObject().endObject()
                         .endObject().endObject()
         ).get();
         assertThat(putResponse.isAcknowledged(), equalTo(true));
@@ -287,7 +287,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
                             PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
                                     JsonXContent.contentBuilder().startObject().startObject(typeName)
-                                            .startObject("properties").startObject(fieldName).field("type", "string").endObject().endObject()
+                                            .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                             .endObject().endObject()
                             ).get();
 
@@ -340,12 +340,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingOnAllTypes() throws IOException {
-        assertAcked(prepareCreate("index").addMapping("type1", "f", "type=string").addMapping("type2", "f", "type=string"));
+        assertAcked(prepareCreate("index").addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
 
         assertAcked(client().admin().indices().preparePutMapping("index")
                 .setType("type1")
                 .setUpdateAllTypes(true)
-                .setSource("f", "type=string,analyzer=default,null_value=n/a")
+                .setSource("f", "type=keyword,null_value=n/a")
                 .get());
 
         GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();

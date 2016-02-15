@@ -225,4 +225,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
     }
 
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
+        if (rewrite != query) {
+            return new NestedQueryBuilder(path, rewrite).scoreMode(scoreMode);
+        }
+        return this;
+    }
 }

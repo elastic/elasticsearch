@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -78,28 +77,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         this.index = index;
         this.type = type;
         this.id = id;
-    }
-
-    /**
-     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
-     */
-    public DeleteRequest(DeleteRequest request) {
-        this(request, request);
-    }
-
-    /**
-     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
-        super(request);
-        this.type = request.type();
-        this.id = request.id();
-        this.routing = request.routing();
-        this.parent = request.parent();
-        this.refresh = request.refresh();
-        this.version = request.version();
-        this.versionType = request.versionType();
     }
 
     @Override

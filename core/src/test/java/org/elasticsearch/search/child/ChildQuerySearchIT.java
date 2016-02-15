@@ -824,8 +824,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testSimpleQueryRewrite() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("parent", "p_field", "type=string")
-                .addMapping("child", "_parent", "type=parent", "c_field", "type=string"));
+                .addMapping("parent", "p_field", "type=text")
+                .addMapping("child", "_parent", "type=parent", "c_field", "type=text"));
         ensureGreen();
 
         // index simple data

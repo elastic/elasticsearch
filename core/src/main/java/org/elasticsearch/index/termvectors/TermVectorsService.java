@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -160,7 +161,8 @@ public class TermVectorsService  {
     private static boolean isValidField(MappedFieldType fieldType) {
         // must be a string
         if (fieldType instanceof StringFieldMapper.StringFieldType == false
-                && fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+                && fieldType instanceof KeywordFieldMapper.KeywordFieldType == false
+                && fieldType instanceof TextFieldMapper.TextFieldType == false) {
             return false;
         }
         // and must be indexed

@@ -240,4 +240,24 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.0001);
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        GeoShapeQueryBuilder sqb;
+        do {
+            sqb = doCreateTestQueryBuilder();
+            // do this until we get one without a shape
+        } while (sqb.shape() != null);
+        try {
+            sqb.toQuery(queryShardContext());
+            fail();
+        } catch (UnsupportedOperationException e) {
+            assertEquals("query must be rewritten first", e.getMessage());
+        }
+        QueryBuilder<?> rewrite = sqb.rewrite(queryShardContext());
+        GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
+        geoShapeQueryBuilder.strategy(sqb.strategy());
+        geoShapeQueryBuilder.relation(sqb.relation());
+        assertEquals(geoShapeQueryBuilder, rewrite);
+    }
 }

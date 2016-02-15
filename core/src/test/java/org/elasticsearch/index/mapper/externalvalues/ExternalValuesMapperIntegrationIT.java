@@ -88,7 +88,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
                         .startObject("g")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("store", true)
                             .startObject("fields")
                                 .startObject("raw")

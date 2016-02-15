@@ -543,7 +543,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
         SearchContext.setCurrent(context);
-
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());

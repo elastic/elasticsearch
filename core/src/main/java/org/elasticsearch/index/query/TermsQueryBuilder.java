@@ -226,22 +226,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        List<Object> terms;
-        TermsLookup termsLookup = null;
-        if (this.termsLookup != null) {
-            termsLookup = new TermsLookup(this.termsLookup);
-            if (termsLookup.index() == null) {
-                termsLookup.index(context.index().getName());
-            }
-            Client client = context.getClient();
-            terms = fetch(termsLookup, client);
-        } else {
-            terms = values;
+        if (termsLookup != null) {
+            throw new UnsupportedOperationException("query must be rewritten first");
         }
-        if (terms == null || terms.isEmpty()) {
+        if (values == null || values.isEmpty()) {
             return Queries.newMatchNoDocsQuery();
         }
-        return handleTermsQuery(terms, fieldName, context);
+        return handleTermsQuery(values, fieldName, context);
     }
 
     private List<Object> fetch(TermsLookup termsLookup, Client client) {
@@ -323,4 +314,22 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 Objects.equals(values, other.values) &&
                 Objects.equals(termsLookup, other.termsLookup);
     }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (this.termsLookup != null) {
+            TermsLookup termsLookup = new TermsLookup(this.termsLookup);
+            if (termsLookup.index() == null) { // TODO this should go away?
+                if (queryRewriteContext.getIndexSettings() != null) {
+                    termsLookup.index(queryRewriteContext.getIndexSettings().getIndex().getName());
+                } else {
+                    return this; // can't rewrite until we have index scope on the shard
+                }
+            }
+            List<Object> values = fetch(termsLookup, queryRewriteContext.getClient());
+            return new TermsQueryBuilder(this.fieldName, values);
+        }
+        return this;
+    }
+
 }

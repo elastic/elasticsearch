@@ -200,10 +200,6 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
-        logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
-        logger.info("--> verifying get with no routing, should not find anything");
-
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc("field", "value2").execute().actionGet();
             fail("update with missing routing when routing is required should fail");

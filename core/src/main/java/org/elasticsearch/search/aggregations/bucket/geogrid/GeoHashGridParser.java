@@ -81,7 +81,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         Integer precision = (Integer) otherOptions.get(GeoHashGridParams.FIELD_PRECISION);
         if (precision != null) {
             factory.precision(precision);
-                }
+        }
         Integer size = (Integer) otherOptions.get(GeoHashGridParams.FIELD_SIZE);
         if (size != null) {
             factory.size(size);
@@ -106,10 +106,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             } else if (parseFieldMatcher.match(currentFieldName, GeoHashGridParams.FIELD_SHARD_SIZE)) {
                 otherOptions.put(GeoHashGridParams.FIELD_SHARD_SIZE, parser.intValue());
                 return true;
-        }
+            }
         }
         return false;
-        }
+    }
 
     public static class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorBuilder> {
 
@@ -121,7 +121,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
 
         public GeoGridAggregatorBuilder(String name) {
             super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-    }
+        }
 
         public GeoGridAggregatorBuilder precision(int precision) {
             this.precision = GeoHashGridParams.checkPrecision(precision);
@@ -185,9 +185,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected GeoGridAggregatorBuilder innerReadFrom(
-                String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) throws IOException {
+        protected GeoGridAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType,
+                StreamInput in) throws IOException {
             GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(name);
             factory.precision = in.readVInt();
             factory.requiredSize = in.readVInt();
@@ -200,7 +199,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             out.writeVInt(precision);
             out.writeVInt(requiredSize);
             out.writeVInt(shardSize);
-    }
+        }
 
         @Override
         protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
@@ -221,7 +220,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             }
             if (shardSize != other.shardSize) {
                 return false;
-                }
+            }
             return true;
         }
 

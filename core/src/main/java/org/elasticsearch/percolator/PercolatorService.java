@@ -145,7 +145,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
             long finalCount = 0;
             for (PercolateShardResponse shardResponse : shardResponses) {
                 finalCount += shardResponse.topDocs().totalHits;
-    }
+            }
 
             InternalAggregations reducedAggregations = reduceAggregations(shardResponses);
             return new PercolatorService.ReduceResult(finalCount, reducedAggregations);
@@ -269,24 +269,26 @@ public class PercolatorService extends AbstractComponent implements Releasable {
         } else {
             int size = context.size();
             if (size > context.searcher().getIndexReader().maxDoc()) {
-                // prevent easy OOM if more than the total number of docs that exist is requested...
+                // prevent easy OOM if more than the total number of docs that
+                // exist is requested...
                 size = context.searcher().getIndexReader().maxDoc();
-        }
+            }
             TopScoreDocCollector collector = TopScoreDocCollector.create(size);
             context.searcher().search(percolatorQuery, MultiCollector.wrap(collector, aggregatorCollector));
             if (aggregatorCollector != null) {
                 aggregatorCollector.postCollection();
                 aggregationPhase.execute(context);
-    }
+            }
 
             TopDocs topDocs = collector.topDocs();
             Map<Integer, String> ids = new HashMap<>(topDocs.scoreDocs.length);
             Map<Integer, Map<String, HighlightField>> hls = new HashMap<>(topDocs.scoreDocs.length);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 if (context.trackScores() == false) {
-                    // No sort or tracking scores was provided, so use special value to indicate to not show the scores:
+                    // No sort or tracking scores was provided, so use special
+                    // value to indicate to not show the scores:
                     scoreDoc.score = NO_SCORE;
-        }
+                }
 
                 int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
                 LeafReaderContext atomicReaderContext = context.searcher().getIndexReader().leaves().get(segmentIdx);
@@ -301,11 +303,11 @@ public class PercolatorService extends AbstractComponent implements Releasable {
                     context.hitContext().cache().clear();
                                 highlightPhase.hitExecute(context, context.hitContext());
                     hls.put(scoreDoc.doc, context.hitContext().hit().getHighlightFields());
-                            }
-                        }
-            return new PercolateShardResponse(topDocs, ids, hls, context);
                 }
             }
+            return new PercolateShardResponse(topDocs, ids, hls, context);
+        }
+    }
 
     @Override
     public void close() {
@@ -329,11 +331,12 @@ public class PercolatorService extends AbstractComponent implements Releasable {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new InternalAggregation.ReduceContext(bigArrays, scriptService));
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs),
+                            new InternalAggregation.ReduceContext(bigArrays, scriptService));
                     newAggs.add(newAgg);
-            }
+                }
                 aggregations = new InternalAggregations(newAggs);
-        }
+            }
         }
         return aggregations;
         }

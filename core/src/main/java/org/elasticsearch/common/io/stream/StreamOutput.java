@@ -645,15 +645,15 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link AggregatorBuilder} to the current stream
      */
-    public void writeAggregatorFactory(AggregatorBuilder factory) throws IOException {
-        writeNamedWriteable(factory);
+    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
     }
 
     /**
      * Writes a {@link PipelineAggregatorBuilder} to the current stream
      */
-    public void writePipelineAggregatorFactory(PipelineAggregatorBuilder factory) throws IOException {
-        writeNamedWriteable(factory);
+    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
     }
 
     /**

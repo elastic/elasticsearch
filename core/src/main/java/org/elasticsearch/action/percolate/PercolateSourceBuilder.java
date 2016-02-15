@@ -52,8 +52,8 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     private List<SortBuilder> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<AggregatorBuilder<?>> aggregationFactorys;
-    private List<PipelineAggregatorBuilder> pipelineAggregationFactorys;
+    private List<AggregatorBuilder<?>> aggregationBuilders;
+    private List<PipelineAggregatorBuilder> pipelineAggregationBuilders;
 
     /**
      * Sets the document to run the percolate queries against.
@@ -126,10 +126,10 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      * Add an aggregation definition.
      */
     public PercolateSourceBuilder addAggregation(AggregatorBuilder<?> aggregationBuilder) {
-        if (aggregationFactorys == null) {
-            aggregationFactorys = new ArrayList<>();
+        if (aggregationBuilders == null) {
+            aggregationBuilders = new ArrayList<>();
         }
-        aggregationFactorys.add(aggregationBuilder);
+        aggregationBuilders.add(aggregationBuilder);
         return this;
     }
 
@@ -137,10 +137,10 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      * Add an aggregation definition.
      */
     public PercolateSourceBuilder addAggregation(PipelineAggregatorBuilder aggregationBuilder) {
-        if (pipelineAggregationFactorys == null) {
-            pipelineAggregationFactorys = new ArrayList<>();
+        if (pipelineAggregationBuilders == null) {
+            pipelineAggregationBuilders = new ArrayList<>();
         }
-        pipelineAggregationFactorys.add(aggregationBuilder);
+        pipelineAggregationBuilders.add(aggregationBuilder);
         return this;
     }
 
@@ -172,16 +172,16 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
         }
-        if (aggregationFactorys != null || pipelineAggregationFactorys != null) {
+        if (aggregationBuilders != null || pipelineAggregationBuilders != null) {
             builder.field("aggregations");
             builder.startObject();
-            if (aggregationFactorys != null) {
-                for (AggregatorBuilder<?> aggregation : aggregationFactorys) {
+            if (aggregationBuilders != null) {
+                for (AggregatorBuilder<?> aggregation : aggregationBuilders) {
                     aggregation.toXContent(builder, params);
                 }
             }
-            if (pipelineAggregationFactorys != null) {
-                for (PipelineAggregatorBuilder aggregation : pipelineAggregationFactorys) {
+            if (pipelineAggregationBuilders != null) {
+                for (PipelineAggregatorBuilder aggregation : pipelineAggregationBuilders) {
                     aggregation.toXContent(builder, params);
                 }
             }

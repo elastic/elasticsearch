@@ -445,6 +445,13 @@ cloud:
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
 
+
+==== Mapper Attachments plugin deprecated
+
+Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
+plugin.
+
+
 [[breaking_30_java_api_changes]]
 === Java API changes
 

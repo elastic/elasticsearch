@@ -154,9 +154,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
                 }
             }
-            builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
-            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
-            builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -174,6 +171,17 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                         throw new MapperParsingException("positions_increment_gap less than 0 aren't allowed.");
                     }
                     builder.positionIncrementGap(newPositionIncrementGap);
+                    // we need to update to actual analyzers if they are not set in this case...
+                    // so we can inject the position increment gap...
+                    if (builder.fieldType().indexAnalyzer() == null) {
+                        builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
+                    }
+                    if (builder.fieldType().searchAnalyzer() == null) {
+                        builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+                    }
+                    if (builder.fieldType().searchQuoteAnalyzer() == null) {
+                        builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
+                    }
                     iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));

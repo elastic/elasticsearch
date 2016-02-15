@@ -61,7 +61,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
         final int numShards = between(1, 20);
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
-                .addMapping("type", "loc", "type=geo_point", "test", "type=string").execute().actionGet();
+                .addMapping("type", "loc", "type=geo_point", "test", "type=text").execute().actionGet();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);

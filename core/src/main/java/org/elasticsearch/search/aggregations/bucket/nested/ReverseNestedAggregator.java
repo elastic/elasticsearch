@@ -24,17 +24,14 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -47,6 +44,8 @@ import java.util.Map;
  *
  */
 public class ReverseNestedAggregator extends SingleBucketAggregator {
+
+    static final ParseField PATH_FIELD = new ParseField("path");
 
     private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
@@ -94,15 +93,6 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         };
     }
 
-    private static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
-        for (; parent != null; parent = parent.parent()) {
-            if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
-            }
-        }
-        return null;
-    }
-
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
@@ -116,53 +106,5 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     Query getParentFilter() {
         return parentFilter;
-    }
-
-    public static class Factory extends AggregatorFactory {
-
-        private final String path;
-
-        public Factory(String name, String path) {
-            super(name, InternalReverseNested.TYPE.name());
-            this.path = path;
-        }
-
-        @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            // Early validation
-            NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
-            if (closestNestedAggregator == null) {
-                throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name
-                        + "] can only be used inside a [nested] aggregation", null);
-            }
-
-            final ObjectMapper objectMapper;
-            if (path != null) {
-                objectMapper = context.searchContext().getObjectMapper(path);
-                if (objectMapper == null) {
-                    return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-                }
-                if (!objectMapper.nested().isNested()) {
-                    throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
-                }
-            } else {
-                objectMapper = null;
-            }
-            return new ReverseNestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
-        }
-
-        private final static class Unmapped extends NonCollectingAggregator {
-
-            public Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-                super(name, context, parent, pipelineAggregators, metaData);
-            }
-
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-            }
-        }
     }
 }

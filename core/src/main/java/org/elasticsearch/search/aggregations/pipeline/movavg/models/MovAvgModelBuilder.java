@@ -26,4 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
  * average models are used by the MovAvg aggregation
  */
 public interface MovAvgModelBuilder extends ToXContent {
+
+    public MovAvgModel build();
 }

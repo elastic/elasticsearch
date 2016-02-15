@@ -626,6 +626,12 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {
+                // if we are here, the defaultTimestamp is not
+                // TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP but
+                // this can only happen if defaultTimestamp was
+                // assigned again because mappingMd and
+                // mappingMd#timestamp() are not null
+                assert mappingMd != null;
                 timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), getVersion(metaData, concreteIndex));
             }
         }

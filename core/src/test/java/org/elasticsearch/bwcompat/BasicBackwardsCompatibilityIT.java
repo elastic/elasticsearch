@@ -561,7 +561,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testAnalyze() {
         createIndexWithAlias();
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,analyzer=keyword"));
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=text,analyzer=keyword"));
         ensureYellow("test");
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("this is a test").setIndex(indexOrAlias()).setField("field").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
@@ -586,7 +586,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testGetTermVector() throws IOException {
         createIndexWithAlias();
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=string,term_vector=with_positions_offsets_payloads").get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=text,term_vector=with_positions_offsets_payloads").get());
         ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "type1", "1")

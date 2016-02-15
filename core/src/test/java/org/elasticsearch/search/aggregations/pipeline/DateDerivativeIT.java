@@ -108,8 +108,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -150,8 +150,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count").unit(DateHistogramInterval.DAY))).execute()
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))).execute()
                 .actionGet();
 
         assertSearchResponse(response);
@@ -195,8 +195,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("sum")).subAggregation(sum("sum").field("value")))
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                            .subAggregation(sum("sum").field("value")).subAggregation(derivative("deriv", "sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -264,8 +264,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("dates").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("dates").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -319,8 +319,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -334,8 +334,8 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 

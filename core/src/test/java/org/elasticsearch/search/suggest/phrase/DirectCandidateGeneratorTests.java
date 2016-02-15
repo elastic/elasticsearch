@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
@@ -169,10 +170,10 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             }
         };
 
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, null, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, mockMapperService, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
-                StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
                 return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
             }
         };

@@ -173,6 +173,12 @@ header field for this purpose. Elasticsearch now uses the Accept header
 field and support for using the Content-Type header field for this
 purpose has been removed.
 
+==== Host field removed from the cat nodes API
+
+The `host` field has been removed from the cat nodes API as its value
+is always equal to the `ip` field. The `name` field is available in the
+cat nodes API and should be used instead of the `host` field.
+
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
 
@@ -438,6 +444,13 @@ cloud:
 ==== Cloud GCE plugin changes
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
+
+
+==== Mapper Attachments plugin deprecated
+
+Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
+plugin.
+
 
 [[breaking_30_java_api_changes]]
 === Java API changes

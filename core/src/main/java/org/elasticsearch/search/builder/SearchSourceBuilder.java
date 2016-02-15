@@ -40,14 +40,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -103,8 +106,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return PROTOTYPE.readFrom(in);
     }
 
-    public static SearchSourceBuilder parseSearchSource(XContentParser parser, QueryParseContext context) throws IOException {
-        return PROTOTYPE.fromXContent(parser, context);
+    public static SearchSourceBuilder parseSearchSource(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers)
+            throws IOException {
+        return PROTOTYPE.fromXContent(parser, context, aggParsers);
     }
 
     /**
@@ -149,7 +153,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
-    private List<BytesReference> aggregations;
+    private AggregatorFactories.Builder aggregations;
 
     private HighlightBuilder highlightBuilder;
 
@@ -410,26 +414,29 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Add an aggregation to perform as part of the search.
      */
-    public SearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) {
-        try {
+    public SearchSourceBuilder aggregation(AggregatorBuilder<?> aggregation) {
             if (aggregations == null) {
-                aggregations = new ArrayList<>();
+            aggregations = AggregatorFactories.builder();
             }
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            aggregation.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            aggregations.add(builder.bytes());
+        aggregations.addAggregator(aggregation);
             return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
+
+    /**
+     * Add an aggregation to perform as part of the search.
+     */
+    public SearchSourceBuilder aggregation(PipelineAggregatorBuilder aggregation) {
+            if (aggregations == null) {
+            aggregations = AggregatorFactories.builder();
+            }
+        aggregations.addPipelineAggregator(aggregation);
+            return this;
+        }
 
     /**
      * Gets the bytes representing the aggregation builders for this request.
      */
-    public List<BytesReference> aggregations() {
+    public AggregatorFactories.Builder aggregations() {
         return aggregations;
     }
 
@@ -727,7 +734,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return ext;
     }
 
-    public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
+    public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers)
+            throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -829,23 +837,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                     builder.indexBoost = indexBoost;
                 } else if (context.parseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
-                    List<BytesReference> aggregations = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        currentFieldName = parser.currentName();
-                        token = parser.nextToken();
-                        if (token == XContentParser.Token.START_OBJECT) {
-                            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
-                            xContentBuilder.startObject();
-                            xContentBuilder.field(currentFieldName);
-                            xContentBuilder.copyCurrentStructure(parser);
-                            xContentBuilder.endObject();
-                            aggregations.add(xContentBuilder.bytes());
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                    parser.getTokenLocation());
-                        }
-                    }
-                    builder.aggregations = aggregations;
+                    builder.aggregations = aggParsers.parseAggregators(parser, context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     builder.highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
@@ -1042,16 +1034,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (aggregations != null) {
-            builder.field(AGGREGATIONS_FIELD.getPreferredName());
-            builder.startObject();
-            for (BytesReference aggregation : aggregations) {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(aggregation);
-                parser.nextToken();
-                parser.nextToken();
-                builder.copyCurrentStructure(parser);
+            builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
             }
-            builder.endObject();
-        }
 
         if (highlightBuilder != null) {
             this.highlightBuilder.toXContent(builder, params);
@@ -1103,7 +1087,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             this(fieldName, script, false);
         }
 
-        private ScriptField(String fieldName, Script script, boolean ignoreFailure) {
+        public ScriptField(String fieldName, Script script, boolean ignoreFailure) {
             this.fieldName = fieldName;
             this.script = script;
             this.ignoreFailure = ignoreFailure;
@@ -1166,13 +1150,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public SearchSourceBuilder readFrom(StreamInput in) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<BytesReference> aggregations = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                aggregations.add(in.readBytesReference());
+            builder.aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
             }
-            builder.aggregations = aggregations;
-        }
         builder.explain = in.readOptionalBoolean();
         builder.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
         boolean hasFieldDataFields = in.readBoolean();
@@ -1277,10 +1256,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasAggregations = aggregations != null;
         out.writeBoolean(hasAggregations);
         if (hasAggregations) {
-            out.writeVInt(aggregations.size());
-            for (BytesReference aggregation : aggregations) {
-                out.writeBytesReference(aggregation);
-            }
+            aggregations.writeTo(out);
         }
         out.writeOptionalBoolean(explain);
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
@@ -1433,4 +1409,5 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(version, other.version)
                 && Objects.equals(profile, other.profile);
     }
+
 }

@@ -123,10 +123,11 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.addAggregator(new NestedAggregator.Factory("test", "nested_field"));
-        AggregatorFactories factories = builder.build();
+        NestedAggregatorBuilder factory = new NestedAggregatorBuilder("test", "nested_field");
+        builder.addAggregator(factory);
+        AggregatorFactories factories = builder.build(context, null);
         searchContext.aggregations(new SearchContextAggregations(factories));
-        Aggregator[] aggs = factories.createTopLevelAggregators(context);
+        Aggregator[] aggs = factories.createTopLevelAggregators();
         BucketCollector collector = BucketCollector.wrap(Arrays.asList(aggs));
         collector.preCollection();
         // A regular search always exclude nested docs, so we use NonNestedDocsFilter.INSTANCE here (otherwise MatchAllDocsQuery would be sufficient)

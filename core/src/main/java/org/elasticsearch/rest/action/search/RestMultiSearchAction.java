@@ -42,6 +42,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.Map;
@@ -58,11 +59,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final AggregatorParsers aggParsers;
 
 
     @Inject
-    public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry,
+            AggregatorParsers aggParsers) {
         super(settings, client);
+        this.aggParsers = aggParsers;
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
@@ -93,7 +97,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
         parseRequest(multiSearchRequest, RestActions.getRestContent(request), isTemplateRequest, indices, types,
                 request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex, indicesQueriesRegistry,
-                parseFieldMatcher);
+                parseFieldMatcher, aggParsers);
         client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
@@ -108,7 +112,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                                                    @Nullable String routing,
                                                    IndicesOptions indicesOptions,
                                                    boolean allowExplicitIndex, IndicesQueriesRegistry indicesQueriesRegistry,
-                                                   ParseFieldMatcher parseFieldMatcher) throws Exception {
+            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -189,7 +193,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             } else {
                 try (XContentParser requestParser = XContentFactory.xContent(slice).createParser(slice)) {
                     queryParseContext.reset(requestParser);
-                    searchRequest.source(SearchSourceBuilder.parseSearchSource(requestParser, queryParseContext));
+                    searchRequest.source(SearchSourceBuilder.parseSearchSource(requestParser, queryParseContext, aggParsers));
                 }
             }
             // move pointers

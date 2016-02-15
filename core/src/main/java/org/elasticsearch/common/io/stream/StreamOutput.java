@@ -41,6 +41,8 @@ import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.context.QueryContext;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -650,6 +652,20 @@ public abstract class StreamOutput extends OutputStream {
     void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
+    }
+
+    /**
+     * Writes a {@link AggregatorBuilder} to the current stream
+     */
+    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
+    }
+
+    /**
+     * Writes a {@link PipelineAggregatorBuilder} to the current stream
+     */
+    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
     }
 
     /**

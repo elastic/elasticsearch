@@ -26,7 +26,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -396,5 +395,19 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         } else {
             out.writeBoolean(false);
         }
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
+        if (rewrite != query) {
+            HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(type, rewrite);
+            hasChildQueryBuilder.minChildren = minChildren;
+            hasChildQueryBuilder.maxChildren = maxChildren;
+            hasChildQueryBuilder.scoreMode = scoreMode;
+            hasChildQueryBuilder.queryInnerHits = queryInnerHits;
+            return hasChildQueryBuilder;
+        }
+        return this;
     }
 }

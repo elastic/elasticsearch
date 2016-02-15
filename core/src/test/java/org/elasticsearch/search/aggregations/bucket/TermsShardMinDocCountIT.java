@@ -21,13 +21,10 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -37,6 +34,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -71,8 +71,8 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
-                        (new FilterAggregationBuilder("inclass").filter(QueryBuilders.termQuery("class", true)))
-                                .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
+                        (filter("inclass", QueryBuilders.termQuery("class", true)))
+                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
                 )
                 .execute()
                 .actionGet();
@@ -84,8 +84,8 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
         response = client().prepareSearch(index)
                 .addAggregation(
-                        (new FilterAggregationBuilder("inclass").filter(QueryBuilders.termQuery("class", true)))
-                                .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
+                        (filter("inclass", QueryBuilders.termQuery("class", true)))
+                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
                 )
                 .execute()
                 .actionGet();
@@ -127,7 +127,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
-                        new TermsBuilder("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()).order(Terms.Order.term(true))
+                        terms("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()).order(Terms.Order.term(true))
                 )
                 .execute()
                 .actionGet();
@@ -138,7 +138,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
         response = client().prepareSearch(index)
                 .addAggregation(
-                        new TermsBuilder("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()).order(Terms.Order.term(true))
+                        terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()).order(Terms.Order.term(true))
                 )
                 .execute()
                 .actionGet();

@@ -35,9 +35,13 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
@@ -451,6 +455,16 @@ class DocumentParser implements Closeable {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
                 builder = new StringFieldMapper.Builder(currentFieldName);
+            }
+        } else if (fieldType instanceof TextFieldType) {
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            if (builder == null) {
+                builder = new TextFieldMapper.Builder(currentFieldName);
+            }
+        } else if (fieldType instanceof KeywordFieldType) {
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            if (builder == null) {
+                builder = new KeywordFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof DateFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "date");

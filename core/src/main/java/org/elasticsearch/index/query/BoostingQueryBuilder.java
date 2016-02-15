@@ -158,4 +158,16 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         out.writeQuery(negativeQuery);
         out.writeFloat(negativeBoost);
     }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
+        QueryBuilder negativeQuery = this.negativeQuery.rewrite(queryRewriteContext);
+        if (positiveQuery != this.positiveQuery || negativeQuery != this.negativeQuery) {
+            BoostingQueryBuilder newQueryBuilder = new BoostingQueryBuilder(positiveQuery, negativeQuery);
+            newQueryBuilder.negativeBoost = negativeBoost;
+            return newQueryBuilder;
+        }
+        return this;
+    }
 }

@@ -259,12 +259,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         // Cases where search_quote_analyzer should be present.
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1")
-                    .field("type", "string")
-                    .field("position_increment_gap", 1000)
-                    .field("search_quote_analyzer", "simple")
-                .endObject()
-                .startObject("field2")
+                .startObject("field")
                     .field("type", "string")
                     .field("position_increment_gap", 1000)
                     .field("analyzer", "standard")
@@ -275,10 +270,8 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
-        for (String fieldName : Arrays.asList("field1", "field2")) {
-            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
-            assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
-        }
+        Map<String, Object> serializedMap = getSerializedMap("field", mapper);
+        assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
     }
 
     public void testSearchAnalyzerSerialization() throws IOException {

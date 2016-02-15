@@ -316,4 +316,10 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         checkGeneratedJson(json, parsed);
         assertEquals(json, -70.0, parsed.point().lon(), 0.0001);
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
+    }
 }

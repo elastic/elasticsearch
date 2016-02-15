@@ -84,12 +84,12 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .field("type", "nested")
                     .startObject("properties")
                         .startObject("message")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                     .endObject()
                 .endObject()
                 .startObject("title")
-                    .field("type", "string")
+                    .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()));
 
@@ -285,8 +285,8 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testSimpleParentChild() throws Exception {
         assertAcked(prepareCreate("articles")
-                .addMapping("article", "title", "type=string")
-                .addMapping("comment", "_parent", "type=article", "message", "type=string")
+                .addMapping("article", "title", "type=text")
+                .addMapping("comment", "_parent", "type=article", "message", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -506,8 +506,8 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsOnHasParent() throws Exception {
         assertAcked(prepareCreate("stack")
-                        .addMapping("question", "body", "type=string")
-                        .addMapping("answer", "_parent", "type=question", "body", "type=string")
+                        .addMapping("question", "body", "type=text")
+                        .addMapping("answer", "_parent", "type=question", "body", "type=text")
         );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("stack", "question", "1").setSource("body", "I'm using HTTPS + Basic authentication to protect a resource. How can I throttle authentication attempts to protect against brute force attacks?"));
@@ -544,9 +544,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles")
-                        .addMapping("article", "title", "type=string")
-                        .addMapping("comment", "_parent", "type=article", "message", "type=string")
-                        .addMapping("remark", "_parent", "type=comment", "message", "type=string")
+                        .addMapping("article", "title", "type=text")
+                        .addMapping("comment", "_parent", "type=article", "message", "type=text")
+                        .addMapping("remark", "_parent", "type=comment", "message", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -617,18 +617,18 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .field("type", "nested")
                     .startObject("properties")
                         .startObject("message")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                         .startObject("remarks")
                             .field("type", "nested")
                             .startObject("properties")
-                                .startObject("message").field("type", "string").endObject()
+                                .startObject("message").field("type", "text").endObject()
                             .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .startObject("title")
-                    .field("type", "string")
+                    .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()));
 
@@ -731,7 +731,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     // Issue #9723
     public void testNestedDefinedAsObject() throws Exception {
-        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=string"));
+        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
@@ -762,7 +762,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                     .startObject("comments")
                                         .field("type", "nested")
                                         .startObject("properties")
-                                            .startObject("message").field("type", "string").field("store", true).endObject()
+                                            .startObject("message").field("type", "text").field("store", true).endObject()
                                         .endObject()
                                     .endObject()
                                     .endObject()
@@ -800,7 +800,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                                 .startObject("comments")
                                                     .field("type", "nested")
                                                     .startObject("properties")
-                                                        .startObject("message").field("type", "string").field("store", true).endObject()
+                                                        .startObject("message").field("type", "text").field("store", true).endObject()
                                                     .endObject()
                                                 .endObject()
                                             .endObject()
@@ -838,7 +838,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .startObject("comments")
                                         .field("type", "nested")
                                         .startObject("properties")
-                                        .startObject("message").field("type", "string").field("store", true).endObject()
+                                        .startObject("message").field("type", "text").field("store", true).endObject()
                                         .endObject()
                                         .endObject()
                                         .endObject()
@@ -877,7 +877,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .startObject("comments")
                                         .field("type", "nested")
                                         .startObject("properties")
-                                        .startObject("message").field("type", "string").field("store", true).endObject()
+                                        .startObject("message").field("type", "text").field("store", true).endObject()
                                         .endObject()
                                         .endObject()
                                         .endObject()

@@ -72,7 +72,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testString() {
-        createIndex("test", Settings.EMPTY, "test", "field", "type=string");
+        createIndex("test", Settings.EMPTY, "test", "field", "type=text");
         for (int value = 0; value <= 10; value++) {
             client().prepareIndex("test", "test").setSource("field", String.format(Locale.ENGLISH, "%03d", value)).get();
         }
@@ -185,11 +185,11 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidField() {
-        createIndex("test1", Settings.EMPTY, "test", "field1", "type=string");
+        createIndex("test1", Settings.EMPTY, "test", "field1", "type=text");
         client().prepareIndex("test1", "test").setSource("field1", "a").get();
         client().prepareIndex("test1", "test").setSource("field1", "b").get();
 
-        createIndex("test2", Settings.EMPTY, "test", "field2",  "type=string");
+        createIndex("test2", Settings.EMPTY, "test", "field2",  "type=text");
         client().prepareIndex("test2", "test").setSource("field2", "a").get();
         client().prepareIndex("test2", "test").setSource("field2", "b").get();
         client().admin().indices().prepareRefresh().get();

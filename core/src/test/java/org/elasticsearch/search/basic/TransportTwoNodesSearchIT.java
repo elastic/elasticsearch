@@ -344,8 +344,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
                 .aggregation(AggregationBuilders.global("global").subAggregation(
-                        AggregationBuilders.filter("all").filter(termQuery("multi", "test"))))
-                .aggregation(AggregationBuilders.filter("test1").filter(termQuery("name", "test1")));
+                        AggregationBuilders.filter("all", termQuery("multi", "test"))))
+                .aggregation(AggregationBuilders.filter("test1", termQuery("name", "test1")));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertNoFailures(searchResponse);

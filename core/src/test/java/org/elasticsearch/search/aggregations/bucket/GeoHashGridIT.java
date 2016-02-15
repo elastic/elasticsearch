@@ -205,7 +205,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(
-                            AggregationBuilders.filter("filtered").filter(bbox)
+                            AggregationBuilders.filter("filtered", bbox)
                                     .subAggregation(
                                             geohashGrid("geohashgrid")
                                                     .field("location")

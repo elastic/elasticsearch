@@ -253,12 +253,12 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetDocWithMultivaluedFields() throws Exception {
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
-                .startObject("field").field("type", "string").field("store", true).endObject()
+                .startObject("field").field("type", "text").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties")
-                .startObject("field").field("type", "string").field("store", true).endObject()
+                .startObject("field").field("type", "text").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
@@ -718,7 +718,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
                         .startObject("field1").startObject("properties")
-                        .startObject("field2").field("type", "string").endObject()
+                        .startObject("field2").field("type", "text").endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject())
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
@@ -846,7 +846,7 @@ public class GetActionIT extends ESIntegTestCase {
                         .endObject()
                         .startObject("properties")
                         .startObject("some_field")
-                        .field("type", "string")
+                        .field("type", "text")
                         .endObject()
                         .endObject()
                         .endObject()

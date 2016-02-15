@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -122,7 +122,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             }
         }
 
-        RangeBuilder query = range("range").field("values");
+        RangeAggregatorBuilder query = range("range").field("values");
         for (int i = 0; i < ranges.length; ++i) {
             String key = Integer.toString(i);
             if (ranges[i][0] == Double.NEGATIVE_INFINITY) {
@@ -143,7 +143,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             if (ranges[i][1] != Double.POSITIVE_INFINITY){
                 filter = filter.to(ranges[i][1]);
             }
-            reqBuilder = reqBuilder.addAggregation(filter("filter" + i).filter(filter));
+            reqBuilder = reqBuilder.addAggregation(filter("filter" + i, filter));
         }
 
         SearchResponse resp = reqBuilder.execute().actionGet();
@@ -234,15 +234,16 @@ public class EquivalenceTests extends ESIntegTestCase {
 
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
-        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[]{
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH,
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
+        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[] {
+                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
         };
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms)
+                        .subAggregation(stats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
@@ -350,7 +351,7 @@ public class EquivalenceTests extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
         ensureYellow("idx"); // only one document let's make sure all shards have an active primary
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("filter").filter(QueryBuilders.matchAllQuery())
+                .addAggregation(filter("filter", QueryBuilders.matchAllQuery())
                 .subAggregation(range("range")
                         .field("f")
                         .addUnboundedTo(6)

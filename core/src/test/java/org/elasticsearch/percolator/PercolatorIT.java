@@ -178,7 +178,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testSimple2() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long,doc_values=true", "field2", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long,doc_values=true", "field2", "type=text"));
         ensureGreen();
 
         // introduce the doc
@@ -315,7 +315,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .startObject("properties")
-                .startObject("filingcategory").field("type", "string").field("analyzer", "lwhitespacecomma").endObject()
+                .startObject("filingcategory").field("type", "text").field("analyzer", "lwhitespacecomma").endObject()
                 .endObject()
                 .endObject().endObject();
 
@@ -346,7 +346,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testCreateIndexAndThenRegisterPercolator() throws Exception {
         prepareCreate("test")
-                .addMapping("type1", "field1", "type=string")
+                .addMapping("type1", "field1", "type=text")
                 .get();
         ensureGreen();
 
@@ -394,7 +394,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testMultiplePercolators() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=text"));
         ensureGreen();
 
         logger.info("--> register a query 1");
@@ -436,7 +436,7 @@ public class PercolatorIT extends ESIntegTestCase {
     public void testDynamicAddingRemovingQueries() throws Exception {
         assertAcked(
                 prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string")
+                        .addMapping("type1", "field1", "type=text")
         );
         ensureGreen();
 
@@ -1273,7 +1273,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testPercolateSortingUnsupportedField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", "field", "type=string")
+                .addMapping("my-type", "field", "type=text")
                 .addMapping(PercolatorService.TYPE_NAME, "level", "type=integer", "query", "type=object,enabled=false")
                 .get();
         ensureGreen();
@@ -1312,7 +1312,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testPercolatorWithHighlighting() throws Exception {
-        StringBuilder fieldMapping = new StringBuilder("type=string")
+        StringBuilder fieldMapping = new StringBuilder("type=text")
                 .append(",store=").append(randomBoolean());
         if (randomBoolean()) {
             fieldMapping.append(",term_vector=with_positions_offsets");
@@ -1521,7 +1521,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testPercolateNonMatchingConstantScoreQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("doc", "message", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("doc", "message", "type=text"));
         ensureGreen();
 
         logger.info("--> register a query");
@@ -1646,9 +1646,9 @@ public class PercolatorIT extends ESIntegTestCase {
 
     void initNestedIndexAndPercolation() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject().startObject("properties").startObject("companyname").field("type", "string").endObject()
+        mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()
                 .startObject("employee").field("type", "nested").startObject("properties")
-                .startObject("name").field("type", "string").endObject().endObject().endObject().endObject()
+                .startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("nestedindex").addMapping("company", mapping));
@@ -1869,7 +1869,7 @@ public class PercolatorIT extends ESIntegTestCase {
                             .field("type", "nested")
                             .startObject("properties")
                                 .startObject("name")
-                                    .field("type", "string")
+                                    .field("type", "text")
                                 .endObject()
                             .endObject()
                         .endObject()

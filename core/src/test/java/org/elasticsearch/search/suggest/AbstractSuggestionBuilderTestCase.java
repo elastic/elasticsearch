@@ -241,8 +241,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             }
         };
 
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null,
-                                                                      scriptService, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, mockMapperService, null, scriptService, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);

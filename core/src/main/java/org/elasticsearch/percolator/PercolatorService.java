@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
@@ -70,6 +71,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -98,23 +100,25 @@ public class PercolatorService extends AbstractComponent implements Releasable {
     private final HighlightPhase highlightPhase;
     private final AggregationPhase aggregationPhase;
     private final PageCacheRecycler pageCacheRecycler;
-    private final ParseFieldMatcher parseFieldMatcher;
     private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final PercolateDocumentParser percolateDocumentParser;
 
     private final PercolatorIndex single;
     private final PercolatorIndex multi;
+    private final ParseFieldMatcher parseFieldMatcher;
+    private final FetchPhase fetchPhase;
 
     @Inject
     public PercolatorService(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
                              HighlightPhase highlightPhase, ClusterService clusterService,
                              AggregationPhase aggregationPhase, ScriptService scriptService,
-                             PercolateDocumentParser percolateDocumentParser) {
+                             PercolateDocumentParser percolateDocumentParser, FetchPhase fetchPhase) {
         super(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.percolateDocumentParser = percolateDocumentParser;
+        this.fetchPhase = fetchPhase;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.indicesService = indicesService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -185,10 +189,10 @@ public class PercolatorService extends AbstractComponent implements Releasable {
         );
         Query aliasFilter = percolateIndexService.aliasFilter(percolateIndexService.newQueryShardContext(), filteringAliases);
 
-        SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
-        final PercolateContext context = new PercolateContext(
-                request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService, aliasFilter, parseFieldMatcher
-        );
+        SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(),
+                request.shardId().id());
+        final PercolateContext context = new PercolateContext(request, searchShardTarget, indexShard, percolateIndexService,
+                pageCacheRecycler, bigArrays, scriptService, aliasFilter, parseFieldMatcher, fetchPhase);
         SearchContext.setCurrent(context);
         try {
             ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService());
@@ -215,15 +219,14 @@ public class PercolatorService extends AbstractComponent implements Releasable {
             if (context.aggregations() != null) {
                 AggregationContext aggregationContext = new AggregationContext(context);
                 context.aggregations().aggregationContext(aggregationContext);
-
-                Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+                Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
                 List<Aggregator> aggregatorCollectors = new ArrayList<>(aggregators.length);
                 for (int i = 0; i < aggregators.length; i++) {
                     if (!(aggregators[i] instanceof GlobalAggregator)) {
                         Aggregator aggregator = aggregators[i];
                         aggregatorCollectors.add(aggregator);
-                    }
                 }
+            }
                 context.aggregations().aggregators(aggregators);
                 aggregatorCollector = BucketCollector.wrap(aggregatorCollectors);
                 aggregatorCollector.preCollection();
@@ -245,14 +248,14 @@ public class PercolatorService extends AbstractComponent implements Releasable {
         }
         if (context.percolateQuery() != null || context.aliasFilter() != null) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            if (context.percolateQuery() != null) {
+                        if (context.percolateQuery() != null) {
                 bq.add(context.percolateQuery(), MUST);
-            }
+                        }
             if (context.aliasFilter() != null) {
                 bq.add(context.aliasFilter(), FILTER);
-            }
+                        }
             builder.setPercolateQuery(bq.build());
-        }
+                    }
         PercolatorQuery percolatorQuery = builder.build();
 
         if (context.isOnlyCount() || context.size() == 0) {
@@ -261,12 +264,13 @@ public class PercolatorService extends AbstractComponent implements Releasable {
             if (aggregatorCollector != null) {
                 aggregatorCollector.postCollection();
                 aggregationPhase.execute(context);
-            }
+                        }
             return new PercolateShardResponse(new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0f), Collections.emptyMap(), Collections.emptyMap(), context);
         } else {
             int size = context.size();
             if (size > context.searcher().getIndexReader().maxDoc()) {
-                // prevent easy OOM if more than the total number of docs that exist is requested...
+                // prevent easy OOM if more than the total number of docs that
+                // exist is requested...
                 size = context.searcher().getIndexReader().maxDoc();
             }
             TopScoreDocCollector collector = TopScoreDocCollector.create(size);
@@ -281,7 +285,8 @@ public class PercolatorService extends AbstractComponent implements Releasable {
             Map<Integer, Map<String, HighlightField>> hls = new HashMap<>(topDocs.scoreDocs.length);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 if (context.trackScores() == false) {
-                    // No sort or tracking scores was provided, so use special value to indicate to not show the scores:
+                    // No sort or tracking scores was provided, so use special
+                    // value to indicate to not show the scores:
                     scoreDoc.score = NO_SCORE;
                 }
 
@@ -296,7 +301,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
                     Query query = queriesRegistry.getPercolateQueries().get(new BytesRef(id));
                     context.parsedQuery(new ParsedQuery(query));
                     context.hitContext().cache().clear();
-                    highlightPhase.hitExecute(context, context.hitContext());
+                                highlightPhase.hitExecute(context, context.hitContext());
                     hls.put(scoreDoc.doc, context.hitContext().hit().getHighlightFields());
                 }
             }
@@ -307,7 +312,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
     @Override
     public void close() {
         cache.close();
-    }
+        }
 
     private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults) {
         if (shardResults.get(0).aggregations() == null) {
@@ -326,14 +331,15 @@ public class PercolatorService extends AbstractComponent implements Releasable {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new InternalAggregation.ReduceContext(bigArrays, scriptService));
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs),
+                            new InternalAggregation.ReduceContext(bigArrays, scriptService));
                     newAggs.add(newAgg);
                 }
                 aggregations = new InternalAggregations(newAggs);
             }
         }
         return aggregations;
-    }
+        }
 
     public final static class ReduceResult {
 

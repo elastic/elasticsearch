@@ -69,10 +69,6 @@ public class OperationRouting extends AbstractComponent {
         return preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
-    public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) {
-        return indexRoutingTable(clusterState, index).groupByShardsIt();
-    }
-
     public int searchShardsCount(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         return shards.size();

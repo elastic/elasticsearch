@@ -1,4 +1,4 @@
-[[search-aggregations-bucket-sampler-aggregation]]
+[[search-aggregations-bucket-diversified-sampler-aggregation]]
 === Sampler Aggregation
 
 experimental[]

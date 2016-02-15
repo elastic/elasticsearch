@@ -46,7 +46,7 @@ Response:
         "aggregations": {
         "sample": {
             "doc_count": 1000,<1>
-            "keywords": {<2>
+            "keywords": {
                 "doc_count": 1000,
                 "buckets": [
                     ...

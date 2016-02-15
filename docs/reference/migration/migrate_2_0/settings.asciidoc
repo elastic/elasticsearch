@@ -37,8 +37,8 @@ achieve the same result:
 
 [source,yaml]
 ---------------
-script.inline: on
-script.indexed: on
+script.inline: true
+script.indexed: true
 ---------------
 
 ==== Units required for time and byte-sized settings

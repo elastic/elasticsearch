@@ -30,13 +30,13 @@ public class StatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+    protected StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
             String bucketsPath, Map<String, Object> unparsedParams) {
-        return new StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        return new StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public StatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return StatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

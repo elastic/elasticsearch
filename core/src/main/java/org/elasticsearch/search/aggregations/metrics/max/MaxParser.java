@@ -49,14 +49,14 @@ public class MaxParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected MaxAggregator.MaxAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected MaxAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MaxAggregator.MaxAggregatorBuilder(aggregationName);
+        return new MaxAggregatorBuilder(aggregationName);
     }
 
     @Override
-    public MaxAggregator.MaxAggregatorBuilder getFactoryPrototypes() {
-        return MaxAggregator.MaxAggregatorBuilder.PROTOTYPE;
+    public MaxAggregatorBuilder getFactoryPrototypes() {
+        return MaxAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.range.date;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -32,7 +32,7 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 
-public class DateRangeAggregatorBuilder extends AbstractBuilder<DateRangeAggregatorBuilder, RangeAggregator.Range> {
+public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAggregatorBuilder, RangeAggregator.Range> {
 
     static final DateRangeAggregatorBuilder PROTOTYPE = new DateRangeAggregatorBuilder("");
 

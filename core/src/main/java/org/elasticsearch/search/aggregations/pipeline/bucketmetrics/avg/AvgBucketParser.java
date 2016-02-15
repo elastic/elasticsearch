@@ -30,13 +30,13 @@ public class AvgBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+    protected AvgBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
             Map<String, Object> unparsedParams) {
-        return new AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        return new AvgBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public AvgBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return AvgBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

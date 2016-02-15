@@ -41,7 +41,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
+    public DerivativePipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
             QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -89,8 +89,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder factory =
-                new DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        DerivativePipelineAggregatorBuilder factory =
+                new DerivativePipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -104,8 +104,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder getFactoryPrototype() {
-        return DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder.PROTOTYPE;
+    public DerivativePipelineAggregatorBuilder getFactoryPrototype() {
+        return DerivativePipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

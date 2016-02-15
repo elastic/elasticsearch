@@ -22,10 +22,9 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.HistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorBuilder;
 
-public class HistogramTests extends BaseAggregationTestCase<HistogramAggregator.HistogramAggregatorBuilder> {
+public class HistogramTests extends BaseAggregationTestCase<HistogramAggregatorBuilder> {
 
     @Override
     protected HistogramAggregatorBuilder createTestAggregatorBuilder() {

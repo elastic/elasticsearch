@@ -36,7 +36,7 @@ public class SamplerParser implements Aggregator.Parser {
     }
 
     @Override
-    public SamplerAggregator.SamplerAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public SamplerAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
 
         XContentParser.Token token;
@@ -59,7 +59,7 @@ public class SamplerParser implements Aggregator.Parser {
             }
         }
 
-        SamplerAggregator.SamplerAggregatorBuilder factory = new SamplerAggregator.SamplerAggregatorBuilder(aggregationName);
+        SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(aggregationName);
         if (shardSize != null) {
             factory.shardSize(shardSize);
         }
@@ -67,8 +67,8 @@ public class SamplerParser implements Aggregator.Parser {
     }
 
     @Override
-    public SamplerAggregator.SamplerAggregatorBuilder getFactoryPrototypes() {
-        return SamplerAggregator.SamplerAggregatorBuilder.PROTOTYPE;
+    public SamplerAggregatorBuilder getFactoryPrototypes() {
+        return SamplerAggregatorBuilder.PROTOTYPE;
     }
 
 }

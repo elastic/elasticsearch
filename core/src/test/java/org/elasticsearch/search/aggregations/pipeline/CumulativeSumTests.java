@@ -20,11 +20,9 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregatorBuilder;
 
-public class CumulativeSumTests
-        extends BasePipelineAggregationTestCase<CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder> {
+public class CumulativeSumTests extends BasePipelineAggregationTestCase<CumulativeSumPipelineAggregatorBuilder> {
 
     @Override
     protected CumulativeSumPipelineAggregatorBuilder createTestAggregatorFactory() {

@@ -28,8 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import java.io.IOException;
 import java.util.Objects;
 
-public class IPv4RangeAggregatorBuilder extends AbstractBuilder<IPv4RangeAggregatorBuilder, IPv4RangeAggregatorBuilder.Range> {
+public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAggregatorBuilder, IPv4RangeAggregatorBuilder.Range> {
 
     static final IPv4RangeAggregatorBuilder PROTOTYPE = new IPv4RangeAggregatorBuilder("");
 

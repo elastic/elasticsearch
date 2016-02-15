@@ -22,11 +22,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.FiltersAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorBuilder;
 
-public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.FiltersAggregatorBuilder> {
+public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuilder> {
 
     @Override
     protected FiltersAggregatorBuilder createTestAggregatorBuilder() {

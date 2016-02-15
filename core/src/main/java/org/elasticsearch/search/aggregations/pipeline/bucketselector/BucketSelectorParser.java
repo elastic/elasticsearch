@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.having;
+package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -45,7 +45,7 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
+    public BucketSelectorPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
             QueryParseContext context) throws IOException {
         XContentParser.Token token;
         Script script = null;
@@ -111,8 +111,8 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
                     + "] for bucket_selector aggregation [" + reducerName + "]");
         }
 
-        BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder factory =
-                new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
+        BucketSelectorPipelineAggregatorBuilder factory =
+                new BucketSelectorPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (gapPolicy != null) {
             factory.gapPolicy(gapPolicy);
         }
@@ -121,8 +121,8 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder getFactoryPrototype() {
-        return BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder.PROTOTYPE;
+    public BucketSelectorPipelineAggregatorBuilder getFactoryPrototype() {
+        return BucketSelectorPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

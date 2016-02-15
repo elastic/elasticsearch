@@ -22,27 +22,19 @@ package org.elasticsearch.search.aggregations.metrics.geocentroid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -125,47 +117,5 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
     @Override
     public void doClose() {
         Releasables.close(centroids, counts);
-    }
-
-    public static class GeoCentroidAggregatorBuilder
-            extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregatorBuilder> {
-
-        static final GeoCentroidAggregatorBuilder PROTOTYPE = new GeoCentroidAggregatorBuilder("");
-
-        public GeoCentroidAggregatorBuilder(String name) {
-            super(name, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-        }
-
-        @Override
-        protected GeoCentroidAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-            return new GeoCentroidAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected GeoCentroidAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) throws IOException {
-            return new GeoCentroidAggregatorBuilder(name);
-        }
-
-        @Override
-        protected void innerWriteTo(StreamOutput out) {
-            // Do nothing, no extra state to write to stream
-        }
-
-        @Override
-        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            return true;
-        }
     }
 }

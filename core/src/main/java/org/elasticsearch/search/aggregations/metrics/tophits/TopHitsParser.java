@@ -45,9 +45,9 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public TopHitsAggregator.TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
-        TopHitsAggregator.TopHitsAggregatorBuilder factory = new TopHitsAggregator.TopHitsAggregatorBuilder(aggregationName);
+        TopHitsAggregatorBuilder factory = new TopHitsAggregatorBuilder(aggregationName);
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -178,8 +178,8 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public TopHitsAggregator.TopHitsAggregatorBuilder getFactoryPrototypes() {
-        return TopHitsAggregator.TopHitsAggregatorBuilder.PROTOTYPE;
+    public TopHitsAggregatorBuilder getFactoryPrototypes() {
+        return TopHitsAggregatorBuilder.PROTOTYPE;
     }
 
 }

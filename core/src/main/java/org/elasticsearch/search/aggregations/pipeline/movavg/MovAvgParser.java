@@ -56,7 +56,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
+    public MovAvgPipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
             QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -140,8 +140,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                     + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
         }
 
-        MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder factory =
-                new MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        MovAvgPipelineAggregatorBuilder factory =
+                new MovAvgPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -176,8 +176,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder getFactoryPrototype() {
-        return MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder.PROTOTYPE;
+    public MovAvgPipelineAggregatorBuilder getFactoryPrototype() {
+        return MovAvgPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

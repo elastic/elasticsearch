@@ -51,9 +51,9 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected RangeAggregator.AbstractBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        RangeAggregator.RangeAggregatorBuilder factory = new RangeAggregator.RangeAggregatorBuilder(aggregationName);
+        RangeAggregatorBuilder factory = new RangeAggregatorBuilder(aggregationName);
         @SuppressWarnings("unchecked")
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {
@@ -94,7 +94,7 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public RangeAggregator.AbstractBuilder<?, ?> getFactoryPrototypes() {
-        return RangeAggregator.RangeAggregatorBuilder.PROTOTYPE;
+    public AbstractRangeBuilder<?, ?> getFactoryPrototypes() {
+        return RangeAggregatorBuilder.PROTOTYPE;
     }
 }

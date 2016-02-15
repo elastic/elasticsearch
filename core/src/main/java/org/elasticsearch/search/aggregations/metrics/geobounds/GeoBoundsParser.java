@@ -42,9 +42,9 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoBoundsAggregator.GeoBoundsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected GeoBoundsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoBoundsAggregator.GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregator.GeoBoundsAggregatorBuilder(aggregationName);
+        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(aggregationName);
         Boolean wrapLongitude = (Boolean) otherOptions.get(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
         if (wrapLongitude != null) {
             factory.wrapLongitude(wrapLongitude);
@@ -65,8 +65,8 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public GeoBoundsAggregator.GeoBoundsAggregatorBuilder getFactoryPrototypes() {
-        return GeoBoundsAggregator.GeoBoundsAggregatorBuilder.PROTOTYPE;
+    public GeoBoundsAggregatorBuilder getFactoryPrototypes() {
+        return GeoBoundsAggregatorBuilder.PROTOTYPE;
     }
 
 }

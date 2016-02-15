@@ -20,14 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator.GlobalAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregatorBuilder;
 
-public class GlobalTests extends BaseAggregationTestCase<GlobalAggregator.GlobalAggregatorBuilder> {
+public class GlobalTests extends BaseAggregationTestCase<GlobalAggregatorBuilder> {
 
     @Override
     protected GlobalAggregatorBuilder createTestAggregatorBuilder() {
-        return new GlobalAggregator.GlobalAggregatorBuilder(randomAsciiOfLengthBetween(3, 20));
+        return new GlobalAggregatorBuilder(randomAsciiOfLengthBetween(3, 20));
     }
 
 }

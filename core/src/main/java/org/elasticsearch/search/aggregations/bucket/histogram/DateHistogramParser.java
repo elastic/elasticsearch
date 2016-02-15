@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.DateHistogramAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -50,7 +49,7 @@ public class DateHistogramParser extends HistogramParser {
     @Override
     protected DateHistogramAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        HistogramAggregator.DateHistogramAggregatorBuilder factory = new HistogramAggregator.DateHistogramAggregatorBuilder(aggregationName);
+        DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder(aggregationName);
         Object interval = otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
@@ -100,6 +99,6 @@ public class DateHistogramParser extends HistogramParser {
 
     @Override
     public DateHistogramAggregatorBuilder getFactoryPrototypes() {
-        return HistogramAggregator.DateHistogramAggregatorBuilder.PROTOTYPE;
+        return DateHistogramAggregatorBuilder.PROTOTYPE;
     }
 }

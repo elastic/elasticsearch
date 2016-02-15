@@ -40,7 +40,7 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder parse(String pipelineAggregatorName,
+    public CumulativeSumPipelineAggregatorBuilder parse(String pipelineAggregatorName,
             XContentParser parser, QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -82,8 +82,8 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder factory =
-                new CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        CumulativeSumPipelineAggregatorBuilder factory =
+                new CumulativeSumPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -91,8 +91,8 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder getFactoryPrototype() {
-        return CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder.PROTOTYPE;
+    public CumulativeSumPipelineAggregatorBuilder getFactoryPrototype() {
+        return CumulativeSumPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

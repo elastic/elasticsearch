@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregator;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregatorBuilder;
 
-public class MissingTests extends BaseAggregationTestCase<MissingAggregator.MissingAggregatorBuilder> {
+public class MissingTests extends BaseAggregationTestCase<MissingAggregatorBuilder> {
 
     @Override
-    protected final MissingAggregator.MissingAggregatorBuilder createTestAggregatorBuilder() {
-        MissingAggregator.MissingAggregatorBuilder factory = new MissingAggregator.MissingAggregatorBuilder("foo", null);
+    protected final MissingAggregatorBuilder createTestAggregatorBuilder() {
+        MissingAggregatorBuilder factory = new MissingAggregatorBuilder("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

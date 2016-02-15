@@ -31,14 +31,14 @@ public class MaxBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+    protected MaxBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
             Map<String, Object> unparsedParams) {
-        return new MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        return new MaxBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public MaxBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return MaxBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

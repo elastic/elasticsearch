@@ -20,16 +20,11 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -93,61 +88,6 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         return new InternalStatsBucket(name(), count, sum, min, max, formatter, pipelineAggregators, metadata);
-    }
-
-    public static class StatsBucketPipelineAggregatorBuilder
-            extends BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> {
-
-        static final StatsBucketPipelineAggregatorBuilder PROTOTYPE = new StatsBucketPipelineAggregatorBuilder("", "");
-
-        public StatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-            this(name, new String[] { bucketsPath });
-        }
-
-        private StatsBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-            super(name, TYPE.name(), bucketsPaths);
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new StatsBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-        }
-
-        @Override
-        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
-
-        @Override
-        protected StatsBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-                throws IOException {
-            return new StatsBucketPipelineAggregatorBuilder(name, bucketsPaths);
-        }
-
-        @Override
-        protected void innerWriteTo(StreamOutput out) throws IOException {
-            // Do nothing, no extra state to write to stream
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> other) {
-            return true;
-        }
-
     }
 
 }

@@ -53,7 +53,7 @@ public class FiltersParser implements Aggregator.Parser {
     }
 
     @Override
-    public FiltersAggregator.FiltersAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public FiltersAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
 
         List<FiltersAggregator.KeyedFilter> keyedFilters = null;
@@ -124,12 +124,12 @@ public class FiltersParser implements Aggregator.Parser {
             otherBucketKey = "_other_";
         }
 
-        FiltersAggregator.FiltersAggregatorBuilder factory;
+        FiltersAggregatorBuilder factory;
         if (keyedFilters != null) {
-            factory = new FiltersAggregator.FiltersAggregatorBuilder(aggregationName,
+            factory = new FiltersAggregatorBuilder(aggregationName,
                     keyedFilters.toArray(new FiltersAggregator.KeyedFilter[keyedFilters.size()]));
         } else {
-            factory = new FiltersAggregator.FiltersAggregatorBuilder(aggregationName,
+            factory = new FiltersAggregatorBuilder(aggregationName,
                     nonKeyedFilters.toArray(new QueryBuilder<?>[nonKeyedFilters.size()]));
         }
         if (otherBucket != null) {
@@ -142,8 +142,8 @@ public class FiltersParser implements Aggregator.Parser {
     }
 
     @Override
-    public FiltersAggregator.FiltersAggregatorBuilder getFactoryPrototypes() {
-        return FiltersAggregator.FiltersAggregatorBuilder.PROTOTYPE;
+    public FiltersAggregatorBuilder getFactoryPrototypes() {
+        return FiltersAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -21,34 +21,22 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Aggregate on only the top-scoring docs on a shard.
@@ -189,189 +177,6 @@ public class SamplerAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalSampler(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-    }
-
-    public static class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregatorBuilder> {
-
-        static final SamplerAggregatorBuilder PROTOTYPE = new SamplerAggregatorBuilder("");
-
-        public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
-
-        private int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;
-
-        public SamplerAggregatorBuilder(String name) {
-            super(name, InternalSampler.TYPE);
-        }
-
-        /**
-         * Set the max num docs to be returned from each shard.
-         */
-        public SamplerAggregatorBuilder shardSize(int shardSize) {
-            this.shardSize = shardSize;
-            return this;
-        }
-
-        /**
-         * Get the max num docs to be returned from each shard.
-         */
-        public int shardSize() {
-            return shardSize;
-        }
-
-        @Override
-        protected SamplerAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
-                throws IOException {
-            return new SamplerAggregatorFactory(name, type, shardSize, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(SHARD_SIZE_FIELD.getPreferredName(), shardSize);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        protected SamplerAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-            SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(name);
-            factory.shardSize = in.readVInt();
-            return factory;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeVInt(shardSize);
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(shardSize);
-        }
-
-        @Override
-        protected boolean doEquals(Object obj) {
-            SamplerAggregatorBuilder other = (SamplerAggregatorBuilder) obj;
-            return Objects.equals(shardSize, other.shardSize);
-        }
-
-    }
-
-    public static class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, DiversifiedAggregatorBuilder> {
-
-        public static final Type TYPE = new Type("diversified_sampler");
-
-        static final DiversifiedAggregatorBuilder PROTOTYPE = new DiversifiedAggregatorBuilder("");
-
-        public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
-
-        private int shardSize = SamplerAggregatorBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
-        private int maxDocsPerValue = MAX_DOCS_PER_VALUE_DEFAULT;
-        private String executionHint = null;
-
-        public DiversifiedAggregatorBuilder(String name) {
-            super(name, TYPE, ValuesSourceType.ANY, null);
-        }
-
-        /**
-         * Set the max num docs to be returned from each shard.
-         */
-        public DiversifiedAggregatorBuilder shardSize(int shardSize) {
-            if (shardSize < 0) {
-                throw new IllegalArgumentException(
-                        "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
-            }
-            this.shardSize = shardSize;
-            return this;
-        }
-
-        /**
-         * Get the max num docs to be returned from each shard.
-         */
-        public int shardSize() {
-            return shardSize;
-        }
-
-        /**
-         * Set the max num docs to be returned per value.
-         */
-        public DiversifiedAggregatorBuilder maxDocsPerValue(int maxDocsPerValue) {
-            if (maxDocsPerValue < 0) {
-                throw new IllegalArgumentException(
-                        "[maxDocsPerValue] must be greater than or equal to 0. Found [" + maxDocsPerValue + "] in [" + name + "]");
-            }
-            this.maxDocsPerValue = maxDocsPerValue;
-            return this;
-        }
-
-        /**
-         * Get the max num docs to be returned per value.
-         */
-        public int maxDocsPerValue() {
-            return maxDocsPerValue;
-        }
-
-        /**
-         * Set the execution hint.
-         */
-        public DiversifiedAggregatorBuilder executionHint(String executionHint) {
-            this.executionHint = executionHint;
-            return this;
-        }
-
-        /**
-         * Get the execution hint.
-         */
-        public String executionHint() {
-            return executionHint;
-        }
-
-        @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
-                ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-            return new DiversifiedAggregatorFactory(name, TYPE, config, shardSize, maxDocsPerValue, executionHint, context, parent,
-                    subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            builder.field(SHARD_SIZE_FIELD.getPreferredName(), shardSize);
-            builder.field(MAX_DOCS_PER_VALUE_FIELD.getPreferredName(), maxDocsPerValue);
-            if (executionHint != null) {
-                builder.field(EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
-            }
-            return builder;
-        }
-
-        @Override
-        protected DiversifiedAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) throws IOException {
-            DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder(name);
-            factory.shardSize = in.readVInt();
-            factory.maxDocsPerValue = in.readVInt();
-            factory.executionHint = in.readOptionalString();
-            return factory;
-        }
-
-        @Override
-        protected void innerWriteTo(StreamOutput out) throws IOException {
-            out.writeVInt(shardSize);
-            out.writeVInt(maxDocsPerValue);
-            out.writeOptionalString(executionHint);
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return Objects.hash(shardSize, maxDocsPerValue, executionHint);
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            DiversifiedAggregatorBuilder other = (DiversifiedAggregatorBuilder) obj;
-            return Objects.equals(shardSize, other.shardSize)
-                    && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)
-                    && Objects.equals(executionHint, other.executionHint);
-        }
     }
 
     @Override

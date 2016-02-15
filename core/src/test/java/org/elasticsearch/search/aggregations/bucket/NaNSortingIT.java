@@ -27,9 +27,9 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregator;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,8 +48,8 @@ public class NaNSortingIT extends ESIntegTestCase {
     private enum SubAggregation {
         AVG("avg") {
             @Override
-            public AvgAggregator.AvgAggregatorBuilder builder() {
-                AvgAggregator.AvgAggregatorBuilder factory = avg(name);
+            public AvgAggregatorBuilder builder() {
+                AvgAggregatorBuilder factory = avg(name);
                 factory.field("numeric_field");
                 return factory;
             }
@@ -60,8 +60,8 @@ public class NaNSortingIT extends ESIntegTestCase {
         },
         VARIANCE("variance") {
             @Override
-            public ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder builder() {
-                ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder factory = extendedStats(name);
+            public ExtendedStatsAggregatorBuilder builder() {
+                ExtendedStatsAggregatorBuilder factory = extendedStats(name);
                 factory.field("numeric_field");
                 return factory;
             }
@@ -76,8 +76,8 @@ public class NaNSortingIT extends ESIntegTestCase {
         },
         STD_DEVIATION("std_deviation"){
             @Override
-            public ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder builder() {
-                ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder factory = extendedStats(name);
+            public ExtendedStatsAggregatorBuilder builder() {
+                ExtendedStatsAggregatorBuilder factory = extendedStats(name);
                 factory.field("numeric_field");
                 return factory;
             }

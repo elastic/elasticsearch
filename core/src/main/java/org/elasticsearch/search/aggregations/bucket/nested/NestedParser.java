@@ -35,7 +35,7 @@ public class NestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public NestedAggregator.NestedAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public NestedAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
         String path = null;
 
@@ -61,11 +61,11 @@ public class NestedParser implements Aggregator.Parser {
             throw new ParsingException(parser.getTokenLocation(), "Missing [path] field for nested aggregation [" + aggregationName + "]");
         }
 
-        return new NestedAggregator.NestedAggregatorBuilder(aggregationName, path);
+        return new NestedAggregatorBuilder(aggregationName, path);
     }
 
     @Override
-    public NestedAggregator.NestedAggregatorBuilder getFactoryPrototypes() {
-        return NestedAggregator.NestedAggregatorBuilder.PROTOTYPE;
+    public NestedAggregatorBuilder getFactoryPrototypes() {
+        return NestedAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -19,16 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -69,48 +63,5 @@ public class GlobalAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         throw new UnsupportedOperationException("global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
-    }
-
-    public static class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorBuilder> {
-
-        static final GlobalAggregatorBuilder PROTOTYPE = new GlobalAggregatorBuilder("");
-
-        public GlobalAggregatorBuilder(String name) {
-            super(name, InternalGlobal.TYPE);
-        }
-
-        @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
-                throws IOException {
-            return new GlobalAggregatorFactory(name, type, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected GlobalAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-            return new GlobalAggregatorBuilder(name);
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            // Nothing to write
-        }
-
-        @Override
-        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        protected boolean doEquals(Object obj) {
-            return true;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
-        }
-
     }
 }

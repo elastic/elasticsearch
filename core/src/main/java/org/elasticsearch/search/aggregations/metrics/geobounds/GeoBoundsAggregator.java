@@ -22,31 +22,22 @@ package org.elasticsearch.search.aggregations.metrics.geobounds;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public final class GeoBoundsAggregator extends MetricsAggregator {
 
@@ -174,69 +165,5 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     @Override
     public void doClose() {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
-    }
-
-    public static class GeoBoundsAggregatorBuilder
-            extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoBoundsAggregatorBuilder> {
-
-        static final GeoBoundsAggregatorBuilder PROTOTYPE = new GeoBoundsAggregatorBuilder("");
-
-        private boolean wrapLongitude = true;
-
-        public GeoBoundsAggregatorBuilder(String name) {
-            super(name, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-        }
-
-        /**
-         * Set whether to wrap longitudes. Defaults to true.
-         */
-        public GeoBoundsAggregatorBuilder wrapLongitude(boolean wrapLongitude) {
-            this.wrapLongitude = wrapLongitude;
-            return this;
-        }
-
-        /**
-         * Get whether to wrap longitudes.
-         */
-        public boolean wrapLongitude() {
-            return wrapLongitude;
-        }
-
-        @Override
-        protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-            return new GeoBoundsAggregatorFactory(name, type, config, wrapLongitude, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected GeoBoundsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) throws IOException {
-            GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(name);
-            factory.wrapLongitude = in.readBoolean();
-            return factory;
-        }
-
-        @Override
-        protected void innerWriteTo(StreamOutput out) throws IOException {
-            out.writeBoolean(wrapLongitude);
-        }
-
-        @Override
-        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            builder.field(WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
-            return builder;
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return Objects.hash(wrapLongitude);
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            GeoBoundsAggregatorBuilder other = (GeoBoundsAggregatorBuilder) obj;
-            return Objects.equals(wrapLongitude, other.wrapLongitude);
-        }
-
     }
 }

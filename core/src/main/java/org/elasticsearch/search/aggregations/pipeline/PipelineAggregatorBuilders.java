@@ -20,19 +20,19 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregatorBuilder;
 
 import java.util.Map;
 
@@ -41,70 +41,70 @@ public final class PipelineAggregatorBuilders {
     private PipelineAggregatorBuilders() {
     }
 
-    public static final DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder derivative(String name, String bucketsPath) {
-        return new DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder(name, bucketsPath);
+    public static final DerivativePipelineAggregatorBuilder derivative(String name, String bucketsPath) {
+        return new DerivativePipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder maxBucket(String name, String bucketsPath) {
-        return new MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder(name, bucketsPath);
+    public static final MaxBucketPipelineAggregatorBuilder maxBucket(String name, String bucketsPath) {
+        return new MaxBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder minBucket(String name, String bucketsPath) {
-        return new MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder(name, bucketsPath);
+    public static final MinBucketPipelineAggregatorBuilder minBucket(String name, String bucketsPath) {
+        return new MinBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder avgBucket(String name, String bucketsPath) {
-        return new AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder(name, bucketsPath);
+    public static final AvgBucketPipelineAggregatorBuilder avgBucket(String name, String bucketsPath) {
+        return new AvgBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder sumBucket(String name, String bucketsPath) {
-        return new SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder(name, bucketsPath);
+    public static final SumBucketPipelineAggregatorBuilder sumBucket(String name, String bucketsPath) {
+        return new SumBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder statsBucket(String name, String bucketsPath) {
-        return new StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder(name, bucketsPath);
+    public static final StatsBucketPipelineAggregatorBuilder statsBucket(String name, String bucketsPath) {
+        return new StatsBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder extendedStatsBucket(String name,
+    public static final ExtendedStatsBucketPipelineAggregatorBuilder extendedStatsBucket(String name,
             String bucketsPath) {
-        return new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPath);
+        return new ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder percentilesBucket(String name,
+    public static final PercentilesBucketPipelineAggregatorBuilder percentilesBucket(String name,
             String bucketsPath) {
-        return new PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(name, bucketsPath);
+        return new PercentilesBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder movingAvg(String name, String bucketsPath) {
-        return new MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder(name, bucketsPath);
+    public static final MovAvgPipelineAggregatorBuilder movingAvg(String name, String bucketsPath) {
+        return new MovAvgPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder bucketScript(String name,
+    public static final BucketScriptPipelineAggregatorBuilder bucketScript(String name,
             Map<String, String> bucketsPathsMap, Script script) {
-        return new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(name, bucketsPathsMap, script);
+        return new BucketScriptPipelineAggregatorBuilder(name, bucketsPathsMap, script);
     }
 
-    public static final BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder bucketScript(String name, Script script,
+    public static final BucketScriptPipelineAggregatorBuilder bucketScript(String name, Script script,
             String... bucketsPaths) {
-        return new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(name, script, bucketsPaths);
+        return new BucketScriptPipelineAggregatorBuilder(name, script, bucketsPaths);
     }
 
-    public static final BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder bucketSelector(String name,
+    public static final BucketSelectorPipelineAggregatorBuilder bucketSelector(String name,
             Map<String, String> bucketsPathsMap, Script script) {
-        return new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(name, bucketsPathsMap, script);
+        return new BucketSelectorPipelineAggregatorBuilder(name, bucketsPathsMap, script);
     }
 
-    public static final BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder bucketSelector(String name, Script script,
+    public static final BucketSelectorPipelineAggregatorBuilder bucketSelector(String name, Script script,
             String... bucketsPaths) {
-        return new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(name, script, bucketsPaths);
+        return new BucketSelectorPipelineAggregatorBuilder(name, script, bucketsPaths);
     }
 
-    public static final CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder cumulativeSum(String name,
+    public static final CumulativeSumPipelineAggregatorBuilder cumulativeSum(String name,
             String bucketsPath) {
-        return new CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder(name, bucketsPath);
+        return new CumulativeSumPipelineAggregatorBuilder(name, bucketsPath);
     }
 
-    public static final SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder diff(String name, String bucketsPath) {
-        return new SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder(name, bucketsPath);
+    public static final SerialDiffPipelineAggregatorBuilder diff(String name, String bucketsPath) {
+        return new SerialDiffPipelineAggregatorBuilder(name, bucketsPath);
     }
 }

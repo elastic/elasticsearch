@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregator;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -111,25 +111,25 @@ public class PipelineAggregationHelperTests extends ESTestCase {
      */
     public static double calculateMetric(double[] values, ValuesSourceAggregatorBuilder<?, ?> metric) {
 
-        if (metric instanceof MinAggregator.MinAggregatorBuilder) {
+        if (metric instanceof MinAggregatorBuilder) {
             double accumulator = Double.POSITIVE_INFINITY;
             for (double value : values) {
                 accumulator = Math.min(accumulator, value);
             }
             return accumulator;
-        } else if (metric instanceof MaxAggregator.MaxAggregatorBuilder) {
+        } else if (metric instanceof MaxAggregatorBuilder) {
             double accumulator = Double.NEGATIVE_INFINITY;
             for (double value : values) {
                 accumulator = Math.max(accumulator, value);
             }
             return accumulator;
-        } else if (metric instanceof SumAggregator.SumAggregatorBuilder) {
+        } else if (metric instanceof SumAggregatorBuilder) {
             double accumulator = 0;
             for (double value : values) {
                 accumulator += value;
             }
             return accumulator;
-        } else if (metric instanceof AvgAggregator.AvgAggregatorBuilder) {
+        } else if (metric instanceof AvgAggregatorBuilder) {
             double accumulator = 0;
             for (double value : values) {
                 accumulator += value;

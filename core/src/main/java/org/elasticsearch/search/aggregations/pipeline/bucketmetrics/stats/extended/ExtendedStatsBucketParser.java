@@ -34,7 +34,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+    protected ExtendedStatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
             String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
 
         Double sigma = null;
@@ -49,8 +49,8 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
                         + param.getClass().getSimpleName() + "` provided instead", 0);
             }
         }
-        ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder factory =
-                new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        ExtendedStatsBucketPipelineAggregatorBuilder factory =
+                new ExtendedStatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         if (sigma != null) {
             factory.sigma(sigma);
         }
@@ -58,7 +58,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    public ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public ExtendedStatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return ExtendedStatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

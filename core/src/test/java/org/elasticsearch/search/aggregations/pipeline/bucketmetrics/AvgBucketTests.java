@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregatorBuilder;
 
-public class AvgBucketTests extends AbstractBucketMetricsTestCase<AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder> {
+public class AvgBucketTests extends AbstractBucketMetricsTestCase<AvgBucketPipelineAggregatorBuilder> {
 
     @Override
     protected AvgBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {

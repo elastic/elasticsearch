@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.children.ParentToChildrenAggregator;
-import org.elasticsearch.search.aggregations.bucket.children.ParentToChildrenAggregator.ChildrenAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
 
-public class ChildrenTests extends BaseAggregationTestCase<ParentToChildrenAggregator.ChildrenAggregatorBuilder> {
+public class ChildrenTests extends BaseAggregationTestCase<ChildrenAggregatorBuilder> {
 
     @Override
     protected ChildrenAggregatorBuilder createTestAggregatorBuilder() {

@@ -23,14 +23,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregatorBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class BucketSelectorTests
-        extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder> {
+public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregatorBuilder> {
 
     @Override
     protected BucketSelectorPipelineAggregatorBuilder createTestAggregatorFactory() {
@@ -57,6 +55,5 @@ public class BucketSelectorTests
         }
         return factory;
     }
-
 
 }

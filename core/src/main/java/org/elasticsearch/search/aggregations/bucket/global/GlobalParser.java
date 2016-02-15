@@ -34,15 +34,15 @@ public class GlobalParser implements Aggregator.Parser {
     }
 
     @Override
-    public GlobalAggregator.GlobalAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public GlobalAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
         parser.nextToken();
-        return new GlobalAggregator.GlobalAggregatorBuilder(aggregationName);
+        return new GlobalAggregatorBuilder(aggregationName);
     }
 
     @Override
-    public GlobalAggregator.GlobalAggregatorBuilder getFactoryPrototypes() {
-        return GlobalAggregator.GlobalAggregatorBuilder.PROTOTYPE;
+    public GlobalAggregatorBuilder getFactoryPrototypes() {
+        return GlobalAggregatorBuilder.PROTOTYPE;
     }
 
 }

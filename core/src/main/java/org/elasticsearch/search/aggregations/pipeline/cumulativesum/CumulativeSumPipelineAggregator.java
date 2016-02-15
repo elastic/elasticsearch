@@ -21,21 +21,15 @@ package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -43,7 +37,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -109,102 +102,5 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
-    }
-
-    public static class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBuilder<CumulativeSumPipelineAggregatorBuilder> {
-
-        static final CumulativeSumPipelineAggregatorBuilder PROTOTYPE = new CumulativeSumPipelineAggregatorBuilder("", "");
-
-        private String format;
-
-        public CumulativeSumPipelineAggregatorBuilder(String name, String bucketsPath) {
-            this(name, new String[] { bucketsPath });
-        }
-
-        private CumulativeSumPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-            super(name, TYPE.name(), bucketsPaths);
-        }
-
-        /**
-         * Sets the format to use on the output of this aggregation.
-         */
-        public CumulativeSumPipelineAggregatorBuilder format(String format) {
-            if (format == null) {
-                throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
-            }
-            this.format = format;
-            return this;
-        }
-
-        /**
-         * Gets the format to use on the output of this aggregation.
-         */
-        public String format() {
-            return format;
-        }
-
-        protected ValueFormatter formatter() {
-            if (format != null) {
-                return ValueFormat.Patternable.Number.format(format).formatter();
-            } else {
-                return ValueFormatter.RAW;
-            }
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-            if (!(parent instanceof AbstractHistogramAggregatorFactory<?>)) {
-                throw new IllegalStateException("cumulative sum aggregation [" + name
-                        + "] must have a histogram or date_histogram as parent");
-            } else {
-                AbstractHistogramAggregatorFactory<?> histoParent = (AbstractHistogramAggregatorFactory<?>) parent;
-                if (histoParent.minDocCount() != 0) {
-                    throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
-                            + "] must have min_doc_count of 0");
-                }
-            }
-        }
-
-        @Override
-        protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-            if (format != null) {
-                builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
-            }
-            return builder;
-        }
-
-        @Override
-        protected final CumulativeSumPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in)
-                throws IOException {
-            CumulativeSumPipelineAggregatorBuilder factory = new CumulativeSumPipelineAggregatorBuilder(name, bucketsPaths);
-            factory.format = in.readOptionalString();
-            return factory;
-        }
-
-        @Override
-        protected final void doWriteTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(format);
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(format);
-        }
-
-        @Override
-        protected boolean doEquals(Object obj) {
-            CumulativeSumPipelineAggregatorBuilder other = (CumulativeSumPipelineAggregatorBuilder) obj;
-            return Objects.equals(format, other.format);
-        }
     }
 }

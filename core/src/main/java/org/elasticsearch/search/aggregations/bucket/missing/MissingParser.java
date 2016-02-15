@@ -46,13 +46,13 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected MissingAggregator.MissingAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected MissingAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MissingAggregator.MissingAggregatorBuilder(aggregationName, targetValueType);
+        return new MissingAggregatorBuilder(aggregationName, targetValueType);
     }
 
     @Override
-    public MissingAggregator.MissingAggregatorBuilder getFactoryPrototypes() {
-        return MissingAggregator.MissingAggregatorBuilder.PROTOTYPE;
+    public MissingAggregatorBuilder getFactoryPrototypes() {
+        return MissingAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -20,11 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
 
-public class RangeTests extends BaseAggregationTestCase<RangeAggregator.RangeAggregatorBuilder> {
+public class RangeTests extends BaseAggregationTestCase<RangeAggregatorBuilder> {
 
     @Override
     protected RangeAggregatorBuilder createTestAggregatorBuilder() {

@@ -21,10 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator.GeoCentroidAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregatorBuilder;
 
-public class GeoCentroidTests extends BaseAggregationTestCase<GeoCentroidAggregator.GeoCentroidAggregatorBuilder> {
+public class GeoCentroidTests extends BaseAggregationTestCase<GeoCentroidAggregatorBuilder> {
 
     @Override
     protected GeoCentroidAggregatorBuilder createTestAggregatorBuilder() {

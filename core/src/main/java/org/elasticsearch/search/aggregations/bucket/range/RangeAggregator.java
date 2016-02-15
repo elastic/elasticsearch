@@ -31,22 +31,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
@@ -397,170 +390,6 @@ public class RangeAggregator extends BucketsAggregator {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter));
             }
             return factory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
-        }
-    }
-
-    public static abstract class AbstractBuilder<AB extends AbstractBuilder<AB, R>, R extends Range>
-            extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
-
-        protected final InternalRange.Factory<?, ?> rangeFactory;
-        protected List<R> ranges = new ArrayList<>();
-        protected boolean keyed = false;
-
-        protected AbstractBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-            super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
-            this.rangeFactory = rangeFactory;
-        }
-
-        public AB addRange(R range) {
-            if (range == null) {
-                throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
-            }
-            ranges.add(range);
-            return (AB) this;
-        }
-
-        public List<R> ranges() {
-            return ranges;
-        }
-
-        public AB keyed(boolean keyed) {
-            this.keyed = keyed;
-            return (AB) this;
-        }
-
-        public boolean keyed() {
-            return keyed;
-        }
-
-        @Override
-        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            builder.field(RANGES_FIELD.getPreferredName(), ranges);
-            builder.field(KEYED_FIELD.getPreferredName(), keyed);
-            return builder;
-        }
-
-        @Override
-        protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) throws IOException {
-            AbstractBuilder<AB, R> factory = createFactoryFromStream(name, in);
-            factory.keyed = in.readBoolean();
-            return (AB) factory;
-        }
-
-        protected abstract AbstractBuilder<AB, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
-
-        @Override
-        protected void innerWriteTo(StreamOutput out) throws IOException {
-            out.writeVInt(ranges.size());
-            for (Range range : ranges) {
-                range.writeTo(out);
-            }
-            out.writeBoolean(keyed);
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return Objects.hash(ranges, keyed);
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            AbstractBuilder<AB, R> other = (AbstractBuilder<AB, R>) obj;
-            return Objects.equals(ranges, other.ranges)
-                    && Objects.equals(keyed, other.keyed);
-        }
-    }
-
-    public static class RangeAggregatorBuilder extends AbstractBuilder<RangeAggregatorBuilder, Range> {
-
-        static final RangeAggregatorBuilder PROTOTYPE = new RangeAggregatorBuilder("");
-
-        public RangeAggregatorBuilder(String name) {
-            super(name, InternalRange.FACTORY);
-        }
-
-        /**
-         * Add a new range to this aggregation.
-         *
-         * @param key
-         *            the key to use for this range in the response
-         * @param from
-         *            the lower bound on the distances, inclusive
-         * @param to
-         *            the upper bound on the distances, exclusive
-         */
-        public RangeAggregatorBuilder addRange(String key, double from, double to) {
-            addRange(new Range(key, from, to));
-            return this;
-        }
-
-        /**
-         * Same as {@link #addRange(String, double, double)} but the key will be
-         * automatically generated based on <code>from</code> and
-         * <code>to</code>.
-         */
-        public RangeAggregatorBuilder addRange(double from, double to) {
-            return addRange(null, from, to);
-        }
-
-        /**
-         * Add a new range with no lower bound.
-         *
-         * @param key
-         *            the key to use for this range in the response
-         * @param to
-         *            the upper bound on the distances, exclusive
-         */
-        public RangeAggregatorBuilder addUnboundedTo(String key, double to) {
-            addRange(new Range(key, null, to));
-            return this;
-        }
-
-        /**
-         * Same as {@link #addUnboundedTo(String, double)} but the key will be
-         * computed automatically.
-         */
-        public RangeAggregatorBuilder addUnboundedTo(double to) {
-            return addUnboundedTo(null, to);
-        }
-
-        /**
-         * Add a new range with no upper bound.
-         *
-         * @param key
-         *            the key to use for this range in the response
-         * @param from
-         *            the lower bound on the distances, inclusive
-         */
-        public RangeAggregatorBuilder addUnboundedFrom(String key, double from) {
-            addRange(new Range(key, from, null));
-            return this;
-        }
-
-        /**
-         * Same as {@link #addUnboundedFrom(String, double)} but the key will be
-         * computed automatically.
-         */
-        public RangeAggregatorBuilder addUnboundedFrom(double from) {
-            return addUnboundedFrom(null, from);
-        }
-
-        @Override
-        protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
-                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-            return new RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
-                    metaData);
-        }
-
-        @Override
-        protected RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-            int size = in.readVInt();
-            RangeAggregatorBuilder factory = new RangeAggregatorBuilder(name);
-            for (int i = 0; i < size; i++) {
-                factory.addRange(Range.PROTOTYPE.readFrom(in));
-            }
-            return factory;
         }
     }
 

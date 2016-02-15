@@ -21,8 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
@@ -30,7 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;;
 
-public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder> {
+public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregatorBuilder> {
 
     @Override
     protected MovAvgPipelineAggregatorBuilder createTestAggregatorFactory() {

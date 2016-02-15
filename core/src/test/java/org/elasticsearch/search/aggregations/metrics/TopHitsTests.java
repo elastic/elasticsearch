@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregator;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -37,11 +37,11 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.TopHitsAggregatorBuilder> {
+public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregatorBuilder> {
 
     @Override
-    protected final TopHitsAggregator.TopHitsAggregatorBuilder createTestAggregatorBuilder() {
-        TopHitsAggregator.TopHitsAggregatorBuilder factory = new TopHitsAggregator.TopHitsAggregatorBuilder("foo");
+    protected final TopHitsAggregatorBuilder createTestAggregatorBuilder() {
+        TopHitsAggregatorBuilder factory = new TopHitsAggregatorBuilder("foo");
         if (randomBoolean()) {
             factory.from(randomIntBetween(0, 10000));
         }

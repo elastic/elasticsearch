@@ -25,19 +25,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -45,7 +39,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  *
@@ -113,75 +106,5 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     Query getParentFilter() {
         return parentFilter;
-    }
-
-    public static class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNestedAggregatorBuilder> {
-
-        static final ReverseNestedAggregatorBuilder PROTOTYPE = new ReverseNestedAggregatorBuilder("");
-
-        private String path;
-
-        public ReverseNestedAggregatorBuilder(String name) {
-            super(name, InternalReverseNested.TYPE);
-        }
-
-        /**
-         * Set the path to use for this nested aggregation. The path must match
-         * the path to a nested object in the mappings. If it is not specified
-         * then this aggregation will go back to the root document.
-         */
-        public ReverseNestedAggregatorBuilder path(String path) {
-            if (path == null) {
-                throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
-            }
-            this.path = path;
-            return this;
-        }
-
-        /**
-         * Get the path to use for this nested aggregation.
-         */
-        public String path() {
-            return path;
-        }
-
-        @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
-                throws IOException {
-            return new ReverseNestedAggregatorFactory(name, type, path, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (path != null) {
-                builder.field(PATH_FIELD.getPreferredName(), path);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        protected ReverseNestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-            ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(name);
-            factory.path = in.readOptionalString();
-            return factory;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(path);
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(path);
-        }
-
-        @Override
-        protected boolean doEquals(Object obj) {
-            ReverseNestedAggregatorBuilder other = (ReverseNestedAggregatorBuilder) obj;
-            return Objects.equals(path, other.path);
-        }
     }
 }

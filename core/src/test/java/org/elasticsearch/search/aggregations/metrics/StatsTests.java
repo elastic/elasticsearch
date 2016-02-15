@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregator;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
 
-public class StatsTests extends AbstractNumericMetricTestCase<StatsAggregator.StatsAggregatorBuilder> {
+public class StatsTests extends AbstractNumericMetricTestCase<StatsAggregatorBuilder> {
 
     @Override
-    protected StatsAggregator.StatsAggregatorBuilder doCreateTestAggregatorFactory() {
-        return new StatsAggregator.StatsAggregatorBuilder("foo");
+    protected StatsAggregatorBuilder doCreateTestAggregatorFactory() {
+        return new StatsAggregatorBuilder("foo");
     }
 
 }

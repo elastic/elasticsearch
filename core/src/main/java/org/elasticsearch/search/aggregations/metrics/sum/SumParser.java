@@ -50,13 +50,13 @@ public class SumParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected SumAggregator.SumAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected SumAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new SumAggregator.SumAggregatorBuilder(aggregationName);
+        return new SumAggregatorBuilder(aggregationName);
     }
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return SumAggregator.SumAggregatorBuilder.PROTOTYPE;
+        return SumAggregatorBuilder.PROTOTYPE;
     }
 }

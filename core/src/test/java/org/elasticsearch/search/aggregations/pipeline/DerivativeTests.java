@@ -21,10 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregatorBuilder;
 
-public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder> {
+public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregatorBuilder> {
 
     @Override
     protected DerivativePipelineAggregatorBuilder createTestAggregatorFactory() {

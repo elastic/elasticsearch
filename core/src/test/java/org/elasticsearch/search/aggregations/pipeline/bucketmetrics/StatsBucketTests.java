@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregatorBuilder;
 
-public class StatsBucketTests extends AbstractBucketMetricsTestCase<StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder> {
+public class StatsBucketTests extends AbstractBucketMetricsTestCase<StatsBucketPipelineAggregatorBuilder> {
 
     @Override
-    protected StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name,
+    protected StatsBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name,
             String bucketsPath) {
-        return new StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder(name, bucketsPath);
+        return new StatsBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
 

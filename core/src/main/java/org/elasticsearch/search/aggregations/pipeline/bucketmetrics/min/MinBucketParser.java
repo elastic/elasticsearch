@@ -31,14 +31,14 @@ public class MinBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+    protected MinBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
             Map<String, Object> unparsedParams) {
-        return new MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        return new MinBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public MinBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return MinBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

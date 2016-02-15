@@ -45,7 +45,7 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
+    public BucketScriptPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
             QueryParseContext context) throws IOException {
         XContentParser.Token token;
         Script script = null;
@@ -114,8 +114,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                     + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
-        BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder factory =
-                new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
+        BucketScriptPipelineAggregatorBuilder factory =
+                new BucketScriptPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (format != null) {
             factory.format(format);
         }
@@ -126,8 +126,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder getFactoryPrototype() {
-        return BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder.PROTOTYPE;
+    public BucketScriptPipelineAggregatorBuilder getFactoryPrototype() {
+        return BucketScriptPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -51,13 +51,13 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoCentroidAggregator.GeoCentroidAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected GeoCentroidAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new GeoCentroidAggregator.GeoCentroidAggregatorBuilder(aggregationName);
+        return new GeoCentroidAggregatorBuilder(aggregationName);
     }
 
     @Override
-    public GeoCentroidAggregator.GeoCentroidAggregatorBuilder getFactoryPrototypes() {
-        return GeoCentroidAggregator.GeoCentroidAggregatorBuilder.PROTOTYPE;
+    public GeoCentroidAggregatorBuilder getFactoryPrototypes() {
+        return GeoCentroidAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -29,19 +29,13 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -49,7 +43,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  *
@@ -148,72 +141,6 @@ public class NestedAggregator extends SingleBucketAggregator {
             }
         }
         return null;
-    }
-
-    public static class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorBuilder> {
-
-        static final NestedAggregatorBuilder PROTOTYPE = new NestedAggregatorBuilder("", "");
-
-        private final String path;
-
-        /**
-         * @param name
-         *            the name of this aggregation
-         * @param path
-         *            the path to use for this nested aggregation. The path must
-         *            match the path to a nested object in the mappings.
-         */
-        public NestedAggregatorBuilder(String name, String path) {
-            super(name, InternalNested.TYPE);
-            if (path == null) {
-                throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
-            }
-            this.path = path;
-        }
-
-        /**
-         * Get the path to use for this nested aggregation.
-         */
-        public String path() {
-            return path;
-        }
-
-        @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
-                throws IOException {
-            return new NestedAggregatorFactory(name, type, path, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(PATH_FIELD.getPreferredName(), path);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        protected NestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-            String path = in.readString();
-            NestedAggregatorBuilder factory = new NestedAggregatorBuilder(name, path);
-            return factory;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(path);
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(path);
-        }
-
-        @Override
-        protected boolean doEquals(Object obj) {
-            NestedAggregatorBuilder other = (NestedAggregatorBuilder) obj;
-            return Objects.equals(path, other.path);
-        }
     }
 
 }

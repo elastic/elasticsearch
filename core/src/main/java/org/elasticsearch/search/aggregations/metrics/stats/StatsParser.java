@@ -50,13 +50,13 @@ public class StatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected StatsAggregator.StatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected StatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new StatsAggregator.StatsAggregatorBuilder(aggregationName);
+        return new StatsAggregatorBuilder(aggregationName);
     }
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return StatsAggregator.StatsAggregatorBuilder.PROTOTYPE;
+        return StatsAggregatorBuilder.PROTOTYPE;
     }
 }

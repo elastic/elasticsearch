@@ -21,11 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregatorBuilder;
 
-public class SerialDifferenceTests
-        extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder> {
+public class SerialDifferenceTests extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregatorBuilder> {
 
     @Override
     protected SerialDiffPipelineAggregatorBuilder createTestAggregatorFactory() {

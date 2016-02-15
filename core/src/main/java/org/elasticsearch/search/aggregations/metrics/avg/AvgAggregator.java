@@ -19,29 +19,19 @@
 package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -118,47 +108,6 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalAvg(name, 0.0, 0L, formatter, pipelineAggregators(), metaData());
-    }
-
-    public static class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregatorBuilder> {
-
-        static final AvgAggregatorBuilder PROTOTYPE = new AvgAggregatorBuilder("");
-
-        public AvgAggregatorBuilder(String name) {
-            super(name, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
-        }
-
-        @Override
-        protected AvgAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
-                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-            return new AvgAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-        }
-
-        @Override
-        protected AvgAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) {
-            return new AvgAggregator.AvgAggregatorBuilder(name);
-        }
-
-        @Override
-        protected void innerWriteTo(StreamOutput out) {
-            // Do nothing, no extra state to write to stream
-        }
-
-        @Override
-        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            return true;
-        }
     }
 
     @Override

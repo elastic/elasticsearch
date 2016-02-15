@@ -37,7 +37,7 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public FilterAggregator.FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
         QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
@@ -45,14 +45,14 @@ public class FilterParser implements Aggregator.Parser {
             throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
         }
 
-        FilterAggregator.FilterAggregatorBuilder factory = new FilterAggregator.FilterAggregatorBuilder(aggregationName,
+        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(aggregationName,
                 filter == null ? new MatchAllQueryBuilder() : filter);
         return factory;
     }
 
     @Override
-    public FilterAggregator.FilterAggregatorBuilder getFactoryPrototypes() {
-        return FilterAggregator.FilterAggregatorBuilder.PROTOTYPE;
+    public FilterAggregatorBuilder getFactoryPrototypes() {
+        return FilterAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -41,7 +41,7 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
+    public SerialDiffPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
             QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -100,8 +100,8 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
         }
 
-        SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder factory =
-                new SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder(reducerName, bucketsPaths[0]);
+        SerialDiffPipelineAggregatorBuilder factory =
+                new SerialDiffPipelineAggregatorBuilder(reducerName, bucketsPaths[0]);
         if (lag != null) {
             factory.lag(lag);
         }
@@ -115,8 +115,8 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder getFactoryPrototype() {
-        return SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder.PROTOTYPE;
+    public SerialDiffPipelineAggregatorBuilder getFactoryPrototype() {
+        return SerialDiffPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

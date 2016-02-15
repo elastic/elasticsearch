@@ -35,7 +35,7 @@ public class ReverseNestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public ReverseNestedAggregator.ReverseNestedAggregatorBuilder parse(String aggregationName, XContentParser parser,
+    public ReverseNestedAggregatorBuilder parse(String aggregationName, XContentParser parser,
             QueryParseContext context) throws IOException {
         String path = null;
 
@@ -56,7 +56,7 @@ public class ReverseNestedParser implements Aggregator.Parser {
             }
         }
 
-        ReverseNestedAggregator.ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregator.ReverseNestedAggregatorBuilder(
+        ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(
                 aggregationName);
         if (path != null) {
             factory.path(path);
@@ -65,7 +65,7 @@ public class ReverseNestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public ReverseNestedAggregator.ReverseNestedAggregatorBuilder getFactoryPrototypes() {
-        return ReverseNestedAggregator.ReverseNestedAggregatorBuilder.PROTOTYPE;
+    public ReverseNestedAggregatorBuilder getFactoryPrototypes() {
+        return ReverseNestedAggregatorBuilder.PROTOTYPE;
     }
 }

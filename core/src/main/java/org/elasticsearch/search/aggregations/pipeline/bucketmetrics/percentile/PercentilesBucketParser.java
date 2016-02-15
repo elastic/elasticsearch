@@ -37,7 +37,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+    protected PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
             String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
 
         double[] percents = null;
@@ -63,8 +63,8 @@ public class PercentilesBucketParser extends BucketMetricsParser {
             }
         }
 
-        PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder factory = new
-                PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        PercentilesBucketPipelineAggregatorBuilder factory = new
+                PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         if (percents != null) {
             factory.percents(percents);
         }
@@ -72,7 +72,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    public PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public PercentilesBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return PercentilesBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

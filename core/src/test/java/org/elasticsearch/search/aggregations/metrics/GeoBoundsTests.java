@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator.GeoBoundsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
 
-public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregator.GeoBoundsAggregatorBuilder> {
+public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregatorBuilder> {
 
     @Override
     protected GeoBoundsAggregatorBuilder createTestAggregatorBuilder() {

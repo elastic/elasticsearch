@@ -52,7 +52,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder parse(String aggregationName, XContentParser parser,
+    public ScriptedMetricAggregatorBuilder parse(String aggregationName, XContentParser parser,
             QueryParseContext context) throws IOException {
         Script initScript = null;
         Script mapScript = null;
@@ -140,7 +140,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
             throw new ParsingException(parser.getTokenLocation(), "map_script field is required in [" + aggregationName + "].");
         }
 
-        ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder(aggregationName);
+        ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(aggregationName);
         if (initScript != null) {
             factory.initScript(initScript);
         }
@@ -160,8 +160,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder getFactoryPrototypes() {
-        return ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder.PROTOTYPE;
+    public ScriptedMetricAggregatorBuilder getFactoryPrototypes() {
+        return ScriptedMetricAggregatorBuilder.PROTOTYPE;
     }
 
 }

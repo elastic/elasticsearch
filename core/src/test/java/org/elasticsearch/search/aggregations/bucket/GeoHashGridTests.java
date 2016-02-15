@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser.GeoGridAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
 
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregatorBuilder> {
 

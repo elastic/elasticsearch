@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregatorBuilder;
 
-public class MinBucketTests extends AbstractBucketMetricsTestCase<MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder> {
+public class MinBucketTests extends AbstractBucketMetricsTestCase<MinBucketPipelineAggregatorBuilder> {
 
     @Override
     protected MinBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {

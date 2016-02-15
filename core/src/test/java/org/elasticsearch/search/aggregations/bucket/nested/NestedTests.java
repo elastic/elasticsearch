@@ -20,9 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator.NestedAggregatorBuilder;
 
-public class NestedTests extends BaseAggregationTestCase<NestedAggregator.NestedAggregatorBuilder> {
+public class NestedTests extends BaseAggregationTestCase<NestedAggregatorBuilder> {
 
     @Override
     protected NestedAggregatorBuilder createTestAggregatorBuilder() {

@@ -21,10 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregator;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregator.FilterAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
 
-public class FilterTests extends BaseAggregationTestCase<FilterAggregator.FilterAggregatorBuilder> {
+public class FilterTests extends BaseAggregationTestCase<FilterAggregatorBuilder> {
 
     @Override
     protected FilterAggregatorBuilder createTestAggregatorBuilder() {

@@ -30,13 +30,13 @@ public class SumBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+    protected SumBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
             Map<String, Object> unparsedParams) {
-        return new SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        return new SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder.PROTOTYPE;
+    public SumBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return SumBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

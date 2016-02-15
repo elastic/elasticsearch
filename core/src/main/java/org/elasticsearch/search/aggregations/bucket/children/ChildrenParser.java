@@ -35,7 +35,7 @@ public class ChildrenParser implements Aggregator.Parser {
     }
 
     @Override
-    public ParentToChildrenAggregator.ChildrenAggregatorBuilder parse(String aggregationName, XContentParser parser,
+    public ChildrenAggregatorBuilder parse(String aggregationName, XContentParser parser,
             QueryParseContext context) throws IOException {
         String childType = null;
 
@@ -62,11 +62,11 @@ public class ChildrenParser implements Aggregator.Parser {
         }
 
 
-        return new ParentToChildrenAggregator.ChildrenAggregatorBuilder(aggregationName, childType);
+        return new ChildrenAggregatorBuilder(aggregationName, childType);
             }
 
     @Override
-    public ParentToChildrenAggregator.ChildrenAggregatorBuilder getFactoryPrototypes() {
-        return ParentToChildrenAggregator.ChildrenAggregatorBuilder.PROTOTYPE;
+    public ChildrenAggregatorBuilder getFactoryPrototypes() {
+        return ChildrenAggregatorBuilder.PROTOTYPE;
     }
 }

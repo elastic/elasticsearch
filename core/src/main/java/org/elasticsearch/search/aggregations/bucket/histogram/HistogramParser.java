@@ -50,9 +50,9 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected HistogramAggregator.AbstractBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        HistogramAggregator.HistogramAggregatorBuilder factory = new HistogramAggregator.HistogramAggregatorBuilder(aggregationName);
+        HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder(aggregationName);
         Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
@@ -162,7 +162,7 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public HistogramAggregator.AbstractBuilder<?> getFactoryPrototypes() {
-        return HistogramAggregator.HistogramAggregatorBuilder.PROTOTYPE;
+    public AbstractHistogramBuilder<?> getFactoryPrototypes() {
+        return HistogramAggregatorBuilder.PROTOTYPE;
     }
 }

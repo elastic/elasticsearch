@@ -320,7 +320,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
     public void testNestedArrayStrict() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").field("dynamic", "strict").startObject("properties")
-                .startObject("field1").field("type", "string")
+                .startObject("field1").field("type", "text")
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 

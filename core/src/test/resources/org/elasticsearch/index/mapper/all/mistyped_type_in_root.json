@@ -2,7 +2,7 @@
     "testX": {
         "properties": {
             "foo": {
-                "type": "string"
+                "type": "text"
             }
         }
     }

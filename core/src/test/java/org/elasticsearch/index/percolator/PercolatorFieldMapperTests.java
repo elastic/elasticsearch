@@ -44,7 +44,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         mapperService = indexService.mapperService();
 
         String mapper = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
+            .startObject("properties").startObject("field").field("type", "text").endObject().endObject()
             .endObject().endObject().string();
         mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
 

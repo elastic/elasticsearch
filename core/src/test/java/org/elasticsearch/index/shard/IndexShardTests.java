@@ -1206,7 +1206,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             .startObject("testtype")
             .startObject("properties")
             .startObject("foo")
-            .field("type", "string")
+            .field("type", "text")
             .endObject()
             .endObject().endObject().endObject()).get();
         ensureGreen();
@@ -1233,7 +1233,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 .startObject("testtype")
                 .startObject("properties")
                 .startObject("foo")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()).get();
         ensureGreen();
@@ -1262,7 +1262,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 .startObject("testtype")
                 .startObject("properties")
                 .startObject("foo")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()).get();
         ensureGreen();

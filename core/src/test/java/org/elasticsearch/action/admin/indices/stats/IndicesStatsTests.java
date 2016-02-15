@@ -55,7 +55,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                             .field("store", true)
                         .endObject()
                         .startObject("bar")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
                     .endObject()

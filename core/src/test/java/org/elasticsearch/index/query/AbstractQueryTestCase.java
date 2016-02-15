@@ -293,8 +293,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
             mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
-                    STRING_FIELD_NAME, "type=string",
-                    STRING_FIELD_NAME_2, "type=string",
+                    STRING_FIELD_NAME, "type=text",
+                    STRING_FIELD_NAME_2, "type=text",
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",

@@ -185,6 +185,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+            this.fieldType.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
+            return builder;
+        }
+
         public T includeInAll(Boolean includeInAll) {
             this.includeInAll = includeInAll;
             return builder;
@@ -293,7 +298,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             parseCreateField(context, fields);
             for (Field field : fields) {
-                if (!customBoost()) {
+                if (!customBoost()
+                        // don't set boosts eg. on dv fields
+                        && field.fieldType().indexOptions() != IndexOptions.NONE) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

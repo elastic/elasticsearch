@@ -46,7 +46,7 @@ public class FieldDataFilterIntegrationIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("name")
-                        .field("type", "string")
+                        .field("type", "text")
                         .startObject("fielddata")
                             .startObject("filter")
                                 .startObject("regex")
@@ -56,7 +56,7 @@ public class FieldDataFilterIntegrationIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                     .startObject("not_filtered")
-                        .field("type", "string")
+                        .field("type", "text")
                     .endObject()
                 .endObject()
                 .endObject().endObject();

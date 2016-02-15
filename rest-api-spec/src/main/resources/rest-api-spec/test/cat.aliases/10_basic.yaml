@@ -110,7 +110,7 @@
                     type_1:
                         properties:
                             foo:
-                                type: string
+                                type: text
 
   - do:
         indices.put_alias:

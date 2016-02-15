@@ -61,7 +61,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("term_vector", "with_positions_offsets_payloads")
                             .field("analyzer", "tv_test")
                         .endObject()

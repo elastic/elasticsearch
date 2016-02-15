@@ -4,7 +4,7 @@
             "file": {
                 "type": "attachment",
                 "fields": {
-                    "language": { "type": "string" }
+                    "language": { "type": "text" }
                 }
             }
         }

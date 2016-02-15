@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class MultiPercolatorIT extends ESIntegTestCase {
     public void testBasics() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text"));
         ensureGreen();
 
         logger.info("--> register a queries");
@@ -126,7 +126,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
     }
 
     public void testWithRouting() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text"));
         ensureGreen();
 
         logger.info("--> register a queries");
@@ -394,9 +394,9 @@ public class MultiPercolatorIT extends ESIntegTestCase {
 
     void initNestedIndexAndPercolation() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject().startObject("properties").startObject("companyname").field("type", "string").endObject()
+        mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()
                 .startObject("employee").field("type", "nested").startObject("properties")
-                .startObject("name").field("type", "string").endObject().endObject().endObject().endObject()
+                .startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("nestedindex").addMapping("company", mapping));

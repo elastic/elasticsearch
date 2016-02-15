@@ -462,7 +462,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=string", "name", "type=string", "property", "type=nested")
+                        .addMapping("product", "categories", "type=text", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 

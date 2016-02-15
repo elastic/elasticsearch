@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCase {
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
-    
+
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
         List<Class<? extends Plugin>> types = super.pluginTypes();
@@ -72,7 +72,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
         SearchResponse response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
-                        .interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                        .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
@@ -85,9 +85,8 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
         client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:40").setSource("{}").get();
         refresh();
 
-        response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogramInterval.HOUR)
-                        .order(Histogram.Order.COUNT_DESC))
+        response = client().prepareSearch("my-index").addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
+                .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));

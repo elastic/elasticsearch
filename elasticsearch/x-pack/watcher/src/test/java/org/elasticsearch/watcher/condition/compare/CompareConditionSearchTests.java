@@ -51,7 +51,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         SearchResponse response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
-                        .interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                        .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ExecutableCompareCondition condition = new ExecutableCompareCondition(
@@ -70,7 +70,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate")
-                        .field("_timestamp").interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                        .field("_timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));

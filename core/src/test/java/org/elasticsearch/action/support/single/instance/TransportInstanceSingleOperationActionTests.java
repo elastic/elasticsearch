@@ -107,8 +107,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-            return true;
+        protected void resolveRequest(ClusterState state, Request request) {
         }
 
         @Override
@@ -294,8 +293,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
                 Request.class
         ) {
             @Override
-            protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-                return false;
+            protected void resolveRequest(ClusterState state, Request request) {
+                throw new IllegalStateException("request cannot be resolved");
             }
         };
         Request request = new Request().index("test");

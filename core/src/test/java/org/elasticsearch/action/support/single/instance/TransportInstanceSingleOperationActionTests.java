@@ -229,7 +229,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         listener.get();
     }
 
-    public void testSuccessAfterRetryWithExcpetionFromTransport() throws Exception {
+    public void testSuccessAfterRetryWithExceptionFromTransport() throws Exception {
         Request request = new Request().index("test");
         request.shardId = 0;
         PlainActionFuture<Response> listener = new PlainActionFuture<>();

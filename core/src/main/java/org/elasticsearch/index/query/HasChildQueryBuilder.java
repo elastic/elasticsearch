@@ -355,6 +355,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         public Query getInnerQuery() {
             return innerQuery;
         }
+
+        public Similarity getSimilarity() {
+            return similarity;
+        }
     }
 
     @Override

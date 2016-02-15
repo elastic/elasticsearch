@@ -100,9 +100,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
+    protected void resolveRequest(ClusterState state, UpdateRequest request) {
         resolveAndValidateRouting(state.metaData(), request.concreteIndex(), request);
-        return true;
     }
 
     public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {

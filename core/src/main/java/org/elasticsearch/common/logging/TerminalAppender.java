@@ -17,25 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.slf4j;
 
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package org.elasticsearch.common.logging;
+
+import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.spi.LoggingEvent;
+import org.elasticsearch.common.cli.Terminal;
 
 /**
- *
- */
-public class Slf4jESLoggerFactory extends ESLoggerFactory {
-
+ * TerminalAppender logs event to Terminal.DEFAULT. It is used for example by the PluginCli.
+ * */
+public class TerminalAppender extends AppenderSkeleton {
     @Override
-    protected ESLogger rootLogger() {
-        return getLogger(Logger.ROOT_LOGGER_NAME);
+    protected void append(LoggingEvent event) {
+        Terminal.DEFAULT.println(event.getRenderedMessage());
     }
 
     @Override
-    protected ESLogger newInstance(String prefix, String name) {
-        return new Slf4jESLogger(prefix, LoggerFactory.getLogger(name));
+    public void close() {
+    }
+
+    @Override
+    public boolean requiresLayout() {
+        return false;
     }
 }

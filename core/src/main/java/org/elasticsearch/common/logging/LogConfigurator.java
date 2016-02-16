@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.log4j;
+package org.elasticsearch.common.logging;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.ElasticsearchException;
@@ -39,13 +39,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
- *
+ * Configures log4j with a special set of replacements.
  */
 public class LogConfigurator {
 
@@ -54,10 +55,12 @@ public class LogConfigurator {
     private static final Map<String, String> REPLACEMENTS;
     static {
         Map<String, String> replacements = new HashMap<>();
-        replacements.put("console", "org.elasticsearch.common.logging.log4j.ConsoleAppender");
+        // Appenders
         replacements.put("async", "org.apache.log4j.AsyncAppender");
+        replacements.put("console", ConsoleAppender.class.getName());
         replacements.put("dailyRollingFile", "org.apache.log4j.DailyRollingFileAppender");
         replacements.put("externallyRolledFile", "org.apache.log4j.ExternallyRolledFileAppender");
+        replacements.put("extrasRollingFile", "org.apache.log4j.rolling.RollingFileAppender");
         replacements.put("file", "org.apache.log4j.FileAppender");
         replacements.put("jdbc", "org.apache.log4j.jdbc.JDBCAppender");
         replacements.put("jms", "org.apache.log4j.net.JMSAppender");
@@ -65,17 +68,18 @@ public class LogConfigurator {
         replacements.put("ntevent", "org.apache.log4j.nt.NTEventLogAppender");
         replacements.put("null", "org.apache.log4j.NullAppender");
         replacements.put("rollingFile", "org.apache.log4j.RollingFileAppender");
-        replacements.put("extrasRollingFile", "org.apache.log4j.rolling.RollingFileAppender");
         replacements.put("smtp", "org.apache.log4j.net.SMTPAppender");
         replacements.put("socket", "org.apache.log4j.net.SocketAppender");
         replacements.put("socketHub", "org.apache.log4j.net.SocketHubAppender");
         replacements.put("syslog", "org.apache.log4j.net.SyslogAppender");
         replacements.put("telnet", "org.apache.log4j.net.TelnetAppender");
-        replacements.put("terminal", "org.elasticsearch.common.logging.log4j.TerminalAppender");
-                // policies
+        replacements.put("terminal", TerminalAppender.class.getName());
+
+        // Policies
         replacements.put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy");
         replacements.put("sizeBased", "org.apache.log4j.rolling.SizeBasedTriggeringPolicy");
-                // layouts
+
+        // Layouts
         replacements.put("simple", "org.apache.log4j.SimpleLayout");
         replacements.put("html", "org.apache.log4j.HTMLLayout");
         replacements.put("pattern", "org.apache.log4j.PatternLayout");
@@ -141,7 +145,8 @@ public class LogConfigurator {
     static void resolveConfig(Environment env, final Settings.Builder settingsBuilder) {
 
         try {
-            Files.walkFileTree(env.configFile(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+            Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
+            Files.walkFileTree(env.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String fileName = file.getFileName().toString();

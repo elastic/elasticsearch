@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -31,12 +32,21 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  *
  */
 public class GceDiscovery extends ZenDiscovery {
 
     public static final String GCE = "gce";
+
+    /**
+     * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
+     */
+    public static final Setting<List<String>> TAGS_SETTING =
+        Setting.listSetting("discovery.gce.tags", Collections.emptyList(), s -> s, false, Setting.Scope.CLUSTER);
 
     @Inject
     public GceDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,

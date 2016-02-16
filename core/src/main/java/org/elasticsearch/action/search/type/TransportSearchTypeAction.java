@@ -25,13 +25,10 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +40,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -54,9 +52,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Map;
@@ -68,7 +64,9 @@ import static org.elasticsearch.action.search.type.TransportSearchHelper.interna
 /**
  *
  */
-public abstract class TransportSearchTypeAction extends TransportAction<SearchRequest, SearchResponse> {
+public abstract class TransportSearchTypeAction extends AbstractComponent {
+
+    protected final ThreadPool threadPool;
 
     protected final ClusterService clusterService;
 
@@ -76,14 +74,21 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
     protected final SearchPhaseController searchPhaseController;
 
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
+
     public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                      SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SearchAction.NAME, threadPool, actionFilters, indexNameExpressionResolver, clusterService.getTaskManager());
+                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+
+        super(settings);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
+
+    public abstract void execute(SearchRequest searchRequest, ActionListener<SearchResponse> listener);
 
     protected abstract class BaseAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 

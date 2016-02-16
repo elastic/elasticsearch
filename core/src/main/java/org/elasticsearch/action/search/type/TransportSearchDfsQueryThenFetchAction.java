@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -58,12 +57,12 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
     @Inject
     public TransportSearchDfsQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                   SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters, indexNameExpressionResolver);
+                                                  IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController, indexNameExpressionResolver);
     }
 
     @Override
-    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    public void execute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         new AsyncAction(searchRequest, listener).start();
     }
 

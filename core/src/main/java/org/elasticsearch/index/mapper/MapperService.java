@@ -362,7 +362,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // Before 3.0 some metadata mappers are also registered under the root object mapper
             // So we avoid false positives by deduplicating mappers
             // given that we check exact equality, this would still catch the case that a mapper
-            // is defined under the root object 
+            // is defined under the root object
             Collection<FieldMapper> uniqueFieldMappers = Collections.newSetFromMap(new IdentityHashMap<FieldMapper, Boolean>());
             uniqueFieldMappers.addAll(fieldMappers);
             fieldMappers = uniqueFieldMappers;

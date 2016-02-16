@@ -30,6 +30,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -88,7 +89,7 @@ public class SimpleQueryStringParser implements QueryParser {
 
         String currentFieldName = null;
         String queryBody = null;
-        float boost = 1.0f; 
+        float boost = 1.0f;
         String queryName = null;
         String minimumShouldMatch = null;
         Map<String, Float> fieldsAndWeights = null;
@@ -203,7 +204,18 @@ public class SimpleQueryStringParser implements QueryParser {
         if (fieldsAndWeights == null) {
             fieldsAndWeights = Collections.singletonMap(parseContext.defaultField(), 1.0F);
         }
-        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, sqsSettings);
+
+        // Fetch each mapped type for the fields specified
+        Map<String, MappedFieldType> fieldToType = new HashMap<>();
+        MapperService ms = parseContext.mapperService();
+        for (String fieldName : fieldsAndWeights.keySet()) {
+            MappedFieldType mapping = ms.fullName(fieldName);
+            if (mapping != null) {
+                fieldToType.put(fieldName, mapping);
+            }
+        }
+
+        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, fieldToType, flags, sqsSettings);
 
         if (defaultOperator != null) {
             sqp.setDefaultOperator(defaultOperator);

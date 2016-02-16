@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -37,11 +38,15 @@ import java.util.Map;
 public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
 
     private final Settings settings;
+    private final Map<String, MappedFieldType> fieldToType;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
+    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights,
+                             Map<String, MappedFieldType> fieldToType, int flags,
+                             Settings settings) {
         super(analyzer, weights, flags);
         this.settings = settings;
+        this.fieldToType = fieldToType;
     }
 
     /**
@@ -60,7 +65,15 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
-                Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
+                Query q = null;
+                MappedFieldType mpt = fieldToType.get(entry.getKey());
+                if (mpt != null && mpt.isNumeric()) {
+                    // If the field is numeric, it needs to use a different query type instead of
+                    // trying to analyze a 'string' as a 'long
+                    q = mpt.termQuery(text, null);
+                } else {
+                    q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
+                }
                 if (q != null) {
                     q.setBoost(entry.getValue());
                     bq.add(q, BooleanClause.Occur.SHOULD);

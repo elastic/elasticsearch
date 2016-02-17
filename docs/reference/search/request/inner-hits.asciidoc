@@ -150,7 +150,7 @@ An important default is that the `_source` returned in hits inside `inner_hits` 
 So in the above example only the comment part is returned per nested hit and not the entire source of the top level
 document that contained the comment.
 
-NOTE: A bug in Elasticsearch 2.x means that if you explicitly specify fields to be returned as part of the _source for inner_hits, you need to define them using the relative path, so in the example above:
+NOTE: A bug in Elasticsearch 2.x means that if you explicitly specify fields to be returned as part of the _source for inner_hits, you need to define them using the relative path, so in the example above you must write:
 --------------------------------------------------
 "inner_hits" : {
      "_source":["message"]

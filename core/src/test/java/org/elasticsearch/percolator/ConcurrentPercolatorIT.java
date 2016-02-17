@@ -286,7 +286,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         }
 
         for (Throwable t : exceptionsHolder) {
-            logger.error("Unexpected exception {}", t.getMessage(), t);
+            logger.error("Unexpected exception while indexing", t);
         }
         assertThat(exceptionsHolder.isEmpty(), equalTo(true));
     }

@@ -383,7 +383,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         int maxIters = randomIntBetween(10, 20);
         for (int i = 0; i < maxIters; i++) {
             int max_query_terms = randomIntBetween(1, values.length);
-            logger.info("Running More Like This with max_query_terms = %s", max_query_terms);
+            logger.info("Running More Like This with max_query_terms = {}", max_query_terms);
             MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new String[] {"text"}, null, new Item[] {new Item(null, null, "0")})
                     .minTermFreq(1).minDocFreq(1)
                     .maxQueryTerms(max_query_terms).minimumShouldMatch("0%");

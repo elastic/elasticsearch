@@ -314,7 +314,7 @@ public class PolygonBuilder extends ShapeBuilder {
 
         double shiftOffset = any.coordinate.x > DATELINE ? DATELINE : (any.coordinate.x < -DATELINE ? -DATELINE : 0);
         if (debugEnabled()) {
-            LOGGER.debug("shift: {[]}", shiftOffset);
+            LOGGER.debug("shift: [{}]", shiftOffset);
         }
 
         // run along the border of the component, collect the
@@ -392,7 +392,7 @@ public class PolygonBuilder extends ShapeBuilder {
 
         if(debugEnabled()) {
             for (int i = 0; i < result.length; i++) {
-                LOGGER.debug("Component {[]}:", i);
+                LOGGER.debug("Component [{}]:", i);
                 for (int j = 0; j < result[i].length; j++) {
                     LOGGER.debug("\t" + Arrays.toString(result[i][j]));
                 }

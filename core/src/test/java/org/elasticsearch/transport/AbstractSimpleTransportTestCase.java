@@ -40,9 +40,13 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -70,12 +74,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Settings.builder().put("name", "TS_A", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
                 version0, new NamedWriteableRegistry()
         );
+        serviceA.acceptIncomingRequests();
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
         serviceB = build(
                 Settings.builder().put("name", "TS_B", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
                 version1, new NamedWriteableRegistry()
         );
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
+        serviceB.acceptIncomingRequests();
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
@@ -1210,6 +1216,62 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         assertTrue(nodeA.address().sameHost(addressA.get()));
         assertTrue(nodeB.address().sameHost(addressB.get()));
+    }
+
+    public void testBlockingIncomingRequests() throws Exception {
+        TransportService service = build(
+                Settings.builder().put("name", "TS_TEST", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
+                version0, new NamedWriteableRegistry()
+        );
+        final AtomicBoolean requestProcessed = new AtomicBoolean();
+        service.registerRequestHandler("action", TestRequest.class, ThreadPool.Names.SAME,
+                new TransportRequestHandler<TestRequest>() {
+                    @Override
+                    public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
+                        requestProcessed.set(true);
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                });
+
+        DiscoveryNode node = new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
+        serviceA.connectToNode(node);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        serviceA.sendRequest(node, "action", new TestRequest(), new TransportResponseHandler<TestResponse>() {
+            @Override
+            public TestResponse newInstance() {
+                return new TestResponse();
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        assertFalse(requestProcessed.get());
+
+        service.acceptIncomingRequests();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertTrue(requestProcessed.get());
+            }
+        });
+
+        latch.await();
+        service.close();
+
     }
 
     public static class TestRequest extends TransportRequest {

@@ -20,10 +20,8 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.node.service.NodeService;
@@ -65,6 +63,12 @@ public interface Discovery extends LifecycleComponent<Discovery> {
 
     public static interface AckListener {
         void onNodeAck(DiscoveryNode node, @Nullable Throwable t);
+
         void onTimeout();
     }
+
+    /**
+     * Triggers the first join cycle
+     */
+    void startInitialJoin();
 }

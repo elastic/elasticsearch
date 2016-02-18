@@ -185,6 +185,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         clusterService = new TestClusterService(THREAD_POOL);
         transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
+        transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
         action = new TestTransportBroadcastByNodeAction(
                 Settings.EMPTY,

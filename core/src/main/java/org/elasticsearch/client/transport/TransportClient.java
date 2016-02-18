@@ -32,7 +32,6 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -41,8 +40,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -159,7 +156,10 @@ public class TransportClient extends AbstractClient {
                 pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();
-                injector.getInstance(TransportService.class).start();
+                final TransportService transportService = injector.getInstance(TransportService.class);
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
                 TransportClient transportClient = new TransportClient(injector);
                 success = true;
                 return transportClient;

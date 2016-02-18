@@ -59,8 +59,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BroadcastReplicationTests extends ESTestCase {
 
@@ -83,6 +87,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         clusterService = new TestClusterService(threadPool);
         transportService = new TransportService(transport, threadPool);
         transportService.start();
+        transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
     }
 

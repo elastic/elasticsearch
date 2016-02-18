@@ -49,8 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -62,7 +62,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
 
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
     protected final ThreadPool threadPool;
 
@@ -174,14 +174,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
             }
         }
-        boolean setStarted = started.compareAndSet(false, true);
-        assert setStarted : "service was already started";
     }
 
     @Override
     protected void doStop() {
-        final boolean setStopped = started.compareAndSet(true, false);
-        assert setStopped : "service has already been stopped";
         try {
             transport.stop();
         } finally {
@@ -206,6 +202,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     @Override
     protected void doClose() {
         transport.close();
+    }
+
+    /**
+     * start accepting incoming requests.
+     * when the transport layer starts up it will block any incoming requests until
+     * this method is called
+     */
+    public void acceptIncomingRequests() {
+        blockIncomingRequestsLatch.countDown();
     }
 
     public boolean addressSupported(Class<? extends TransportAddress> address) {
@@ -297,7 +302,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 timeoutHandler = new TimeoutHandler(requestId);
             }
             clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
-            if (started.get() == false) {
+            if (lifecycle.stoppedOrClosed()) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
                 // it will only notify if the toStop code hasn't done the work yet.
                 throw new TransportException("TransportService is closed stopped can't send request");
@@ -400,10 +405,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     /**
      * Registers a new request handler
-     * @param action The action the request handler is associated with
-     * @param request The request class that will be used to constrcut new instances for streaming
+     * <<<<<<< HEAD
+     *
+     * @param action   The action the request handler is associated with
+     * @param request  The request class that will be used to constrcut new instances for streaming
      * @param executor The executor the request handling will be executed on
-     * @param handler The handler itself that implements the request handling
+     * @param handler  The handler itself that implements the request handling
      */
     public final <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, TransportRequestHandler<Request> handler) {
         registerRequestHandler(action, request, executor, false, handler);
@@ -411,10 +418,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     /**
      * Registers a new request handler
-     * @param action The action the request handler is associated with
+     *
+     * @param action         The action the request handler is associated with
+     *                       =======
+     * @param action         The action the request handler is associated with
+     *                       >>>>>>> 5a91ad1... Only accept transport requests after node is fully initialized #16746
      * @param requestFactory a callable to be used construct new instances for streaming
-     * @param executor The executor the request handling will be executed on
-     * @param handler The handler itself that implements the request handling
+     * @param executor       The executor the request handling will be executed on
+     * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, handler, executor, false);
@@ -423,11 +434,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     /**
      * Registers a new request handler
-     * @param action The action the request handler is associated with
-     * @param request The request class that will be used to constrcut new instances for streaming
-     * @param executor The executor the request handling will be executed on
+     *
+     * @param action         The action the request handler is associated with
+     * @param request        The request class that will be used to constrcut new instances for streaming
+     * @param executor       The executor the request handling will be executed on
      * @param forceExecution Force execution on the executor queue and never reject it
-     * @param handler The handler itself that implements the request handling
+     * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, handler, executor, forceExecution);
@@ -500,6 +512,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void onRequestReceived(long requestId, String action) {
+            try {
+                blockIncomingRequestsLatch.await();
+            } catch (InterruptedException e) {
+                logger.trace("interrupted while waiting for incoming requests block to be removed");
+            }
             if (traceEnabled() && shouldTraceAction(action)) {
                 traceReceivedRequest(requestId, action);
             }

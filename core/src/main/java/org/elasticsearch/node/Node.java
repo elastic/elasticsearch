@@ -129,7 +129,7 @@ public class Node implements Releasable {
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
-            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+                .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
@@ -139,7 +139,7 @@ public class Node implements Releasable {
 
         if (logger.isDebugEnabled()) {
             logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
+                    tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
         }
 
         this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
@@ -248,8 +248,6 @@ public class Node implements Releasable {
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
-        injector.getInstance(TransportService.class).start();
-        injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
@@ -258,16 +256,24 @@ public class Node implements Releasable {
         // TODO hack around circular dependencies problems
         injector.getInstance(GatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(RoutingService.class));
 
-        DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
-        discoService.waitForInitialState();
-
-        // gateway should start after disco, so it can try and recovery from gateway on "start"
+        injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(GatewayService.class).start();
+
+        // Start the transport service now so the publish address will be added to the local disco node in ClusterService
+        TransportService transportService = injector.getInstance(TransportService.class);
+        transportService.start();
+        injector.getInstance(ClusterService.class).start();
+
+        // start after cluster service so the local disco is known
+        DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
+
+
+        transportService.acceptIncomingRequests();
+        discoService.joinClusterAndWaitForInitialState();
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
-        injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
         logger.info("started");
@@ -379,7 +385,7 @@ public class Node implements Releasable {
         stopWatch.stop().start("script");
         try {
             injector.getInstance(ScriptService.class).close();
-        } catch(IOException e) {
+        } catch (IOException e) {
             logger.warn("ScriptService close failed", e);
         }
 

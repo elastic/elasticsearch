@@ -29,7 +29,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,10 +59,12 @@ public class NettyScheduledPingTests extends ESTestCase {
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
         serviceA.start();
+        serviceA.acceptIncomingRequests();
 
         final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
         serviceB.start();
+        serviceB.acceptIncomingRequests();
 
         DiscoveryNode nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), Version.CURRENT);
         DiscoveryNode nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), Version.CURRENT);

@@ -58,7 +58,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateDiffPublishingTests extends ESTestCase {
 
@@ -171,6 +175,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
     protected MockTransportService buildTransportService(Settings settings, Version version) {
         MockTransportService transportService = new MockTransportService(settings, new LocalTransport(settings, threadPool, version, new NamedWriteableRegistry()), threadPool);
         transportService.start();
+        transportService.acceptIncomingRequests();
         return transportService;
     }
 

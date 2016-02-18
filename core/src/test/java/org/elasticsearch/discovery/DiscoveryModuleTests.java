@@ -117,6 +117,11 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         }
 
         @Override
+        public void startInitialJoin() {
+
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }

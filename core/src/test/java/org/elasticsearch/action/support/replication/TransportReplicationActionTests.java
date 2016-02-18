@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ReplicationResponse;
@@ -126,6 +124,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         clusterService = new TestClusterService(threadPool);
         transportService = new TransportService(transport, threadPool);
         transportService.start();
+        transportService.acceptIncomingRequests();
         action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool);
         count.set(1);
     }

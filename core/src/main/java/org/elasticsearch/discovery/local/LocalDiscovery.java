@@ -100,6 +100,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Override
     protected void doStart() {
+
+    }
+
+    @Override
+    public void startInitialJoin() {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {

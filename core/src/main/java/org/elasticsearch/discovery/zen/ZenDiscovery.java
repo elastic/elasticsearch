@@ -216,7 +216,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         joinThreadControl.start();
         pingService.start();
         this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
+    }
 
+    @Override
+    public void startInitialJoin() {
         // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.
         clusterService.submitStateUpdateTask("initial_join", new ClusterStateUpdateTask() {
 

@@ -84,6 +84,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         clusterService = new TestClusterService(threadPool);
         transportService = new TransportService(transport, threadPool);
         transportService.start();
+        transportService.acceptIncomingRequests();
         localNode = new DiscoveryNode("local_node", DummyTransportAddress.INSTANCE, Version.CURRENT);
         remoteNode = new DiscoveryNode("remote_node", DummyTransportAddress.INSTANCE, Version.CURRENT);
         allNodes = new DiscoveryNode[] { localNode, remoteNode };

@@ -18,13 +18,16 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,20 +35,29 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
+import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for task management API
@@ -59,14 +71,19 @@ public class TasksIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(MockTaskManager.USE_MOCK_TASK_MANAGER, true)
+            .put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true)
             .build();
     }
 
@@ -216,6 +233,96 @@ public class TasksIT extends ESIntegTestCase {
             assertEquals(1, sTask.size());
             assertParentTask(Collections.singletonList(taskInfo), sTask.get(0));
         }
+    }
+
+    /**
+     * Very basic "is it plugged in" style test that indexes a document and
+     * makes sure that you can fetch the status of the process. The goal here is
+     * to verify that the large moving parts that make fetching task status work
+     * fit together rather than to verify any particular status results from
+     * indexing. For that, look at
+     * {@link org.elasticsearch.action.support.replication.TransportReplicationActionTests}
+     * . We intentionally don't use the task recording mechanism used in other
+     * places in this test so we can make sure that the status fetching works
+     * properly over the wire.
+     */
+    public void testCanFetchIndexStatus() throws InterruptedException, ExecutionException, IOException {
+        /*
+         * We prevent any tasks from unregistering until the test is done so we
+         * can fetch them. This will gum up the server if we leave it enabled
+         * but we'll be quick so it'll be OK (TM).
+         */
+        ReentrantLock taskFinishLock = new ReentrantLock();
+        taskFinishLock.lock();
+        CountDownLatch taskRegistered = new CountDownLatch(1);
+        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+            ((MockTaskManager)clusterService.getTaskManager()).addListener(new MockTaskManagerListener() {
+                @Override
+                public void onTaskRegistered(Task task) {
+                    if (task.getAction().startsWith(IndexAction.NAME)) {
+                        taskRegistered.countDown();
+                    }
+                }
+
+                @Override
+                public void onTaskUnregistered(Task task) {
+                    /*
+                     * We can't block all tasks here or the task listing task
+                     * would never return.
+                     */
+                    if (false == task.getAction().startsWith(IndexAction.NAME)) {
+                        return;
+                    }
+                    logger.debug("Blocking {} from being unregistered", task);
+                    taskFinishLock.lock();
+                    taskFinishLock.unlock();
+                }
+            });
+        }
+        ListenableActionFuture<?> indexFuture = client().prepareIndex("test", "test").setSource("test", "test").execute();
+        taskRegistered.await(10, TimeUnit.SECONDS); // waiting for at least one task to be registered
+        ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").setDetailed(true)
+                .get();
+        taskFinishLock.unlock();
+        indexFuture.get();
+        assertThat(tasks.getTasks(), not(emptyCollectionOf(TaskInfo.class)));
+        for (TaskInfo task : tasks.getTasks()) {
+            assertNotNull(task.getStatus());
+        }
+    }
+
+    public void testTasksCancellation() throws Exception {
+        // Start blocking test task
+        // Get real client (the plugin is not registered on transport nodes)
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        logger.info("--> started test tasks");
+
+        // Wait for the task to start on all nodes
+        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+        logger.info("--> cancelling the main test task");
+        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get();
+        assertEquals(1, cancelTasksResponse.getTasks().size());
+
+        future.get();
+
+        logger.info("--> checking that test tasks are not running");
+        assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size());
+
+    }
+
+    public void testTasksUnblocking() throws Exception {
+        // Start blocking test task
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        // Wait for the task to start on all nodes
+        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+        TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+
+        future.get();
+        assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
     }
 
     @Override

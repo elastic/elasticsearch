@@ -382,9 +382,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
     }
 
+    private static String[] TIME_SUFFIXES = new String[]{"d", "H", "ms", "s", "S", "w"};
+
+    private static String randomTimeValue(int lower, int upper) {
+        return randomIntBetween(lower, upper) + randomFrom(TIME_SUFFIXES);
+    }
+
     public static String randomTimeValue() {
-        final String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
-        return randomIntBetween(0, 1000) + randomFrom(values);
+        return randomTimeValue(0, 1000);
+    }
+
+    public static String randomPositiveTimeValue() {
+        return randomTimeValue(1, 1000);
     }
 
     /**

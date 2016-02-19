@@ -53,7 +53,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
-        assertThat(response.getHits().getTotalHits(), equalTo(0l));
+        assertThat(response.getHits().getTotalHits(), equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
@@ -147,7 +147,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
                 .addAggregation(geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
-                .subAggregation(geoCentroid(aggName)))
+                .subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
         assertSearchResponse(response);
 

@@ -111,9 +111,9 @@ doesn't take the query into account that is part of request.
 
 `string_distance`::
     Which string distance implementation to use for comparing how similar
-    suggested terms are. Five possible values can be specfied:
+    suggested terms are. Five possible values can be specified:
     `internal` - The default based on damerau_levenshtein but highly optimized
-    for comparing string distancee for terms inside the index.
+    for comparing string distance for terms inside the index.
     `damerau_levenshtein` - String distance algorithm based on
     Damerau-Levenshtein algorithm.
     `levenstein` - String distance algorithm based on Levenstein edit distance

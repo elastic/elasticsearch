@@ -48,8 +48,9 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
+import org.elasticsearch.index.IndexWarmer;
+import org.elasticsearch.index.IndexWarmer.TerminationHandle;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -74,22 +75,20 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Query, Value>> loadedFilters;
     private final Listener listener;
-    private final BitSetProducerWarmer warmer;
-    private final IndicesWarmer indicesWarmer;
 
-    public BitsetFilterCache(IndexSettings indexSettings, IndicesWarmer indicesWarmer, Listener listener) {
+    public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
         super(indexSettings);
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
         this.loadRandomAccessFiltersEagerly = this.indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
-        this.warmer = new BitSetProducerWarmer();
-        this.indicesWarmer = indicesWarmer;
-        indicesWarmer.addListener(warmer);
         this.listener = listener;
     }
 
+    public IndexWarmer.Listener createListener(ThreadPool threadPool) {
+        return new BitSetProducerWarmer(threadPool);
+    }
 
 
     public BitSetProducer getBitSetProducer(Query query) {
@@ -103,11 +102,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
 
     @Override
     public void close() {
-        try {
-            indicesWarmer.removeListener(warmer);
-        } finally {
-            clear("close");
-        }
+        clear("close");
     }
 
     public void clear(String reason) {
@@ -210,10 +205,16 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
         }
     }
 
-    final class BitSetProducerWarmer implements IndicesWarmer.Listener {
+    final class BitSetProducerWarmer implements IndexWarmer.Listener {
+
+        private final Executor executor;
+
+        BitSetProducerWarmer(ThreadPool threadPool) {
+            this.executor = threadPool.executor(ThreadPool.Names.WARMER);
+        }
 
         @Override
-        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
+        public IndexWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
             if (indexSettings.getIndex().equals(indexShard.getIndexSettings().getIndex()) == false) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;
@@ -244,7 +245,6 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
                 warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final Executor executor = indicesWarmer.getExecutor();
             final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : searcher.reader().leaves()) {
                 for (final Query filterToWarm : warmUp) {
@@ -277,7 +277,6 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
         return loadedFilters;
     }
 
-
     /**
      *  A listener interface that is executed for each onCache / onRemoval event
      */
@@ -295,6 +294,4 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
          */
         void onRemoval(ShardId shardId, Accountable accountable);
     }
-
-
 }

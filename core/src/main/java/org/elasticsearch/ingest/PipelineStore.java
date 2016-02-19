@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -36,10 +36,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.PipelineFactoryError;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -49,12 +47,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class PipelineStore extends AbstractComponent implements Closeable, ClusterStateListener {
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
-    private Map<String, Processor.Factory> processorFactoryRegistry;
+    private ProcessorsRegistry processorRegistry;
 
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -66,27 +63,16 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         super(settings);
     }
 
-    public void buildProcessorFactoryRegistry(ProcessorsRegistry processorsRegistry, ScriptService scriptService) {
-        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService) {
         TemplateService templateService = new InternalTemplateService(scriptService);
-        for (Map.Entry<String, Function<TemplateService, Processor.Factory<?>>> entry : processorsRegistry.entrySet()) {
-            Processor.Factory processorFactory = entry.getValue().apply(templateService);
-            processorFactories.put(entry.getKey(), processorFactory);
-        }
-        this.processorFactoryRegistry = Collections.unmodifiableMap(processorFactories);
+        this.processorRegistry = processorsRegistryBuilder.build(templateService);
     }
 
     @Override
     public void close() throws IOException {
         // TODO: When org.elasticsearch.node.Node can close Closable instances we should try to remove this code,
         // since any wired closable should be able to close itself
-        List<Closeable> closeables = new ArrayList<>();
-        for (Processor.Factory factory : processorFactoryRegistry.values()) {
-            if (factory instanceof Closeable) {
-                closeables.add((Closeable) factory);
-            }
-        }
-        IOUtils.close(closeables);
+        processorRegistry.close();
     }
 
     @Override
@@ -103,9 +89,11 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         Map<String, Pipeline> pipelines = new HashMap<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
-                pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactoryRegistry));
+                pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorRegistry));
+            } catch (ElasticsearchParseException e) {
+                throw e;
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e);
             }
         }
         this.pipelines = Collections.unmodifiableMap(pipelines);
@@ -154,9 +142,10 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     public void put(ClusterService clusterService, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
         // validates the pipeline and processor configuration before submitting a cluster update task:
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
-        WritePipelineResponse response = validatePipelineResponse(request.getId(), pipelineConfig);
-        if (response != null) {
-            listener.onResponse(response);
+        try {
+            factory.create(request.getId(), pipelineConfig, processorRegistry);
+        } catch(Exception e) {
+            listener.onFailure(e);
             return;
         }
         clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
@@ -197,8 +186,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         return pipelines.get(id);
     }
 
-    public Map<String, Processor.Factory> getProcessorFactoryRegistry() {
-        return processorFactoryRegistry;
+    public ProcessorsRegistry getProcessorRegistry() {
+        return processorRegistry;
     }
 
     /**
@@ -234,16 +223,4 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         }
         return result;
     }
-
-    WritePipelineResponse validatePipelineResponse(String id, Map<String, Object> config) {
-        try {
-            factory.create(id, config, processorFactoryRegistry);
-            return null;
-        } catch (ConfigurationPropertyException e) {
-            return new WritePipelineResponse(new PipelineFactoryError(e));
-        } catch (Exception e) {
-            return new WritePipelineResponse(new PipelineFactoryError(e.getMessage()));
-        }
-    }
-
 }

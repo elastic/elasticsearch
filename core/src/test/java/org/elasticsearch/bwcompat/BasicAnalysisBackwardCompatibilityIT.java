@@ -54,7 +54,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
         for (int i = 0; i < fields.length; i++) {
             fields[i++] = "field_" + fieldId++;
             String analyzer = randomAnalyzer();
-            fields[i] = "type=string,analyzer=" + analyzer;
+            fields[i] = "type=text,analyzer=" + analyzer;
         }
         assertAcked(prepareCreate("test")
                 .addMapping("type", (Object[])fields)

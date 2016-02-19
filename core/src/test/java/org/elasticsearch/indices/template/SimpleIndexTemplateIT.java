@@ -78,8 +78,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -88,7 +88,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", false).endObject()
+                        .startObject("field2").field("type", "text").field("store", false).endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -99,7 +99,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setCreate(true)
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", false).endObject()
+                        .startObject("field2").field("type", "text").field("store", false).endObject()
                         .endObject().endObject().endObject())
                 , IndexTemplateAlreadyExistsException.class
         );
@@ -145,8 +145,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "text").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -154,7 +154,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("test*")
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .startObject("field2").field("type", "text").field("store", "no").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -170,8 +170,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -190,8 +190,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -213,8 +213,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -223,8 +223,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -233,8 +233,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -369,21 +369,21 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 5l);
+        assertHitCount(searchResponse, 5L);
 
         searchResponse = client().prepareSearch("simple_alias").get();
-        assertHitCount(searchResponse, 5l);
+        assertHitCount(searchResponse, 5L);
 
         searchResponse = client().prepareSearch("templated_alias-test_index").get();
-        assertHitCount(searchResponse, 5l);
+        assertHitCount(searchResponse, 5L);
 
         searchResponse = client().prepareSearch("filtered_alias").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
 
         // Search the complex filter alias
         searchResponse = client().prepareSearch("complex_filtered_alias").get();
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
 
         Set<String> types = new HashSet<>();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
@@ -421,10 +421,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 2l);
+        assertHitCount(searchResponse, 2L);
 
         searchResponse = client().prepareSearch("my_alias").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
     }
 
@@ -456,13 +456,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 2l);
+        assertHitCount(searchResponse, 2L);
 
         searchResponse = client().prepareSearch("alias1").get();
-        assertHitCount(searchResponse, 2l);
+        assertHitCount(searchResponse, 2L);
 
         searchResponse = client().prepareSearch("alias2").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
     }
 
@@ -599,20 +599,20 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template1")
                 .setTemplate("a*")
                 .setOrder(0)
-                .addMapping("test", "field", "type=string")
+                .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias1").filter(termQuery("field", "value"))).get();
         // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and the test type exists.
         client().admin().indices().preparePutTemplate("template2")
                 .setTemplate("b*")
                 .setOrder(0)
-                .addMapping("_default_", "field", "type=string")
+                .addMapping("_default_", "field", "type=text")
                 .addMapping("test")
                 .addAlias(new Alias("alias2").filter(termQuery("field", "value"))).get();
         // Indexing into c should succeed, because the field mapping for field 'field' is defined in the _default_ mapping.
         client().admin().indices().preparePutTemplate("template3")
                 .setTemplate("c*")
                 .setOrder(0)
-                .addMapping("_default_", "field", "type=string")
+                .addMapping("_default_", "field", "type=text")
                 .addAlias(new Alias("alias3").filter(termQuery("field", "value"))).get();
         // Indexing into d index should fail, since there is field with name 'field' in the mapping
         client().admin().indices().preparePutTemplate("template4")
@@ -627,7 +627,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
         assertThat(response.getItems()[0].getType(), equalTo("test"));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
 
         client().prepareIndex("b1", "test", "test").setSource("{}").get();
         response = client().prepareBulk().add(new IndexRequest("b2", "test", "test").source("{}")).get();
@@ -636,7 +636,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getItems()[0].getIndex(), equalTo("b2"));
         assertThat(response.getItems()[0].getType(), equalTo("test"));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
 
         client().prepareIndex("c1", "test", "test").setSource("{}").get();
         response = client().prepareBulk().add(new IndexRequest("c2", "test", "test").source("{}")).get();
@@ -645,7 +645,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getItems()[0].getIndex(), equalTo("c2"));
         assertThat(response.getItems()[0].getType(), equalTo("test"));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
 
         // Before 2.0 alias filters were parsed at alias creation time, in order
         // for filters to work correctly ES required that fields mentioned in those
@@ -661,7 +661,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
     }
 
 }

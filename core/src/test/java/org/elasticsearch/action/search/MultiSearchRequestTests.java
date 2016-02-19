@@ -45,7 +45,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch1.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
-                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY);
+                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null);
         assertThat(request.requests().size(), equalTo(8));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
@@ -72,7 +72,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch2.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
-                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY);
+                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null);
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).types().length, equalTo(0));
@@ -91,7 +91,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch3.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
-                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY);
+                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null);
         assertThat(request.requests().size(), equalTo(4));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
@@ -111,7 +111,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch4.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
-                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY);
+                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null);
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
@@ -133,7 +133,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch5.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), true, null, null,
-                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY);
+                null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null);
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));

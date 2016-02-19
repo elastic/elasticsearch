@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -53,16 +52,17 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -150,16 +150,17 @@ public class DefaultSearchContext extends SearchContext {
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private final QueryShardContext queryShardContext;
+    private FetchPhase fetchPhase;
 
-    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                                Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                                ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
-                                TimeValue timeout
-    ) {
+    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
+            IndexService indexService, IndexShard indexShard, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+            BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
+            FetchPhase fetchPhase) {
         super(parseFieldMatcher);
         this.id = id;
         this.request = request;
+        this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
@@ -175,6 +176,8 @@ public class DefaultSearchContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
+        queryShardContext = indexService.newQueryShardContext();
+        queryShardContext.setTypes(request.types());
     }
 
     @Override
@@ -206,7 +209,7 @@ public class DefaultSearchContext extends SearchContext {
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasFilter(indexShard.getQueryShardContext(), request.filteringAliases());
+        aliasFilter = indexService.aliasFilter(queryShardContext, request.filteringAliases());
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
@@ -223,7 +226,7 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     private ParsedQuery buildFilteredQuery() {
-        Query searchFilter = searchFilter(types());
+        Query searchFilter = searchFilter(queryShardContext.getTypes());
         if (searchFilter == null) {
             return originalQuery;
         }
@@ -310,16 +313,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return request.numberOfShards();
-    }
-
-    @Override
-    public boolean hasTypes() {
-        return request.types() != null && request.types().length > 0;
-    }
-
-    @Override
-    public String[] types() {
-        return request.types();
     }
 
     @Override
@@ -741,6 +734,11 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public FetchPhase fetchPhase() {
+        return fetchPhase;
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
     }
@@ -763,6 +761,11 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
+    }
+
+    @Override
+    public QueryShardContext getQueryShardContext() {
+        return queryShardContext;
     }
 
     @Override

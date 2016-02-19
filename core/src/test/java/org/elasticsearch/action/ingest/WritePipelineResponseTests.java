@@ -21,13 +21,11 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.core.PipelineFactoryError;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 public class WritePipelineResponseTests extends ESTestCase {
 
@@ -45,17 +43,13 @@ public class WritePipelineResponseTests extends ESTestCase {
     }
 
     public void testSerializationWithError() throws IOException {
-        PipelineFactoryError error = new PipelineFactoryError("error");
-        WritePipelineResponse response = new WritePipelineResponse(error);
+        WritePipelineResponse response = new WritePipelineResponse();
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         WritePipelineResponse otherResponse = new WritePipelineResponse();
         otherResponse.readFrom(streamInput);
 
-        assertThat(otherResponse.getError().getReason(), equalTo(response.getError().getReason()));
-        assertThat(otherResponse.getError().getProcessorType(), equalTo(response.getError().getProcessorType()));
-        assertThat(otherResponse.getError().getProcessorTag(), equalTo(response.getError().getProcessorTag()));
-        assertThat(otherResponse.getError().getProcessorPropertyName(), equalTo(response.getError().getProcessorPropertyName()));
+        assertThat(otherResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
     }
 }

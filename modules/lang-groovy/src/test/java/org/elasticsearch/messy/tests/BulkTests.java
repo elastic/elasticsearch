@@ -95,26 +95,26 @@ public class BulkTests extends ESIntegTestCase {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
         }
         assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getId(), equalTo("1"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(2L));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getId(), equalTo("2"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2L));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getId(), equalTo("3"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2L));
 
         GetResponse getResponse = client().prepareGet().setIndex("test").setType("type1").setId("1").setFields("field").execute()
                 .actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(2l));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(2l));
+        assertThat(getResponse.getVersion(), equalTo(2L));
+        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(2L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(2l));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(3l));
+        assertThat(getResponse.getVersion(), equalTo(2L));
+        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(3L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("3").setFields("field1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(2l));
+        assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(getResponse.getField("field1").getValue().toString(), equalTo("test"));
 
         bulkResponse = client()
@@ -131,27 +131,27 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(true));
         assertThat(bulkResponse.getItems().length, equalTo(3));
         assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getId(), equalTo("6"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1L));
         assertThat(bulkResponse.getItems()[1].getResponse(), nullValue());
         assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("test"));
         assertThat(bulkResponse.getItems()[1].getFailure().getId(), equalTo("7"));
         assertThat(bulkResponse.getItems()[1].getFailure().getMessage(), containsString("document missing"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getIndex(), equalTo("test"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("6").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(1l));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(0l));
+        assertThat(getResponse.getVersion(), equalTo(1L));
+        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(0L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("7").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(3l));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(4l));
+        assertThat(getResponse.getVersion(), equalTo(3L));
+        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(4L));
     }
 
     public void testBulkVersioning() throws Exception {
@@ -163,20 +163,20 @@ public class BulkTests extends ESIntegTestCase {
                 .add(client().prepareIndex("test", "type", "1").setSource("field", "2")).get();
 
         assertTrue(((IndexResponse) bulkResponse.getItems()[0].getResponse()).isCreated());
-        assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1l));
+        assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1L));
         assertTrue(((IndexResponse) bulkResponse.getItems()[1].getResponse()).isCreated());
-        assertThat(((IndexResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(1l));
+        assertThat(((IndexResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(1L));
         assertFalse(((IndexResponse) bulkResponse.getItems()[2].getResponse()).isCreated());
-        assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate("test", "type", "1").setVersion(4l).setDoc("field", "2"))
+                .add(client().prepareUpdate("test", "type", "1").setVersion(4L).setDoc("field", "2"))
                 .add(client().prepareUpdate("test", "type", "2").setDoc("field", "2"))
-                .add(client().prepareUpdate("test", "type", "1").setVersion(2l).setDoc("field", "3")).get();
+                .add(client().prepareUpdate("test", "type", "1").setVersion(2L).setDoc("field", "3")).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3L));
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test", "type", "e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
@@ -184,11 +184,11 @@ public class BulkTests extends ESIntegTestCase {
                 .add(client().prepareIndex("test", "type", "e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL)).get();
 
         assertTrue(((IndexResponse) bulkResponse.getItems()[0].getResponse()).isCreated());
-        assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(10l));
+        assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(10L));
         assertTrue(((IndexResponse) bulkResponse.getItems()[1].getResponse()).isCreated());
-        assertThat(((IndexResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(10l));
+        assertThat(((IndexResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(10L));
         assertFalse(((IndexResponse) bulkResponse.getItems()[2].getResponse()).isCreated());
-        assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(12l));
+        assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(12L));
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "2").setVersion(10)) // INTERNAL
@@ -196,8 +196,8 @@ public class BulkTests extends ESIntegTestCase {
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "4").setVersion(20).setVersionType(VersionType.INTERNAL)).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(20l));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(21l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(20L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(21L));
     }
 
     public void testBulkUpdateMalformedScripts() throws Exception {
@@ -229,7 +229,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getResponse(), nullValue());
 
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getId(), equalTo("2"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2L));
         assertThat(((Integer) ((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()),
                 equalTo(2));
         assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
@@ -262,12 +262,12 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
-            assertThat(response.getItems()[i].getVersion(), equalTo(1l));
+            assertThat(response.getItems()[i].getVersion(), equalTo(1L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
-            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1l));
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1L));
             assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()),
                     equalTo(1));
 
@@ -275,8 +275,8 @@ public class BulkTests extends ESIntegTestCase {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute()
                         .actionGet();
                 assertThat(getResponse.isExists(), equalTo(true));
-                assertThat(getResponse.getVersion(), equalTo(1l));
-                assertThat((Long) getResponse.getField("counter").getValue(), equalTo(1l));
+                assertThat(getResponse.getVersion(), equalTo(1L));
+                assertThat((Long) getResponse.getField("counter").getValue(), equalTo(1L));
             }
         }
 
@@ -301,12 +301,12 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
-            assertThat(response.getItems()[i].getVersion(), equalTo(2l));
+            assertThat(response.getItems()[i].getVersion(), equalTo(2L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
-            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(2l));
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(2L));
             assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()),
                     equalTo(2));
         }
@@ -327,7 +327,7 @@ public class BulkTests extends ESIntegTestCase {
                 assertThat(response.getItems()[i].getFailure().getMessage(), containsString("document missing"));
             } else {
                 assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(id)));
-                assertThat(response.getItems()[i].getVersion(), equalTo(3l));
+                assertThat(response.getItems()[i].getVersion(), equalTo(3L));
                 assertThat(response.getItems()[i].getIndex(), equalTo("test"));
                 assertThat(response.getItems()[i].getType(), equalTo("type1"));
                 assertThat(response.getItems()[i].getOpType(), equalTo("update"));

@@ -408,7 +408,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
             return null;
         }
 

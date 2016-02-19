@@ -53,7 +53,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -336,7 +335,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 }
                             }
 
-                            QueryShardContext queryShardContext = indexService.getQueryShardContext();
+                            final QueryShardContext queryShardContext = indexService.newQueryShardContext();
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
                                     aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext);

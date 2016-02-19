@@ -14,12 +14,11 @@
                 dynamic:false,
                 properties:{
                     first:{
-                        type:"string",
+                        "type": "text",
                         store:true
                     },
                     last:{
-                        type:"string",
-                        index:"not_analyzed"
+                        "type": "keyword"
                     }
                 }
             },
@@ -29,7 +28,7 @@
                     first:{
                         properties:{
                             location:{
-                                type:"string",
+                                "type": "text",
                                 store:true
                             }
                         }
@@ -37,7 +36,7 @@
                     last:{
                         properties:{
                             location:{
-                                type:"string"
+                                "type": "text"
                             }
                         }
                     }
@@ -55,16 +54,16 @@
                 type:"boolean"
             },
             dogs:{
-                type:"string"
+                "type": "text"
             },
             complex:{
                 type:"object",
                 properties:{
                     value1:{
-                        type:"string"
+                        "type": "text"
                     },
                     value2:{
-                        type:"string"
+                        "type": "text"
                     }
                 }
             },
@@ -72,10 +71,10 @@
                 type:"object",
                 properties:{
                     value1:{
-                        type:"string"
+                        "type": "text"
                     },
                     value2:{
-                        type:"string"
+                        "type": "text"
                     }
                 }
             }

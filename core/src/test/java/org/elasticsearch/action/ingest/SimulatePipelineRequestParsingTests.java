@@ -20,7 +20,9 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
@@ -54,11 +56,12 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         TestProcessor processor = new TestProcessor(ingestDocument -> {});
         CompoundProcessor pipelineCompoundProcessor = new CompoundProcessor(processor);
         Pipeline pipeline = new Pipeline(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, null, pipelineCompoundProcessor);
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        processorRegistry.put("mock_processor", mock(Processor.Factory.class));
+        ProcessorsRegistry.Builder processorRegistryBuilder = new ProcessorsRegistry.Builder();
+        processorRegistryBuilder.registerProcessor("mock_processor", ((templateService, registry) -> mock(Processor.Factory.class)));
+        ProcessorsRegistry processorRegistry = processorRegistryBuilder.build(TestTemplateService.instance());
         store = mock(PipelineStore.class);
         when(store.get(SimulatePipelineRequest.SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
-        when(store.getProcessorFactoryRegistry()).thenReturn(processorRegistry);
+        when(store.getProcessorRegistry()).thenReturn(processorRegistry);
     }
 
     public void testParseUsingPipelineStore() throws Exception {

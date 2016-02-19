@@ -143,7 +143,6 @@ public class TribeIT extends ESIntegTestCase {
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
-                .put("tribe.blocks.read", false)
                 .put(settings)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
@@ -297,8 +296,8 @@ public class TribeIT extends ESIntegTestCase {
         tribeClient.admin().indices().prepareRefresh().get();
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2l);
-        assertHitCount(tribeClient.prepareSearch().get(), 2l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2L);
+        assertHitCount(tribeClient.prepareSearch().get(), 2L);
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -316,8 +315,8 @@ public class TribeIT extends ESIntegTestCase {
 
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4l);
-        assertHitCount(tribeClient.prepareSearch().get(), 4l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4L);
+        assertHitCount(tribeClient.prepareSearch().get(), 4L);
         assertBusy(new Runnable() {
             @Override
             public void run() {

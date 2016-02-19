@@ -50,6 +50,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -258,12 +259,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         // Cases where search_quote_analyzer should be present.
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1")
-                    .field("type", "string")
-                    .field("position_increment_gap", 1000)
-                    .field("search_quote_analyzer", "simple")
-                .endObject()
-                .startObject("field2")
+                .startObject("field")
                     .field("type", "string")
                     .field("position_increment_gap", 1000)
                     .field("analyzer", "standard")
@@ -274,10 +270,35 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
-        for (String fieldName : Arrays.asList("field1", "field2")) {
-            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
-            assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
-        }
+        Map<String, Object> serializedMap = getSerializedMap("field", mapper);
+        assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
+    }
+
+    public void testSearchAnalyzerSerialization() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("analyzer", "standard")
+                        .field("search_analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default index analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("analyzer", "default")
+                        .field("search_analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
     }
 
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {

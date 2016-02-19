@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,7 +32,6 @@ import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
@@ -46,6 +45,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -53,6 +53,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -73,11 +74,11 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  */
@@ -99,14 +100,11 @@ public class PercolateContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final long startTime;
     private final boolean onlyCount;
-    private String[] types;
-
     private Engine.Searcher docSearcher;
     private Engine.Searcher engineSearcher;
     private ContextIndexSearcher searcher;
 
     private SearchContextHighlight highlight;
-    private SearchLookup searchLookup;
     private ParsedQuery parsedQuery;
     private Query query;
     private Query percolateQuery;
@@ -115,18 +113,21 @@ public class PercolateContext extends SearchContext {
     private QuerySearchResult querySearchResult;
     private Sort sort;
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final QueryShardContext queryShardContext;
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private SearchLookup searchLookup;
+    private final FetchPhase fetchPhase;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
-                            IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter, ParseFieldMatcher parseFieldMatcher) {
+            IndexService indexService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ScriptService scriptService,
+            Query aliasFilter, ParseFieldMatcher parseFieldMatcher, FetchPhase fetchPhase) {
         super(parseFieldMatcher);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.fetchPhase = fetchPhase;
         this.fieldDataService = indexService.fieldData();
         this.mapperService = indexService.mapperService();
         this.searchShardTarget = searchShardTarget;
-        this.types = new String[]{request.documentType()};
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
@@ -137,10 +138,12 @@ public class PercolateContext extends SearchContext {
         this.aliasFilter = aliasFilter;
         this.startTime = request.getStartTime();
         this.onlyCount = request.onlyCount();
+        queryShardContext = indexService.newQueryShardContext();
+        queryShardContext.setTypes(request.documentType());
     }
 
     // for testing:
-    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService) {
+    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService, QueryShardContext queryShardContext) {
         super(null);
         this.searchShardTarget = searchShardTarget;
         this.mapperService = mapperService;
@@ -154,6 +157,8 @@ public class PercolateContext extends SearchContext {
         this.startTime = 0;
         this.numberOfShards = 0;
         this.onlyCount = true;
+        this.queryShardContext = queryShardContext;
+        this.fetchPhase = null;
     }
 
     public IndexSearcher docSearcher() {
@@ -162,10 +167,10 @@ public class PercolateContext extends SearchContext {
 
     public void initialize(Engine.Searcher docSearcher, ParsedDocument parsedDocument) {
         this.docSearcher = docSearcher;
-
         IndexReader indexReader = docSearcher.reader();
         LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-        LeafSearchLookup leafLookup = lookup().getLeafSearchLookup(atomicReaderContext);
+        this.searchLookup = new SearchLookup(mapperService(), fieldData(),  queryShardContext.getTypes());
+        LeafSearchLookup leafLookup = searchLookup.getLeafSearchLookup(atomicReaderContext);
         leafLookup.setDocument(0);
         leafLookup.source().setSource(parsedDocument.source());
 
@@ -232,10 +237,10 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchLookup lookup() {
-        if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), types);
-        }
-        return searchLookup;
+        // we cache this since it's really just a single document lookup - check the init method for details
+        assert searchLookup != null : "context is not initialized";
+        assert Arrays.equals(searchLookup.doc().getTypes(), getQueryShardContext().getTypes()) : "types mismatch - can't return lookup";
+        return this.searchLookup;
     }
 
     @Override
@@ -263,16 +268,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public Query query() {
         return query;
-    }
-
-    @Override
-    public String[] types() {
-        return types;
-    }
-
-    public void types(String[] types) {
-        this.types = types;
-        searchLookup = new SearchLookup(mapperService(), fieldData(), types);
     }
 
     @Override
@@ -339,11 +334,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return numberOfShards;
-    }
-
-    @Override
-    public boolean hasTypes() {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -660,6 +650,11 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public FetchPhase fetchPhase() {
+        return fetchPhase;
+    }
+
+    @Override
     public MappedFieldType smartNameFieldType(String name) {
         return mapperService().fullName(name);
     }
@@ -682,6 +677,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
+    }
+
+    @Override
+    public QueryShardContext getQueryShardContext() {
+        return queryShardContext;
     }
 
     @Override

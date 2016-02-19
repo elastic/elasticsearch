@@ -504,6 +504,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
+    @TestLogging("_root:debug,action.admin.cluster.tasks:trace")
     public void testPendingUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -632,7 +633,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : response) {
             if (controlSources.remove(task.getSource().string())) {
-                assertThat(task.getTimeInQueueInMillis(), greaterThan(0l));
+                assertThat(task.getTimeInQueueInMillis(), greaterThan(0L));
             }
         }
         assertTrue(controlSources.isEmpty());

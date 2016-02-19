@@ -19,170 +19,103 @@
 
 package org.elasticsearch.common.cli;
 
-import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.common.SuppressForbidden;
-
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.util.Locale;
+import java.nio.charset.Charset;
+
+import org.elasticsearch.common.SuppressForbidden;
 
 /**
-*
+ * A Terminal wraps access to reading input and writing output for a {@link CliTool}.
+ *
+ * The available methods are similar to those of {@link Console}, with the ability
+ * to read either normal text or a password, and the ability to print a line
+ * of text. Printing is also gated by the {@link Verbosity} of the terminal,
+ * which allows {@link #println(Verbosity,String)} calls which act like a logger,
+ * only actually printing if the verbosity level of the terminal is above
+ * the verbosity of the message.
 */
-@SuppressForbidden(reason = "System#out")
 public abstract class Terminal {
 
-    public static final String DEBUG_SYSTEM_PROPERTY = "es.cli.debug";
+    /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
+    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
 
-    public static final Terminal DEFAULT = ConsoleTerminal.supported() ? new ConsoleTerminal() : new SystemTerminal();
-
-    public static enum Verbosity {
-        SILENT(0), NORMAL(1), VERBOSE(2);
-
-        private final int level;
-
-        private Verbosity(int level) {
-            this.level = level;
-        }
-
-        public boolean enabled(Verbosity verbosity) {
-            return level >= verbosity.level;
-        }
-
-        public static Verbosity resolve(CommandLine cli) {
-            if (cli.hasOption("s")) {
-                return SILENT;
-            }
-            if (cli.hasOption("v")) {
-                return VERBOSE;
-            }
-            return NORMAL;
-        }
+    /** Defines the available verbosity levels of messages to be printed. */
+    public enum Verbosity {
+        SILENT, /* always printed */
+        NORMAL, /* printed when no options are given to cli */
+        VERBOSE /* printed only when cli is passed verbose option */
     }
 
+    /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
     private Verbosity verbosity = Verbosity.NORMAL;
-    private final boolean isDebugEnabled;
 
-    public Terminal() {
-        this(Verbosity.NORMAL);
-    }
-
-    public Terminal(Verbosity verbosity) {
-        this.verbosity = verbosity;
-        this.isDebugEnabled = "true".equals(System.getProperty(DEBUG_SYSTEM_PROPERTY, "false"));
-    }
-
-    public void verbosity(Verbosity verbosity) {
+    /** Sets the verbosity of the terminal. */
+    void setVerbosity(Verbosity verbosity) {
         this.verbosity = verbosity;
     }
 
-    public Verbosity verbosity() {
-        return verbosity;
+    /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
+    public abstract String readText(String prompt);
+
+    /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
+    public abstract char[] readSecret(String prompt);
+
+    /** Print a message directly to the terminal. */
+    protected abstract void doPrint(String msg);
+
+    /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
+    public final void println(String msg) {
+        println(Verbosity.NORMAL, msg);
     }
 
-    public abstract String readText(String text, Object... args);
-
-    public abstract char[] readSecret(String text, Object... args);
-
-    protected abstract void printStackTrace(Throwable t);
-
-    public void println() {
-        println(Verbosity.NORMAL);
-    }
-
-    public void println(String msg, Object... args) {
-        println(Verbosity.NORMAL, msg, args);
-    }
-
-    public void print(String msg, Object... args) {
-        print(Verbosity.NORMAL, msg, args);
-    }
-
-    public void println(Verbosity verbosity) {
-        println(verbosity, "");
-    }
-
-    public void println(Verbosity verbosity, String msg, Object... args) {
-        print(verbosity, msg + System.lineSeparator(), args);
-    }
-
-    public void print(Verbosity verbosity, String msg, Object... args) {
-        if (this.verbosity.enabled(verbosity)) {
-            doPrint(msg, args);
+    /** Prints a line to the terminal at {@code verbosity} level. */
+    public final void println(Verbosity verbosity, String msg) {
+        if (this.verbosity.ordinal() >= verbosity.ordinal()) {
+            doPrint(msg + System.lineSeparator());
         }
     }
-
-    public void printError(String msg, Object... args) {
-        println(Verbosity.SILENT, "ERROR: " + msg, args);
-    }
-
-    public void printError(Throwable t) {
-        printError("%s", t.toString());
-        if (isDebugEnabled) {
-            printStackTrace(t);
-        }
-    }
-
-    public void printWarn(String msg, Object... args) {
-        println(Verbosity.SILENT, "WARN: " + msg, args);
-    }
-
-    protected abstract void doPrint(String msg, Object... args);
-
-    public abstract PrintWriter writer();
 
     private static class ConsoleTerminal extends Terminal {
 
-        final Console console = System.console();
+        private static final Console console = System.console();
 
-        static boolean supported() {
-            return System.console() != null;
+        static boolean isSupported() {
+            return console != null;
         }
 
         @Override
-        public void doPrint(String msg, Object... args) {
-            console.printf(msg, args);
+        public void doPrint(String msg) {
+            console.printf("%s", msg);
             console.flush();
         }
 
         @Override
-        public String readText(String text, Object... args) {
-            return console.readLine(text, args);
+        public String readText(String prompt) {
+            return console.readLine("%s", prompt);
         }
 
         @Override
-        public char[] readSecret(String text, Object... args) {
-            return console.readPassword(text, args);
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return console.writer();
-        }
-
-        @Override
-        public void printStackTrace(Throwable t) {
-            t.printStackTrace(console.writer());
+        public char[] readSecret(String prompt) {
+            return console.readPassword("%s", prompt);
         }
     }
 
-    @SuppressForbidden(reason = "System#out")
     private static class SystemTerminal extends Terminal {
 
-        private final PrintWriter printWriter = new PrintWriter(System.out);
-
         @Override
-        public void doPrint(String msg, Object... args) {
-            System.out.print(String.format(Locale.ROOT, msg, args));
+        @SuppressForbidden(reason = "System#out")
+        public void doPrint(String msg) {
+            System.out.print(msg);
+            System.out.flush();
         }
 
         @Override
-        public String readText(String text, Object... args) {
-            print(text, args);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        public String readText(String text) {
+            doPrint(text);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
                 return reader.readLine();
             } catch (IOException ioe) {
@@ -191,18 +124,8 @@ public abstract class Terminal {
         }
 
         @Override
-        public char[] readSecret(String text, Object... args) {
-            return readText(text, args).toCharArray();
-        }
-
-        @Override
-        public void printStackTrace(Throwable t) {
-            t.printStackTrace(printWriter);
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return printWriter;
+        public char[] readSecret(String text) {
+            return readText(text).toCharArray();
         }
     }
 }

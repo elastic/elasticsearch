@@ -287,8 +287,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     .offsets(false)
                     .payloads(false)
                     .fieldStatistics(false)
-                    .termStatistics(false)
-                    .dfs(false);
+                    .termStatistics(false);
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
                 termVectorsRequest.doc(doc, true);
@@ -635,7 +634,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the fied.
+     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the field.
      */
     public MoreLikeThisQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
@@ -704,7 +703,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * Converts an array of String ids to and Item[].
      * @param ids the ids to convert
      * @return the new items array
-     * @deprecated construct the items array externaly and use it in the constructor / setter
+     * @deprecated construct the items array externally and use it in the constructor / setter
      */
     @Deprecated
     public static Item[] ids(String... ids) {
@@ -1050,5 +1049,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 Objects.equals(boostTerms, other.boostTerms) &&
                 Objects.equals(include, other.include) &&
                 Objects.equals(failOnUnsupportedField, other.failOnUnsupportedField);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // TODO this needs heavy cleanups before we can rewrite it
+        return this;
     }
 }

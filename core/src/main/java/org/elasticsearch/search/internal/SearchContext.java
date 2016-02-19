@@ -46,6 +46,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -72,12 +73,10 @@ public abstract class SearchContext implements Releasable {
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
-        QueryShardContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
         current.remove();
-        QueryShardContext.removeTypes();
     }
 
     public static SearchContext current() {
@@ -133,10 +132,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTarget shardTarget();
 
     public abstract int numberOfShards();
-
-    public abstract boolean hasTypes();
-
-    public abstract String[] types();
 
     public abstract float queryBoost();
 
@@ -310,6 +305,8 @@ public abstract class SearchContext implements Releasable {
 
     public abstract QuerySearchResult queryResult();
 
+    public abstract FetchPhase fetchPhase();
+
     public abstract FetchSearchResult fetchResult();
 
     /**
@@ -378,5 +375,7 @@ public abstract class SearchContext implements Releasable {
          */
         CONTEXT
     }
+
+    public abstract QueryShardContext getQueryShardContext();
 
 }

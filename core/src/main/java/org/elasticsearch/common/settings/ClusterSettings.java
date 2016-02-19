@@ -22,6 +22,8 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
@@ -56,13 +58,15 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -74,6 +78,7 @@ import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -137,19 +142,22 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 String component = key.substring("logger.".length());
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
-                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings).name() : rootLevel);
+                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings)
+                            .name() : rootLevel);
                 } else {
                     ESLoggerFactory.getLogger(component).setLevel(value.get(key));
                 }
             }
         }
-    };
+    }
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(
             Arrays.asList(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                    TransportClientNodesService.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL, // TODO these transport client settings are kind of odd here and should only be valid if we are a transport client
+                    TransportClientNodesService.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL, // TODO these transport client settings are kind
+                    // of odd here and should only be valid if we are a transport client
                     TransportClientNodesService.CLIENT_TRANSPORT_PING_TIMEOUT,
                     TransportClientNodesService.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
+                    TransportClientNodesService.CLIENT_TRANSPORT_SNIFF,
                     AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
                     BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                     BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
@@ -158,7 +166,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
                     EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
                     EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
-                    ZenDiscovery.REJOIN_ON_MASTER_GONE_SETTING,
                     FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
                     FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
                     FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
@@ -204,11 +211,40 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     GatewayService.RECOVER_AFTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_TIME_SETTING,
                     NetworkModule.HTTP_ENABLED,
-                    NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS,
-                    NettyHttpServerTransport.SETTING_CORS_ENABLED,
-                    NettyHttpServerTransport.SETTING_CORS_MAX_AGE,
-                    NettyHttpServerTransport.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-                    NettyHttpServerTransport.SETTING_PIPELINING,
+                    NetworkModule.HTTP_TYPE_SETTING,
+                    NetworkModule.TRANSPORT_SERVICE_TYPE_SETTING,
+                    NetworkModule.TRANSPORT_TYPE_SETTING,
+                    HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
+                    HttpTransportSettings.SETTING_CORS_ENABLED,
+                    HttpTransportSettings.SETTING_CORS_MAX_AGE,
+                    HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+                    HttpTransportSettings.SETTING_PIPELINING,
+                    HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN,
+                    HttpTransportSettings.SETTING_HTTP_PORT,
+                    HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT,
+                    HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS,
+                    HttpTransportSettings.SETTING_HTTP_COMPRESSION,
+                    HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL,
+                    HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
+                    HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
+                    HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+                    HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
+                    HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
+                    HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
+                    HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
+                    HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
+                    NettyHttpServerTransport.SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
+                    NettyHttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
+                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
+                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
+                    NettyHttpServerTransport.SETTING_HTTP_WORKER_COUNT,
+                    NettyHttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
+                    NettyHttpServerTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
+                    NettyHttpServerTransport.SETTING_HTTP_TCP_BLOCKING_SERVER,
+                    NettyHttpServerTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
+                    NettyHttpServerTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
+                    NettyHttpServerTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -226,6 +262,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                     Transport.TRANSPORT_TCP_COMPRESS,
                     TransportSettings.TRANSPORT_PROFILES_SETTING,
+                    TransportSettings.HOST,
+                    TransportSettings.PUBLISH_HOST,
+                    TransportSettings.BIND_HOST,
+                    TransportSettings.PUBLISH_PORT,
                     TransportSettings.PORT,
                     NettyTransport.WORKER_COUNT,
                     NettyTransport.CONNECTIONS_PER_NODE_RECOVERY,
@@ -241,8 +281,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_SIZE,
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_MIN,
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
-                    NettyTransport.NETWORK_SERVER,
+                    NetworkService.NETWORK_SERVER,
                     NettyTransport.NETTY_BOSS_COUNT,
+                    NettyTransport.TCP_NO_DELAY,
+                    NettyTransport.TCP_KEEP_ALIVE,
+                    NettyTransport.TCP_REUSE_ADDRESS,
+                    NettyTransport.TCP_SEND_BUFFER_SIZE,
+                    NettyTransport.TCP_RECEIVE_BUFFER_SIZE,
+                    NettyTransport.TCP_BLOCKING_SERVER,
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
@@ -259,11 +305,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                     PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
-                    IndicesFieldDataCache.INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING,
+                    ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+                    ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
+                    IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
                     IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
-                    IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL,
                     HunspellService.HUNSPELL_LAZY_LOAD,
                     HunspellService.HUNSPELL_IGNORE_CASE,
                     HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -300,12 +347,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     Node.WRITE_PORTS_FIELD_SETTING,
+                    Node.NODE_NAME_SETTING,
                     Node.NODE_CLIENT_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,
                     Node.NODE_LOCAL_SETTING,
                     Node.NODE_MODE_SETTING,
                     Node.NODE_INGEST_SETTING,
+                    Node.NODE_ATTRIBUTES,
                     URLRepository.ALLOWED_URLS_SETTING,
                     URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
                     URLRepository.REPOSITORIES_URL_SETTING,
@@ -327,6 +376,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TribeService.BLOCKS_READ_INDICES_SETTING,
                     TribeService.BLOCKS_METADATA_INDICES_SETTING,
                     TribeService.ON_CONFLICT_SETTING,
+                    TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH,
@@ -336,6 +386,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FsService.REFRESH_INTERVAL_SETTING,
                     JvmGcMonitorService.ENABLED_SETTING,
                     JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
-                    JvmGcMonitorService.GC_SETTING
-                )));
+                    JvmGcMonitorService.GC_SETTING,
+                    PageCacheRecycler.LIMIT_HEAP_SETTING,
+                    PageCacheRecycler.WEIGHT_BYTES_SETTING,
+                    PageCacheRecycler.WEIGHT_INT_SETTING,
+                    PageCacheRecycler.WEIGHT_LONG_SETTING,
+                    PageCacheRecycler.WEIGHT_OBJECTS_SETTING,
+                    PageCacheRecycler.TYPE_SETTING,
+                    PluginsService.MANDATORY_SETTING,
+                    BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
+                    BootstrapSettings.MLOCKALL_SETTING,
+                    BootstrapSettings.SECCOMP_SETTING,
+                    BootstrapSettings.CTRLHANDLER_SETTING
+            )));
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,17 +48,14 @@ import java.util.List;
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
-    private final IndicesRequestCache indicesRequestCache;
 
     @Inject
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                            TransportService transportService, IndicesService indicesService,
-                                            IndicesRequestCache indicesQueryCache, ActionFilters actionFilters,
+                                            TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 ClearIndicesCacheRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-        this.indicesRequestCache = indicesQueryCache;
     }
 
     @Override
@@ -101,7 +97,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
             }
             if (request.requestCache()) {
                 clearedAtLeastOne = true;
-                indicesRequestCache.clear(shard);
+                indicesService.clearRequestCache(shard);
             }
             if (request.recycler()) {
                 logger.debug("Clear CacheRecycler on index [{}]", service.index());
@@ -117,7 +113,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
                 } else {
                     service.cache().clear("api");
                     service.fieldData().clear();
-                    indicesRequestCache.clear(shard);
+                    indicesService.clearRequestCache(shard);
                 }
             }
         }

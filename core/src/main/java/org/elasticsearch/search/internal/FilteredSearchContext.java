@@ -35,12 +35,14 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -115,16 +117,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return in.numberOfShards();
-    }
-
-    @Override
-    public boolean hasTypes() {
-        return in.hasTypes();
-    }
-
-    @Override
-    public String[] types() {
-        return in.types();
     }
 
     @Override
@@ -498,6 +490,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public FetchPhase fetchPhase() {
+        return in.fetchPhase();
+    }
+
+    @Override
     public MappedFieldType smartNameFieldType(String name) {
         return in.smartNameFieldType(name);
     }
@@ -525,4 +522,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
 
+    @Override
+    public QueryShardContext getQueryShardContext() {
+        return in.getQueryShardContext();
+    }
 }

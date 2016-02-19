@@ -51,7 +51,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
- * A base testscase that allows to run tests based on the output of the CAT API
+ * A base testcase that allows to run tests based on the output of the CAT API
  * The input is a line based cat/shards output like:
  *   kibana-int           0 p STARTED       2  24.8kb 10.202.245.2 r5-9-35
  *
@@ -82,7 +82,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, primary, state, 1);
+                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, primary, state);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {

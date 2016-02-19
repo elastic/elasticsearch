@@ -185,6 +185,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+            this.fieldType.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
+            return builder;
+        }
+
         public T includeInAll(Boolean includeInAll) {
             this.includeInAll = includeInAll;
             return builder;
@@ -293,7 +298,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             parseCreateField(context, fields);
             for (Field field : fields) {
-                if (!customBoost()) {
+                if (!customBoost()
+                        // don't set boosts eg. on dv fields
+                        && field.fieldType().indexOptions() != IndexOptions.NONE) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);
@@ -421,8 +428,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             builder.field("index_options", indexOptionToString(fieldType().indexOptions()));
         }
 
-        doXContentAnalyzers(builder, includeDefaults);
-
         if (fieldType().similarity() != null) {
             builder.field("similarity", fieldType().similarity().name());
         } else if (includeDefaults) {
@@ -439,15 +444,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
+    protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        if (fieldType.tokenized() == false) {
+            return;
+        }
         if (fieldType().indexAnalyzer() == null) {
             if (includeDefaults) {
                 builder.field("analyzer", "default");
             }
-        } else if (includeDefaults || fieldType().indexAnalyzer().name().startsWith("_") == false && fieldType().indexAnalyzer().name().equals("default") == false) {
-            builder.field("analyzer", fieldType().indexAnalyzer().name());
-            if (fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false) {
-                builder.field("search_analyzer", fieldType().searchAnalyzer().name());
+        } else {
+            boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
+            boolean hasDifferentSearchAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false;
+            boolean hasDifferentSearchQuoteAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().searchQuoteAnalyzer().name()) == false;
+            if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
+                builder.field("analyzer", fieldType().indexAnalyzer().name());
+                if (hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
+                    builder.field("search_analyzer", fieldType().searchAnalyzer().name());
+                    if (hasDifferentSearchQuoteAnalyzer) {
+                        builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
+                    }
+                }
             }
         }
     }

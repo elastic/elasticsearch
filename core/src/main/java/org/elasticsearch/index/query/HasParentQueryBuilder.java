@@ -119,11 +119,12 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query innerQuery;
-        String[] previousTypes = QueryShardContext.setTypesWithPrevious(type);
+        String[] previousTypes = context.getTypes();
+        context.setTypes(type);
         try {
             innerQuery = query.toQuery(context);
         } finally {
-            QueryShardContext.setTypes(previousTypes);
+            context.setTypes(previousTypes);
         }
 
         if (innerQuery == null) {
@@ -193,7 +194,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Query childrenFilter = Queries.not(parentTypeQuery);
-        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, type, score ? ScoreMode.Max : ScoreMode.None, parentChildIndexFieldData);
+        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter,
+                                                         innerQuery,
+                                                         HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
+                                                         HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+                                                         type,
+                                                         score ? ScoreMode.Max : ScoreMode.None,
+                                                         parentChildIndexFieldData,
+                                                         context.getSearchSimilarity());
     }
 
     @Override
@@ -253,5 +261,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected int doHashCode() {
         return Objects.hash(query, type, score, innerHit);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryShardContext);
+        if (rewrite != query) {
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrite);
+            hasParentQueryBuilder.score = score;
+            hasParentQueryBuilder.innerHit = innerHit;
+            return hasParentQueryBuilder;
+        }
+        return this;
     }
 }

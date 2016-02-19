@@ -160,35 +160,14 @@ public class MissingIT extends ESIntegTestCase {
         assertThat((double) missing.getProperty("avg_value.value"), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
     }
 
-    public void testWithInheritedSubMissing() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "unmapped_idx")
-                .addAggregation(missing("top_missing").field("tag")
-                        .subAggregation(missing("sub_missing")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Missing topMissing = response.getAggregations().get("top_missing");
-        assertThat(topMissing, notNullValue());
-        assertThat(topMissing.getName(), equalTo("top_missing"));
-        assertThat(topMissing.getDocCount(), equalTo((long) numDocsMissing + numDocsUnmapped));
-        assertThat(topMissing.getAggregations().asList().isEmpty(), is(false));
-
-        Missing subMissing = topMissing.getAggregations().get("sub_missing");
-        assertThat(subMissing, notNullValue());
-        assertThat(subMissing.getName(), equalTo("sub_missing"));
-        assertThat(subMissing.getDocCount(), equalTo((long) numDocsMissing + numDocsUnmapped));
-    }
-
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
-                        .subAggregation(missing("missing")))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
+                        .subAggregation(missing("missing").field("value")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -197,7 +176,7 @@ public class MissingIT extends ESIntegTestCase {
         Missing missing = bucket.getAggregations().get("missing");
         assertThat(missing, Matchers.notNullValue());
         assertThat(missing.getName(), equalTo("missing"));
-        assertThat(missing.getDocCount(), is(0l));
+        assertThat(missing.getDocCount(), is(0L));
     }
 
 

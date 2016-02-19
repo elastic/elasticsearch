@@ -64,7 +64,7 @@ final class StoreRecovery {
      * @param indexShard the index shard instance to recovery the shard into
      * @param indexShouldExists <code>true</code> iff the index should exist on disk ie. has the shard been allocated previously on the shards store.
      * @param localNode the reference to the local node
-     * @return  <code>true</code> if the the shard has been recovered successfully, <code>false</code> if the recovery
+     * @return  <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      * @see Store
      */
@@ -86,7 +86,7 @@ final class StoreRecovery {
      * previously created index snapshot into an existing initializing shard.
      * @param indexShard the index shard instance to recovery the snapshot from
      * @param repository the repository holding the physical files the shard should be recovered from
-     * @return <code>true</code> if the the shard has been recovered successfully, <code>false</code> if the recovery
+     * @return <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      */
     boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository, DiscoveryNode localNode) {
@@ -203,7 +203,6 @@ final class StoreRecovery {
                         logger.trace("cleaning existing shard, shouldn't exists");
                         IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
                         writer.close();
-                        recoveryState.getTranslog().totalOperations(0);
                     }
                 }
             } catch (Throwable e) {
@@ -223,10 +222,6 @@ final class StoreRecovery {
                 }
             } catch (IOException e) {
                 logger.debug("failed to list file details", e);
-            }
-            if (indexShouldExists == false) {
-                recoveryState.getTranslog().totalOperations(0);
-                recoveryState.getTranslog().totalOperationsOnStart(0);
             }
             indexShard.performTranslogRecovery(indexShouldExists);
             indexShard.finalizeRecovery();

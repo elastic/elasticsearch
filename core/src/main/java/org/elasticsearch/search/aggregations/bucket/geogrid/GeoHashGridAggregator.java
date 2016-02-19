@@ -46,10 +46,10 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
     private final int requiredSize;
     private final int shardSize;
-    private final GeoHashGridParser.GeoGridFactory.CellIdSource valuesSource;
+    private final GeoGridAggregatorBuilder.CellIdSource valuesSource;
     private final LongHash bucketOrds;
 
-    public GeoHashGridAggregator(String name, AggregatorFactories factories, GeoHashGridParser.GeoGridFactory.CellIdSource valuesSource,
+    public GeoHashGridAggregator(String name, AggregatorFactories factories, GeoGridAggregatorBuilder.CellIdSource valuesSource,
             int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);

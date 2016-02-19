@@ -43,7 +43,6 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 2).build();
     }
 
@@ -98,8 +97,8 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
             final String recoverStateAsJSON = XContentHelper.toString(recoveryState, params);
             if (!recoveryState.getPrimary()) {
                 RecoveryState.Index index = recoveryState.getIndex();
-                assertThat(recoverStateAsJSON, index.recoveredBytes(), equalTo(0l));
-                assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(0l));
+                assertThat(recoverStateAsJSON, index.recoveredBytes(), equalTo(0L));
+                assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(0L));
                 assertThat(recoverStateAsJSON, index.reusedBytes(), equalTo(index.totalBytes()));
                 assertThat(recoverStateAsJSON, index.recoveredFileCount(), equalTo(0));
                 assertThat(recoverStateAsJSON, index.reusedFileCount(), equalTo(index.totalFileCount()));

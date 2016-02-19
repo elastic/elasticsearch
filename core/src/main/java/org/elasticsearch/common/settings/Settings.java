@@ -471,7 +471,7 @@ public final class Settings implements ToXContent {
 
     /**
      * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
@@ -480,7 +480,7 @@ public final class Settings implements ToXContent {
 
     /**
      * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
@@ -946,7 +946,26 @@ public final class Settings implements ToXContent {
          * @param values  The values
          * @return The builder
          */
+
+        /**
+         * Sets the setting with the provided setting key and an array of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
         public Builder putArray(String setting, String... values) {
+            return putArray(setting, Arrays.asList(values));
+        }
+
+        /**
+         * Sets the setting with the provided setting key and a list of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
+        public Builder putArray(String setting, List<String> values) {
             remove(setting);
             int counter = 0;
             while (true) {
@@ -955,8 +974,8 @@ public final class Settings implements ToXContent {
                     break;
                 }
             }
-            for (int i = 0; i < values.length; i++) {
-                put(setting + "." + i, values[i]);
+            for (int i = 0; i < values.size(); i++) {
+                put(setting + "." + i, values.get(i));
             }
             return this;
         }

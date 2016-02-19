@@ -255,7 +255,7 @@ public abstract class MetaDataStateFormat<T> {
         List<PathAndStateId> files = new ArrayList<>();
         long maxStateId = -1;
         boolean maxStateIdIsLegacy = true;
-        if (dataLocations != null) { // select all eligable files first
+        if (dataLocations != null) { // select all eligible files first
             for (Path dataLocation : dataLocations) {
                 final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
                 // now, iterate over the current versions, and find latest one

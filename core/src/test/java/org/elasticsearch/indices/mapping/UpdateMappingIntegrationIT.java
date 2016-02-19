@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -219,7 +220,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("Creating _default_ mappings with an analyzed field");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "string").field("index", "analyzed").endObject().endObject()
+                        .startObject("properties").startObject("f").field("type", "text").field("index", true).endObject().endObject()
                         .endObject().endObject()
         ).get();
         assertThat(putResponse.isAcknowledged(), equalTo(true));
@@ -228,7 +229,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("Changing _default_ mappings field from analyzed to non-analyzed");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "string").field("index", "not_analyzed").endObject().endObject()
+                        .startObject("properties").startObject("f").field("type", "keyword").endObject().endObject()
                         .endObject().endObject()
         ).get();
         assertThat(putResponse.isAcknowledged(), equalTo(true));
@@ -237,7 +238,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
         defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
-        assertThat(fieldSettings, hasEntry("index", (Object) "not_analyzed"));
+        assertThat(fieldSettings, hasEntry("type", (Object) "keyword"));
 
         // but we still validate the _default_ type
         logger.info("Confirming _default_ mappings validation");
@@ -286,7 +287,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
                             PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
                                     JsonXContent.contentBuilder().startObject().startObject(typeName)
-                                            .startObject("properties").startObject(fieldName).field("type", "string").endObject().endObject()
+                                            .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                             .endObject().endObject()
                             ).get();
 
@@ -336,5 +337,21 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 disableIndexBlock("test", block);
             }
         }
+    }
+
+    public void testUpdateMappingOnAllTypes() throws IOException {
+        assertAcked(prepareCreate("index").addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
+
+        assertAcked(client().admin().indices().preparePutMapping("index")
+                .setType("type1")
+                .setUpdateAllTypes(true)
+                .setSource("f", "type=keyword,null_value=n/a")
+                .get());
+
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
+        MappingMetaData type2Mapping = mappings.getMappings().get("index").get("type2").get();
+        Map<String, Object> properties = (Map<String, Object>) type2Mapping.sourceAsMap().get("properties");
+        Map<String, Object> f = (Map<String, Object>) properties.get("f");
+        assertEquals("n/a", f.get("null_value"));
     }
 }

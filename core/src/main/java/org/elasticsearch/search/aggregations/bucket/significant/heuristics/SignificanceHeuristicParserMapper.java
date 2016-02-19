@@ -21,8 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.script.ScriptService;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,14 +31,14 @@ public class SignificanceHeuristicParserMapper {
     protected final Map<String, SignificanceHeuristicParser> significanceHeuristicParsers;
 
     @Inject
-    public SignificanceHeuristicParserMapper(Set<SignificanceHeuristicParser> parsers, ScriptService scriptService) {
+    public SignificanceHeuristicParserMapper(Set<SignificanceHeuristicParser> parsers) {
         Map<String, SignificanceHeuristicParser> map = new HashMap<>();
         add(map, new JLHScore.JLHScoreParser());
         add(map, new PercentageScore.PercentageScoreParser());
         add(map, new MutualInformation.MutualInformationParser());
         add(map, new ChiSquare.ChiSquareParser());
         add(map, new GND.GNDParser());
-        add(map, new ScriptHeuristic.ScriptHeuristicParser(scriptService));
+        add(map, new ScriptHeuristic.ScriptHeuristicParser());
         for (SignificanceHeuristicParser parser : parsers) {
             add(map, parser);
         }

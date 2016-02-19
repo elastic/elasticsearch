@@ -192,7 +192,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(false));
 
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
-        // node_1 will then wait for the next cluster state change before it tries a next attempt to delet the shard.
+        // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.
         MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
         TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
@@ -393,14 +393,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             i++;
         }
         logger.info("Node [{}] has shards: {}", nonMasterNode, Arrays.toString(node2Shards));
-        final long shardVersions[] = new long[numShards];
-        final int shardIds[] = new int[numShards];
-        i = 0;
-        for (ShardRouting shardRouting : stateResponse.getState().getRoutingTable().allShards("test")) {
-            shardVersions[i] = shardRouting.version();
-            shardIds[i] = shardRouting.getId();
-            i++;
-        }
 
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
@@ -412,7 +404,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
                             new IndexShardRoutingTable.Builder(new ShardId(index, i))
-                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED))
                                     .build()
                     );
                 }

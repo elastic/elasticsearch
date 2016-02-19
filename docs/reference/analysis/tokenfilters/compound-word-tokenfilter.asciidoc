@@ -34,7 +34,7 @@ Credits for the hyphenation code go to the Apache FOP project .
 [float]
 === Dictionary decompounder
 
-The `dictionary_decompounder` uses a brute force approach in conjuction with
+The `dictionary_decompounder` uses a brute force approach in conjunction with
 only the word dictionary to find subwords in a compound word. It is much
 slower than the hyphenation decompounder but can be used as a first start to
 check the quality of your dictionary.

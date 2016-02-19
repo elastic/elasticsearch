@@ -45,7 +45,7 @@ public interface Rescorer {
      * Modifies the result of the previously executed search ({@link TopDocs})
      * in place based on the given {@link RescoreSearchContext}.
      *
-     * @param topDocs        the result of the previously exectued search
+     * @param topDocs        the result of the previously executed search
      * @param context        the current {@link SearchContext}. This will never be <code>null</code>.
      * @param rescoreContext the {@link RescoreSearchContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
@@ -66,7 +66,7 @@ public interface Rescorer {
             Explanation sourceExplanation) throws IOException;
 
     /**
-     * Parses the {@link RescoreSearchContext} for this impelementation
+     * Parses the {@link RescoreSearchContext} for this implementation
      *
      * @param parser  the parser to read the context from
      * @param context the current shard context
@@ -76,7 +76,7 @@ public interface Rescorer {
     public RescoreSearchContext parse(XContentParser parser, QueryShardContext context) throws IOException;
 
     /**
-     * Extracts all terms needed to exectue this {@link Rescorer}. This method
+     * Extracts all terms needed to execute this {@link Rescorer}. This method
      * is executed in a distributed frequency collection roundtrip for
      * {@link SearchType#DFS_QUERY_AND_FETCH} and
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
@@ -84,8 +84,8 @@ public interface Rescorer {
     public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
 
     /*
-     * TODO: At this point we only have one implemenation which modifies the
-     * TopDocs given. Future implemenations might return actual resutls that
+     * TODO: At this point we only have one implementation which modifies the
+     * TopDocs given. Future implementations might return actual results that
      * contain information about the rescore context. For example a pair wise
      * reranker might return the feature vector for the top N window in order to
      * merge results on the callers side. For now we don't have a return type at

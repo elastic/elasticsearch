@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.geo;
 
-import org.apache.lucene.util.GeoUtils;
+import org.apache.lucene.spatial.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.util.Random;

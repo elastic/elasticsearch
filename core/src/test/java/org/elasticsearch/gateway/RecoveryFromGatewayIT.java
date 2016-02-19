@@ -69,7 +69,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
+                .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
@@ -109,7 +109,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer").endObject().endObject()
                 .endObject().endObject().string();
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
@@ -301,8 +301,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             .setTemplate("te*")
                             .setOrder(0)
                             .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                                    .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                                    .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                                    .startObject("field1").field("type", "text").field("store", true).endObject()
+                                    .startObject("field2").field("type", "keyword").field("store", true).endObject()
                                     .endObject().endObject().endObject())
                             .execute().actionGet();
                     client.admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
@@ -331,7 +331,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                 .put("gateway.recover_after_nodes", 4)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
@@ -409,7 +408,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                         recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
                 assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
                 assertThat("no files should be recovered except of the segments file", recoveryState.getIndex().recoveredFileCount(), equalTo(1));
@@ -421,7 +420,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
-                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));

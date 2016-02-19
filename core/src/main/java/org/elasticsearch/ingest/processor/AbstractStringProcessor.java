@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.Map;
 
@@ -31,7 +30,7 @@ import java.util.Map;
  * Base class for processors that manipulate strings and require a single "fields" array config value, which
  * holds a list of field names in string format.
  */
-public abstract class AbstractStringProcessor extends AbstractProcessor {
+abstract class AbstractStringProcessor extends AbstractProcessor {
     private final String field;
 
     protected AbstractStringProcessor(String tag, String field) {
@@ -54,7 +53,7 @@ public abstract class AbstractStringProcessor extends AbstractProcessor {
 
     protected abstract String process(String value);
 
-    public static abstract class Factory<T extends AbstractStringProcessor> extends AbstractProcessorFactory<T> {
+    static abstract class Factory<T extends AbstractStringProcessor> extends AbstractProcessorFactory<T> {
         protected final String processorType;
 
         protected Factory(String processorType) {

@@ -31,8 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesBuilder;
-
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,7 +80,7 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         return percentiles;
     }
 
-    private static PercentilesBuilder randomCompression(PercentilesBuilder builder) {
+    private static PercentilesAggregatorBuilder randomCompression(PercentilesAggregatorBuilder builder) {
         if (randomBoolean()) {
             builder.compression(randomIntBetween(20, 120) + randomDouble());
         }
@@ -115,12 +114,12 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
-                        .subAggregation(randomCompression(percentiles("percentiles"))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
+                        .subAggregation(randomCompression(percentiles("percentiles").field("value"))
                                 .percentiles(10, 15)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -142,7 +141,7 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
                         .percentiles(0, 10, 15, 100))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
@@ -184,7 +183,7 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
@@ -388,8 +387,8 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field("value").interval(2l)
-                            .subAggregation(randomCompression(percentiles("percentiles").percentiles(99)))
+                        histogram("histo").field("value").interval(2L)
+                        .subAggregation(randomCompression(percentiles("percentiles").field("value").percentiles(99)))
                             .order(Order.aggregation("percentiles", "99", asc)))
                 .execute().actionGet();
 

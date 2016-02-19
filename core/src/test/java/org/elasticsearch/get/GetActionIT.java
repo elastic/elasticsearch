@@ -253,12 +253,12 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetDocWithMultivaluedFields() throws Exception {
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
-                .startObject("field").field("type", "string").field("store", true).endObject()
+                .startObject("field").field("type", "text").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties")
-                .startObject("field").field("type", "string").field("store", true).endObject()
+                .startObject("field").field("type", "text").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
@@ -462,12 +462,12 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
@@ -483,13 +483,13 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
@@ -507,7 +507,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
@@ -520,7 +520,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         // From Lucene index:
         refresh();
@@ -529,7 +529,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
@@ -542,7 +542,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
     }
 
     public void testMultiGetWithVersion() throws Exception {
@@ -718,7 +718,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
                         .startObject("field1").startObject("properties")
-                        .startObject("field2").field("type", "string").endObject()
+                        .startObject("field2").field("type", "text").endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject())
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
@@ -846,7 +846,7 @@ public class GetActionIT extends ESIntegTestCase {
                         .endObject()
                         .startObject("properties")
                         .startObject("some_field")
-                        .field("type", "string")
+                        .field("type", "text")
                         .endObject()
                         .endObject()
                         .endObject()

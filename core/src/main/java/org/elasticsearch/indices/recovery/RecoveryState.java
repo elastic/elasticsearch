@@ -101,7 +101,7 @@ public class RecoveryState implements ToXContent, Streamable {
         STORE((byte) 0),
         SNAPSHOT((byte) 1),
         REPLICA((byte) 2),
-        RELOCATION((byte) 3);
+        PRIMARY_RELOCATION((byte) 3);
 
         private static final Type[] TYPES = new Type[Type.values().length];
 

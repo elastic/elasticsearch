@@ -72,7 +72,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
                 .startObject("type")
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("analyzer", name)
                         .endObject()
                     .endObject()
@@ -111,7 +111,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         // check that all above configured analyzers have been loaded
         assertThatAnalyzersHaveBeenLoaded(loadedAnalyzers);
 
-        // check that all of the prebuiltanalyzers are still open
+        // check that all of the prebuilt analyzers are still open
         assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
     }
 
@@ -124,11 +124,11 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("foo")
-                        .field("type", "string")
+                        .field("type", "text")
                         .field("analyzer", "dummy")
                     .endObject()
                     .startObject("bar")
-                        .field("type", "string")
+                        .field("type", "text")
                         .field("analyzer", "my_dummy")
                     .endObject()
                 .endObject()

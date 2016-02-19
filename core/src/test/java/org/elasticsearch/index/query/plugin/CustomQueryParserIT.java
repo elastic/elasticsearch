@@ -59,16 +59,16 @@ public class CustomQueryParserIT extends ESIntegTestCase {
     }
 
     public void testCustomDummyQuery() {
-        assertHitCount(client().prepareSearch("index").setQuery(new DummyQueryParserPlugin.DummyQueryBuilder()).get(), 1l);
+        assertHitCount(client().prepareSearch("index").setQuery(new DummyQueryParserPlugin.DummyQueryBuilder()).get(), 1L);
     }
 
     public void testCustomDummyQueryWithinBooleanQuery() {
-        assertHitCount(client().prepareSearch("index").setQuery(new BoolQueryBuilder().must(new DummyQueryParserPlugin.DummyQueryBuilder())).get(), 1l);
+        assertHitCount(client().prepareSearch("index").setQuery(new BoolQueryBuilder().must(new DummyQueryParserPlugin.DummyQueryBuilder())).get(), 1L);
     }
 
     private static QueryShardContext queryShardContext() {
         IndicesService indicesService = internalCluster().getDataNodeInstance(IndicesService.class);
-        return indicesService.indexServiceSafe("index").getQueryShardContext();
+        return indicesService.indexServiceSafe("index").newQueryShardContext();
     }
 
     //see #11120

@@ -260,7 +260,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         NumericRangeQuery<Long> rangeQuery;
         try {
-            SearchContext.setCurrent(new TestSearchContext());
+            SearchContext.setCurrent(new TestSearchContext(null));
             rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true).rewrite(null);
         } finally {
             SearchContext.removeCurrent();
@@ -286,7 +286,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         NumericRangeQuery<Long> rangeQuery;
         try {
-            SearchContext.setCurrent(new TestSearchContext());
+            SearchContext.setCurrent(new TestSearchContext(null));
             rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true).rewrite(null);
         } finally {
             SearchContext.removeCurrent();

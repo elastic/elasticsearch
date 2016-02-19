@@ -80,9 +80,10 @@ public class CompoundProcessorTests extends ESTestCase {
         TestProcessor processor1 = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
         TestProcessor processor2 = new TestProcessor(ingestDocument -> {
             Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
-            assertThat(ingestMetadata.size(), equalTo(2));
+            assertThat(ingestMetadata.size(), equalTo(3));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("error"));
-            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_FIELD), equalTo("first"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("first"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("id"));
         });
 
         CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor1), Collections.singletonList(processor2));
@@ -94,18 +95,20 @@ public class CompoundProcessorTests extends ESTestCase {
 
     public void testSingleProcessorWithNestedFailures() throws Exception {
         TestProcessor processor = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
-        TestProcessor processorToFail = new TestProcessor("id", "second", ingestDocument -> {
+        TestProcessor processorToFail = new TestProcessor("id2", "second", ingestDocument -> {
             Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
-            assertThat(ingestMetadata.size(), equalTo(2));
+            assertThat(ingestMetadata.size(), equalTo(3));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("error"));
-            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_FIELD), equalTo("first"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("first"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("id"));
             throw new RuntimeException("error");
         });
         TestProcessor lastProcessor = new TestProcessor(ingestDocument -> {
             Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
-            assertThat(ingestMetadata.size(), equalTo(2));
+            assertThat(ingestMetadata.size(), equalTo(3));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("error"));
-            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_FIELD), equalTo("second"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("second"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("id2"));
         });
         CompoundProcessor compoundOnFailProcessor = new CompoundProcessor(Collections.singletonList(processorToFail), Collections.singletonList(lastProcessor));
         CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(compoundOnFailProcessor));

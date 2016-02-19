@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -30,6 +31,7 @@ import org.joda.time.DateTimeZone;
  */
 public class InternalDateHistogram {
 
+    public static final Factory HISTOGRAM_FACTORY = new Factory();
     final static Type TYPE = new Type("date_histogram", "dhisto");
 
     static class Bucket extends InternalHistogram.Bucket {
@@ -65,8 +67,13 @@ public class InternalDateHistogram {
         }
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
+        }
+
+        @Override
+        public ValueType valueType() {
+            return ValueType.DATE;
         }
 
         @Override

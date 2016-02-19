@@ -55,10 +55,10 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class ConcurrentPercolatorIT extends ESIntegTestCase {
     public void testSimpleConcurrentPercolator() throws Exception {
-        // We need to index a document / define mapping, otherwise field1 doesn't get reconized as number field.
+        // We need to index a document / define mapping, otherwise field1 doesn't get recognized as number field.
         // If we don't do this, then 'test2' percolate query gets parsed as a TermQuery and not a RangeQuery.
         // The percolate api doesn't parse the doc if no queries have registered, so it can't lazily create a mapping
-        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=long", "field2", "type=string")); // random # shards better has a mapping!
+        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=long", "field2", "type=text")); // random # shards better has a mapping!
         ensureGreen();
 
         final BytesReference onlyField1 = XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -149,7 +149,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
     }
 
     public void testConcurrentAddingAndPercolating() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string", "field2", "type=string"));
+        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
         final int numIndexThreads = scaledRandomIntBetween(1, 3);
         final int numPercolateThreads = scaledRandomIntBetween(2, 6);
@@ -210,7 +210,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     throw new IllegalStateException("Illegal x=" + x);
                             }
                             assertThat(response.getId(), equalTo(id));
-                            assertThat(response.getVersion(), equalTo(1l));
+                            assertThat(response.getVersion(), equalTo(1L));
                         }
                     } catch (Throwable t) {
                         exceptionsHolder.add(t);
@@ -298,7 +298,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
     }
 
     public void testConcurrentAddingAndRemovingWhilePercolating() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string"));
+        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=text"));
         ensureGreen();
         final int numIndexThreads = scaledRandomIntBetween(1, 3);
         final int numberPercolateOperation = scaledRandomIntBetween(10, 100);

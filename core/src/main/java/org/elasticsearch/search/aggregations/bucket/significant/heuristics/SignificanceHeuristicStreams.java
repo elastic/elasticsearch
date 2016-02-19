@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,21 +32,26 @@ import java.util.Map;
  */
 public class SignificanceHeuristicStreams {
 
-    private static Map<String, Stream> STREAMS = Collections.emptyMap();
+    private static Map<String, SignificanceHeuristic> STREAMS = Collections.emptyMap();
 
     static {
-        HashMap<String, Stream> map = new HashMap<>();
-        map.put(JLHScore.STREAM.getName(), JLHScore.STREAM);
-        map.put(PercentageScore.STREAM.getName(), PercentageScore.STREAM);
-        map.put(MutualInformation.STREAM.getName(), MutualInformation.STREAM);
-        map.put(GND.STREAM.getName(), GND.STREAM);
-        map.put(ChiSquare.STREAM.getName(), ChiSquare.STREAM);
-        map.put(ScriptHeuristic.STREAM.getName(), ScriptHeuristic.STREAM);
+        HashMap<String, SignificanceHeuristic> map = new HashMap<>();
+        map.put(JLHScore.NAMES_FIELD.getPreferredName(), JLHScore.PROTOTYPE);
+        map.put(PercentageScore.NAMES_FIELD.getPreferredName(), PercentageScore.PROTOTYPE);
+        map.put(MutualInformation.NAMES_FIELD.getPreferredName(), MutualInformation.PROTOTYPE);
+        map.put(GND.NAMES_FIELD.getPreferredName(), GND.PROTOTYPE);
+        map.put(ChiSquare.NAMES_FIELD.getPreferredName(), ChiSquare.PROTOTYPE);
+        map.put(ScriptHeuristic.NAMES_FIELD.getPreferredName(), ScriptHeuristic.PROTOTYPE);
         STREAMS = Collections.unmodifiableMap(map);
     }
 
     public static SignificanceHeuristic read(StreamInput in) throws IOException {
-        return stream(in.readString()).readResult(in);
+        return stream(in.readString()).readFrom(in);
+    }
+
+    public static void writeTo(SignificanceHeuristic significanceHeuristic, StreamOutput out) throws IOException {
+        out.writeString(significanceHeuristic.getWriteableName());
+        significanceHeuristic.writeTo(out);
     }
 
     /**
@@ -59,17 +65,18 @@ public class SignificanceHeuristicStreams {
     }
 
     /**
-     * Registers the given stream and associate it with the given types.
+     * Registers the given prototype.
      *
-     * @param stream The stream to register
+     * @param prototype
+     *            The prototype to register
      */
-    public static synchronized void registerStream(Stream stream) {
-        if (STREAMS.containsKey(stream.getName())) {
-            throw new IllegalArgumentException("Can't register stream with name [" + stream.getName() + "] more than once");
+    public static synchronized void registerPrototype(SignificanceHeuristic prototype) {
+        if (STREAMS.containsKey(prototype.getWriteableName())) {
+            throw new IllegalArgumentException("Can't register stream with name [" + prototype.getWriteableName() + "] more than once");
         }
-        HashMap<String, Stream> map = new HashMap<>();
+        HashMap<String, SignificanceHeuristic> map = new HashMap<>();
         map.putAll(STREAMS);
-        map.put(stream.getName(), stream);
+        map.put(prototype.getWriteableName(), prototype);
         STREAMS = Collections.unmodifiableMap(map);
     }
 
@@ -79,7 +86,7 @@ public class SignificanceHeuristicStreams {
      * @param name The given name
      * @return The associated stream
      */
-    private static synchronized Stream stream(String name) {
+    private static synchronized SignificanceHeuristic stream(String name) {
         return STREAMS.get(name);
     }
 

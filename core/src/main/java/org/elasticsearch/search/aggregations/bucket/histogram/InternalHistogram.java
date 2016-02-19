@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -48,12 +49,15 @@ import java.util.Map;
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
  */
-public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation<InternalHistogram, B> implements
+public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation<InternalHistogram<B>, B>
+        implements
         Histogram {
 
+    public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
     final static Type TYPE = new Type("histogram", "histo");
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+        @SuppressWarnings("rawtypes")
         @Override
         public InternalHistogram readResult(StreamInput in) throws IOException {
             InternalHistogram histogram = new InternalHistogram();
@@ -104,7 +108,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             this.factory = factory;
         }
 
-        public Bucket(long key, long docCount, boolean keyed, ValueFormatter formatter, Factory factory,
+        public Bucket(long key, long docCount, boolean keyed, ValueFormatter formatter, Factory<?> factory,
                 InternalAggregations aggregations) {
             this(keyed, formatter, factory);
             this.key = key;
@@ -136,6 +140,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return aggregations;
         }
 
+        @SuppressWarnings("unchecked")
         <B extends Bucket> B reduce(List<B> buckets, ReduceContext context) {
             List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
             long docCount = 0;
@@ -235,8 +240,12 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         protected Factory() {
         }
 
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
+        }
+
+        public ValueType valueType() {
+            return ValueType.NUMERIC;
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
@@ -252,10 +261,12 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     prototype.formatter, prototype.keyed, this, prototype.pipelineAggregators(), prototype.metaData);
         }
 
+        @SuppressWarnings("unchecked")
         public B createBucket(InternalAggregations aggregations, B prototype) {
             return (B) new Bucket(prototype.key, prototype.docCount, prototype.getKeyed(), prototype.formatter, this, aggregations);
         }
 
+        @SuppressWarnings("unchecked")
         public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
             if (key instanceof Number) {
                 return (B) new Bucket(((Number) key).longValue(), docCount, keyed, formatter, this, aggregations);
@@ -264,6 +275,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             }
         }
 
+        @SuppressWarnings("unchecked")
         protected B createEmptyBucket(boolean keyed, ValueFormatter formatter) {
             return (B) new Bucket(keyed, formatter, this);
         }
@@ -343,7 +355,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             }
         };
         for (InternalAggregation aggregation : aggregations) {
-            InternalHistogram<B> histogram = (InternalHistogram) aggregation;
+            @SuppressWarnings("unchecked")
+            InternalHistogram<B> histogram = (InternalHistogram<B>) aggregation;
             if (histogram.buckets.isEmpty() == false) {
                 pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
             }
@@ -505,7 +518,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @SuppressWarnings("unchecked")
-    private static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
+    protected static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
         if (factoryType.equals(InternalDateHistogram.TYPE.name())) {
             return (Factory<B>) new InternalDateHistogram.Factory();
         } else if (factoryType.equals(TYPE.name())) {
@@ -517,7 +530,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(factory.type());
+        out.writeString(factory.type().name());
         InternalOrder.Streams.writeOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {

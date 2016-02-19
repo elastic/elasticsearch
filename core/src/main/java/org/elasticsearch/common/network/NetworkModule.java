@@ -40,6 +40,7 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -150,16 +151,19 @@ public class NetworkModule extends AbstractModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
-
+    public static final String HTTP_TYPE_KEY = "http.type";
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
-    public static final String HTTP_TYPE_KEY = "http.type";
+    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", false, Scope.CLUSTER);
     public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, false, Scope.CLUSTER);
+    public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING = Setting.simpleString("transport.service.type", false, Scope.CLUSTER);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", false, Scope.CLUSTER);
+
+
 
     private static final List<Class<? extends RestHandler>> builtinRestHandlers = Arrays.asList(
         RestMainAction.class,
-
         RestNodesInfoAction.class,
         RestNodesStatsAction.class,
         RestNodesHotThreadsAction.class,
@@ -262,6 +266,7 @@ public class NetworkModule extends AbstractModule {
 
         // Tasks API
         RestListTasksAction.class,
+        RestCancelTasksAction.class,
 
         // Ingest API
         RestPutPipelineAction.class,
@@ -380,7 +385,7 @@ public class NetworkModule extends AbstractModule {
         } else {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
-                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_KEY, NETTY_TRANSPORT);
+                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), NETTY_TRANSPORT);
             }
             bind(RestController.class).asEagerSingleton();
             catHandlers.bind(binder());

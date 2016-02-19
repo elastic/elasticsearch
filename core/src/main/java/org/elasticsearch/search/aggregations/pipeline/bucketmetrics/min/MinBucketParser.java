@@ -19,10 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.Map;
 
@@ -33,9 +30,15 @@ public class MinBucketParser extends BucketMetricsParser {
         return MinBucketPipelineAggregator.TYPE.name();
     }
 
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            ValueFormatter formatter, Map<String, Object> unparsedParams) {
-        return new MinBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
-    };
+    @Override
+    protected MinBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+            Map<String, Object> unparsedParams) {
+        return new MinBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+    }
+
+    @Override
+    public MinBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return MinBucketPipelineAggregatorBuilder.PROTOTYPE;
+    }
 
 }

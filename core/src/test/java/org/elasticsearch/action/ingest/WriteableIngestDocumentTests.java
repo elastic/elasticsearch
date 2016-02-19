@@ -24,14 +24,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.XContentTestUtils.convertToMap;
+import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class WriteableIngestDocumentTests extends ESTestCase {
 
@@ -110,5 +115,31 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         WriteableIngestDocument otherWriteableIngestDocument = new WriteableIngestDocument(streamInput);
         assertThat(otherWriteableIngestDocument, equalTo(writeableIngestDocument));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContent() throws IOException {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(ingestDocument));
+
+        Map<String, Object> toXContentMap = convertToMap(writeableIngestDocument);
+        Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
+        Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
+        Map<String, String> toXContentIngestMetadata = (Map<String, String>) toXContentDoc.get("_ingest");
+
+        Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+        for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
+            String fieldName = metadata.getKey().getFieldName();
+            if (metadata.getValue() == null) {
+               assertThat(toXContentDoc.containsKey(fieldName), is(false));
+            } else {
+                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue()));
+            }
+        }
+
+        String sourceDiff = differenceBetweenMapsIgnoringArrayOrder(toXContentSource, ingestDocument.getSourceAndMetadata());
+        assertThat(sourceDiff, is(nullValue()));
+
+        assertThat(toXContentIngestMetadata, equalTo(ingestDocument.getIngestMetadata()));
     }
 }

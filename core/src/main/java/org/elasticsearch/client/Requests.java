@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -106,7 +107,7 @@ public class Requests {
     }
 
     /**
-     * Creats a new bulk request.
+     * Creates a new bulk request.
      */
     public static BulkRequest bulkRequest() {
         return new BulkRequest();
@@ -420,10 +421,21 @@ public class Requests {
      *
      * @param nodesIds The nodes ids to get the tasks for
      * @return The nodes tasks request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#listTasks(ListTasksRequest)
      */
     public static ListTasksRequest listTasksRequest(String... nodesIds) {
         return new ListTasksRequest(nodesIds);
+    }
+
+    /**
+     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     *
+     * @param nodesIds The nodes ids to cancel the tasks on
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#cancelTasks(CancelTasksRequest)
+     */
+    public static CancelTasksRequest cancelTasksRequest(String... nodesIds) {
+        return new CancelTasksRequest(nodesIds);
     }
 
     /**

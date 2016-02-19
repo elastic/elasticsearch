@@ -64,14 +64,12 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test1").shard(i).primaryShard().version(), equalTo(1l));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
             assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test2").shard(i).primaryShard().version(), equalTo(1l));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
@@ -84,17 +82,13 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
-            assertThat(routingTable.index("test1").shard(i).primaryShard().version(), equalTo(2l));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).version(), equalTo(2l));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
             assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test2").shard(i).primaryShard().version(), equalTo(1l));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).version(), equalTo(1l));
         }
     }
 }

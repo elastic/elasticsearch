@@ -20,28 +20,56 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.DFISimilarity;
+import org.apache.lucene.search.similarities.Independence;
+import org.apache.lucene.search.similarities.IndependenceChiSquared;
+import org.apache.lucene.search.similarities.IndependenceSaturated;
+import org.apache.lucene.search.similarities.IndependenceStandardized;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * {@link SimilarityProvider} for the {@link DFISimilarity}.
  * <p>
  * Configuration options available:
  * <ul>
+ *     <li>independence_measure</li>
  *     <li>discount_overlaps</li>
  * </ul>
  * @see DFISimilarity For more information about configuration
  */
 public class DFISimilarityProvider extends AbstractSimilarityProvider {
+    // the "basic models" of divergence from independence
+    private static final Map<String, Independence> INDEPENDENCE_MEASURES;
+    static {
+        Map<String, Independence> measures = new HashMap<>();
+        measures.put("standardized", new IndependenceStandardized());
+        measures.put("saturated", new IndependenceSaturated());
+        measures.put("chisquared", new IndependenceChiSquared());
+        INDEPENDENCE_MEASURES = unmodifiableMap(measures);
+    }
 
     private final DFISimilarity similarity;
 
     public DFISimilarityProvider(String name, Settings settings) {
         super(name);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
-
-        this.similarity = new DFISimilarity();
+        Independence measure = parseIndependence(settings);
+        this.similarity = new DFISimilarity(measure);
         this.similarity.setDiscountOverlaps(discountOverlaps);
+    }
+
+    private Independence parseIndependence(Settings settings) {
+        String name = settings.get("independence_measure");
+        Independence measure = INDEPENDENCE_MEASURES.get(name);
+        if (measure == null) {
+            throw new IllegalArgumentException("Unsupported IndependenceMeasure [" + name + "]");
+        }
+        return measure;
     }
 
     @Override

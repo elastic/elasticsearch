@@ -48,11 +48,11 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
             .put(Node.NODE_MODE_SETTING.getKey(), "network");
 
         // We add a fake subscription_id to start mock compute service
-        builder.put(Management.SUBSCRIPTION_ID, "fake")
+        builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")
             .put(Discovery.REFRESH_SETTING.getKey(), "5s")
-            .put(Management.KEYSTORE_PATH, "dummy")
-            .put(Management.KEYSTORE_PASSWORD, "dummy")
-            .put(Management.SERVICE_NAME, "dummy");
+            .put(Management.KEYSTORE_PATH_SETTING.getKey(), "dummy")
+            .put(Management.KEYSTORE_PASSWORD_SETTING.getKey(), "dummy")
+            .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy");
         return builder.build();
     }
 

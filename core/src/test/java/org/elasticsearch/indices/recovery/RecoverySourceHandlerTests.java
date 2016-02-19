@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
@@ -69,9 +68,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+            null, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger);
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(),
+                logger);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -118,11 +118,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+            null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -181,11 +181,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+            null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());

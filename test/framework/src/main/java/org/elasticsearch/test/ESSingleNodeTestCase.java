@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -51,6 +52,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -68,7 +70,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    private void reset() {
+    private void reset() throws IOException {
         assert NODE != null;
         stopNode();
         startNode();
@@ -83,13 +85,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertFalse(clusterHealthResponse.isTimedOut());
     }
 
-    private static void stopNode() {
+    private static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
-        Releasables.close(node);
+        IOUtils.close(node);
     }
 
-    private void cleanup(boolean resetNode) {
+    private void cleanup(boolean resetNode) throws IOException {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
             reset();
@@ -126,7 +128,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void tearDownClass() {
+    public static void tearDownClass() throws IOException {
         stopNode();
     }
 
@@ -183,49 +185,49 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Returns a client to the single-node cluster.
      */
-    public static Client client() {
+    public Client client() {
         return NODE.client();
     }
 
     /**
      * Returns the single test nodes name.
      */
-    public static String nodeName() {
+    public String nodeName() {
         return "node_s_0";
     }
 
     /**
      * Return a reference to the singleton node.
      */
-    protected static Node node() {
+    protected Node node() {
         return NODE;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
-    protected static <T> T getInstanceFromNode(Class<T> clazz) {
+    protected <T> T getInstanceFromNode(Class<T> clazz) {
         return NODE.injector().getInstance(clazz);
     }
 
     /**
      * Create a new index on the singleton node with empty index settings.
      */
-    protected static IndexService createIndex(String index) {
+    protected IndexService createIndex(String index) {
         return createIndex(index, Settings.EMPTY);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings) {
+    protected IndexService createIndex(String index, Settings settings) {
         return createIndex(index, settings, null, (XContentBuilder) null);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
@@ -236,7 +238,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
@@ -244,7 +246,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return createIndex(index, createIndexRequestBuilder);
     }
 
-    protected static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
+    protected IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
@@ -259,7 +261,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new search context.
      */
-    protected static SearchContext createSearchContext(IndexService indexService) {
+    protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getIndexServices().getBigArrays();
         ThreadPool threadPool = indexService.getIndexServices().getThreadPool();
         PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);

@@ -48,10 +48,10 @@ public class ParentIdAggIT extends ESIntegTestCase {
         refresh();
         ensureGreen("testidx");
         SearchResponse searchResponse = client().prepareSearch("testidx").setTypes("childtype").setQuery(matchAllQuery()).addAggregation(AggregationBuilders.terms("children").field("_parent#parenttype")).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getAggregations().getAsMap().get("children"), instanceOf(Terms.class));
         Terms terms = (Terms) searchResponse.getAggregations().getAsMap().get("children");
-        assertThat(terms.getBuckets().iterator().next().getDocCount(), equalTo(2l));
+        assertThat(terms.getBuckets().iterator().next().getDocCount(), equalTo(2L));
     }
 }

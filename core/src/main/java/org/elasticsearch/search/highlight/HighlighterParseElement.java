@@ -54,7 +54,7 @@ public class HighlighterParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         try {
-            context.highlight(parse(parser, context.indexShard().getQueryShardContext()));
+            context.highlight(parse(parser, context.getQueryShardContext()));
         } catch (IllegalArgumentException ex) {
             throw new SearchParseException(context, "Error while trying to parse Highlighter element in request", parser.getTokenLocation());
         }

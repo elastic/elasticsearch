@@ -429,7 +429,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        assertThat("bad message !!!", equalTo(exp.getCause().getMessage()));
+                        assertThat("runtime_exception: bad message !!!", equalTo(exp.getCause().getMessage()));
                     }
                 });
 
@@ -437,7 +437,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), equalTo("bad message !!!"));
+            assertThat(e.getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
         }
 
         serviceA.removeHandler("sayHelloException");
@@ -556,7 +556,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
         final CountDownLatch latch = new CountDownLatch(1);
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                new StringMessageRequest("300ms"), TransportRequestOptions.builder().withTimeout(100).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
+                new StringMessageRequest("2m"), TransportRequestOptions.builder().withTimeout(100).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse newInstance() {
                         return new StringMessageResponse();

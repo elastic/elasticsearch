@@ -117,7 +117,7 @@ public class CombiIT extends ESIntegTestCase {
         prepareCreate("idx").addMapping("type", jsonBuilder()
                 .startObject()
                 .startObject("type").startObject("properties")
-                    .startObject("name").field("type", "string").endObject()
+                    .startObject("name").field("type", "text").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
                 .endObject()).execute().actionGet();
@@ -131,7 +131,7 @@ public class CombiIT extends ESIntegTestCase {
                                 .collectMode(aggCollectionMode )))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getBuckets().isEmpty(), is(true));

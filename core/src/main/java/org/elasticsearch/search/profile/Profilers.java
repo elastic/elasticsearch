@@ -31,7 +31,7 @@ public final class Profilers {
     private final ContextIndexSearcher searcher;
     private final List<Profiler> profilers;
 
-    /** Sole constructor. This {@link Profilers} instance will initiall wrap one {@link Profiler}. */
+    /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link Profiler}. */
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
         this.profilers = new ArrayList<>();

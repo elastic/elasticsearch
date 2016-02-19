@@ -65,7 +65,7 @@ public class FlushIT extends ESIntegTestCase {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {
-                            // dont' use assertAllSuccesssful it uses a randomized context that belongs to a different thread
+                            // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
                             assertThat("Unexpected ShardFailures: " + Arrays.toString(flushResponse.getShardFailures()), flushResponse.getFailedShards(), equalTo(0));
                             latch.countDown();
                         } catch (Throwable ex) {
@@ -154,7 +154,7 @@ public class FlushIT extends ESIntegTestCase {
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(
-                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
+                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
                 .get();
         ensureGreen();
         final AtomicBoolean stop = new AtomicBoolean(false);

@@ -3,7 +3,7 @@
 
 Provides store information for shard copies of indices.
 Store information reports on which nodes shard copies exist, the shard
-copy version, indicating how recent they are, and any exceptions
+copy allocation ID, a unique identifier for each shard copy, and any exceptions
 encountered while opening the shard index or from earlier engine failure.
 
 By default, only lists store information for shards that have at least one
@@ -51,8 +51,8 @@ The shard stores information is grouped by indices and shard ids.
                         "mode": "local"
                     }
                 },
-                "version": 4, <4>
-                "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <5>
+                "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>
+                "legacy_version": 42, <5>
                 "allocation" : "primary" | "replica" | "unused", <6>
                 "store_exception": ... <7>
             },
@@ -66,8 +66,9 @@ The shard stores information is grouped by indices and shard ids.
 <2> A list of store information for all copies of the shard
 <3> The node information that hosts a copy of the store, the key
     is the unique node id.
-<4> The version of the store copy
-<5> The allocation id of the store copy
+<4> The allocation id of the store copy
+<5> The version of the store copy (available only for legacy shard copies that have
+    not yet been active in a current version of Elasticsearch)
 <6> The status of the store copy, whether it is used as a
     primary, replica or not used at all
 <7> Any exception encountered while opening the shard index or

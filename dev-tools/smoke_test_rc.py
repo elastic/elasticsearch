@@ -66,7 +66,6 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "discovery-azure",
                    "discovery-ec2",
                    "discovery-gce",
-                   "discovery-multicast",
                    "lang-javascript",
                    "lang-painless",
                    "lang-python",
@@ -179,7 +178,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
       continue # nothing to do here
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
-    es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/plugin')
+    es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch-plugin')
     plugin_names = {}
     for plugin  in plugins:
       print('     Install plugin [%s]' % (plugin))
@@ -224,7 +223,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
               node_plugins = node['plugins']
               for node_plugin in node_plugins:
                 if not plugin_names.get(node_plugin['name'].strip(), False):
-                  raise RuntimeError('Unexpeced plugin %s' % node_plugin['name'])
+                  raise RuntimeError('Unexpected plugin %s' % node_plugin['name'])
                 del plugin_names[node_plugin['name']]
             if plugin_names:
               raise RuntimeError('Plugins not loaded %s' % list(plugin_names.keys()))

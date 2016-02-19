@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.hamcrest.CoreMatchers.either;
@@ -63,23 +65,22 @@ public class TribeUnitTests extends ESTestCase {
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
-                .put("name", "tribe1_node")
+                .put("node.name", "tribe1_node")
                 .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
-                .put("name", "tribe2_node")
+                .put("node.name", "tribe2_node")
                 .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
     }
 
     @AfterClass
-    public static void closeTribes() {
-        tribe1.close();
+    public static void closeTribes() throws IOException {
+        IOUtils.close(tribe1, tribe2);
         tribe1 = null;
-        tribe2.close();
         tribe2 = null;
     }
 
@@ -116,7 +117,9 @@ public class TribeUnitTests extends ESTestCase {
         //they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")
                 .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).put(extraSettings).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
+                .put(extraSettings).build();
 
         try (Node node = new Node(settings).start()) {
             try (Client client = node.client()) {

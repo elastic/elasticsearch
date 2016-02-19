@@ -21,6 +21,8 @@ package org.elasticsearch.aliases;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -54,6 +56,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.cluster.metadata.AliasAction.Type.ADD;
+import static org.elasticsearch.cluster.metadata.AliasAction.Type.REMOVE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
@@ -132,7 +136,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testFilteringAliases() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type", "user", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "user", "type=text"));
 
         ensureGreen();
 
@@ -159,7 +163,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type1", "id", "type=string", "name", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "id", "type=text", "name", "type=text"));
 
         ensureGreen();
 
@@ -239,9 +243,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
         logger.info("--> creating index [test1]");
-        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=string"));
+        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=text"));
         logger.info("--> creating index [test2]");
-        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=string"));
+        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -306,7 +310,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3")
                 .setType("type1")
-                .setSource("name", "type=string"));
+                .setSource("name", "type=text"));
 
         ensureGreen();
 
@@ -366,8 +370,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2");
-        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=string"));
-        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=string"));
+        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=text"));
+        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -403,8 +407,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
-        assertAcked(prepareCreate("test1").addMapping("type", "name", "type=string"));
-        assertAcked(prepareCreate("test2").addMapping("type", "name", "type=string"));
+        assertAcked(prepareCreate("test1").addMapping("type", "name", "type=text"));
+        assertAcked(prepareCreate("test2").addMapping("type", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -482,7 +486,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testSameAlias() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type", "name", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> creating alias1 ");
@@ -543,7 +547,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("bazbar");
 
         assertAcked(client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
-                .setType("type").setSource("field", "type=string"));
+                .setType("type").setSource("field", "type=text"));
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
@@ -588,7 +592,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAlias("foobar", "foo"));
 
         assertAcked(admin().indices().prepareAliases()
-                .addAliasAction(new AliasAction(AliasAction.Type.ADD, "foobar", "bac").routing("bla")));
+                .addAliasAction(new AliasAction(ADD, "foobar", "bac").routing("bla")));
 
         logger.info("--> getting bar and baz for index bazbar");
         getResponse = admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").get();
@@ -724,8 +728,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
             fail("create alias should have failed due to null index");
         } catch (IllegalArgumentException e) {
-            assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
-                    e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
+            assertThat("Exception text does not contain \"Alias action [add]: [index/indices] may not be empty string\"",
+                    e.getMessage(), containsString("Alias action [add]: [index/indices] may not be empty string"));
         }
     }
 
@@ -740,8 +744,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
             fail("create alias should have failed due to null index");
         } catch (IllegalArgumentException e) {
-            assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
-                    e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
+            assertThat("Exception text does not contain \"Alias action [add]: [index/indices] may not be empty string\"",
+                    e.getMessage(), containsString("Alias action [add]: [index/indices] may not be empty string"));
         }
     }
 
@@ -750,7 +754,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "", "alias1")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
         }
     }
 
@@ -759,7 +769,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null)).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "index1", (String)null)).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "index1", (String[])null)).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias/aliases] is either missing or null"));
         }
     }
 
@@ -768,13 +790,26 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", "")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "index1", "")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
         }
     }
 
     public void testAddAliasNullAliasNullIndex() {
         try {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null)).get();
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors(), notNullValue());
+            assertThat(e.validationErrors().size(), equalTo(2));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, null, (String)null)).get();
             fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
@@ -790,6 +825,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(ADD, "", "")).get();
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors(), notNullValue());
+            assertThat(e.validationErrors().size(), equalTo(2));
+        }
     }
 
     public void testRemoveAliasNullIndex() {
@@ -797,7 +839,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, null, "alias1")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
         }
     }
 
@@ -806,7 +854,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[index] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "", "alias1")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[index/indices] may not be empty string"));
         }
     }
 
@@ -815,7 +869,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null)).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "index1", (String)null)).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "index1", (String[])null)).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias/aliases] is either missing or null"));
         }
     }
 
@@ -824,7 +890,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", "")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "index1", "")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias/aliases] may not be empty string"));
         }
     }
 
@@ -836,11 +908,32 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, null, (String)null)).get();
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors(), notNullValue());
+            assertThat(e.validationErrors().size(), equalTo(2));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, (String[])null, (String[])null)).get();
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors(), notNullValue());
+            assertThat(e.validationErrors().size(), equalTo(2));
+        }
     }
 
     public void testRemoveAliasEmptyAliasEmptyIndex() {
         try {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "")).get();
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors(), notNullValue());
+            assertThat(e.validationErrors().size(), equalTo(2));
+        }
+        try {
+            admin().indices().prepareAliases().addAliasAction(new AliasActions(REMOVE, "", "")).get();
             fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
@@ -863,7 +956,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testCreateIndexWithAliases() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type", "field", "type=string")
+                .addMapping("type", "field", "type=text")
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("alias2").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("field"))))
                 .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
@@ -885,7 +978,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testCreateIndexWithAliasesSource() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type", "field", "type=string")
+                .addMapping("type", "field", "type=text")
                 .setAliases("{\n" +
                         "        \"alias1\" : {},\n" +
                         "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +

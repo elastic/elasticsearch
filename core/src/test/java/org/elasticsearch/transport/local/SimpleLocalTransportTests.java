@@ -29,7 +29,7 @@ public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
-        MockTransportService transportService = new MockTransportService(Settings.EMPTY, new LocalTransport(settings, threadPool, version, namedWriteableRegistry), threadPool);
+        MockTransportService transportService = MockTransportService.local(settings, version, threadPool);
         transportService.start();
         return transportService;
     }

@@ -232,7 +232,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
 
         logger.info("--> closing test index...");
@@ -250,9 +250,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
     }
 
@@ -268,7 +268,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
@@ -328,12 +328,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> restarting the nodes");
-        final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
+        final Gateway gateway1 = internalCluster().getInstance(GatewayService.class, node_1).getGateway();
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {

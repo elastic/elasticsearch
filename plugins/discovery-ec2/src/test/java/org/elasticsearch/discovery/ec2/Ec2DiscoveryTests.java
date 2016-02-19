@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -67,9 +65,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = new MockTransportService(
-                Settings.EMPTY,
-                new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool);
+        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
     }
 
     protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes) {
@@ -98,7 +94,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testPrivateIp() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE, "private_ip")
+                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -114,7 +110,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testPublicIp() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE, "public_ip")
+                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -130,7 +126,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testPrivateDns() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE, "private_dns")
+                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_dns")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -148,7 +144,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testPublicDns() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE, "public_dns")
+                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_dns")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -165,7 +161,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testInvalidHostType() throws InterruptedException {
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE, "does_not_exist")
+                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "does_not_exist")
                 .build();
         try {
             buildDynamicNodes(nodeSettings, 1);
@@ -178,7 +174,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testFilterByTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.TAG_PREFIX + "stage", "prod")
+                .put(DISCOVERY_EC2.TAG_SETTING.getKey() + "stage", "prod")
                 .build();
 
         int prodInstances = 0;
@@ -203,7 +199,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testFilterByMultipleTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .putArray(DISCOVERY_EC2.TAG_PREFIX + "stage", "prod", "preprod")
+                .putArray(DISCOVERY_EC2.TAG_SETTING.getKey() + "stage", "prod", "preprod")
                 .build();
 
         int prodInstances = 0;
@@ -255,7 +251,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testGetNodeListCached() throws Exception {
         Settings.Builder builder = Settings.settingsBuilder()
-                .put(DISCOVERY_EC2.NODE_CACHE_TIME, "500ms");
+                .put(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
         AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
         DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service, Version.CURRENT) {
             @Override

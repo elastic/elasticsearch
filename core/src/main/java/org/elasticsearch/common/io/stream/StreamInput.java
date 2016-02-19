@@ -38,6 +38,9 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -663,6 +666,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a {@link AggregatorBuilder} from the current stream
+     */
+    public AggregatorBuilder readAggregatorFactory() throws IOException {
+        return readNamedWriteable(AggregatorBuilder.class);
+    }
+
+    /**
+     * Reads a {@link PipelineAggregatorBuilder} from the current stream
+     */
+    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
+        return readNamedWriteable(PipelineAggregatorBuilder.class);
+    }
+
+    /**
      * Reads a {@link QueryBuilder} from the current stream
      */
     public QueryBuilder readQuery() throws IOException {
@@ -688,6 +705,13 @@ public abstract class StreamInput extends InputStream {
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link Task.Status} from the current stream.
+     */
+    public Task.Status readTaskStatus() throws IOException {
+        return readNamedWriteable(Task.Status.class);
     }
 
     /**

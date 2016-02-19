@@ -474,23 +474,23 @@ public class IndexLookupTests extends ESIntegTestCase {
 
         // check doc frequencies for 'c'
         script = new Script("term = _index['float_payload_field']['c']; if (term != null) {term.df()}");
-        expectedResults.put("1", 1l);
-        expectedResults.put("2", 1l);
-        expectedResults.put("3", 1l);
-        expectedResults.put("4", 1l);
-        expectedResults.put("5", 1l);
-        expectedResults.put("6", 1l);
+        expectedResults.put("1", 1L);
+        expectedResults.put("2", 1L);
+        expectedResults.put("3", 1L);
+        expectedResults.put("4", 1L);
+        expectedResults.put("5", 1L);
+        expectedResults.put("6", 1L);
         checkValueInEachDoc(script, expectedResults, 6);
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
         script = new Script("term = _index['float_payload_field']['non_existent_term']; if (term != null) {term.df()}");
-        expectedResults.put("1", 0l);
-        expectedResults.put("2", 0l);
-        expectedResults.put("3", 0l);
-        expectedResults.put("4", 0l);
-        expectedResults.put("5", 0l);
-        expectedResults.put("6", 0l);
+        expectedResults.put("1", 0L);
+        expectedResults.put("2", 0L);
+        expectedResults.put("3", 0L);
+        expectedResults.put("4", 0L);
+        expectedResults.put("5", 0L);
+        expectedResults.put("6", 0L);
         checkValueInEachDoc(script, expectedResults, 6);
         expectedResults.clear();
 
@@ -507,12 +507,12 @@ public class IndexLookupTests extends ESIntegTestCase {
 
         // check total term frequencies for 'a'
         script = new Script("term = _index['float_payload_field']['a']; if (term != null) {term.ttf()}");
-        expectedResults.put("1", 4l);
-        expectedResults.put("2", 4l);
-        expectedResults.put("3", 4l);
-        expectedResults.put("4", 4l);
-        expectedResults.put("5", 4l);
-        expectedResults.put("6", 4l);
+        expectedResults.put("1", 4L);
+        expectedResults.put("2", 4L);
+        expectedResults.put("3", 4L);
+        expectedResults.put("4", 4L);
+        expectedResults.put("5", 4L);
+        expectedResults.put("6", 4L);
         checkValueInEachDoc(script, expectedResults, 6);
         expectedResults.clear();
 

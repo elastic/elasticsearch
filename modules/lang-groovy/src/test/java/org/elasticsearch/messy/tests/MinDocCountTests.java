@@ -35,7 +35,8 @@ import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -110,17 +111,17 @@ public class MinDocCountTests extends AbstractTermsTestCase {
     private enum Script {
         NO {
             @Override
-            TermsBuilder apply(TermsBuilder builder, String field) {
+            TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field) {
                 return builder.field(field);
             }
         },
         YES {
             @Override
-            TermsBuilder apply(TermsBuilder builder, String field) {
+            TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field) {
                 return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values"));
             }
         };
-        abstract TermsBuilder apply(TermsBuilder builder, String field);
+        abstract TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field);
     }
 
     // check that terms2 is a subset of terms1
@@ -297,7 +298,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                             .executionHint(randomExecutionHint())
                             .order(order)
                             .size(size)
-                            .include(include)
+                            .includeExclude(include == null ? null : new IncludeExclude(include, null))
                             .shardSize(cardinality + randomInt(10))
                             .minDocCount(minDocCount)).request();
             final SearchResponse response = client().search(request).get();
@@ -377,7 +378,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)
-                .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).order(order).minDocCount(0))
+                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(order).minDocCount(0))
                 .execute().actionGet();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
@@ -386,7 +387,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
             final SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .setSize(0)
                     .setQuery(QUERY)
-                    .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).order(order).minDocCount(minDocCount))
+                    .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(order).minDocCount(minDocCount))
                     .execute().actionGet();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }

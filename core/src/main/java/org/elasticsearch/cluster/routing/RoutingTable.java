@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -135,6 +136,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             throw new ShardNotFoundException(shardId);
         }
         return shard;
+    }
+
+    public IndexShardRoutingTable shardRoutingTableOrNull(ShardId shardId) {
+        return Optional
+            .ofNullable(index(shardId.getIndexName()))
+            .flatMap(irt -> Optional.ofNullable(irt.shard(shardId.getId())))
+            .orElse(null);
     }
 
     public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
@@ -580,7 +588,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
             // normalize the versions right before we build it...
             for (ObjectCursor<IndexRoutingTable> indexRoutingTable : indicesRouting.values()) {
-                indicesRouting.put(indexRoutingTable.value.getIndex().getName(), indexRoutingTable.value.normalizeVersions());
+                indicesRouting.put(indexRoutingTable.value.getIndex().getName(), indexRoutingTable.value);
             }
             RoutingTable table = new RoutingTable(version, indicesRouting.build());
             indicesRouting = null;

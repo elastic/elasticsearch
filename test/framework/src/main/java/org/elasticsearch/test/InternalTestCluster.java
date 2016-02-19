@@ -163,10 +163,10 @@ public final class InternalTestCluster extends TestCluster {
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     /** a per-JVM unique offset to be used for calculating unique port ranges. */
-    public static final int JVM_BASE_PORT_OFFEST = PORTS_PER_JVM * (JVM_ORDINAL + 1);
+    public static final int JVM_BASE_PORT_OFFSET = PORTS_PER_JVM * (JVM_ORDINAL + 1);
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
-    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFEST + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
+    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFSET + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
 
     public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
@@ -588,7 +588,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings finalSettings = settingsBuilder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
-                .put("name", name)
+                .put("node.name", name)
                 .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
@@ -768,7 +768,7 @@ public final class InternalTestCluster extends TestCluster {
             double nextDouble = random.nextDouble();
             if (nextDouble < transportClientRatio) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
                 }
                 return getOrBuildTransportClient();
             } else {
@@ -815,7 +815,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        void closeNode() {
+        void closeNode() throws IOException {
             registerDataPath();
             node.close();
         }
@@ -883,7 +883,7 @@ public final class InternalTestCluster extends TestCluster {
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
-                    .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
+                    .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
                     .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
                     .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
@@ -1036,7 +1036,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getOperationsCount(), equalTo(0));
+                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
                 }
             }
         }
@@ -1720,27 +1720,29 @@ public final class InternalTestCluster extends TestCluster {
         return null;
     }
 
-    @Override
-    public synchronized Iterator<Client> iterator() {
+    public synchronized Iterable<Client> getClients() {
         ensureOpen();
-        final Iterator<NodeAndClient> iterator = nodes.values().iterator();
-        return new Iterator<Client>() {
+        return () -> {
+            ensureOpen();
+            final Iterator<NodeAndClient> iterator = nodes.values().iterator();
+            return new Iterator<Client>() {
 
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
 
-            @Override
-            public Client next() {
-                return iterator.next().client(random);
-            }
+                @Override
+                public Client next() {
+                    return iterator.next().client(random);
+                }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("");
-            }
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException("");
+                }
 
+            };
         };
     }
 
@@ -1761,7 +1763,7 @@ public final class InternalTestCluster extends TestCluster {
 
         @Override
         public boolean test(Settings settings) {
-            return nodeNames.contains(settings.get("name"));
+            return nodeNames.contains(settings.get("node.name"));
 
         }
     }
@@ -1817,7 +1819,7 @@ public final class InternalTestCluster extends TestCluster {
             // network request, because a network request can increment one
             // of the breakers
             for (NodeAndClient nodeAndClient : nodes.values()) {
-                final IndicesFieldDataCache fdCache = getInstanceFromNode(IndicesFieldDataCache.class, nodeAndClient.node);
+                final IndicesFieldDataCache fdCache = getInstanceFromNode(IndicesService.class, nodeAndClient.node).getIndicesFieldDataCache();
                 // Clean up the cache, ensuring that entries' listeners have been called
                 fdCache.getCache().refresh();
 
@@ -1847,9 +1849,9 @@ public final class InternalTestCluster extends TestCluster {
 
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);
                 NodeStats stats = nodeService.stats(CommonStatsFlags.ALL, false, false, false, false, false, false, false, false, false, false);
-                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
+                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+                assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
+                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
             }
         }
     }

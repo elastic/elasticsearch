@@ -282,7 +282,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     /**
      * Returns the size of all shards that are currently being relocated to
-     * the node, but may not be finished transfering yet.
+     * the node, but may not be finished transferring yet.
      *
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards

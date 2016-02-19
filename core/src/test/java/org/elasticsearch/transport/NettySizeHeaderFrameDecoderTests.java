@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.is;
 public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = settingsBuilder()
-            .put("name", "foo")
-            .put("transport.host", "127.0.0.1")
+            .put("node.name", "NettySizeHeaderFrameDecoderTests")
+            .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
             .put(TransportSettings.PORT.getKey(), "0")
             .build();
 

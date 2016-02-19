@@ -94,7 +94,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
-        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1l));
+        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
     public void testMinScoreFunctionScoreBasic() throws IOException {
@@ -109,9 +109,9 @@ public class FunctionScoreTests extends ESIntegTestCase {
                                 functionScoreQuery(scriptFunction(new Script(Float.toString(score)))).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(1L));
         }
 
         searchResponse = client().search(
@@ -121,9 +121,9 @@ public class FunctionScoreTests extends ESIntegTestCase {
                         }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
                 ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(1L));
         }
     }
 
@@ -188,7 +188,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
@@ -197,7 +197,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
 
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(0l));
+        assertThat(response.getHits().totalHits(), equalTo(0L));
     }
 }
 

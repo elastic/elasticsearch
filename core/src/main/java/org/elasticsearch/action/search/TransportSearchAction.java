@@ -90,7 +90,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 logger.debug("failed to optimize search type, continue as normal", e);
             }
         }
-
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
             dfsQueryThenFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.QUERY_THEN_FETCH) {

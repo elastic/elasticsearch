@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
         "ignore_unavailable": {
           "type": "boolean",
           "description": "Set to true to ignore unavailable snapshots",

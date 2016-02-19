@@ -59,7 +59,7 @@ public class MetaStateService extends AbstractComponent {
     public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);
         this.nodeEnv = nodeEnv;
-        this.format = XContentType.fromRestContentType(settings.get(FORMAT_SETTING, "smile"));
+        this.format = XContentType.fromMediaTypeOrFormat(settings.get(FORMAT_SETTING, "smile"));
         if (this.format == XContentType.SMILE) {
             Map<String, String> params = new HashMap<>();
             params.put("binary", "true");

@@ -302,8 +302,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME).toQuery(createShardContext());
         NumericRangeQuery fuzzyQuery = (NumericRangeQuery) query;
-        assertThat(fuzzyQuery.getMin().longValue(), equalTo(12l));
-        assertThat(fuzzyQuery.getMax().longValue(), equalTo(12l));
+        assertThat(fuzzyQuery.getMin().longValue(), equalTo(12L));
+        assertThat(fuzzyQuery.getMax().longValue(), equalTo(12L));
     }
 
     public void testTimezone() throws Exception {

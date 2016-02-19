@@ -6,6 +6,7 @@ your application to Elasticsearch 3.0.
 
 * <<breaking_30_search_changes>>
 * <<breaking_30_rest_api_changes>>
+* <<breaking_30_cat_api>>
 * <<breaking_30_parent_child_changes>>
 * <<breaking_30_settings_changes>>
 * <<breaking_30_mapping_changes>>
@@ -19,6 +20,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_packaging>>
 * <<breaking_30_scripting>>
 * <<breaking_30_term_vectors>>
+* <<breaking_30_security>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -111,6 +113,7 @@ The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:
+
 * `filtered`: use `bool` query instead, which supports `filter` clauses too
 * `and`: use `must` clauses in a `bool` query instead
 * `or`: use should clauses in a `bool` query instead
@@ -158,6 +161,24 @@ Removed support for the undocumented `query_binary` and `filter_binary` sections
 
 Payloads are now loaded when needed.
 
+[[breaking_30_cat_api]]
+=== CAT API changes
+
+==== Use Accept header for specifying response media type
+
+Previous versions of Elasticsearch accepted the Content-type header
+field for controlling the media type of the response in the cat API.
+This is in opposition to the HTTP spec which specifies the Accept
+header field for this purpose. Elasticsearch now uses the Accept header
+field and support for using the Content-Type header field for this
+purpose has been removed.
+
+==== Host field removed from the cat nodes API
+
+The `host` field has been removed from the cat nodes API as its value
+is always equal to the `ip` field. The `name` field is available in the
+cat nodes API and should be used instead of the `host` field.
+
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
 
@@ -166,7 +187,7 @@ with `_parent` field mapping created before version `2.0.0`. The data of these i
 
 The format of the join between parent and child documents have changed with the `2.0.0` release. The old
 format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
-scalable join between parent and child documents and the join data structures are stored on on disk
+scalable join between parent and child documents and the join data structures are stored on disk
 data structures as opposed as before the join data structures were stored in the jvm heap space.
 
 ==== `score_type` has been removed
@@ -194,6 +215,22 @@ the parent id under the `_parent` key.
 
 [[breaking_30_settings_changes]]
 === Settings changes
+
+From Elasticsearch 3.0 on all settings are validated before they are applied. Node level and default index
+level settings are validated on node startup, dynamic cluster and index setting are validated before they are updated/added
+to the cluster state. Every setting must be a _known_ setting or in other words all settings must be registered with the
+node or transport client they are used with. This implies that plugins that define custom settings must register all of their
+settings during pluging loading using the `SettingsModule#registerSettings(Setting)` method.
+
+==== Node settings
+
+The `name` setting has been removed and is replaced by `node.name`. Usage of `-Dname=some_node_name` is not supported
+anymore.
+
+==== Transport Settings
+
+All settings with a `netty` infix have been replaced by their already existing `transport` synonyms. For instance `transport.netty.bind_host` is
+no longer supported and should be replaced by the superseding setting `transport.bind_host`.
 
 ==== Analysis settings
 
@@ -243,6 +280,12 @@ now doesn't accept a value less than `100ms` which prevents fsyncing too often i
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
 
+`indices.requests.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
+==== Field Data Cache Settings
+
+`indices.fielddata.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
 ==== Allocation settings
 
 Allocation settings deprecated in 1.x have been removed:
@@ -285,7 +328,7 @@ On all types but `string`, the `index` property now only accepts `true`/`false`
 instead of `not_analyzed`/`no`. The `string` field still accepts
 `analyzed`/`not_analyzed`/`no`.
 
-==== `_source`'s `format` option
+==== ++_source++'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option
 will still be accepted for indices created before the upgrade to 3.0 for backward
@@ -315,9 +358,17 @@ disable doc values is by using the `doc_values` property of mappings.
 [[breaking_30_plugins]]
 === Plugin changes
 
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
+The structure of the plugin has changed. All the plugin files must be contained in a directory called `elasticsearch`.
+If you use the gradle build, this structure is automatically generated.
+
 ==== Site plugins removed
 
 Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
+
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud discovery plugins.
 
 ==== Plugins with custom query implementations
 
@@ -393,6 +444,13 @@ cloud:
 ==== Cloud GCE plugin changes
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
+
+
+==== Mapper Attachments plugin deprecated
+
+Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
+plugin.
+
 
 [[breaking_30_java_api_changes]]
 === Java API changes
@@ -514,7 +572,7 @@ Removing individual setters for lon() and lat() values, both values should be se
 Removing setters for to(Object ...) and from(Object ...) in favour of the only two allowed input
 arguments (String, Number). Removing setter for center point (point(), geohash()) because parameter
 is mandatory and should already be set in constructor.
-Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivallent
+Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivalent
 calls to to/from() and inludeLower()/includeUpper().
 
 ==== GeoPolygonQueryBuilder
@@ -577,6 +635,10 @@ to index a document only if it doesn't already exist.
 ==== RescoreBuilder
 
 `RecoreBuilder.Rescorer` was merged with `RescoreBuilder`, which now is an abstract superclass. QueryRescoreBuilder currently is its only implementation.
+
+==== PhraseSuggestionBuilder
+
+The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
 
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
@@ -643,6 +705,15 @@ was a stale copy of the data on disk. This is now fixed by using allocation IDs.
 Allocation IDs assign unique identifiers to shard copies. This allows the cluster to differentiate between multiple
 copies of the same data and track which shards have been active, so that after a cluster restart, shard copies
 containing only the most recent data can become primaries.
+
+=== Indices Shard Stores command
+
+By using allocation IDs instead of version numbers to identify shard copies for primary shard allocation, the former versioning scheme
+has become obsolete. This is reflected in the indices-shards-stores.html[Indices Shard Stores API]. A new field `allocation_id` replaces the
+former `version` field in the result of the Indices Shard Stores command. This field is available for all shard copies that have been either
+created with the current version of Elasticsearch or have been active in a cluster running a current version of Elasticsearch. For legacy
+shard copies that have not been active in a current version of Elasticsearch, a `legacy_version` field is available instead (equivalent to
+the former `version` field).
 
 === Reroute commands
 
@@ -713,3 +784,13 @@ and `no` for disabling are no longer supported.
 === Term vectors
 
 The term vectors APIs no longer persist unmapped fields in the mappings.
+
+The `dfs` parameter has been removed completely, term vectors don't support
+distributed document frequencies anymore.
+
+[[breaking_30_security]]
+=== Security
+
+The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
+permissions to elasticsearch users must tweak the local Java Security Policy.
+

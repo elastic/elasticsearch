@@ -23,9 +23,10 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.BigArrays;
@@ -48,25 +49,20 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
  */
 public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData {
     private final CircuitBreakerService breakerService;
-    private final boolean indexCreatedBefore22;
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             return new GeoPointArrayIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache,
-                    breakerService, fieldType.fieldDataType().getSettings()
-                    .getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_2_2_0) ||
-                    indexSettings.getIndexVersionCreated().before(Version.V_2_2_0));
+                    breakerService);
         }
     }
 
     public GeoPointArrayIndexFieldData(IndexSettings indexSettings, String fieldName,
-                                       FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService,
-                                       final boolean indexCreatedBefore22) {
+                                       FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(indexSettings, fieldName, fieldDataType, cache);
         this.breakerService = breakerService;
-        this.indexCreatedBefore22 = indexCreatedBefore22;
     }
 
     @Override
@@ -82,7 +78,8 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
-        return (indexCreatedBefore22 == true) ? loadLegacyFieldData(reader, estimator, terms, data) : loadFieldData22(reader, estimator, terms, data);
+        return (indexSettings.getIndexVersionCreated().before(Version.V_2_2_0) == true) ?
+            loadLegacyFieldData(reader, estimator, terms, data) : loadFieldData22(reader, estimator, terms, data);
     }
 
     /**
@@ -95,7 +92,18 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
                 OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
-            final GeoPointTermsEnum iter = new GeoPointTermsEnum(builder.buildFromTerms(OrdinalsBuilder.wrapNumeric64Bit(terms.iterator())));
+            final TermsEnum termsEnum;
+            final GeoPointField.TermEncoding termEncoding;
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_3_0)) {
+                termEncoding = GeoPointField.TermEncoding.PREFIX;
+                termsEnum = OrdinalsBuilder.wrapGeoPointTerms(terms.iterator());
+            } else {
+                termEncoding = GeoPointField.TermEncoding.NUMERIC;
+                termsEnum = OrdinalsBuilder.wrapNumeric64Bit(terms.iterator());
+            }
+
+            final GeoPointTermsEnum iter = new GeoPointTermsEnum(builder.buildFromTerms(termsEnum), termEncoding);
+
             Long hashedPoint;
             long numTerms = 0;
             while ((hashedPoint = iter.next()) != null) {

@@ -37,6 +37,9 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -640,6 +643,20 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a {@link AggregatorBuilder} to the current stream
+     */
+    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
+    }
+
+    /**
+     * Writes a {@link PipelineAggregatorBuilder} to the current stream
+     */
+    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
+    }
+
+    /**
      * Writes a {@link QueryBuilder} to the current stream
      */
     public void writeQuery(QueryBuilder queryBuilder) throws IOException {
@@ -658,6 +675,13 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
         writeNamedWriteable(scoreFunctionBuilder);
+    }
+
+    /**
+     * Writes a {@link Task.Status} to the current stream.
+     */
+    public void writeTaskStatus(Task.Status status) throws IOException {
+        writeNamedWriteable(status);
     }
 
     /**

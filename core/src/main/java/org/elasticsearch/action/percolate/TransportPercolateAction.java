@@ -21,7 +21,6 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -74,9 +73,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
     protected void doExecute(Task task, final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
         request.startTime = System.currentTimeMillis();
         if (request.getRequest() != null) {
-            //create a new get request to make sure it has the same headers and context as the original percolate request
-            GetRequest getRequest = new GetRequest(request.getRequest());
-            getAction.execute(getRequest, new ActionListener<GetResponse>() {
+            getAction.execute(request.getRequest(), new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getResponse) {
                     if (!getResponse.isExists()) {

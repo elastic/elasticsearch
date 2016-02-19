@@ -50,10 +50,10 @@ public class IngestGeoIpPlugin extends Plugin {
     public void onModule(NodeModule nodeModule) throws IOException {
         Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
         Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (templateService) -> new GeoIpProcessor.Factory(databaseReaders));
+        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (templateService, registry) -> new GeoIpProcessor.Factory(databaseReaders));
     }
 
-    static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
+    public static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
         if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
             throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
         }

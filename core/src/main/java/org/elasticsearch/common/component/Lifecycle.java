@@ -33,7 +33,7 @@ package org.elasticsearch.common.component;
  * following logic can be applied:
  * <pre>
  * public void stop() {
- *  if (!lifeccycleState.moveToStopped()) {
+ *  if (!lifecycleState.moveToStopped()) {
  *      return;
  *  }
  * // continue with stop logic
@@ -50,7 +50,7 @@ package org.elasticsearch.common.component;
  *  if (!lifecycleState.moveToClosed()) {
  *      return;
  *  }
- *  // perofrm close logic here
+ *  // perform close logic here
  * }
  * </pre>
  */

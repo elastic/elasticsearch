@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Checking simple filtering capabilites of the cluster state
+ * Checking simple filtering capabilities of the cluster state
  *
  */
 public class SimpleClusterStateIT extends ESIntegTestCase {
@@ -90,8 +90,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", true).endObject()
-                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -99,7 +99,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTemplate("test*")
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .startObject("field2").field("type", "text").field("store", "no").endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -132,7 +132,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
-            mapping.startObject(Strings.randomBase64UUID()).field("type", "string").endObject();
+            mapping.startObject(Strings.randomBase64UUID()).field("type", "text").endObject();
             counter += 10; // each field is about 10 bytes, assuming compression in place
             numberOfFields++;
             if (counter > estimatedBytesSize) {

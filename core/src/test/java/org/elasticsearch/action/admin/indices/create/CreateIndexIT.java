@@ -54,7 +54,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class CreateIndexIT extends ESIntegTestCase {
     public void testCreationDateGivenFails() {
         try {
-            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("unknown setting [index.creation_date]", ex.getMessage());
@@ -247,13 +247,13 @@ public class CreateIndexIT extends ESIntegTestCase {
         CreateIndexRequestBuilder b = prepareCreate("test");
         b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
                 .startObject("text")
-                    .field("type", "string")
+                    .field("type", "text")
                     .field("analyzer", "standard")
                     .field("search_analyzer", "whitespace")
                 .endObject().endObject().endObject());
         b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
                 .startObject("text")
-                    .field("type", "string")
+                    .field("type", "text")
                 .endObject().endObject().endObject());
         try {
             b.get();

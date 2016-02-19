@@ -20,27 +20,27 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.tribe.TribeService;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
- *
- *
  */
 public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
-    private final SettingsFilter settingsFilter;
+    private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
+    private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.") && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
 
-    public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
+    public SettingsModule(Settings settings) {
         this.settings = settings;
-        this.settingsFilter = settingsFilter;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
         }
@@ -55,20 +55,21 @@ public class SettingsModule extends AbstractModule {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
         // by now we are fully configured, lets check node level settings for unregistered index settings
         indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
-        Predicate<String> noIndexSettingPredicate = IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE.negate();
-        Predicate<String> noTribePredicate = (s) -> s.startsWith("tribe.") == false;
-        for (Map.Entry<String, String> entry : settings.filter(noTribePredicate.and(noIndexSettingPredicate)).getAsMap().entrySet()) {
-            validateClusterSetting(clusterSettings, entry.getKey(), settings);
-        }
-
+        final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.or(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).negate();
+        clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
         bind(Settings.class).toInstance(settings);
-        bind(SettingsFilter.class).toInstance(settingsFilter);
+        bind(SettingsFilter.class).toInstance(new SettingsFilter(settings, settingsFilterPattern));
 
         bind(ClusterSettings.class).toInstance(clusterSettings);
         bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
+    /**
+     * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
+     * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
+     * the setting during startup.
+     */
     public void registerSetting(Setting<?> setting) {
         switch (setting.getScope()) {
             case CLUSTER:
@@ -86,25 +87,50 @@ public class SettingsModule extends AbstractModule {
         }
     }
 
-    public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
-        Map<String, Settings> groups = settings.getGroups("tribe.", true);
+    /**
+     * Registers a settings filter pattern that allows to filter out certain settings that for instance contain sensitive information
+     * or if a setting is for internal purposes only. The given pattern must either be a valid settings key or a simple regexp pattern.
+     */
+    public void registerSettingsFilter(String filter) {
+        if (SettingsFilter.isValidPattern(filter) == false) {
+            throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");
+        }
+        if (settingsFilterPattern.contains(filter)) {
+            throw new IllegalArgumentException("filter [" + filter + "] has already been registered");
+        }
+        settingsFilterPattern.add(filter);
+    }
+
+    public void registerSettingsFilterIfMissing(String filter) {
+        if (settingsFilterPattern.contains(filter) == false) {
+            registerSettingsFilter(filter);
+        }
+    }
+
+    /**
+     * Check if a setting has already been registered
+     */
+    public boolean exists(Setting<?> setting) {
+        switch (setting.getScope()) {
+            case CLUSTER:
+                return clusterSettings.containsKey(setting.getKey());
+            case INDEX:
+                return indexSettings.containsKey(setting.getKey());
+        }
+        throw new IllegalArgumentException("setting scope is unknown. This should never happen!");
+    }
+
+    private void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
+        Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);
         for (Map.Entry<String, Settings>  tribeSettings : groups.entrySet()) {
-            for (Map.Entry<String, String> entry : tribeSettings.getValue().getAsMap().entrySet()) {
-                validateClusterSetting(clusterSettings, entry.getKey(), tribeSettings.getValue());
+            Settings thisTribesSettings = tribeSettings.getValue();
+            for (Map.Entry<String, String> entry : thisTribesSettings.getAsMap().entrySet()) {
+                try {
+                    clusterSettings.validate(entry.getKey(), thisTribesSettings);
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("tribe." + tribeSettings.getKey() +" validation failed: "+ ex.getMessage(), ex);
+                }
             }
         }
     }
-
-    private final void validateClusterSetting(ClusterSettings clusterSettings, String key, Settings settings) {
-        // we can't call this method yet since we have not all node level settings registered.
-        // yet we can validate the ones we have registered to not have invalid values. this is better than nothing
-        // and progress over perfection and we fail as soon as possible.
-        // clusterSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE.negate()));
-        if (clusterSettings.get(key) != null) {
-            clusterSettings.validate(key, settings);
-        } else if (AbstractScopedSettings.isValidKey(key) == false) {
-            throw new IllegalArgumentException("illegal settings key: [" + key + "]");
-        }
-    }
-
 }

@@ -103,6 +103,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL = Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
     public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT = Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME = Setting.boolSetting("client.transport.ignore_cluster_name", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF = Setting.boolSetting("client.transport.sniff", false, false, Setting.Scope.CLUSTER);
 
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
@@ -121,7 +122,7 @@ public class TransportClientNodesService extends AbstractComponent {
             logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
         }
 
-        if (this.settings.getAsBoolean("client.transport.sniff", false)) {
+        if (CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
             this.nodesSampler = new SniffNodesSampler();
         } else {
             this.nodesSampler = new SimpleNodeSampler();

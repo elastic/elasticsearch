@@ -58,7 +58,11 @@ public class ChildTaskRequest extends TransportRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new Task(id, type, action, this::getDescription, parentTaskNode, parentTaskId);
+    public final Task createTask(long id, String type, String action) {
+        return createTask(id, type, action, parentTaskNode, parentTaskId);
+    }
+
+    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
+        return new Task(id, type, action, getDescription(), parentTaskNode, parentTaskId);
     }
 }

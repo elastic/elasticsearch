@@ -278,7 +278,7 @@ been removed in favour of just using the `analyzer` setting.
 If just the `analyzer` is set, it will be used at index time and at search time.  To use a different analyzer at search time, specify both the `analyzer` and a `search_analyzer`.
 
 The `index_analyzer`, `search_analyzer`,  and `analyzer` type-level settings
-have also been removed, as is is no longer possible to select fields based on
+have also been removed, as it is no longer possible to select fields based on
 the type name.
 
 The `_analyzer` meta-field, which allowed setting an analyzer per document has

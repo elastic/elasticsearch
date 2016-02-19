@@ -888,7 +888,6 @@ Fantomex
 Farallah
 Fasaud
 Fashima
-Fatale
 Fateball
 Father Time
 Fault Zone
@@ -1873,8 +1872,6 @@ Novs
 Nox
 Nth Man
 Nth Man: the Ultimate Ninja
-Nuke - Frank Simpson
-Nuke - Squadron Supreme Member
 Nuklo
 Numinus
 Nut
@@ -2506,7 +2503,6 @@ Terminatrix
 Terminus
 Terrax the Tamer
 Terraxia
-Terror
 Tess-One
 Tessa
 Tether

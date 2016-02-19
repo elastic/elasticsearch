@@ -186,7 +186,7 @@ The verification process can also be executed manually by running the following 
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_backup/_verify
+POST /_snapshot/s3_repository/_verify
 -----------------------------------
 // AUTOSENSE
 

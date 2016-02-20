@@ -10,13 +10,11 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
-import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
@@ -28,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public class Marvel {
 

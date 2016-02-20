@@ -84,7 +84,7 @@ public class RestMainAction extends BaseRestHandler {
                 .field("number", version.number())
                 .field("build_hash", Build.CURRENT.shortHash())
                 .field("build_date", Build.CURRENT.date())
-                .field("build_snapshot", version.snapshot)
+                .field("build_snapshot", Build.CURRENT.isSnapshot())
                 .field("lucene_version", version.luceneVersion.toString())
                 .endObject();
         builder.field("tagline", "You Know, for Search");

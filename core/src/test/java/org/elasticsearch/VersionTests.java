@@ -41,15 +41,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
-    public void testMavenVersion() {
-        // maven sets this property to ensure that the latest version
-        // we use here is the version that is actually set to the project.version
-        // in maven
-        String property = System.getProperty("tests.version", null);
-        assumeTrue("tests.version is set", property != null);
-        assertEquals(property, Version.CURRENT.toString());
-    }
-
     public void testVersionComparison() throws Exception {
         assertThat(V_0_20_0.before(V_0_90_0), is(true));
         assertThat(V_0_20_0.before(V_0_20_0), is(false));
@@ -93,12 +84,7 @@ public class VersionTests extends ESTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            if (version.snapshot()) { // number doesn't include SNAPSHOT but the parser checks for that
-                assertEquals(Version.fromString(version.number()), version);
-            } else {
-                assertThat(Version.fromString(version.number()), sameInstance(version));
-            }
-            assertFalse(Version.fromString(version.number()).snapshot());
+            assertThat(Version.fromString(version.number()), sameInstance(version));
         }
     }
 
@@ -170,12 +156,11 @@ public class VersionTests extends ESTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            if (version.snapshot() == false && random().nextBoolean()) {
-                version = new Version(version.id, true, version.luceneVersion);
+            if (random().nextBoolean()) {
+                version = new Version(version.id, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
-            assertEquals(version.snapshot(), parsedVersion.snapshot());
         }
     }
 
@@ -225,7 +210,7 @@ public class VersionTests extends ESTestCase {
                     maxBranchVersions.put(branchName, v);
                 } else if (v.after(maxBranchVersion)) {
 
-                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", maxBranchVersion.snapshot());
+                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", VersionUtils.isSnapshot(maxBranchVersion));
                     maxBranchVersions.put(branchName, v);
                 }
             }

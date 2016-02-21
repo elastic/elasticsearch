@@ -33,14 +33,6 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     private boolean detailed = false;
 
     /**
-     * Get information from nodes based on the nodes ids specified. If none are passed, information
-     * for all nodes will be returned.
-     */
-    public ListTasksRequest(String... nodesIds) {
-        super(nodesIds);
-    }
-
-    /**
      * Should the detailed task information be returned.
      */
     public boolean detailed() {
@@ -48,7 +40,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     }
 
     /**
-     * Should the node settings be returned.
+     * Should the detailed task information be returned.
      */
     public ListTasksRequest detailed(boolean detailed) {
         this.detailed = detailed;

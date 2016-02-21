@@ -22,7 +22,6 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -51,7 +50,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     private final AtomicLong taskIdGenerator = new AtomicLong();
 
-    private final Map<Tuple<String, Long>, String> banedParents = new ConcurrentHashMap<>();
+    private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
     public TaskManager(Settings settings) {
         super(settings);
@@ -77,8 +76,8 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
                 CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
                 assert oldHolder == null;
                 // Check if this task was banned before we start it
-                if (task.getParentNode() != null && banedParents.isEmpty() == false) {
-                    String reason = banedParents.get(new Tuple<>(task.getParentNode(), task.getParentId()));
+                if (task.getParentTaskId().isSet() == false && banedParents.isEmpty() == false) {
+                    String reason = banedParents.get(task.getParentTaskId());
                     if (reason != null) {
                         try {
                             holder.cancel(reason);
@@ -191,22 +190,21 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
      * <p>
      * This method is called when a parent task that has children is cancelled.
      */
-    public void setBan(String parentNode, long parentId, String reason) {
-        logger.trace("setting ban for the parent task {}:{} {}", parentNode, parentId, reason);
+    public void setBan(TaskId parentTaskId, String reason) {
+        logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
 
         // Set the ban first, so the newly created tasks cannot be registered
-        Tuple<String, Long> ban = new Tuple<>(parentNode, parentId);
         synchronized (banedParents) {
-            if (lastDiscoveryNodes.nodeExists(parentNode)) {
+            if (lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
                 // Only set the ban if the node is the part of the cluster
-                banedParents.put(ban, reason);
+                banedParents.put(parentTaskId, reason);
             }
         }
 
         // Now go through already running tasks and cancel them
         for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
             CancellableTaskHolder holder = taskEntry.getValue();
-            if (holder.hasParent(parentNode, parentId)) {
+            if (holder.hasParent(parentTaskId)) {
                 holder.cancel(reason);
             }
         }
@@ -217,9 +215,9 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
      * <p>
      * This method is called when a previously banned task finally cancelled
      */
-    public void removeBan(String parentNode, long parentId) {
-        logger.trace("removing ban for the parent task {}:{} {}", parentNode, parentId);
-        banedParents.remove(new Tuple<>(parentNode, parentId));
+    public void removeBan(TaskId parentTaskId) {
+        logger.trace("removing ban for the parent task {}", parentTaskId);
+        banedParents.remove(parentTaskId);
     }
 
     @Override
@@ -228,14 +226,12 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             synchronized (banedParents) {
                 lastDiscoveryNodes = event.state().getNodes();
                 // Remove all bans that were registered by nodes that are no longer in the cluster state
-                Iterator<Tuple<String, Long>> banIterator = banedParents.keySet().iterator();
+                Iterator<TaskId> banIterator = banedParents.keySet().iterator();
                 while (banIterator.hasNext()) {
-                    Tuple<String, Long> nodeAndTaskId = banIterator.next();
-                    String nodeId = nodeAndTaskId.v1();
-                    Long taskId = nodeAndTaskId.v2();
-                    if (lastDiscoveryNodes.nodeExists(nodeId) == false) {
-                        logger.debug("Removing ban for the parent [{}:{}] on the node [{}], reason: the parent node is gone", nodeId,
-                            taskId, event.state().getNodes().localNode());
+                    TaskId taskId = banIterator.next();
+                    if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
+                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone", taskId,
+                            event.state().getNodes().localNode());
                         banIterator.remove();
                     }
                 }
@@ -244,10 +240,10 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
                 CancellableTaskHolder holder = taskEntry.getValue();
                 CancellableTask task = holder.getTask();
-                String parent = task.getParentNode();
-                if (parent != null && lastDiscoveryNodes.nodeExists(parent) == false) {
+                TaskId parentTaskId = task.getParentTaskId();
+                if (parentTaskId.isSet() == false && lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId()) == false) {
                     if (task.cancelOnParentLeaving()) {
-                        holder.cancel("Coordinating node [" + parent + "] left the cluster");
+                        holder.cancel("Coordinating node [" + parentTaskId.getNodeId() + "] left the cluster");
                     }
                 }
             }
@@ -340,8 +336,8 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
         }
 
-        public boolean hasParent(String parentNode, long parentId) {
-            return parentId == task.getParentId() && parentNode.equals(task.getParentNode());
+        public boolean hasParent(TaskId parentTaskId) {
+            return task.getParentTaskId().equals(parentTaskId);
         }
 
         public CancellableTask getTask() {

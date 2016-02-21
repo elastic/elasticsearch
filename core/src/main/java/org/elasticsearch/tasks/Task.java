@@ -30,8 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
  */
 public class Task {
 
-    public static final long NO_PARENT_ID = 0;
-
     private final long id;
 
     private final String type;
@@ -40,22 +38,18 @@ public class Task {
 
     private final String description;
 
-    private final String parentNode;
-
-    private final long parentId;
-
+    private final TaskId parentTask;
 
     public Task(long id, String type, String action, String description) {
-        this(id, type, action, description, null, NO_PARENT_ID);
+        this(id, type, action, description, TaskId.EMPTY_TASK_ID);
     }
 
-    public Task(long id, String type, String action, String description, String parentNode, long parentId) {
+    public Task(long id, String type, String action, String description, TaskId parentTask) {
         this.id = id;
         this.type = type;
         this.action = action;
         this.description = description;
-        this.parentNode = parentNode;
-        this.parentId = parentId;
+        this.parentTask = parentTask;
     }
 
     /**
@@ -75,7 +69,7 @@ public class Task {
             description = getDescription();
             status = getStatus();
         }
-        return new TaskInfo(node, getId(), getType(), getAction(), description, status, parentNode, parentId);
+        return new TaskInfo(node, getId(), getType(), getAction(), description, status, parentTask);
     }
 
     /**
@@ -107,17 +101,10 @@ public class Task {
     }
 
     /**
-     * Returns the parent node of the task or null if the task doesn't have any parent tasks
-     */
-    public String getParentNode() {
-        return parentNode;
-    }
-
-    /**
      * Returns id of the parent task or NO_PARENT_ID if the task doesn't have any parent tasks
      */
-    public long getParentId() {
-        return parentId;
+    public TaskId getParentTaskId() {
+        return parentTask;
     }
 
     /**

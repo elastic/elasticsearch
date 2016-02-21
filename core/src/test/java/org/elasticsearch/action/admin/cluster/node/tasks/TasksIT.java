@@ -110,7 +110,7 @@ public class TasksIT extends ESIntegTestCase {
         List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, Tuple::v1);
 
         // Verify that one of these tasks is a parent of another task
-        if (tasks.get(0).getParentNode() == null) {
+        if (tasks.get(0).getParentTaskId().isSet()) {
             assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
         } else {
             assertParentTask(Collections.singletonList(tasks.get(0)), tasks.get(1));
@@ -227,7 +227,9 @@ public class TasksIT extends ESIntegTestCase {
             } else {
                 // A [s][r] level task should have a corresponding [s] level task on the a different node (where primary is located)
                 sTask = findEvents(RefreshAction.NAME + "[s]",
-                    event -> event.v1() && taskInfo.getParentNode().equals(event.v2().getNode().getId()) && taskInfo.getDescription().equals(event.v2().getDescription()));
+                    event -> event.v1() && taskInfo.getParentTaskId().getNodeId().equals(event.v2().getNode().getId()) && taskInfo
+                        .getDescription()
+                        .equals(event.v2().getDescription()));
             }
             // There should be only one parent task
             assertEquals(1, sTask.size());
@@ -393,9 +395,10 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void assertParentTask(List<TaskInfo> tasks, TaskInfo parentTask) {
         for (TaskInfo task : tasks) {
-            assertNotNull(task.getParentNode());
-            assertEquals(parentTask.getNode().getId(), task.getParentNode());
-            assertEquals(parentTask.getId(), task.getParentId());
+            assertFalse(task.getParentTaskId().isSet());
+            assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
+            assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
+            assertEquals(parentTask.getId(), task.getParentTaskId().getId());
         }
     }
 }

@@ -1015,7 +1015,7 @@ public class TransportReplicationActionTests extends ESTestCase {
      * half the time.
      */
     private ReplicationTask maybeTask() {
-        return random().nextBoolean() ? new ReplicationTask(0, null, null, null, null, 0) : null;
+        return random().nextBoolean() ? new ReplicationTask(0, null, null, null, null) : null;
     }
 
     /**

@@ -84,7 +84,7 @@ public class VersionTests extends ESTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            assertThat(Version.fromString(version.number()), sameInstance(version));
+            assertThat(Version.fromString(version.toString()), sameInstance(version));
         }
     }
 
@@ -141,9 +141,9 @@ public class VersionTests extends ESTestCase {
 
     public void testToString() {
         // with 2.0.beta we lowercase
-        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.number());
-        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.number());
-        assertEquals("1.4.0", Version.V_1_4_0.number());
+        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.toString());
+        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.toString());
+        assertEquals("1.4.0", Version.V_1_4_0.toString());
     }
 
     public void testIsBeta() {
@@ -192,7 +192,7 @@ public class VersionTests extends ESTestCase {
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {
-                    String number = v.number();
+                    String number = v.toString();
                     if (v.isBeta()) {
                         number = number.replace("-beta", "_beta");
                     } else if (v.isRC()) {
@@ -200,7 +200,7 @@ public class VersionTests extends ESTestCase {
                     }
                     assertEquals("V_" + number.replace('.', '_'), constantName);
                 } else {
-                    assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                    assertEquals("V_" + v.toString().replace('.', '_'), constantName);
                 }
 
                 // only the latest version for a branch should be a snapshot (ie unreleased)

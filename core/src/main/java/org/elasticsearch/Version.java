@@ -605,10 +605,13 @@ public class Version {
         return Version.smallest(this, fromId(major * 1000000 + 99));
     }
 
-    /**
-     * The version number
-     */
-    public String number() {
+    @SuppressForbidden(reason = "System.out.*")
+    public static void main(String[] args) {
+        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: " + JvmInfo.jvmInfo().version());
+    }
+
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
         if (isBeta()) {
@@ -626,18 +629,6 @@ public class Version {
             }
             sb.append(build - 50);
         }
-        return sb.toString();
-    }
-
-    @SuppressForbidden(reason = "System.out.*")
-    public static void main(String[] args) {
-        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: " + JvmInfo.jvmInfo().version());
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(number());
         return sb.toString();
     }
 

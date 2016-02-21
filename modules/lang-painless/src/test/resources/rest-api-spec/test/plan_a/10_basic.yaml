@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: lang-painless }
+    - match:  { nodes.$master.modules.0.name: lang-painless }

@@ -956,7 +956,8 @@ class Definition {
 
         addConstructor("ArrayList<Object>", "new", new Type[] {}, null);
 
-        addMethod("List<String>", "set", null, false, objectType, new Type[] {intType, objectType}, stringType, new Type[] {intType, stringType});
+        addMethod("List<String>", "set", null, false, objectType, new Type[] {intType, objectType}, stringType,
+            new Type[] {intType, stringType});
         addMethod("List<String>", "get", null, false, objectType, new Type[] {intType}, stringType, null);
         addMethod("List<String>", "remove", null, false, objectType, new Type[] {intType}, stringType, null);
 
@@ -992,7 +993,8 @@ class Definition {
 
         addConstructor("HashMap<Object,Object>", "new", new Type[] {}, null);
 
-        addMethod("Map<String,def>", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {stringType, defType});
+        addMethod("Map<String,def>", "put", null, false, objectType, new Type[] {objectType, objectType}, defType,
+            new Type[] {stringType, defType});
         addMethod("Map<String,def>", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
         addMethod("Map<String,def>", "remove", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
         addMethod("Map<String,def>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
@@ -1004,7 +1006,8 @@ class Definition {
 
         addConstructor("HashMap<String,def>", "new", new Type[] {}, null);
 
-        addMethod("Map<String,Object>", "put", null, false, objectType, new Type[] {objectType, objectType}, null, new Type[] {stringType, objectType});
+        addMethod("Map<String,Object>", "put", null, false, objectType, new Type[] {objectType, objectType}, null,
+            new Type[] {stringType, objectType});
         addMethod("Map<String,Object>", "get", null, false, objectType, new Type[] {objectType}, null, new Type[] {stringType});
         addMethod("Map<String,Object>", "remove", null, false, objectType, new Type[] {objectType}, null, new Type[] {stringType});
         addMethod("Map<String,Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);

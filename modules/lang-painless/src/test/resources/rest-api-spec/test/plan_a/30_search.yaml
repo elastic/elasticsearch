@@ -94,4 +94,3 @@
     - match: { hits.hits.0.fields.sNum1.0: 1.0 }
     - match: { hits.hits.1.fields.sNum1.0: 2.0 }
     - match: { hits.hits.2.fields.sNum1.0: 3.0 }
-

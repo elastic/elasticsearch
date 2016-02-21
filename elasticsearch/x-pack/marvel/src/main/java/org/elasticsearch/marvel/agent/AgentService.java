@@ -29,6 +29,15 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * The {@code AgentService} is a service that does the work of publishing the details to the monitoring cluster.
+ * <p>
+ * If this service is stopped, then the attached, monitored node is not going to publish its details to the monitoring cluster. Given
+ * service life cycles, the intended way to temporarily stop the publishing is using the start and stop collection methods.
+ *
+ * @see #stopCollection()
+ * @see #startCollection()
+ */
 public class AgentService extends AbstractLifecycleComponent<AgentService> {
 
     private volatile ExportingWorker exportingWorker;

@@ -76,7 +76,7 @@ public class VersionUtils {
         assert version.before(Version.CURRENT);
         return version;
     }
-    
+
     /** Returns the oldest {@link Version} */
     public static Version getFirstVersion() {
         return SORTED_VERSIONS.get(0);
@@ -108,5 +108,12 @@ public class VersionUtils {
             int range = maxVersionIndex + 1 - minVersionIndex;
             return SORTED_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
+    }
+
+    public static boolean isSnapshot(Version version) {
+        if (Version.CURRENT.equals(version) || Version.V_2_3_0.equals(version)) {
+            return true;
+        }
+        return false;
     }
 }

@@ -7,15 +7,12 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 
@@ -25,7 +22,7 @@ import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 public class UsernamePasswordToken implements AuthenticationToken {
 
     public static final String BASIC_AUTH_HEADER = "Authorization";
-    private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile("Basic\\s(.+)");
+    private static final String BASIC_AUTH_PREFIX = "Basic ";
 
     private final String username;
     private final SecuredString password;
@@ -66,34 +63,30 @@ public class UsernamePasswordToken implements AuthenticationToken {
         return Objects.hash(username, password.hashCode());
     }
 
-    public static UsernamePasswordToken extractToken(ThreadContext context, UsernamePasswordToken defaultToken) {
+    public static UsernamePasswordToken extractToken(ThreadContext context) {
         String authStr = context.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {
-            return defaultToken;
+            return null;
         }
 
         return extractToken(authStr);
     }
 
-    public static UsernamePasswordToken extractToken(RestRequest request, UsernamePasswordToken defaultToken) {
-        String authStr = request.header(BASIC_AUTH_HEADER);
-        if (authStr == null) {
-            return defaultToken;
+    private static UsernamePasswordToken extractToken(String headerValue) {
+        if (headerValue.startsWith(BASIC_AUTH_PREFIX) == false) {
+            // the header does not start with 'Basic ' so we cannot use it, but it may be valid for another realm
+            return null;
         }
 
-        return extractToken(authStr);
-    }
-
-    static UsernamePasswordToken extractToken(String token) {
-        Matcher matcher = BASIC_AUTH_PATTERN.matcher(token.trim());
-        if (!matcher.matches()) {
+        // if there is nothing after the prefix, the header is bad
+        if (headerValue.length() == BASIC_AUTH_PREFIX.length()) {
             throw authenticationError("invalid basic authentication header value");
         }
 
         char[] userpasswd;
         try {
-            userpasswd = CharArrays.utf8BytesToChars(Base64.decode(matcher.group(1)));
-        } catch (IllegalArgumentException|IOException e) {
+            userpasswd = CharArrays.utf8BytesToChars(Base64.decode(headerValue.substring(BASIC_AUTH_PREFIX.length()).trim()));
+        } catch (IllegalArgumentException | IOException e) {
             throw authenticationError("invalid basic authentication header encoding", e);
         }
 

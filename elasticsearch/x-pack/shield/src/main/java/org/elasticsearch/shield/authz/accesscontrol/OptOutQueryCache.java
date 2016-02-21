@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 

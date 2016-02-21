@@ -16,7 +16,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
@@ -125,7 +125,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     }
 
     /**
-     * Resolves marvel's data index name
+     * Resolves monitoring's data index name
      */
     public class DataIndexNameResolver implements IndexNameResolver {
 
@@ -133,7 +133,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
         DataIndexNameResolver(Integer version) {
             Objects.requireNonNull(version, "index version cannot be null");
-            this.index = MarvelSettings.MARVEL_DATA_INDEX_PREFIX + String.valueOf(version);
+            this.index = MarvelSettings.MONITORING_DATA_INDEX_PREFIX + String.valueOf(version);
         }
 
         @Override

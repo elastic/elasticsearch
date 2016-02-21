@@ -18,7 +18,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -77,9 +77,9 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
 
-                //TODO: for now lets isolate marvel tests from watcher (randomize this later)
+                //TODO: for now lets isolate monitoring tests from watcher (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
-                // we do this by default in core, but for marvel this isn't needed and only adds noise.
+                // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
         ShieldSettings.apply(shieldEnabled, builder);
@@ -163,7 +163,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             @Override
             public void run() {
                 try {
-                    boolean exist = client().admin().indices().prepareExists(".marvel-es-*").get().isExists();
+                    boolean exist = client().admin().indices().prepareExists(".monitoring-es-*").get().isExists();
                     if (exist) {
                         deleteMarvelIndices();
                     } else {
@@ -180,12 +180,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void deleteMarvelIndices() {
         if (shieldEnabled) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(".marvel-es-*"));
+                assertAcked(client().admin().indices().prepareDelete(".monitoring-es-*"));
             } catch (IndexNotFoundException e) {
                 // if shield couldn't resolve any marvel index, it'll throw index not found exception.
             }
         } else {
-            assertAcked(client().admin().indices().prepareDelete(".marvel-es-*"));
+            assertAcked(client().admin().indices().prepareDelete(".monitoring-es-*"));
         }
     }
 
@@ -196,17 +196,17 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void ensureMarvelIndicesYellow() {
         if (shieldEnabled) {
             try {
-                ensureYellow(".marvel-es-*");
+                ensureYellow(".monitoring-es-*");
             } catch (IndexNotFoundException e) {
                 // might happen with shield...
             }
         } else {
-            ensureYellow(".marvel-es-*");
+            ensureYellow(".monitoring-es-*");
         }
     }
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
-        String indices = MarvelSettings.MARVEL_INDICES_PREFIX + "*";
+        String indices = MarvelSettings.MONITORING_INDICES_PREFIX + "*";
         try {
             securedFlushAndRefresh(indices);
             long count = client().prepareSearch(indices).setSize(0).setTypes(types).get().getHits().totalHits();
@@ -241,7 +241,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void waitForMarvelIndices() throws Exception {
-        awaitIndexExists(MarvelSettings.MARVEL_INDICES_PREFIX + "*");
+        awaitIndexExists(MarvelSettings.MONITORING_INDICES_PREFIX + "*");
         assertBusy(this::ensureMarvelIndicesYellow);
     }
 
@@ -338,7 +338,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             assertTrue(Strings.hasText(segment));
 
             boolean fieldExists = values.containsKey(segment);
-            assertTrue("expecting field [" + segment + "] to be present in marvel document", fieldExists);
+            assertTrue("expecting field [" + segment + "] to be present in monitoring document", fieldExists);
 
             Object value = values.get(segment);
             String next = field.substring(point + 1);
@@ -349,13 +349,13 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 assertFalse(value instanceof Map);
             }
         } else {
-            assertTrue("expecting field [" + field + "] to be present in marvel document", values.containsKey(field));
+            assertTrue("expecting field [" + field + "] to be present in monitoring document", values.containsKey(field));
         }
     }
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(MarvelSettings.INTERVAL_SETTING.getKey(), value, timeUnit)));
+                Settings.builder().put(MarvelSettings.INTERVAL.getKey(), value, timeUnit)));
     }
 
     /** Shield related settings */
@@ -419,7 +419,6 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
                         .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                        .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
                         .put("shield.audit.enabled", auditLogsEnabled)

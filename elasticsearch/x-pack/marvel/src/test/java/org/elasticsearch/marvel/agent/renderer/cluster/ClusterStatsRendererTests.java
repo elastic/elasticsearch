@@ -21,7 +21,7 @@ public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
         logger.debug("--> retrieving cluster stats response");
         ClusterStatsResponse clusterStats = client().admin().cluster().prepareClusterStats().get();
 
-        logger.debug("--> creating the cluster stats marvel document");
+        logger.debug("--> creating the cluster stats monitoring document");
         ClusterStatsMarvelDoc marvelDoc = new ClusterStatsMarvelDoc();
         marvelDoc.setClusterUUID("test");
         marvelDoc.setType("cluster_stats");

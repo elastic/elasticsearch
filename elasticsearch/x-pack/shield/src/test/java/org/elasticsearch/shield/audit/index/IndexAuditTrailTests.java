@@ -803,13 +803,13 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(type, sourceMap.get("event_type"));
     }
 
-    private static class LocalHostMockMessage extends TransportMessage<LocalHostMockMessage> {
+    private static class LocalHostMockMessage extends TransportMessage {
         LocalHostMockMessage() {
             remoteAddress(new LocalTransportAddress("local_host"));
         }
     }
 
-    private static class RemoteHostMockMessage extends TransportMessage<RemoteHostMockMessage> {
+    private static class RemoteHostMockMessage extends TransportMessage {
         RemoteHostMockMessage() throws Exception {
             remoteAddress(DummyTransportAddress.INSTANCE);
         }

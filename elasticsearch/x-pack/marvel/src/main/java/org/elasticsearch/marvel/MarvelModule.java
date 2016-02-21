@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.marvel.agent.settings;
+package org.elasticsearch.marvel;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.marvel.agent.AgentService;

@@ -28,7 +28,7 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
     public String[] expirationMessages() {
         return new String[] {
                 "The agent will stop collecting cluster and indices metrics",
-                "The agent will stop to automatically clean up indices older than [marvel.history.duration]",
+                "The agent will stop to automatically clean up indices older than [xpack.monitoring.history.duration]",
         };
     }
 
@@ -45,8 +45,8 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                                     LoggerMessageFormat.format(
                                             "Multi-cluster support is disabled for clusters with [{}] license. If you are\n" +
                                             "running multiple clusters, users won't be able to access the clusters with\n" +
-                                            "[{}] licenses from within a single Marvel instance. You will have to deploy a\n" +
-                                            "separate and dedicated Marvel instance for each [{}] cluster you wish to monitor.",
+                                            "[{}] licenses from within a single x-pack kibana instance. You will have to deploy a\n" +
+                                            "separate and dedicated x-pack kibana instance for each [{}] cluster you wish to monitor.",
                                             newLicense.type(), newLicense.type(), newLicense.type()),
                                     LoggerMessageFormat.format(
                                             "Automatic index cleanup is disabled for clusters with [{}] license.", newLicense.type())

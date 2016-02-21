@@ -129,7 +129,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         logger.info("using schedule engine [" + scheduleImplName + "]");
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                //TODO: for now lets isolate watcher tests from marvel (randomize this later)
+                //TODO: for now lets isolate watcher tests from monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
@@ -715,7 +715,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
                         .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                        .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
                         .put("shield.audit.enabled", auditLogsEnabled)

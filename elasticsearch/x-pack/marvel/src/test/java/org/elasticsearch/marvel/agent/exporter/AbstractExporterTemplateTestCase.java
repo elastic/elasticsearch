@@ -9,7 +9,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -30,10 +30,10 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1");
+                .put(MarvelSettings.INTERVAL.getKey(), "-1");
 
         for (Map.Entry<String, String> setting : exporterSettings().getAsMap().entrySet()) {
-            settings.put("marvel.agent.exporters._exporter." + setting.getKey(), setting.getValue());
+            settings.put("xpack.monitoring.agent.exporters._exporter." + setting.getKey(), setting.getValue());
         }
         return settings.build();
     }
@@ -163,7 +163,7 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     }
 
     private String currentDataIndexName() {
-        return ".marvel-es-data-" + String.valueOf(currentVersion);
+        return ".monitoring-es-data-" + String.valueOf(currentVersion);
     }
 
     private String currentTimestampedIndexName() {
@@ -177,7 +177,7 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
                                 .startObject("settings")
                                     .field("index.number_of_shards", 1)
                                     .field("index.number_of_replicas", 1)
-                                    .field(MarvelTemplateUtils.VERSION_FIELD, String.valueOf(version))
+                                    .field(MarvelSettings.INDEX_TEMPLATE_VERSION.getKey(), String.valueOf(version))
                                 .endObject()
                                 .startObject("mappings")
                                     .startObject("_default_")

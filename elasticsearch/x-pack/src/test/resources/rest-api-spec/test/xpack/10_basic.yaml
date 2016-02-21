@@ -1,4 +1,4 @@
-# Integration tests for Marvel plugin
+# Integration tests for monitoring
 #
 "X-Pack loaded":
     - do:

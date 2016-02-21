@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -118,6 +119,10 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onModule(SettingsModule module) {
+
+        // we add the `xpack.version` setting to all internal indices
+        module.registerSetting(Setting.simpleString("index.xpack.version", false, Setting.Scope.INDEX));
+
         shield.onModule(module);
         marvel.onModule(module);
         watcher.onModule(module);
@@ -144,6 +149,13 @@ public class XPackPlugin extends Plugin {
         return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
     }
 
+    public static boolean isTribeNode(Settings settings) {
+        return settings.getGroups("tribe", true).isEmpty() == false;
+    }
+    public static boolean isTribeClientNode(Settings settings) {
+        return settings.get("tribe.name") != null;
+    }
+
     public static Path resolveConfigFile(Environment env, String name) {
         return env.configFile().resolve(NAME).resolve(name);
     }
@@ -159,10 +171,33 @@ public class XPackPlugin extends Plugin {
      */
     public static boolean featureEnabled(Settings settings, String featureName, boolean defaultValue) {
         return settings.getAsBoolean(featureEnabledSetting(featureName),
-                settings.getAsBoolean(featureName + ".enabled", defaultValue)); // for bwc
+                settings.getAsBoolean(legacyFeatureEnabledSetting(featureName), defaultValue)); // for bwc
     }
 
     public static String featureEnabledSetting(String featureName) {
-        return NAME + "." + featureName + ".enabled";
+        return featureSettingPrefix(featureName) + ".enabled";
+    }
+
+    public static String featureSettingPrefix(String featureName) {
+        return NAME + "." + featureName;
+    }
+
+    public static String legacyFeatureEnabledSetting(String featureName) {
+        return featureName + ".enabled";
+    }
+
+    /**
+     * A consistent way to register the settings used to enable disable features, supporting the following format:
+     *
+     *          {@code "xpack.<feature>.enabled": true | false}
+     *
+     *  Also supports the following setting as a fallback (for BWC with 1.x/2.x):
+     *
+     *          {@code "<feature>.enabled": true | false}
+     */
+    public static void registerFeatureEnabledSettings(SettingsModule settingsModule, String featureName, boolean defaultValue) {
+        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
+                defaultValue, false, Setting.Scope.CLUSTER));
     }
 }

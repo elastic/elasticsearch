@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.test.ESTestCase;
@@ -59,8 +59,8 @@ public class ExportersTests extends ESTestCase {
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService,
                 mock(RendererRegistry.class), mock(CleanerService.class)));
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS_SETTING,
-                MarvelSettings.INTERVAL_SETTING, Exporters.EXPORTERS_SETTING)));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS,
+                MarvelSettings.INTERVAL, MarvelSettings.EXPORTERS_SETTINGS)));
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, clusterSettings);
     }
 
@@ -175,8 +175,8 @@ public class ExportersTests extends ESTestCase {
         final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
         exporters = new Exporters(Settings.builder()
-                .put("marvel.agent.exporters._name0.type", "_type")
-                .put("marvel.agent.exporters._name1.type", "_type")
+                .put("xpack.monitoring.agent.exporters._name0.type", "_type")
+                .put("xpack.monitoring.agent.exporters._name1.type", "_type")
                 .build(), factories, clusterService, clusterSettings) {
             @Override
             CurrentExporters initExporters(Settings settings) {
@@ -193,8 +193,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(settings, hasEntry("_name1.type", "_type"));
 
         Settings update = Settings.builder()
-                .put("marvel.agent.exporters._name0.foo", "bar")
-                .put("marvel.agent.exporters._name1.foo", "bar")
+                .put("xpack.monitoring.agent.exporters._name0.foo", "bar")
+                .put("xpack.monitoring.agent.exporters._name1.foo", "bar")
                 .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
@@ -212,8 +212,8 @@ public class ExportersTests extends ESTestCase {
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
-                .put("marvel.agent.exporters._name0.type", "mock")
-                .put("marvel.agent.exporters._name1.type", "mock_master_only")
+                .put("xpack.monitoring.agent.exporters._name0.type", "mock")
+                .put("xpack.monitoring.agent.exporters._name1.type", "mock_master_only")
                 .build(), factories, clusterService, clusterSettings);
         exporters.start();
 
@@ -236,8 +236,8 @@ public class ExportersTests extends ESTestCase {
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
-                .put("marvel.agent.exporters._name0.type", "mock")
-                .put("marvel.agent.exporters._name1.type", "mock_master_only")
+                .put("xpack.monitoring.agent.exporters._name0.type", "mock")
+                .put("xpack.monitoring.agent.exporters._name1.type", "mock_master_only")
                 .build(), factories, clusterService, clusterSettings);
         exporters.start();
 

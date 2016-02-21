@@ -20,7 +20,7 @@ import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,9 +42,9 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
     @Inject
     public AgentService(Settings settings, ClusterSettings clusterSettings, Set<Collector> collectors, Exporters exporters) {
         super(settings);
-        samplingInterval = MarvelSettings.INTERVAL_SETTING.get(settings).millis();
-        settingsCollectors = MarvelSettings.COLLECTORS_SETTING.get(settings).toArray(new String[0]);
-        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.INTERVAL_SETTING, this::setInterval);
+        samplingInterval = MarvelSettings.INTERVAL.get(settings).millis();
+        settingsCollectors = MarvelSettings.COLLECTORS.get(settings).toArray(new String[0]);
+        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.INTERVAL, this::setInterval);
         this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, settingsCollectors));
         this.exporters = exporters;
     }
@@ -84,7 +84,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
         } else if (workerThread == null || !workerThread.isAlive()) {
 
             exportingWorker = new ExportingWorker();
-            workerThread = new Thread(exportingWorker, EsExecutors.threadName(settings, "marvel.exporters"));
+            workerThread = new Thread(exportingWorker, EsExecutors.threadName(settings, "monitoring.exporters"));
             workerThread.setDaemon(true);
             workerThread.start();
         }

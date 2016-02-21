@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 
@@ -76,7 +76,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
         DiscoveryNodes nodes = clusterState.nodes();
         if (nodes != null) {
             for (DiscoveryNode node : nodes) {
-                // Adds a document for every node in the marvel timestamped index (type "nodes")
+                // Adds a document for every node in the monitoring timestamped index (type "nodes")
                 ClusterStateNodeMarvelDoc clusterStateNodeDoc = new ClusterStateNodeMarvelDoc();
                 clusterStateNodeDoc.setClusterUUID(clusterUUID);;
                 clusterStateNodeDoc.setType(NODE_TYPE);
@@ -86,7 +86,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
                 clusterStateNodeDoc.setNodeId(node.getId());
                 results.add(clusterStateNodeDoc);
 
-                // Adds a document for every node in the marvel data index (type "node")
+                // Adds a document for every node in the monitoring data index (type "node")
                 DiscoveryNodeMarvelDoc discoveryNodeDoc = new DiscoveryNodeMarvelDoc(dataIndexNameResolver.resolve(timestamp), NODE_TYPE,
                         node.getId());
                 discoveryNodeDoc.setClusterUUID(clusterUUID);

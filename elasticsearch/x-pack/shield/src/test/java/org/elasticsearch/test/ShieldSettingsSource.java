@@ -47,7 +47,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public static final Settings DEFAULT_SETTINGS = settingsBuilder()
             .put("node.mode", "network")
-            .put("plugins.load_classpath_plugins", false)
             .build();
 
     public static final String DEFAULT_USER_NAME = "test_user";
@@ -120,7 +119,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
 
-                //TODO: for now isolate shield tests from watcher & marvel (randomize this later)
+                //TODO: for now isolate shield tests from watcher & monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
 

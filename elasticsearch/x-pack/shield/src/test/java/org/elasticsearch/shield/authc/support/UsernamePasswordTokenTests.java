@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -21,8 +20,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  *
@@ -51,19 +48,19 @@ public class UsernamePasswordTokenTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         String header = "Basic " + Base64.encodeBytes("user1:test123".getBytes(StandardCharsets.UTF_8));
         threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
-        UsernamePasswordToken token = UsernamePasswordToken.extractToken(threadContext, null);
+        UsernamePasswordToken token = UsernamePasswordToken.extractToken(threadContext);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
         assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
     }
 
     public void testExtractTokenInvalid() throws Exception {
-        String[] invalidValues = { "Basic", "Basic ", "Basic f" };
+        String[] invalidValues = { "Basic ", "Basic f" };
         for (String value : invalidValues) {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, value);
             try {
-                UsernamePasswordToken.extractToken(threadContext, null);
+                UsernamePasswordToken.extractToken(threadContext);
                 fail("Expected an authentication exception for invalid basic auth token [" + value + "]");
             } catch (ElasticsearchSecurityException e) {
                 // expected
@@ -72,44 +69,17 @@ public class UsernamePasswordTokenTests extends ESTestCase {
         }
     }
 
-    public void testThatAuthenticationExceptionContainsResponseHeaders() {
+    public void testHeaderNotMatchingReturnsNull() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        String header = "BasicBroken";
+        String header = randomFrom("BasicBroken", "invalid", "Basic");
         threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
-        try {
-            UsernamePasswordToken.extractToken(threadContext, null);
-            fail("Expected exception but did not happen");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthenticationException(e);
-        }
+        UsernamePasswordToken extracted = UsernamePasswordToken.extractToken(threadContext);
+        assertThat(extracted, nullValue());
     }
 
-    public void testExtractTokenRest() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        UsernamePasswordToken token = new UsernamePasswordToken("username", SecuredStringTests.build("changeme"));
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(UsernamePasswordToken.basicAuthHeaderValue("username",
-                SecuredStringTests.build("changeme")));
-        assertThat(UsernamePasswordToken.extractToken(request, null), equalTo(token));
-    }
-
-    public void testExtractTokenRestMissing() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(null);
-        assertThat(UsernamePasswordToken.extractToken(request, null), nullValue());
-    }
-
-    public void testExtractTokenRestWithInvalidToken1() throws Exception {
-        thrown.expect(ElasticsearchSecurityException.class);
-        RestRequest request = mock(RestRequest.class);
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("invalid");
-        UsernamePasswordToken.extractToken(request, null);
-    }
-
-    public void testExtractTokenRestWithInvalidToken2() throws Exception {
-        thrown.expect(ElasticsearchSecurityException.class);
-        RestRequest request = mock(RestRequest.class);
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("Basic");
-        UsernamePasswordToken.extractToken(request, null);
+    public void testExtractTokenMissing() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        assertThat(UsernamePasswordToken.extractToken(threadContext), nullValue());
     }
 
     public void testEqualsWithDifferentPasswords() {

@@ -35,14 +35,14 @@ logstash:
   indices:
     'logstash-*': indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, create_index
 
-# Marvel role, allowing all operations
-# on the marvel indices
-marvel_user:
+# Monitoring role, allowing all operations
+# on the monitoring indices
+monitoring_user:
   indices:
-    '.marvel-*': all
+    '.monitoring-*': all
 
-# Marvel Agent users
-marvel_agent:
+# Monitoring Agent users
+monitoring_agent:
   cluster: indices:admin/template/get, indices:admin/template/put
   indices:
-    '.marvel-*': indices:data/write/bulk, create_index
+    '.monitoring-*': indices:data/write/bulk, create_index

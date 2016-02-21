@@ -9,7 +9,7 @@ integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     systemProperty 'es.xpack.shield.enabled', 'false'
-    systemProperty 'es.xpack.marvel.enabled', 'false'
+    systemProperty 'es.xpack.monitoring.enabled', 'false'
     systemProperty 'es.http.port', '9400'
   }
 }

@@ -22,7 +22,7 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
 
     @Override
     public UsernamePasswordToken token(ThreadContext threadContext) {
-        return UsernamePasswordToken.extractToken(threadContext, null);
+        return UsernamePasswordToken.extractToken(threadContext);
     }
 
     public boolean supports(AuthenticationToken token) {

@@ -65,18 +65,18 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
     }
 
     public void testGroovyClosureWithAggregations() throws Exception {
-        client().admin().indices().prepareCreate(".marvel")
+        client().admin().indices().prepareCreate(".monitoring")
                 .addMapping("cluster_stats", "_timestamp", "enabled=true")
                 .get();
 
         for (int seconds = 0; seconds < 60; seconds += 5) {
-            client().prepareIndex(".marvel", "cluster_stats").setTimestamp("2005-01-01T00:00:" +
+            client().prepareIndex(".monitoring", "cluster_stats").setTimestamp("2005-01-01T00:00:" +
                     String.format(Locale.ROOT, "%02d", seconds)).setSource("status", randomFrom("green", "yellow")).get();
         }
 
         refresh();
 
-        SearchRequestBuilder builder = client().prepareSearch(".marvel")
+        SearchRequestBuilder builder = client().prepareSearch(".monitoring")
                 .addAggregation(
                         AggregationBuilders
                                 .dateHistogram("minutes").field("_timestamp").interval(TimeUnit.MILLISECONDS.convert(5, TimeUnit.SECONDS))
@@ -100,7 +100,7 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
         assertFalse(condition.execute(unmetContext).met());
 
         for (int seconds = 0; seconds < 60; seconds += 5) {
-            client().prepareIndex(".marvel", "cluster_stats").setTimestamp("2005-01-01T00:01:" +
+            client().prepareIndex(".monitoring", "cluster_stats").setTimestamp("2005-01-01T00:01:" +
                     String.format(Locale.ROOT, "%02d", seconds)).setSource("status", randomFrom("red")).get();
         }
 

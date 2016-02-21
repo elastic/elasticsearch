@@ -36,7 +36,7 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void anonymousAccessDenied(String action, TransportMessage<?> message) {
+    public void anonymousAccessDenied(String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.anonymousAccessDenied(action, message);
         }
@@ -57,21 +57,21 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void authenticationFailed(String action, TransportMessage<?> message) {
+    public void authenticationFailed(String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.authenticationFailed(action, message);
         }
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
+    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.authenticationFailed(token, action, message);
         }
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
+    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.authenticationFailed(realm, token, action, message);
         }
@@ -92,28 +92,28 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage<?> message) {
+    public void accessGranted(User user, String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.accessGranted(user, action, message);
         }
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage<?> message) {
+    public void accessDenied(User user, String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.accessDenied(user, action, message);
         }
     }
 
     @Override
-    public void tamperedRequest(String action, TransportMessage<?> message) {
+    public void tamperedRequest(String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.tamperedRequest(action, message);
         }
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportMessage<?> request) {
+    public void tamperedRequest(User user, String action, TransportMessage request) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.tamperedRequest(user, action, request);
         }
@@ -134,14 +134,14 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void runAsGranted(User user, String action, TransportMessage<?> message) {
+    public void runAsGranted(User user, String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.runAsGranted(user, action, message);
         }
     }
 
     @Override
-    public void runAsDenied(User user, String action, TransportMessage<?> message) {
+    public void runAsDenied(User user, String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.runAsDenied(user, action, message);
         }

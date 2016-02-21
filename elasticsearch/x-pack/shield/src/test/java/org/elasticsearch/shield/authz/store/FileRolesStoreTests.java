@@ -244,8 +244,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles, hasKey("kibana3"));
         assertThat(roles, hasKey("kibana4"));
         assertThat(roles, hasKey("logstash"));
-        assertThat(roles, hasKey("marvel_user"));
-        assertThat(roles, hasKey("marvel_agent"));
+        assertThat(roles, hasKey("monitoring_user"));
+        assertThat(roles, hasKey("monitoring_agent"));
     }
 
     public void testAutoReload() throws Exception {

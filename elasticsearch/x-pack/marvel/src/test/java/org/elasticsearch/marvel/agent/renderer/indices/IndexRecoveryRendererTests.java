@@ -26,7 +26,7 @@ public class IndexRecoveryRendererTests extends ESTestCase {
     private static final String SAMPLE_FILE = "/samples/index_recovery.json";
 
     public void testIndexRecoveryRenderer() throws Exception {
-        logger.debug("--> creating the index recovery marvel document");
+        logger.debug("--> creating the index recovery monitoring document");
         String indexName = "index-0";
 
         DiscoveryNode source = new DiscoveryNode("node-src", DummyTransportAddress.INSTANCE, Version.CURRENT);

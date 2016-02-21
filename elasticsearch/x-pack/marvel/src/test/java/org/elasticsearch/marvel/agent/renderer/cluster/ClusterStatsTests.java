@@ -9,7 +9,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -29,9 +29,9 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS_SETTING.getKey(), ClusterStatsCollector.NAME)
-                .put("marvel.agent.exporters.default_local.type", "local")
+                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MarvelSettings.COLLECTORS.getKey(), ClusterStatsCollector.NAME)
+                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }
 

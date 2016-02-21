@@ -12,9 +12,9 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 
 import java.util.ArrayList;
@@ -31,8 +31,6 @@ import java.util.Set;
  */
 public class Exporters extends AbstractLifecycleComponent<Exporters> implements Iterable<Exporter> {
 
-    public static final Setting<Settings> EXPORTERS_SETTING = Setting.groupSetting("marvel.agent.exporters.", true, Setting.Scope.CLUSTER);
-
     private final Map<String, Exporter.Factory> factories;
     private final ClusterService clusterService;
 
@@ -47,9 +45,8 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         super(settings);
         this.factories = factories;
         this.clusterService = clusterService;
-        exporterSettings = EXPORTERS_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(EXPORTERS_SETTING, this::setExportersSetting);
-
+        exporterSettings = MarvelSettings.EXPORTERS_SETTINGS.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
     }
 
     private synchronized void setExportersSetting(Settings exportersSetting) {
@@ -124,7 +121,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
                     bulks.add(bulk);
                 }
             } catch (Exception e) {
-                logger.error("exporter [{}] failed to export marvel data", e, exporter.name());
+                logger.error("exporter [{}] failed to export monitoring data", e, exporter.name());
             }
         }
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);

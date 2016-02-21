@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.transform.TransformFactory;
 
@@ -25,12 +26,15 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     protected final ClientProxy client;
     private final TimeValue defaultTimeout;
     private IndicesQueriesRegistry queryRegistry;
+    private AggregatorParsers aggParsers;
 
     @Inject
-    public SearchTransformFactory(Settings settings, ClientProxy client, IndicesQueriesRegistry queryRegistry) {
+    public SearchTransformFactory(Settings settings, ClientProxy client, IndicesQueriesRegistry queryRegistry,
+            AggregatorParsers aggParsers) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.queryRegistry = queryRegistry;
+        this.aggParsers = aggParsers;
         this.defaultTimeout = settings.getAsTime("watcher.transform.search.default_timeout", null);
     }
 
@@ -43,7 +47,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
         QueryParseContext context = new QueryParseContext(queryRegistry);
         context.reset(parser);
-        return SearchTransform.parse(watchId, parser, context);
+        return SearchTransform.parse(watchId, parser, context, aggParsers);
     }
 
     @Override

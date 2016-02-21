@@ -750,6 +750,6 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    private static class InternalMessage extends TransportMessage<InternalMessage> {
+    private static class InternalMessage extends TransportMessage {
     }
 }

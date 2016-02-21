@@ -15,14 +15,14 @@ import java.util.Properties;
 
 public final class MarvelTemplateUtils {
 
-    static final String INDEX_TEMPLATE_FILE         = "/marvel-es.json";
-    static final String INDEX_TEMPLATE_NAME_PREFIX  = ".marvel-es-";
+    static final String INDEX_TEMPLATE_FILE         = "/monitoring-es.json";
+    static final String INDEX_TEMPLATE_NAME_PREFIX  = ".monitoring-es-";
 
-    static final String DATA_TEMPLATE_FILE          = "/marvel-es-data.json";
-    static final String DATA_TEMPLATE_NAME_PREFIX   = ".marvel-es-data-";
+    static final String DATA_TEMPLATE_FILE          = "/monitoring-es-data.json";
+    static final String DATA_TEMPLATE_NAME_PREFIX   = ".monitoring-es-data-";
 
-    static final String PROPERTIES_FILE             = "/marvel.properties";
-    static final String VERSION_FIELD               = "marvel.template.version";
+    static final String PROPERTIES_FILE             = "/monitoring.properties";
+    static final String TEMPLATE_VERSION_PROPERTY   = "template.version";
 
     public static final Integer TEMPLATE_VERSION    = loadTemplateVersion();
 
@@ -36,7 +36,7 @@ public final class MarvelTemplateUtils {
         try {
             return load(INDEX_TEMPLATE_FILE);
         } catch (IOException e) {
-            throw new IllegalStateException("unable to load marvel template", e);
+            throw new IllegalStateException("unable to load monitoring template", e);
         }
     }
 
@@ -47,7 +47,7 @@ public final class MarvelTemplateUtils {
         try {
             return load(DATA_TEMPLATE_FILE);
         } catch (IOException e) {
-            throw new IllegalStateException("unable to load marvel data template", e);
+            throw new IllegalStateException("unable to load monitoring data template", e);
         }
     }
 
@@ -72,15 +72,15 @@ public final class MarvelTemplateUtils {
         try (InputStream is = MarvelTemplateUtils.class.getResourceAsStream(PROPERTIES_FILE)) {
             Properties properties = new Properties();
             properties.load(is);
-            String version = properties.getProperty(VERSION_FIELD);
+            String version = properties.getProperty(TEMPLATE_VERSION_PROPERTY);
             if (Strings.hasLength(version)) {
                 return Integer.parseInt(version);
             }
-            throw new IllegalArgumentException("no marvel template version found");
+            throw new IllegalArgumentException("no monitoring template version found");
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("failed to parse marvel template version");
+            throw new IllegalArgumentException("failed to parse monitoring template version");
         } catch (IOException e) {
-            throw new IllegalArgumentException("failed to load marvel template version");
+            throw new IllegalArgumentException("failed to load monitoring template version");
         }
     }
 

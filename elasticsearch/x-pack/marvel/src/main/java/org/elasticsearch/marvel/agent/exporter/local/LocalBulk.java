@@ -60,10 +60,10 @@ public class LocalBulk extends ExportBulk {
 
             // Get the appropriate renderer in order to render the MarvelDoc
             Renderer renderer = renderers.getRenderer(marvelDoc);
-            assert renderer != null : "unable to render marvel document of type [" + marvelDoc.getType() + "]. no renderer registered";
+            assert renderer != null : "unable to render monitoring document of type [" + marvelDoc.getType() + "]. no renderer registered";
 
             if (renderer == null) {
-                logger.warn("local exporter [{}] - unable to render marvel document of type [{}]: no renderer found in registry",
+                logger.warn("local exporter [{}] - unable to render monitoring document of type [{}]: no renderer found in registry",
                         name, marvelDoc.getType());
                 continue;
             }

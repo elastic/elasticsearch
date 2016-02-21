@@ -170,7 +170,7 @@ public class IndexActionIntegrationTests extends AbstractWatcherIntegrationTestC
                         .source(searchSource()
                                 .aggregation(dateHistogram("trend")
                                         .field("timestamp")
-                                        .interval(DateHistogramInterval.DAY)))))
+                                        .dateHistogramInterval(DateHistogramInterval.DAY)))))
                 .addAction("index-buckets",
 
                         // this transform takes the bucket list and assigns it to `_doc`

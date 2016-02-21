@@ -112,6 +112,67 @@
                       "type": "long"
                     }
                   }
+                },
+                "fielddata" : {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size_in_bytes": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "index_total": {
+                      "type": "long"
+                    },
+                    "index_time_in_millis": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "merges": {
+                  "properties": {
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "search": {
+                  "properties": {
+                    "query_total": {
+                      "type": "long"
+                    },
+                    "query_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "memory_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "refresh": {
+                  "properties": {
+                    "total_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             },

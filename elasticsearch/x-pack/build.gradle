@@ -112,6 +112,9 @@ bundlePlugin {
     include 'LICENSE.txt'
     include 'NOTICE.txt'
   }
+  from('bin/xpack') {
+    into 'bin'
+  }
   from('shield/bin/xpack') {
     into 'bin'
   }

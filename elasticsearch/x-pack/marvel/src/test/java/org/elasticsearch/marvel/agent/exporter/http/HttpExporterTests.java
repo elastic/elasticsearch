@@ -430,7 +430,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         Version resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(Version.CURRENT));
 
-        final Version expected = randomFrom(Version.CURRENT, Version.V_0_18_0, Version.V_1_1_0, Version.V_1_2_5,
+        final Version expected = randomFrom(Version.CURRENT, Version.V_0_18_0, Version.V_1_1_0, Version.V_1_2_4,
                 Version.V_1_4_5, Version.V_1_6_0);
         enqueueGetClusterVersionResponse(expected);
         resolved = exporter.loadRemoteClusterVersion(host);
@@ -475,7 +475,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     private void enqueueGetClusterVersionResponse(MockWebServer mockWebServer, Version v) throws IOException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().startObject("version").field("number", v.number()).endObject().endObject().bytes().toUtf8()));
+                jsonBuilder().startObject().startObject("version").field("number", v.toString()).endObject().endObject().bytes().toUtf8()));
     }
 
     private void enqueueResponse(int responseCode, String body) throws IOException {

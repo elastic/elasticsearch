@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.rest.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -64,10 +65,10 @@ public class RestShieldInfoAction extends BaseRestHandler {
         }
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
-                .field("number", Version.CURRENT.number())
+                .field("number", Version.CURRENT.toString())
                 .field("build_hash", ShieldBuild.CURRENT.hash())
                 .field("build_timestamp", ShieldBuild.CURRENT.timestamp())
-                .field("build_snapshot", Version.CURRENT.snapshot)
+                .field("build_snapshot", Build.CURRENT.isSnapshot())
                 .endObject();
         builder.field("tagline", "You Know, for Security");
         builder.endObject();

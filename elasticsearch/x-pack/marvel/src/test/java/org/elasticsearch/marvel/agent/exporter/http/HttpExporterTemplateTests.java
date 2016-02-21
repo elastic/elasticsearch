@@ -114,7 +114,7 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
             switch (requestLine) {
                 // Cluster version
                 case "GET / HTTP/1.1":
-                    return newResponse(200, "{\"version\": {\"number\": \"" + Version.CURRENT.number() + "\"}}");
+                    return newResponse(200, "{\"version\": {\"number\": \"" + Version.CURRENT.toString() + "\"}}");
                 // Bulk
                 case "POST /_bulk HTTP/1.1":
                     // Parse the bulk request and extract all index names

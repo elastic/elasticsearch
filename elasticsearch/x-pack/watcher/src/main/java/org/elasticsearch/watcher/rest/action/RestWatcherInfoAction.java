@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -39,10 +40,10 @@ public class RestWatcherInfoAction extends WatcherRestHandler {
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
                 builder.startObject()
                         .startObject("version")
-                            .field("number", Version.CURRENT.number())
+                            .field("number", Version.CURRENT.toString())
                             .field("build_hash", watcherStatsResponse.getBuild().hash())
                             .field("build_timestamp", watcherStatsResponse.getBuild().timestamp())
-                            .field("build_snapshot", Version.CURRENT.snapshot)
+                            .field("build_snapshot", Build.CURRENT.isSnapshot())
                         .endObject()
                         .field("tagline", "You Know, for Alerts & Automation")
                         .endObject();

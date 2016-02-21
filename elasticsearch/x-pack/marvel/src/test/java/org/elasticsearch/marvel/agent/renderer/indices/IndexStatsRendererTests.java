@@ -55,7 +55,8 @@ public class IndexStatsRendererTests extends ESTestCase {
                         CommonStats stats = new CommonStats();
                         stats.docs = new DocsStats(345678L, randomLong());
                         stats.store = new StoreStats(randomLong(), randomLong());
-                        stats.indexing = new IndexingStats(new IndexingStats.Stats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, true, randomLong()), null);
+                        stats.indexing = new IndexingStats(new IndexingStats.Stats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, true,
+                                randomLong()), null);
                         stats.search = new SearchStats(new SearchStats.Stats(1L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L), 0L, null);
                         stats.merge = new MergeStats();
                         stats.merge.add(0L, 0L, 0L, 42L, 0L, 0L, 0L, 0L, 0L, 0L);

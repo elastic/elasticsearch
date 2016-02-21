@@ -53,7 +53,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -1342,16 +1342,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    class ScheduledPing extends AbstractRunnable {
+    class ScheduledPing extends AbstractLifecycleRunnable {
 
         final CounterMetric successfulPings = new CounterMetric();
         final CounterMetric failedPings = new CounterMetric();
 
+        public ScheduledPing() {
+            super(lifecycle, logger);
+        }
+
         @Override
-        protected void doRun() throws Exception {
-            if (lifecycle.stoppedOrClosed()) {
-                return;
-            }
+        protected void doRunInLifecycle() throws Exception {
             for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
@@ -1374,6 +1375,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     }
                 }
             }
+        }
+
+        @Override
+        protected void onAfterInLifecycle() {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
         }
 

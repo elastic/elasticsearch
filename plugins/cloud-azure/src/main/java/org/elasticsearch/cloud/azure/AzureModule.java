@@ -27,6 +27,7 @@ import org.elasticsearch.cloud.azure.management.AzureComputeSettingsFilter;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.cloud.azure.storage.AzureStorageSettingsFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -145,11 +146,10 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if (isPropertyMissing(settings, Storage.ACCOUNT) ||
-                isPropertyMissing(settings, Storage.KEY)) {
-            logger.debug("azure repository is not set using [{}] and [{}] properties",
-                    Storage.ACCOUNT,
-                    Storage.KEY);
+        if (AzureStorageSettings.parse(settings).v1() == null) {
+            logger.debug("azure repository is not set using [{}xxx.account] and [{}xxx.key] properties",
+                Storage.PREFIX,
+                Storage.PREFIX);
             return false;
         }
 

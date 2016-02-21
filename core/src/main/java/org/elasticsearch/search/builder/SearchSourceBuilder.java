@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -728,6 +729,59 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public BytesReference ext() {
         return ext;
     }
+
+    /**
+     * Rewrites this search source builder into its primitive form. e.g. by
+     * rewriting the QueryBuilder. If the builder did not change the identity
+     * reference must be returned otherwise the builder will be rewritten
+     * infinitely.
+     */
+    public SearchSourceBuilder rewrite(QueryShardContext context) throws IOException {
+        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder)));
+        QueryBuilder<?> queryBuilder = null;
+        if (this.queryBuilder != null) {
+            queryBuilder = this.queryBuilder.rewrite(context);
+        }
+        QueryBuilder<?> postQueryBuilder = null;
+        if (this.postQueryBuilder != null) {
+            postQueryBuilder = this.postQueryBuilder.rewrite(context);
+        }
+        boolean rewritten = queryBuilder != this.queryBuilder || postQueryBuilder != this.postQueryBuilder;
+        if (rewritten) {
+            return shallowCopy(queryBuilder, postQueryBuilder);
+        }
+        return this;
+    }
+
+    private SearchSourceBuilder shallowCopy(QueryBuilder<?> queryBuilder, QueryBuilder<?> postQueryBuilder) {
+            SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
+            rewrittenBuilder.aggregations = aggregations;
+            rewrittenBuilder.explain = explain;
+            rewrittenBuilder.ext = ext;
+            rewrittenBuilder.fetchSourceContext = fetchSourceContext;
+            rewrittenBuilder.fieldDataFields = fieldDataFields;
+            rewrittenBuilder.fieldNames = fieldNames;
+            rewrittenBuilder.from = from;
+            rewrittenBuilder.highlightBuilder = highlightBuilder;
+            rewrittenBuilder.indexBoost = indexBoost;
+            rewrittenBuilder.innerHitsBuilder = innerHitsBuilder;
+            rewrittenBuilder.minScore = minScore;
+            rewrittenBuilder.postQueryBuilder = postQueryBuilder;
+            rewrittenBuilder.profile = profile;
+            rewrittenBuilder.queryBuilder = queryBuilder;
+            rewrittenBuilder.rescoreBuilders = rescoreBuilders;
+            rewrittenBuilder.scriptFields = scriptFields;
+            rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
+            rewrittenBuilder.size = size;
+            rewrittenBuilder.sorts = sorts;
+            rewrittenBuilder.stats = stats;
+            rewrittenBuilder.suggestBuilder = suggestBuilder;
+            rewrittenBuilder.terminateAfter = terminateAfter;
+            rewrittenBuilder.timeoutInMillis = timeoutInMillis;
+            rewrittenBuilder.trackScores = trackScores;
+            rewrittenBuilder.version = version;
+            return rewrittenBuilder;
+        }
 
     /**
      * Create a new SearchSourceBuilder with attributes set by an xContent.

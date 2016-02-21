@@ -22,6 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.fieldstats.FieldStats;
+import org.elasticsearch.action.fieldstats.IndexConstraint;
+import org.elasticsearch.action.fieldstats.IndexConstraint.Comparison;
+import org.elasticsearch.action.fieldstats.IndexConstraint.Property;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +34,7 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
@@ -251,6 +256,48 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        FieldStatsProvider fieldStatsProvider = queryShardContext.getFieldStatsProvider();
+        // If the fieldStatsProvider is null we are not on the shard and cannot
+        // rewrite so just return without rewriting
+        if (fieldStatsProvider != null) {
+            DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
+            FieldStatsProvider.Relation relation = fieldStatsProvider.isFieldWithinQuery(fieldName, from, to, includeUpper, includeLower,
+                    timeZone, dateMathParser);
+            switch (relation) {
+            case DISJOINT:
+                return new MatchNoneQueryBuilder();
+            case WITHIN:
+                FieldStats<?> fieldStats = fieldStatsProvider.get(fieldName);
+                if (!(fieldStats.getMinValue().equals(from) && fieldStats.getMaxValue().equals(to) && includeUpper && includeLower)) {
+                    // Rebuild the range query with the bounds for this shard.
+                    // The includeLower/Upper values are preserved only if the
+                    // bound has not been changed by the rewrite
+                    RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                    String dateFormatString = format == null ? null : format.format();
+                    if (fieldStats.getMinValue().equals(fieldStats.getMaxValue())) {
+                        newRangeQuery.from(fieldStats.getMinValue(), true);
+                        newRangeQuery.to(fieldStats.getMaxValue(), true);
+                    } else {
+                        newRangeQuery.from(fieldStats.getMinValue(), includeLower || fieldStats.match(new IndexConstraint(fieldName,
+                                Property.MIN, Comparison.GT, fieldStats.stringValueOf(from, dateFormatString))));
+                        newRangeQuery.to(fieldStats.getMaxValue(), includeUpper || fieldStats.match(new IndexConstraint(fieldName,
+                                Property.MAX, Comparison.LT, fieldStats.stringValueOf(to, dateFormatString))));
+                    }
+                    newRangeQuery.format = format;
+                    newRangeQuery.timeZone = timeZone;
+                    return newRangeQuery;
+                } else {
+                    return this;
+                }
+            case INTERSECTS:
+                break;
+            }
+        }
+        return this;
     }
 
     @Override

@@ -171,7 +171,7 @@ public class XPackPlugin extends Plugin {
      */
     public static boolean featureEnabled(Settings settings, String featureName, boolean defaultValue) {
         return settings.getAsBoolean(featureEnabledSetting(featureName),
-                settings.getAsBoolean(featureName + ".enabled", defaultValue)); // for bwc
+                settings.getAsBoolean(legacyFeatureEnabledSetting(featureName), defaultValue)); // for bwc
     }
 
     public static String featureEnabledSetting(String featureName) {
@@ -180,5 +180,24 @@ public class XPackPlugin extends Plugin {
 
     public static String featureSettingPrefix(String featureName) {
         return NAME + "." + featureName;
+    }
+
+    public static String legacyFeatureEnabledSetting(String featureName) {
+        return featureName + ".enabled";
+    }
+
+    /**
+     * A consistent way to register the settings used to enable disable features, supporting the following format:
+     *
+     *          {@code "xpack.<feature>.enabled": true | false}
+     *
+     *  Also supports the following setting as a fallback (for BWC with 1.x/2.x):
+     *
+     *          {@code "<feature>.enabled": true | false}
+     */
+    public static void registerFeatureEnabledSettings(SettingsModule settingsModule, String featureName, boolean defaultValue) {
+        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
+                defaultValue, false, Setting.Scope.CLUSTER));
     }
 }

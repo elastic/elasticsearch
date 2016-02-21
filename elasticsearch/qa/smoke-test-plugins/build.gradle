@@ -9,11 +9,8 @@ dependencies {
 ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
-  // FIXME - fix shield settings to not rely on iteration order so this doesn't break!
-  if (subproj.name.equals("discovery-ec2") == false) {
-    integTest.cluster.plugin(subproj.name, project(subproj.path))
-    pluginsCount += 1
-  }
+  integTest.cluster.plugin(subproj.name, project(subproj.path))
+  pluginsCount += 1
 }
 
 integTest {

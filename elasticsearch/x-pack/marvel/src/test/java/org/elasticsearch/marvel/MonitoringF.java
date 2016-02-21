@@ -32,7 +32,6 @@ public class MonitoringF {
         Settings.Builder settings = Settings.builder();
         settings.put("script.inline", "true");
         settings.put("security.manager.enabled", "false");
-        settings.put("plugins.load_classpath_plugins", "false");
         settings.put("cluster.name", MonitoringF.class.getSimpleName());
         settings.put("xpack.monitoring.agent.interval", "5s");
         if (!CollectionUtils.isEmpty(args)) {

@@ -419,7 +419,6 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
                         .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                        .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
                         .put("shield.audit.enabled", auditLogsEnabled)

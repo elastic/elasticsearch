@@ -77,6 +77,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  *
@@ -173,11 +174,27 @@ public class Shield {
         settingsModule.registerSetting(IPFilter.HTTP_FILTER_DENY_SETTING);
         settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_ALLOW_SETTING);
         settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_DENY_SETTING);
-        settingsModule.registerSetting(Setting.boolSetting("plugins.load_classpath_plugins", true, false, Setting.Scope.CLUSTER));
-        // TODO add real settings for this wildcard here
-        settingsModule.registerSetting(Setting.groupSetting("shield.", false, Setting.Scope.CLUSTER));
-        // TODO please let's just drop the old settings before releasing
-        settingsModule.registerSetting(Setting.groupSetting("xpack.shield.", false, Setting.Scope.CLUSTER));
+        XPackPlugin.registerFeatureEnabledSettings(settingsModule, NAME, true);
+        XPackPlugin.registerFeatureEnabledSettings(settingsModule, DLS_FLS_FEATURE, true);
+        settingsModule.registerSetting(Setting.groupSetting("shield.audit.", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.listSetting("shield.hide_settings", Collections.emptyList(), Function.identity(), false,
+                Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.groupSetting("shield.ssl.", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.groupSetting("shield.authc.", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString("shield.authz.store.files.roles", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString("shield.system_key.file", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING,
+                ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT, false, Setting.Scope.CLUSTER));
+        // FIXME need to register a real setting with the defaults here
+        settingsModule.registerSetting(Setting.simpleString(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING,
+                false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(ShieldNettyTransport.TRANSPORT_SSL_SETTING,
+                ShieldNettyTransport.TRANSPORT_SSL_DEFAULT, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, false,
+                Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString("shield.user", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString("shield.encryption_key.algorithm", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString("shield.encryption.algorithm", false, Setting.Scope.CLUSTER));
 
         String[] asArray = settings.getAsArray("shield.hide_settings");
         for (String pattern : asArray) {

@@ -58,7 +58,6 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins.load_classpath_plugins", false)
                 .put("node.data", true)
                 // this setting is only used in tests
                 .put("_trial_license_duration_in_seconds", 9)

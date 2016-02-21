@@ -47,7 +47,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public static final Settings DEFAULT_SETTINGS = settingsBuilder()
             .put("node.mode", "network")
-            .put("plugins.load_classpath_plugins", false)
             .build();
 
     public static final String DEFAULT_USER_NAME = "test_user";

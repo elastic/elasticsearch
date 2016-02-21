@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +45,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
                 // disable shield because of query cache check and authentication/authorization
                 .put(XPackPlugin.featureEnabledSetting(Shield.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
 
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();

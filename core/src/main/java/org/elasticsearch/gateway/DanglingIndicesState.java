@@ -131,9 +131,11 @@ public class DanglingIndicesState extends AbstractComponent {
                             logger.info("ignoring dangling index [{}] because it is on a shared filesystem", indexMetaData.getIndex());
                             continue;
                         }
-                        logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state", indexName);
+                        logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, " +
+                                        "auto import to cluster state", indexName);
                         if (!indexMetaData.getIndex().getName().equals(indexName)) {
-                            logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.getIndex());
+                            logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name",
+                                    indexName, indexMetaData.getIndex());
                             indexMetaData = IndexMetaData.builder(indexMetaData).index(indexName).build();
                         }
                         newIndices.put(indexName, indexMetaData);
@@ -157,7 +159,8 @@ public class DanglingIndicesState extends AbstractComponent {
             return;
         }
         try {
-            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())), new LocalAllocateDangledIndices.Listener() {
+            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
+                    new LocalAllocateDangledIndices.Listener() {
                 @Override
                 public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
                     logger.trace("allocated dangled");

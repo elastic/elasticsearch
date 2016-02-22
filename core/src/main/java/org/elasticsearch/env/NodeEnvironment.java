@@ -40,9 +40,11 @@ import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
@@ -76,7 +78,7 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * A component that holds all data paths for a single node.
  */
-public class NodeEnvironment extends AbstractComponent implements Closeable {
+public final class NodeEnvironment extends AbstractComponent implements Closeable {
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -167,63 +169,71 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             localNodeId = -1;
             return;
         }
-
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
         final Lock[] locks = new Lock[nodePaths.length];
-        sharedDataPath = environment.sharedDataFile();
+        boolean success = false;
 
-        int localNodeId = -1;
-        IOException lastException = null;
-        int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
-        for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
-            for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
-                Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
-                Files.createDirectories(dir);
+        try {
+            sharedDataPath = environment.sharedDataFile();
+            int localNodeId = -1;
+            IOException lastException = null;
+            int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+            for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
+                for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
+                    Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
+                    Files.createDirectories(dir);
 
-                try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                    logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                    try {
-                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
-                        nodePaths[dirIndex] = new NodePath(dir, environment);
-                        localNodeId = possibleLockId;
-                    } catch (LockObtainFailedException ex) {
-                        logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
+                    try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
+                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        try {
+                            locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                            nodePaths[dirIndex] = new NodePath(dir, environment);
+                            localNodeId = possibleLockId;
+                        } catch (LockObtainFailedException ex) {
+                            logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
+                            // release all the ones that were obtained up until now
+                            releaseAndNullLocks(locks);
+                            break;
+                        }
+
+                    } catch (IOException e) {
+                        logger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
+                        lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
                         break;
                     }
-
-                } catch (IOException e) {
-                    logger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
-                    lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
-                    // release all the ones that were obtained up until now
-                    releaseAndNullLocks(locks);
+                }
+                if (locks[0] != null) {
+                    // we found a lock, break
                     break;
                 }
             }
-            if (locks[0] != null) {
-                // we found a lock, break
-                break;
+
+            if (locks[0] == null) {
+                throw new IllegalStateException("Failed to obtain node lock, is the following location writable?: "
+                    + Arrays.toString(environment.dataWithClusterFiles()), lastException);
+            }
+
+            this.localNodeId = localNodeId;
+            this.locks = locks;
+            this.nodePaths = nodePaths;
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
+            }
+
+            maybeLogPathDetails();
+            maybeLogHeapDetails();
+            
+            applySegmentInfosTrace(settings);
+            assertCanWrite();
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(locks);
             }
         }
-
-        if (locks[0] == null) {
-            throw new IllegalStateException("Failed to obtain node lock, is the following location writable?: "
-                    + Arrays.toString(environment.dataWithClusterFiles()), lastException);
-        }
-
-        this.localNodeId = localNodeId;
-        this.locks = locks;
-        this.nodePaths = nodePaths;
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
-        }
-
-        maybeLogPathDetails();
-        maybeLogHeapDetails();
-
-        applySegmentInfosTrace(settings);
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {
@@ -793,7 +803,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     @Override
-    public void close() {
+    public final void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
             for (Lock lock : locks) {
                 try {
@@ -908,5 +918,46 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         assert "indices".equals(shardPath.getName(count-3).toString());
 
         return shardPath.getParent().getParent().getParent();
+    }
+
+    /**
+     * This is a best effort to ensure that we actually have write permissions to write in all our data directories.
+     * This prevents disasters if nodes are started under the wrong username etc.
+     */
+    private void assertCanWrite() throws IOException {
+        for (Path path : nodeDataPaths()) { // check node-paths are writable
+            tryWriteTempFile(path);
+        }
+        for (String index : this.findAllIndices()) {
+            for (Path path : this.indexPaths(index)) { // check index paths are writable
+                Path statePath = path.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+                tryWriteTempFile(statePath);
+                tryWriteTempFile(path);
+            }
+            for (ShardId shardID : this.findAllShardIds(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE))) {
+                Path[] paths = this.availableShardPaths(shardID);
+                for (Path path : paths) { // check shard paths are writable
+                    Path indexDir = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+                    Path statePath = path.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+                    Path translogDir = path.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
+                    tryWriteTempFile(indexDir);
+                    tryWriteTempFile(translogDir);
+                    tryWriteTempFile(statePath);
+                    tryWriteTempFile(path);
+                }
+            }
+        }
+    }
+
+    private static void tryWriteTempFile(Path path) throws IOException {
+        if (Files.exists(path)) {
+            Path resolve = path.resolve(".es_temp_file");
+            try {
+                Files.createFile(resolve);
+                Files.deleteIfExists(resolve);
+            } catch (IOException ex) {
+                throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
+            }
+        }
     }
 }

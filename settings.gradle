@@ -5,6 +5,7 @@ List projects = [
   'rest-api-spec',
   'core',
   'docs',
+  'client',
   'distribution:integ-test-zip',
   'distribution:zip',
   'distribution:tar',

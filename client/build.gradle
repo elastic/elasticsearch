@@ -1,0 +1,82 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.precommit.PrecommitTasks;
+
+group = 'org.elasticsearch.client'
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  // we use the lucene test-framework here but we are not pulling in ES core or the test framework
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile 'org.hamcrest:hamcrest-all:1.3'
+  testCompile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  testCompile "org.apache.lucene:lucene-core:${versions.lucene}"
+  testCompile "org.apache.lucene:lucene-codecs:${versions.lucene}"
+
+
+  // TODO once we got rid of the client in the test framework we should use a version variable here
+  // we use httpclient here since the JDK support has several issue
+  // - httpclient supports basic and digest auth and other schemes
+  // - URLConnection has issues with SSL and not all system patches are available
+  // - URLConnection can't stream data but httpclient can
+  // - URLConnection doesn't expose responsecodes unless it's a 200
+  // - httpclient supports pipelining which we might wanna expose down the road?
+  compile "org.apache.httpcomponents:httpclient:4.5.1"
+  compile "org.apache.httpcomponents:httpcore:4.4.4"
+  compile "org.apache.httpcomponents:httpcore-nio:4.4.4" // currently unused
+  compile "commons-logging:commons-logging:1.2"
+  compile 'org.apache.httpcomponents:httpasyncclient:4.1.1' // currently unused
+}
+
+
+compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
+compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
+
+// the main files are actually test files, so use the appopriate forbidden api sigs
+forbiddenApisMain {
+  bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/test-signatures.txt')]
+}
+
+forbiddenApisTest.enabled=false
+forbiddenApisMain.enabled=false
+
+// dependency license are currently checked in distribution
+dependencyLicenses.enabled = false
+jarHell.enabled = false
+thirdPartyAudit.enabled = false
+thirdPartyAudit.excludes = [
+  // classes are missing
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger', 
+   // we intentionally exclude the ant tasks because people were depending on them from their tests!!!!!!!
+  'org.apache.tools.ant.BuildException', 
+  'org.apache.tools.ant.DirectoryScanner', 
+  'org.apache.tools.ant.Task', 
+  'org.apache.tools.ant.types.FileSet', 
+  'org.easymock.EasyMock', 
+  'org.easymock.IArgumentMatcher', 
+  'org.jmock.core.Constraint',
+]

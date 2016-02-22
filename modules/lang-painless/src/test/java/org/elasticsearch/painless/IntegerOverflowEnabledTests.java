@@ -143,7 +143,8 @@ public class IntegerOverflowEnabledTests extends ScriptTestCase {
 
     public void testAddition() throws Exception {
         assertEquals(2147483647 + 2147483647, exec("int x = 2147483647; int y = 2147483647; return x + y;"));
-        assertEquals(9223372036854775807L + 9223372036854775807L, exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x + y;"));
+        assertEquals(9223372036854775807L + 9223372036854775807L,
+                exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x + y;"));
     }
 
     public void testAdditionConst() throws Exception {
@@ -163,7 +164,8 @@ public class IntegerOverflowEnabledTests extends ScriptTestCase {
 
     public void testMultiplication() throws Exception {
         assertEquals(2147483647 * 2147483647, exec("int x = 2147483647; int y = 2147483647; return x * y;"));
-        assertEquals(9223372036854775807L * 9223372036854775807L, exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x * y;"));
+        assertEquals(9223372036854775807L * 9223372036854775807L,
+                exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x * y;"));
     }
 
     public void testMultiplicationConst() throws Exception {

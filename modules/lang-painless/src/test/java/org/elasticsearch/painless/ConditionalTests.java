@@ -59,13 +59,15 @@ public class ConditionalTests extends ScriptTestCase {
 
     public void testNullArguments() {
         assertEquals(null, exec("boolean b = false, c = true; Object x; Map y; return b && c ? x : y;"));
-        assertEquals(HashMap.class, exec("boolean b = false, c = true; Object x; Map y = new HashMap(); return b && c ? x : y;").getClass());
+        assertEquals(HashMap.class,
+                exec("boolean b = false, c = true; Object x; Map y = new HashMap(); return b && c ? x : y;").getClass());
     }
 
     public void testPromotion() {
         assertEquals(false, exec("boolean x = false; boolean y = true; return (x ? 2 : 4.0F) == (y ? 2 : 4.0F);"));
         assertEquals(false, exec("boolean x = false; boolean y = true; return (x ? 2 : 4.0F) == (y ? new Long(2) : new Float(4.0F));"));
-        assertEquals(false, exec("boolean x = false; boolean y = true; return (x ? new HashMap() : new ArrayList()) == (y ? new Long(2) : new Float(4.0F));"));
+        assertEquals(false, exec("boolean x = false; boolean y = true; " +
+                "return (x ? new HashMap() : new ArrayList()) == (y ? new Long(2) : new Float(4.0F));"));
         assertEquals(false, exec("boolean x = false; boolean y = true; return (x ? 2 : 4.0F) == (y ? new HashMap() : new ArrayList());"));
     }
 

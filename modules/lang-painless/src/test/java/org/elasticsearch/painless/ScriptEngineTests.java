@@ -81,7 +81,8 @@ public class ScriptEngineTests extends ScriptTestCase {
         Map<String, Object> ctx = new HashMap<>();
         vars.put("ctx", ctx);
 
-        Object compiledScript = scriptEngine.compile("return ((Map<String, Object>)input.get(\"ctx\")).get(\"value\");", Collections.emptyMap());
+        Object compiledScript = scriptEngine.compile(
+                "return ((Map<String, Object>)input.get(\"ctx\")).get(\"value\");", Collections.emptyMap());
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution1", "painless", compiledScript), vars);
 

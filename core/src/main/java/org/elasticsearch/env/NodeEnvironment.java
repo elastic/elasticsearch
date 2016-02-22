@@ -222,7 +222,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
         maybeLogPathDetails();
         maybeLogHeapDetails();
-        maybeWarnFileDescriptors();
 
         applySegmentInfosTrace(settings);
     }
@@ -315,19 +314,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         logger.info("heap size [{}], compressed ordinary object pointers [{}]", maxHeapSize, useCompressedOops);
     }
 
-    private void maybeWarnFileDescriptors() {
-        long maxFileDescriptorCount = ProcessProbe.getInstance().getMaxFileDescriptorCount();
-        if (maxFileDescriptorCount == -1) {
-            return;
-        }
-        int fileDescriptorCountThreshold = (1 << 16);
-        if (maxFileDescriptorCount < fileDescriptorCountThreshold) {
-            logger.warn(
-                    "max file descriptors [{}] for elasticsearch process likely too low, consider increasing to at least [{}]",
-                    maxFileDescriptorCount,
-                    fileDescriptorCountThreshold);
-        }
-    }
 
     @SuppressForbidden(reason = "System.out.*")
     static void applySegmentInfosTrace(Settings settings) {

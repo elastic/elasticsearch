@@ -174,12 +174,6 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
@@ -333,16 +327,8 @@ public class ActionModule extends AbstractModule {
                 TransportShardMultiGetAction.class);
         registerAction(BulkAction.INSTANCE, TransportBulkAction.class,
                 TransportShardBulkAction.class);
-        registerAction(SearchAction.INSTANCE, TransportSearchAction.class,
-                TransportSearchDfsQueryThenFetchAction.class,
-                TransportSearchQueryThenFetchAction.class,
-                TransportSearchDfsQueryAndFetchAction.class,
-                TransportSearchQueryAndFetchAction.class
-        );
-        registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class,
-                TransportSearchScrollQueryThenFetchAction.class,
-                TransportSearchScrollQueryAndFetchAction.class
-        );
+        registerAction(SearchAction.INSTANCE, TransportSearchAction.class);
+        registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
         registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);

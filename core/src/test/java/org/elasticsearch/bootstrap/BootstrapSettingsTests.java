@@ -43,7 +43,7 @@ public class BootstrapSettingsTests extends ESTestCase {
         long maxFileDescriptorCount = ProcessProbe.getInstance().getMaxFileDescriptorCount();
         try {
             Bootstrap.enforceOrLogLimits(build);
-            if (maxFileDescriptorCount != -1 || maxFileDescriptorCount < (1 << 16)) {
+            if (maxFileDescriptorCount != -1 && maxFileDescriptorCount < (1 << 16)) {
                 fail("must have enforced limits: " + maxFileDescriptorCount);
             }
         } catch (IllegalStateException ex) {

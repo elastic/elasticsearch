@@ -48,6 +48,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -172,6 +173,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     }
 
+    @TestLogging("gateway:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);

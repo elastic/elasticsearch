@@ -126,7 +126,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
-        logger.info("using schedule engine [" + scheduleImplName + "]");
+        logger.info("using schedule engine [{}]", scheduleImplName);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 //TODO: for now lets isolate watcher tests from monitoring (randomize this later)

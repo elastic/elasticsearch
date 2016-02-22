@@ -271,7 +271,7 @@ public class HttpExporter extends Exporter {
                     try {
                         Version remoteVersion = loadRemoteClusterVersion(host);
                         if (remoteVersion == null) {
-                            logger.warn("unable to check remote cluster version: no version found on host [" + host + "]");
+                            logger.warn("unable to check remote cluster version: no version found on host [{}]", host);
                             continue;
                         }
                         supportedClusterVersion = remoteVersion.onOrAfter(MIN_SUPPORTED_CLUSTER_VERSION);
@@ -361,18 +361,17 @@ public class HttpExporter extends Exporter {
 
             return conn;
         } catch (URISyntaxException e) {
-            logErrorBasedOnLevel(e, "error parsing host [{}]", host);
+            logger.error("error parsing host [{}] [{}]", host, e.getMessage());
+            if (logger.isDebugEnabled()) {
+                logger.debug("error parsing host [{}]. full error details:\n[{}]", host, ExceptionsHelper.detailedMessage(e));
+            }
         } catch (IOException e) {
-            logErrorBasedOnLevel(e, "error connecting to [{}]", host);
+            logger.error("error connecting to [{}] [{}]", host, e.getMessage());
+            if (logger.isDebugEnabled()) {
+                logger.debug("error connecting to [{}]. full error details:\n[{}]", host, ExceptionsHelper.detailedMessage(e));
+            }
         }
         return null;
-    }
-
-    private void logErrorBasedOnLevel(Throwable t, String msg, Object... params) {
-        logger.error(msg + " [" + t.getMessage() + "]", params);
-        if (logger.isDebugEnabled()) {
-            logger.debug(msg + ". full error details:\n[{}]", params, ExceptionsHelper.detailedMessage(t));
-        }
     }
 
     /**

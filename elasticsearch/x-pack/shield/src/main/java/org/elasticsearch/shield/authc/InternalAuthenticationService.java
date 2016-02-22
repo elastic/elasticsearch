@@ -268,7 +268,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (logger.isDebugEnabled()) {
                 logger.debug("failed to extract token from transport message", e);
             } else {
-                logger.warn("failed to extract token from transport message: ", e.getMessage());
+                logger.warn("failed to extract token from transport message: {}", e.getMessage());
             }
             auditTrail.authenticationFailed(action, message);
             throw failureHandler.exceptionProcessingRequest(message, e);

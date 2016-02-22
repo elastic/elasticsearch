@@ -99,7 +99,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         EmailAttachments emailAttachments = new EmailAttachments(attachments);
         XContentBuilder builder = jsonBuilder();
         emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("JSON is: " + builder.string());
+        logger.info("JSON is: {}", builder.string());
         assertThat(builder.string(), containsString("my-name.json"));
         assertThat(builder.string(), containsString("json"));
         assertThat(builder.string(), containsString("other-id"));

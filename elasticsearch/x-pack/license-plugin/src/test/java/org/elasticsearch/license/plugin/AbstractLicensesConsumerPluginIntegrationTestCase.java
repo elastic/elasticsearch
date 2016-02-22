@@ -66,7 +66,7 @@ public abstract class AbstractLicensesConsumerPluginIntegrationTestCase extends 
     }
 
     public void testTrialLicenseAndSignedLicenseNotification() throws Exception {
-        logger.info("using " + consumerPlugin.getClass().getName() + " consumer plugin");
+        logger.info("using {} consumer plugin", consumerPlugin.getClass().getName());
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
         assertLicenseeState(consumerPlugin.id(), LicenseState.ENABLED);

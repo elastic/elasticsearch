@@ -74,7 +74,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
             client().prepareIndex(indexName, "foo").setSource("value", randomInt()).get();
         }
 
-        logger.info("--> create a second index [other] that won't be part of stats collection", indexName, node1);
+        logger.info("--> create a second index [{}] on node [{}] that won't be part of stats collection", indexName, node1);
         client().prepareIndex("other", "bar").setSource("value", randomInt()).get();
 
         flushAndRefresh();

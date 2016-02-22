@@ -1566,13 +1566,6 @@
   <suppress files="plugins[/\\]lang-javascript[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]javascript[/\\]JavaScriptScriptMultiThreadedTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-javascript[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]javascript[/\\]JavaScriptSecurityTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-javascript[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]javascript[/\\]SimpleBench.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]Definition.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]PainlessPlugin.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ConditionalTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]FieldTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]FloatOverflowEnabledTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]IntegerOverflowEnabledTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ScriptEngineTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-python[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugin[/\\]python[/\\]PythonPlugin.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-python[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]python[/\\]PythonScriptEngineTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-python[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]python[/\\]PythonScriptMultiThreadedTests.java" checks="LineLength" />

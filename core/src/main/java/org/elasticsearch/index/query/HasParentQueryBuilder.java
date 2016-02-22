@@ -194,7 +194,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Query childrenFilter = Queries.not(parentTypeQuery);
-        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, type, score ? ScoreMode.Max : ScoreMode.None, parentChildIndexFieldData);
+        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter,
+                                                         innerQuery,
+                                                         HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
+                                                         HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+                                                         type,
+                                                         score ? ScoreMode.Max : ScoreMode.None,
+                                                         parentChildIndexFieldData,
+                                                         context.getSearchSimilarity());
     }
 
     @Override

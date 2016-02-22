@@ -303,6 +303,14 @@ The 'default' similarity has been renamed to 'classic'.
 `indices.memory.min_shard_index_buffer_size` and `indices.memory.max_shard_index_buffer_size` are removed since Elasticsearch now allows any one shard to any
 amount of heap as long as the total indexing buffer heap used across all shards is below the node's `indices.memory.index_buffer_size` (default: 10% of the JVM heap)
 
+==== Removed es.max-open-files
+
+Setting the system property es.max-open-files to true to get
+Elasticsearch to print the number of maximum open files for the
+Elasticsearch process has been removed. This same information can be
+obtained from the <<cluster-nodes-info>> API, and a warning is logged
+on startup if it is set too low.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 

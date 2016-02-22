@@ -48,7 +48,6 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -157,9 +156,8 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     @Inject
     public GceComputeServiceImpl(Settings settings, NetworkService networkService) {
         super(settings);
-        this.project = settings.get(Fields.PROJECT);
-        String[] zoneList = settings.getAsArray(Fields.ZONE);
-        this.zones = Arrays.asList(zoneList);
+        this.project = PROJECT_SETTING.get(settings);
+        this.zones = ZONE_SETTING.get(settings);
         networkService.addCustomNameResolver(new GceNameResolver(settings, this));
     }
 
@@ -207,15 +205,13 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                 refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds() - 1);
             }
 
-            boolean ifRetry = settings.getAsBoolean(Fields.RETRY, true);
-            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
-                    .setApplicationName(Fields.VERSION);
+            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null).setApplicationName(VERSION);
 
-            if (ifRetry) {
-                int maxWait = settings.getAsInt(Fields.MAXWAIT, -1);
+            if (RETRY_SETTING.exists(settings)) {
+                TimeValue maxWait = MAX_WAIT_SETTING.get(settings);
                 RetryHttpInitializerWrapper retryHttpInitializerWrapper;
 
-                if (maxWait > 0) {
+                if (maxWait.getMillis() > 0) {
                     retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, maxWait);
                 } else {
                     retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential);

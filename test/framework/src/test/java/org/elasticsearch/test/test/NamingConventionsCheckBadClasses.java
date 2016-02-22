@@ -17,22 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.test.test;
 
-import org.elasticsearch.ingest.processor.RemoveProcessor;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import junit.framework.TestCase;
 
-public class IngestMustacheRemoveProcessorIT extends AbstractMustacheTestCase {
+/**
+ * These inner classes all fail the NamingConventionsCheck. They have to live in the tests or else they won't be scanned.
+ */
+public class NamingConventionsCheckBadClasses {
+    public static final class NotImplementingTests {
+    }
 
-    public void testRemoveProcessorMustacheExpression() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory(templateService);
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "field{{var}}");
-        RemoveProcessor processor = factory.create(config);
-        assertThat(processor.getField().execute(Collections.singletonMap("var", "_value")), CoreMatchers.equalTo("field_value"));
+    public static final class WrongName extends ESTestCase {
+    }
+
+    public static abstract class DummyAbstractTests extends ESTestCase {
+    }
+
+    public interface DummyInterfaceTests {
+    }
+
+    public static final class InnerTests extends ESTestCase {
+    }
+
+    public static final class WrongNameTheSecond extends ESTestCase {
+    }
+
+    public static final class PlainUnit extends TestCase {
     }
 }

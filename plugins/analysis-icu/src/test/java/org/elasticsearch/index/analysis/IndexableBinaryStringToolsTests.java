@@ -40,7 +40,7 @@ import java.util.Locale;
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public class TestIndexableBinaryStringTools extends LuceneTestCase {
+public class IndexableBinaryStringToolsTests extends LuceneTestCase {
   private static int NUM_RANDOM_TESTS;
   private static int MAX_RANDOM_BINARY_LENGTH;
   private static final String LINE_SEPARATOR = System.lineSeparator();

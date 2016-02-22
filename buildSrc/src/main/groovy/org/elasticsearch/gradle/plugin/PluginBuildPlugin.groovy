@@ -51,6 +51,11 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
                 project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
             }
+
+            project.namingConventions {
+                // Plugins decalare extensions of ESIntegTestCase as "Tests" instead of IT.
+                skipIntegTestInDisguise = true
+            }
         }
         createIntegTestTask(project)
         createBundleTask(project)

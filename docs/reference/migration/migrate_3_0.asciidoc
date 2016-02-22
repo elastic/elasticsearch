@@ -97,6 +97,11 @@ characteristics as the former `scan` search type.
 [[breaking_30_rest_api_changes]]
 === REST API changes
 
+==== id values longer than 512 bytes are rejected
+
+When specifying an `_id` value longer than 512 bytes, the request will be
+rejected.
+
 ==== search exists api removed
 
 The search exists api has been removed in favour of using the search api with

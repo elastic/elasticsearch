@@ -215,6 +215,11 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                 validationException = addValidationError("ttl must not be negative", validationException);
             }
         }
+
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
+            validationException = addValidationError("id is too long, must be no longer than 512 bytes but was: " +
+                            id.getBytes(StandardCharsets.UTF_8).length, validationException);
+        }
         return validationException;
     }
 

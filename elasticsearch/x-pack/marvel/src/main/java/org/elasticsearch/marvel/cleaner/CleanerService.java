@@ -23,10 +23,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 
 /**
- * CleanerService takes care of deleting old monitoring indices.
+ * {@code CleanerService} takes care of deleting old monitoring indices.
  */
 public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
-
 
     private final MarvelLicensee licensee;
     private final ThreadPool threadPool;
@@ -34,7 +33,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private volatile IndicesCleaner runnable;
-    private volatile TimeValue retention;
+    private volatile TimeValue globalRetention;
 
     CleanerService(Settings settings, ClusterSettings clusterSettings, MarvelLicensee licensee, ThreadPool threadPool,
                    ExecutionScheduler executionScheduler) {
@@ -42,7 +41,10 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
         this.licensee = licensee;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
-        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.HISTORY_DURATION, this::setRetention, this::validateRetention);
+        this.globalRetention = MarvelSettings.HISTORY_DURATION.get(settings);
+
+        // the validation is performed by the setting's object itself
+        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.HISTORY_DURATION, this::setGlobalRetention);
     }
 
     @Inject
@@ -77,32 +79,60 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
         return ThreadPool.Names.GENERIC;
     }
 
-    TimeValue getRetention() {
+    /**
+     * Get the retention that can be used.
+     * <p>
+     * This will ignore the global retention if the license does not allow retention updates.
+     *
+     * @return Never {@code null}
+     * @see MarvelLicensee#allowUpdateRetention()
+     */
+    public TimeValue getRetention() {
+        TimeValue retention;
+
+        // we only care about their value if they are allowed to set it
+        if (licensee.allowUpdateRetention() && globalRetention != null) {
+            retention = globalRetention;
+        }
+        else {
+            retention = MarvelSettings.HISTORY_DURATION.getDefault(Settings.EMPTY);
+        }
+
         return retention;
     }
 
-    public void setRetention(TimeValue retention) {
-        validateRetention(retention);
-        this.retention = retention;
+    /**
+     * Set the global retention. This is expected to be used by the cluster settings to dynamically control the global retention time.
+     * <p>
+     * Even if the current license prevents retention updates, it will accept the change so that they do not need to re-set it if they
+     * upgrade their license (they can always unset it).
+     *
+     * @param globalRetention The global retention to use dynamically.
+     */
+    public void setGlobalRetention(TimeValue globalRetention) {
+        // notify the user that their setting will be ignored until they get the right license
+        if (licensee.allowUpdateRetention() == false) {
+            logger.warn("[{}] setting will be ignored until an appropriate license is applied", MarvelSettings.HISTORY_DURATION.getKey());
+        }
+
+        this.globalRetention = globalRetention;
     }
 
-    public void validateRetention(TimeValue retention) {
-        if (retention == null) {
-            throw new IllegalArgumentException("history duration setting cannot be null");
-        }
-        if ((retention.getMillis() <= 0) && (retention.getMillis() != -1)) {
-            throw new IllegalArgumentException("invalid history duration setting value");
-        }
-        if (!licensee.allowUpdateRetention()) {
-            throw new IllegalArgumentException("license does not allow the history duration setting to be updated to value ["
-                    + retention + "]");
-        }
-    }
-
+    /**
+     * Add a {@code listener} that is executed by the internal {@code IndicesCleaner} given the {@link #getRetention() retention} time.
+     *
+     * @param listener A listener used to control retention
+     */
     public void add(Listener listener) {
         listeners.add(listener);
     }
 
+    /**
+     * Remove a {@code listener}.
+     *
+     * @param listener A listener used to control retention
+     * @see #add(Listener)
+     */
     public void remove(Listener listener) {
         listeners.remove(listener);
     }
@@ -121,6 +151,10 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
         void onCleanUpIndices(TimeValue retention);
     }
 
+    /**
+     * {@code IndicesCleaner} runs and reschedules itself in order to automatically clean (delete) indices that are outside of the
+     * {@link #getRetention() retention} period.
+     */
     class IndicesCleaner extends AbstractRunnable {
 
         private volatile ScheduledFuture<?> future;
@@ -131,37 +165,39 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
                 logger.trace("cleaning service is stopping, exiting");
                 return;
             }
-            if (!licensee.cleaningEnabled()) {
+            if (licensee.cleaningEnabled() == false) {
                 logger.debug("cleaning service is disabled due to invalid license");
                 return;
             }
 
-            TimeValue globalRetention = retention;
-            if (globalRetention == null) {
+            // fetch the retention, which is depends on a bunch of rules
+            TimeValue retention = getRetention();
+
+            logger.trace("cleaning up indices with retention [{}]", retention);
+
+            // Note: listeners are free to override the retention
+            for (Listener listener : listeners) {
                 try {
-                    globalRetention = MarvelSettings.HISTORY_DURATION.get(settings);
-                    validateRetention(globalRetention);
-                } catch (IllegalArgumentException e) {
-                    globalRetention = MarvelSettings.HISTORY_DURATION.get(Settings.EMPTY);
+                    listener.onCleanUpIndices(retention);
+                } catch (Throwable t) {
+                    logger.error("listener failed to clean indices", t);
                 }
             }
 
-            DateTime start = new DateTime(ISOChronology.getInstance());
-            if (globalRetention.millis() > 0) {
-                logger.trace("cleaning up indices with retention [{}]", globalRetention);
+            logger.trace("done cleaning up indices");
+        }
 
-                for (Listener listener : listeners) {
-                    try {
-                        listener.onCleanUpIndices(globalRetention);
-                    } catch (Throwable t) {
-                        logger.error("listener failed to clean indices", t);
-                    }
-                }
-            }
-
-            if (!lifecycle.stoppedOrClosed()) {
+        /**
+         * Reschedule the cleaner if the service is not stopped.
+         */
+        @Override
+        public void onAfter() {
+            if (lifecycle.stoppedOrClosed() == false) {
+                DateTime start = new DateTime(ISOChronology.getInstance());
                 TimeValue delay = executionScheduler.nextExecutionDelay(start);
+
                 logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
+
                 future = threadPool.schedule(delay, executorName(), this);
             }
         }
@@ -171,6 +207,13 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
             logger.error("failed to clean indices", t);
         }
 
+        /**
+         * Cancel/stop the cleaning service.
+         * <p>
+         * This will kill any scheduled {@link #future} from running. It's possible that this will be executed concurrently with the
+         * {@link #onAfter() rescheduling code}, at which point it will be stopped during the next execution <em>if</em> the service is
+         * stopped.
+         */
         public void cancel() {
             FutureUtils.cancel(future);
         }
@@ -179,8 +222,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     interface ExecutionScheduler {
 
         /**
-         * Calculates the delay in millis between "now" and
-         * the next execution.
+         * Calculates the delay in millis between "now" and the next execution.
          *
          * @param now the current time
          * @return the delay in millis
@@ -189,7 +231,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     }
 
     /**
-     * Schedule task so that it will be executed everyday at 01:00 AM
+     * Schedule task so that it will be executed everyday at 01:00 AM on the next day.
      */
     static class DefaultExecutionScheduler implements ExecutionScheduler {
 

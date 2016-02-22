@@ -254,19 +254,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         if (clusterService.localNode().masterNode()) {
-
-            // Retention duration can be overridden at exporter level
-            TimeValue exporterRetention = config.settings().getAsTime(MarvelSettings.HISTORY_DURATION_SETTING_NAME, null);
-            if (exporterRetention != null) {
-                try {
-                    cleanerService.validateRetention(exporterRetention);
-                    retention = exporterRetention;
-                } catch (IllegalArgumentException e) {
-                    logger.warn("local exporter [{}] - unable to use custom history duration [{}]: {}", name(), exporterRetention,
-                            e.getMessage());
-                }
-            }
-
             // Reference date time will be compared to index.creation_date settings,
             // that's why it must be in UTC
             DateTime expiration = new DateTime(DateTimeZone.UTC).minus(retention.millis());

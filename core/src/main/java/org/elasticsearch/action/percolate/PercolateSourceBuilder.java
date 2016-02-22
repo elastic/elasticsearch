@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -170,7 +171,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
             builder.field("track_scores", trackScores);
         }
         if (highlightBuilder != null) {
-            highlightBuilder.toXContent(builder, params);
+            builder.field(SearchSourceBuilder.HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
         }
         if (aggregationBuilders != null || pipelineAggregationBuilders != null) {
             builder.field("aggregations");

@@ -1038,7 +1038,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
 
         if (highlightBuilder != null) {
-            this.highlightBuilder.toXContent(builder, params);
+            builder.field(HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
         }
 
         if (innerHitsBuilder != null) {

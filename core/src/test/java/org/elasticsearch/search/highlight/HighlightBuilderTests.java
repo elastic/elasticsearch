@@ -142,9 +142,7 @@ public class HighlightBuilderTests extends ESTestCase {
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
-            builder.startObject();
-            highlightBuilder.innerXContent(builder);
-            builder.endObject();
+            highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             XContentParser parser = XContentHelper.createParser(builder.bytes());
             context.reset(parser);

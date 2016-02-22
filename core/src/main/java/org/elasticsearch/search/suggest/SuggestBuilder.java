@@ -34,8 +34,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
@@ -51,10 +52,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
     protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
     private String globalText;
-    private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
-
-    public SuggestBuilder() {
-    }
+    private final Map<String, SuggestionBuilder<?>> suggestions = new HashMap<>();
 
     /**
      * Sets the text to provide suggestions for. The suggest text is a required option that needs
@@ -79,23 +77,23 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
     /**
      * Adds an {@link org.elasticsearch.search.suggest.SuggestionBuilder} instance under a user defined name.
      * The order in which the <code>Suggestions</code> are added, is the same as in the response.
+     * @throws IllegalArgumentException if two suggestions added have the same name
      */
-    public SuggestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
-        suggestions.add(suggestion);
+    public SuggestBuilder addSuggestion(String name, SuggestionBuilder<?> suggestion) {
+        Objects.requireNonNull(name, "every suggestion needs a name");
+        if (suggestions.get(name) == null) {
+            suggestions.put(name, suggestion);
+        } else {
+            throw new IllegalArgumentException("already added another suggestion with name [" + name + "]");
+        }
         return this;
     }
 
     /**
-     * Get the <code>Suggestions</code> that were added to the globat {@link SuggestBuilder}
+     * Get all the <code>Suggestions</code> that were added to the global {@link SuggestBuilder},
+     * together with their names
      */
-    public List<SuggestionBuilder<?>> getSuggestions() {
-        return suggestions;
-    }
-
-    /**
-     * Returns all suggestions with the defined names.
-     */
-    public List<SuggestionBuilder<?>> getSuggestion() {
+    public Map<String, SuggestionBuilder<?>> getSuggestions() {
         return suggestions;
     }
 
@@ -105,8 +103,10 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         if (globalText != null) {
             builder.field("text", globalText);
         }
-        for (SuggestionBuilder<?> suggestion : suggestions) {
-            builder = suggestion.toXContent(builder, params);
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            builder.startObject(suggestion.getKey());
+            suggestion.getValue().toXContent(builder, params);
+            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -133,7 +133,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
                 if (suggestionName == null) {
                     throw new IllegalArgumentException("Suggestion must have name");
                 }
-                suggestBuilder.addSuggestion(SuggestionBuilder.fromXContent(parseContext, suggestionName, suggesters));
+                suggestBuilder.addSuggestion(suggestionName, SuggestionBuilder.fromXContent(parseContext, suggesters));
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }
@@ -143,15 +143,15 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
 
     public SuggestionSearchContext build(QueryShardContext context) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
-        for (SuggestionBuilder<?> suggestionBuilder : suggestions) {
-            SuggestionContext suggestionContext = suggestionBuilder.build(context);
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            SuggestionContext suggestionContext = suggestion.getValue().build(context);
             if (suggestionContext.getText() == null) {
                 if (globalText == null) {
                     throw new IllegalArgumentException("The required text option is missing");
                 }
                 suggestionContext.setText(BytesRefs.toBytesRef(globalText));
             }
-            suggestionSearchContext.addSuggestion(suggestionBuilder.name(), suggestionContext);
+            suggestionSearchContext.addSuggestion(suggestion.getKey(), suggestionContext);
         }
         return suggestionSearchContext;
     }
@@ -162,7 +162,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         builder.globalText = in.readOptionalString();
         final int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.suggestions.add(in.readSuggestion());
+            builder.suggestions.put(in.readString(), in.readSuggestion());
         }
         return builder;
     }
@@ -172,8 +172,9 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         out.writeOptionalString(globalText);
         final int size = suggestions.size();
         out.writeVInt(size);
-        for (int i = 0; i < size; i++) {
-            out.writeSuggestion(suggestions.get(i));
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            out.writeString(suggestion.getKey());
+            out.writeSuggestion(suggestion.getValue());
         }
     }
 

@@ -50,7 +50,7 @@ import java.util.Set;
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 
-    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder("_na_"); // name doesn't matter
+    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder();
     static final String SUGGESTION_NAME = "completion";
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
@@ -59,10 +59,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private RegexOptions regexOptions;
     private final Map<String, List<QueryContext>> queryContexts = new HashMap<>();
     private final Set<String> payloadFields = new HashSet<>();
-
-    public CompletionSuggestionBuilder(String name) {
-        super(name);
-    }
 
     /**
      * Sets the prefix to provide completions for.
@@ -179,7 +175,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name) throws IOException {
+    protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         // NORELEASE implement parsing logic
         throw new UnsupportedOperationException();
     }
@@ -233,8 +229,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
-        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder(name);
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder();
         if (in.readBoolean()) {
             int numPayloadField = in.readVInt();
             for (int i = 0; i < numPayloadField; i++) {

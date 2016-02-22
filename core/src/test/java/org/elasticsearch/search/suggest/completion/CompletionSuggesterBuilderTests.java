@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
-import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
@@ -30,7 +29,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -44,7 +42,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
-        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLength(10));
+        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder();
         switch (randomIntBetween(0, 3)) {
             case 0:
                 testBuilder.prefix(randomAsciiOfLength(10));
@@ -96,6 +94,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         // skip for now
     }
 
+    @Override
     protected void mutateSpecificParameters(CompletionSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 5)) {
             case 0:

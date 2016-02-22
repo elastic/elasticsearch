@@ -67,7 +67,7 @@ import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SUGGEST_MODE;
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 
-    public static final TermSuggestionBuilder PROTOTYPE = new TermSuggestionBuilder("_na_"); // name doesn't matter
+    public static final TermSuggestionBuilder PROTOTYPE = new TermSuggestionBuilder();
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
@@ -80,14 +80,6 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private Integer prefixLength = DEFAULT_PREFIX_LENGTH;
     private Integer minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private Float minDocFreq = DEFAULT_MIN_DOC_FREQ;
-
-    /**
-     * @param name
-     *            The name of this suggestion. This is a required parameter.
-     */
-    public TermSuggestionBuilder(String name) {
-        super(name);
-    }
 
     /**
      * The global suggest mode controls what suggested terms are included or
@@ -345,9 +337,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    protected TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name) throws IOException {
+    protected TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        TermSuggestionBuilder suggestion = new TermSuggestionBuilder(name);
+        TermSuggestionBuilder suggestion = new TermSuggestionBuilder();
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
@@ -431,8 +423,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public TermSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(name);
+    public TermSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+        TermSuggestionBuilder builder = new TermSuggestionBuilder();
         builder.suggestMode = SuggestMode.PROTOTYPE.readFrom(in);
         builder.accuracy = in.readFloat();
         builder.sort = SortBy.PROTOTYPE.readFrom(in);
@@ -470,18 +462,21 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     public enum SuggestMode implements Writeable<SuggestMode> {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
         MISSING {
+            @Override
             public org.apache.lucene.search.spell.SuggestMode toLucene() {
                 return org.apache.lucene.search.spell.SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
             }
         },
         /** Only suggest terms that occur in more docs then the original suggest text term. */
         POPULAR {
+            @Override
             public org.apache.lucene.search.spell.SuggestMode toLucene() {
                 return org.apache.lucene.search.spell.SuggestMode.SUGGEST_MORE_POPULAR;
             }
         },
         /** Suggest any matching suggest terms based on tokens in the suggest text. */
         ALWAYS {
+            @Override
             public org.apache.lucene.search.spell.SuggestMode toLucene() {
               return org.apache.lucene.search.spell.SuggestMode.SUGGEST_ALWAYS;
             }
@@ -516,30 +511,35 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         /** This is the default and is based on <code>damerau_levenshtein</code>, but highly optimized
          * for comparing string distance for terms inside the index. */
         INTERNAL {
+            @Override
             public StringDistance toLucene() {
                 return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
             }
         },
         /** String distance algorithm based on Damerau-Levenshtein algorithm. */
         DAMERAU_LEVENSHTEIN {
+            @Override
             public StringDistance toLucene() {
                 return new LuceneLevenshteinDistance();
             }
         },
         /** String distance algorithm based on Levenstein edit distance algorithm. */
         LEVENSTEIN {
+            @Override
             public StringDistance toLucene() {
                 return new LevensteinDistance();
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
         JAROWINKLER {
+            @Override
             public StringDistance toLucene() {
                 return new JaroWinklerDistance();
             }
         },
         /** String distance algorithm based on character n-grams. */
         NGRAM {
+            @Override
             public StringDistance toLucene() {
                 return new NGramDistance();
             }

@@ -204,10 +204,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             context.reset(parser);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
 
-            SuggestionBuilder<?> secondSuggestionBuilder = SuggestionBuilder.fromXContent(context, suggestionBuilder.name(), suggesters);
+            SuggestionBuilder<?> secondSuggestionBuilder = SuggestionBuilder.fromXContent(context, suggesters);
             assertNotSame(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
@@ -253,7 +251,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SuggestBuilder suggestBuilder = new SuggestBuilder();
             SB suggestionBuilder = randomTestBuilder();
-            suggestBuilder.addSuggestion(suggestionBuilder);
+            suggestBuilder.addSuggestion(randomAsciiOfLength(10), suggestionBuilder);
 
             if (suggestionBuilder.text() == null) {
                 // we either need suggestion text or global text

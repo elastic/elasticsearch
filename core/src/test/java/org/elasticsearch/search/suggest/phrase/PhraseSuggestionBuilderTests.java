@@ -47,7 +47,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     }
 
     public static PhraseSuggestionBuilder randomPhraseSuggestionBuilder() {
-        PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAsciiOfLength(10));
+        PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder();
         maybeSet(testBuilder::maxErrors, randomFloat());
         maybeSet(testBuilder::separator, randomAsciiOfLengthBetween(1, 10));
         maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());

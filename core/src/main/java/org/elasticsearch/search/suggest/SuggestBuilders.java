@@ -31,33 +31,30 @@ public abstract class SuggestBuilders {
     /**
      * Creates a term suggestion lookup query with the provided <code>name</code>
      *
-     * @param name The suggestion name
      * @return a {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder}
      * instance
      */
-    public static TermSuggestionBuilder termSuggestion(String name) {
-        return new TermSuggestionBuilder(name);
+    public static TermSuggestionBuilder termSuggestion() {
+        return new TermSuggestionBuilder();
     }
 
     /**
      * Creates a phrase suggestion lookup query with the provided <code>name</code>
      *
-     * @param name The suggestion name
      * @return a {@link org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder}
      * instance
      */
-    public static PhraseSuggestionBuilder phraseSuggestion(String name) {
-        return new PhraseSuggestionBuilder(name);
+    public static PhraseSuggestionBuilder phraseSuggestion() {
+        return new PhraseSuggestionBuilder();
     }
 
     /**
      * Creates a completion suggestion lookup query with the provided <code>name</code>
      *
-     * @param name The suggestion name
      * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder}
      * instance
      */
-    public static CompletionSuggestionBuilder completionSuggestion(String name) {
-        return new CompletionSuggestionBuilder(name);
+    public static CompletionSuggestionBuilder completionSuggestion() {
+        return new CompletionSuggestionBuilder();
     }
 }

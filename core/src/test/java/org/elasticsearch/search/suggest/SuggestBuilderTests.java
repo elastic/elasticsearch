@@ -42,6 +42,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map.Entry;
 
 public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
@@ -91,7 +92,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
         }
         int numberOfSuggestions = randomIntBetween(0, 5);
         for (int i = 0; i < numberOfSuggestions; i++) {
-            suggestBuilder.addSuggestion(PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            suggestBuilder.addSuggestion(randomAsciiOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
         }
         return suggestBuilder;
     }
@@ -99,15 +100,32 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
     @Override
     protected SuggestBuilder createMutation(SuggestBuilder original) throws IOException {
         SuggestBuilder mutation = new SuggestBuilder().setGlobalText(original.getGlobalText());
-        for (SuggestionBuilder<?> suggestionBuilder : original.getSuggestions()) {
-            mutation.addSuggestion(suggestionBuilder);
+        for (Entry<String, SuggestionBuilder<?>> suggestionBuilder : original.getSuggestions().entrySet()) {
+            mutation.addSuggestion(suggestionBuilder.getKey(), suggestionBuilder.getValue());
         }
         if (randomBoolean()) {
             mutation.setGlobalText(randomAsciiOfLengthBetween(5, 60));
         } else {
-            mutation.addSuggestion(PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            mutation.addSuggestion(randomAsciiOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
         }
         return mutation;
+    }
+
+    public void testIllegalSuggestionName() {
+        try {
+            new SuggestBuilder().addSuggestion(null, PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            fail("exception expected");
+        } catch (NullPointerException e) {
+            assertEquals("every suggestion needs a name", e.getMessage());
+        }
+
+        try {
+            new SuggestBuilder().addSuggestion("my-suggest", PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder())
+                                .addSuggestion("my-suggest", PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            fail("exception expected");
+        } catch (IllegalArgumentException e) {
+            assertEquals("already added another suggestion with name [my-suggest]", e.getMessage());
+        }
     }
 
     @Override

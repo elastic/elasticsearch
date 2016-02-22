@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -59,7 +58,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     private static final String SUGGESTION_NAME = "phrase";
 
-    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder("_na_");
+    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder();
 
     protected static final ParseField MAXERRORS_FIELD = new ParseField("max_errors");
     protected static final ParseField RWE_LIKELIHOOD_FIELD = new ParseField("real_word_error_likelihood");
@@ -93,10 +92,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private boolean collatePrune = PhraseSuggestionContext.DEFAULT_COLLATE_PRUNE;
     private SmoothingModel model;
     private final Map<String, List<CandidateGenerator>> generators = new HashMap<>();
-
-    public PhraseSuggestionBuilder(String name) {
-        super(name);
-    }
 
     /**
      * Sets the gram size for the n-gram model used for this suggester. The
@@ -398,9 +393,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     @Override
-    protected PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String suggestionName) throws IOException {
+    protected PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        PhraseSuggestionBuilder suggestion = new PhraseSuggestionBuilder(suggestionName);
+        PhraseSuggestionBuilder suggestion = new PhraseSuggestionBuilder();
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
@@ -621,8 +616,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     @Override
-    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
-        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(name);
+    public PhraseSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder();
         builder.maxErrors = in.readFloat();
         builder.realWordErrorLikelihood = in.readFloat();
         builder.confidence = in.readFloat();

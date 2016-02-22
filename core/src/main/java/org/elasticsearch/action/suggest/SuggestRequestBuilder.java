@@ -44,9 +44,11 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
 
     /**
      * Add a definition for suggestions to the request
+     * @param name the name for the suggestion that will also be used in the response
+     * @param suggestion the suggestion configuration
      */
-    public SuggestRequestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
-        suggest.addSuggestion(suggestion);
+    public SuggestRequestBuilder addSuggestion(String name, SuggestionBuilder<?> suggestion) {
+        suggest.addSuggestion(name, suggestion);
         return this;
     }
 

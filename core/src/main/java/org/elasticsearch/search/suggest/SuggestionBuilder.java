@@ -43,7 +43,6 @@ import java.util.Objects;
  */
 public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends ToXContentToBytes implements NamedWriteable<T> {
 
-    protected final String name;
     // TODO this seems mandatory and should be constructor arg
     protected String fieldname;
     protected String text;
@@ -60,18 +59,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     protected static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     protected static final ParseField SIZE_FIELD = new ParseField("size");
     protected static final ParseField SHARDSIZE_FIELD = new ParseField("shard_size");
-
-    public SuggestionBuilder(String name) {
-        Objects.requireNonNull(name, "Suggester 'name' cannot be null");
-        this.name = name;
-    }
-
-    /**
-     * get the name for this suggestion
-     */
-    public String name() {
-        return this.name;
-    }
 
     /**
      * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
@@ -117,7 +104,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
         if (text != null) {
             builder.field(TEXT_FIELD.getPreferredName(), text);
         }
@@ -143,13 +129,12 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
         builder = innerToXContent(builder, params);
         builder.endObject();
-        builder.endObject();
         return builder;
     }
 
     protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, String suggestionName, Suggesters suggesters)
+    public static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
             throws IOException {
         XContentParser parser = parseContext.parser();
         ParseFieldMatcher parsefieldMatcher = parseContext.parseFieldMatcher();
@@ -174,14 +159,11 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
                     throw new IllegalArgumentException("[suggestion] does not support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (suggestionName == null) {
-                    throw new IllegalArgumentException("Suggestion must have name");
-                }
                 SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(fieldName);
                 if (suggestParser == null) {
                     throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
                 }
-                suggestionBuilder = suggestParser.innerFromXContent(parseContext, suggestionName);
+                suggestionBuilder = suggestParser.innerFromXContent(parseContext);
             }
         }
         if (suggestText != null) {
@@ -196,7 +178,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         return suggestionBuilder;
     }
 
-    protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
+    protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext) throws IOException;
 
     public SuggestionContext build(QueryShardContext context) throws IOException {
         SuggestionContext suggestionContext = innerBuild(context);
@@ -357,8 +339,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     @Override
     public final T readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        T suggestionBuilder = doReadFrom(in, name);
+        T suggestionBuilder = doReadFrom(in);
         suggestionBuilder.fieldname = in.readOptionalString();
         suggestionBuilder.text = in.readOptionalString();
         suggestionBuilder.prefix = in.readOptionalString();
@@ -372,13 +353,11 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     /**
      * Subclass should return a new instance, reading itself from the input string
      * @param in the input string to read from
-     * @param name the name of the suggestion (read from stream by {@link SuggestionBuilder}
      */
-    protected abstract T doReadFrom(StreamInput in, String name) throws IOException;
+    protected abstract T doReadFrom(StreamInput in) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
         doWriteTo(out);
         out.writeOptionalString(fieldname);
         out.writeOptionalString(text);
@@ -401,8 +380,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         }
         @SuppressWarnings("unchecked")
         T other = (T) obj;
-        return Objects.equals(name, other.name()) &&
-               Objects.equals(text, other.text()) &&
+        return Objects.equals(text, other.text()) &&
                Objects.equals(prefix, other.prefix()) &&
                Objects.equals(regex, other.regex()) &&
                Objects.equals(fieldname, other.field()) &&
@@ -419,7 +397,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     @Override
     public final int hashCode() {
-        return Objects.hash(name, text, prefix, regex, fieldname, analyzer, size, shardSize, doHashCode());
+        return Objects.hash(text, prefix, regex, fieldname, analyzer, size, shardSize, doHashCode());
     }
 
     /**

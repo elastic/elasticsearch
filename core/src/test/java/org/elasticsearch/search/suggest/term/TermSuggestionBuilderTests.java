@@ -40,7 +40,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
      */
     @Override
     protected TermSuggestionBuilder randomSuggestionBuilder() {
-        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLength(10));
+        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder();
         maybeSet(testBuilder::suggestMode, randomSuggestMode());
         maybeSet(testBuilder::accuracy, randomFloat());
         maybeSet(testBuilder::sort, randomSort());
@@ -124,7 +124,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testInvalidParameters() throws IOException {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLength(10));
+        TermSuggestionBuilder builder = new TermSuggestionBuilder();
         // test invalid accuracy values
         try {
             builder.accuracy(-0.5f);
@@ -237,7 +237,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testDefaultValuesSet() {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLength(10));
+        TermSuggestionBuilder builder = new TermSuggestionBuilder();
         assertThat(builder.accuracy(), notNullValue());
         assertThat(builder.maxEdits(), notNullValue());
         assertThat(builder.maxInspections(), notNullValue());

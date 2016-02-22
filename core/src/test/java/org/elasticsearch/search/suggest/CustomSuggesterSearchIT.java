@@ -67,7 +67,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         String randomField = randomAsciiOfLength(10);
         String randomSuffix = randomAsciiOfLength(10);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
-        suggestBuilder.addSuggestion(new CustomSuggestionBuilder("someName", randomField, randomSuffix).text(randomText));
+        suggestBuilder.addSuggestion("someName", new CustomSuggestionBuilder(randomField, randomSuffix).text(randomText));
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1)
                 .suggest(suggestBuilder);
 
@@ -84,13 +84,12 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
     static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
 
-        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_", "_na_");
+        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
 
         private String randomField;
         private String randomSuffix;
 
-        public CustomSuggestionBuilder(String name, String randomField, String randomSuffix) {
-            super(name);
+        public CustomSuggestionBuilder(String randomField, String randomSuffix) {
             this.randomField = randomField;
             this.randomSuffix = randomSuffix;
         }
@@ -114,8 +113,8 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
-            return new CustomSuggestionBuilder(in.readString(), in.readString(), in.readString());
+        public CustomSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+            return new CustomSuggestionBuilder(in.readString(), in.readString());
         }
 
         @Override
@@ -130,10 +129,10 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name)
+        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext)
                 throws IOException {
             // TODO some parsing
-            return new CustomSuggestionBuilder(name, randomField, randomSuffix);
+            return new CustomSuggestionBuilder(randomField, randomSuffix);
         }
 
         @Override

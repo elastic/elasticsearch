@@ -49,15 +49,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.WrapperQueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -417,7 +411,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             // NORELEASE need a random suggest builder method
             builder.suggest(new SuggestBuilder().setGlobalText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
-                    SuggestBuilders.termSuggestion(randomAsciiOfLengthBetween(1, 5))));
+                    randomAsciiOfLengthBetween(1, 5),
+                    SuggestBuilders.termSuggestion()));
         }
         if (randomBoolean()) {
             // NORELEASE need a random inner hits builder method

@@ -246,21 +246,26 @@ class ClusterFormationTasks {
         }
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
         copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
-        for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
-            copyConfig.doFirst {
-                // make sure the copy won't be a no-op or act on a directory
-                File srcConfigFile = project.file(extraConfigFile.getValue())
-                if (srcConfigFile.isDirectory()) {
-                    throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
+        for (String extraConfigFileName : node.config.extraConfigFiles.keySet()) {
+            def extraFile = extraConfigFileName
+            File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFileName)
+
+            Copy copyConfigFile = project.tasks.create(name: copyTaskName(name, extraFile), type: Copy) {
+                doFirst {
+                    // make sure the copy won't be a no-op or act on a directory
+                    File srcConfigFile = project.file(node.config.extraConfigFiles.get(extraFile))
+                    if (srcConfigFile.isDirectory()) {
+                        throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
+                    }
+                    if (srcConfigFile.exists() == false) {
+                        throw new GradleException("Source file for extraConfigFile does not exist: ${srcConfigFile}")
+                    }
                 }
-                if (srcConfigFile.exists() == false) {
-                    throw new GradleException("Source file for extraConfigFile does not exist: ${srcConfigFile}")
-                }
+                from({ node.config.extraConfigFiles.get(extraFile) }) // wrap in closure to delay resolution to execution time
+                into(destConfigFile.canonicalFile.parentFile)
+                rename { destConfigFile.name }
             }
-            File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
-            copyConfig.into(destConfigFile.canonicalFile.parentFile)
-                      .from({ extraConfigFile.getValue() }) // wrap in closure to delay resolution to execution time
-                      .rename { destConfigFile.name }
+            copyConfig.dependsOn(copyConfigFile)
         }
         return copyConfig
     }
@@ -555,6 +560,12 @@ class ClusterFormationTasks {
         // replace every dash followed by a character with just the uppercase character
         String camelName = name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
         return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + suffix
+    }
+
+    public static String copyTaskName(String action, String name) {
+        // replace every non alphanumeric character followed by a character with just the uppercase character
+        String camelName = name.replaceAll(/\W(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
+        return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)
     }
 
     /** Runs an ant command, sending output to the given out and error streams */

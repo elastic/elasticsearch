@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -30,46 +29,37 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.search.SearchType.*;
+import static org.elasticsearch.action.search.SearchType.COUNT;
+import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
+import static org.elasticsearch.action.search.SearchType.SCAN;
 
 /**
  *
  */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
+    private final SearchServiceTransportAction searchService;
+    private final SearchPhaseController searchPhaseController;
     private final ClusterService clusterService;
-    private final TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction;
-    private final TransportSearchQueryThenFetchAction queryThenFetchAction;
-    private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
-    private final TransportSearchQueryAndFetchAction queryAndFetchAction;
-    private final TransportSearchScanAction scanAction;
-    private final TransportSearchCountAction countAction;
     private final boolean optimizeSingleShard;
 
     @Inject
-    public TransportSearchAction(Settings settings, ThreadPool threadPool,
-                                 TransportService transportService, ClusterService clusterService,
-                                 TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
-                                 TransportSearchQueryThenFetchAction queryThenFetchAction,
-                                 TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
-                                 TransportSearchQueryAndFetchAction queryAndFetchAction,
-                                 TransportSearchScanAction scanAction,
-                                 TransportSearchCountAction countAction,
-                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSearchAction(Settings settings, ThreadPool threadPool, SearchPhaseController searchPhaseController,
+                                 TransportService transportService, SearchServiceTransportAction searchService,
+                                 ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
+                                             indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest.class);
+        this.searchPhaseController = searchPhaseController;
+        this.searchService = searchService;
         this.clusterService = clusterService;
-        this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
-        this.queryThenFetchAction = queryThenFetchAction;
-        this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
-        this.queryAndFetchAction = queryAndFetchAction;
-        this.scanAction = scanAction;
-        this.countAction = countAction;
         this.optimizeSingleShard = this.settings.getAsBoolean("action.search.optimize_single_shard", true);
     }
 
@@ -93,20 +83,35 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
-            dfsQueryThenFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.QUERY_THEN_FETCH) {
-            queryThenFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
-            dfsQueryAndFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH) {
-            queryAndFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.SCAN) {
-            scanAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.COUNT) {
-            countAction.execute(searchRequest, listener);
-        } else {
-            throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
+        AbstractSearchAsyncAction searchAsyncAction;
+        switch(searchRequest.searchType()) {
+            case DFS_QUERY_THEN_FETCH:
+                searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchService, clusterService,
+                        indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
+                break;
+            case QUERY_THEN_FETCH:
+                searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchService, clusterService,
+                        indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
+                break;
+            case DFS_QUERY_AND_FETCH:
+                searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchService, clusterService,
+                        indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
+                break;
+            case QUERY_AND_FETCH:
+                searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchService, clusterService,
+                        indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
+                break;
+            case SCAN:
+                searchAsyncAction = new SearchScanAsyncAction(logger, searchService, clusterService, indexNameExpressionResolver,
+                        searchPhaseController, threadPool, searchRequest, listener);
+                break;
+            case COUNT:
+                searchAsyncAction = new SearchCountAsyncAction(logger, searchService, clusterService, indexNameExpressionResolver,
+                        searchPhaseController, threadPool, searchRequest, listener);
+                break;
+            default:
+                throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }
+        searchAsyncAction.start();
     }
 }

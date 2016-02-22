@@ -120,7 +120,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
         randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
-        logger.info("starting mock repository with random prefix " + randomPrefix);
+        logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
 

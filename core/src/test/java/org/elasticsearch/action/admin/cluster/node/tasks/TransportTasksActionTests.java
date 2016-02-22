@@ -294,14 +294,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
-                    logger.info("Action on node " + node);
+                    logger.info("Action on node {}", node);
                     actionLatch.countDown();
                     try {
                         checkLatch.await();
                     } catch (InterruptedException ex) {
                         Thread.currentThread().interrupt();
                     }
-                    logger.info("Action on node " + node + " finished");
+                    logger.info("Action on node {} finished", node);
                     return new NodeResponse(testNodes[node].discoveryNode);
                 }
             };
@@ -565,7 +565,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             actions[i] = new TestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
-                    logger.info("Action on node " + node);
+                    logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }
             };
@@ -604,9 +604,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction(Settings.EMPTY, "testTasksAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
-                    logger.info("Task action on node " + node);
+                    logger.info("Task action on node {}", node);
                     if (failTaskOnNode == node && task.getParentTaskId().isSet() == false) {
-                        logger.info("Failing on node " + node);
+                        logger.info("Failing on node {}", node);
                         throw new RuntimeException("Task level failure");
                     }
                     return new TestTaskResponse("Success on node " + node);

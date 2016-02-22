@@ -225,7 +225,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         msg.append(" after: [").append(checksumAfterCorruption).append("]");
         msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
         msg.append(" file: ").append(fileToCorrupt.getFileName().toString()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
-        logger.debug(msg.toString());
+        logger.debug("{}", msg.toString());
         assumeTrue("Checksum collision - " + msg.toString(),
                 checksumAfterCorruption != checksumBeforeCorruption // collision
                         || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted

@@ -761,7 +761,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -817,7 +817,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -855,7 +855,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -889,7 +889,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -2159,7 +2159,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     public void testListCorruptedSnapshot() throws Exception {
         Client client = client();
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)

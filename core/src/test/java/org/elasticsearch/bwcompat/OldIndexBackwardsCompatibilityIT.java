@@ -162,7 +162,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         singleDataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
         assertFalse(Files.exists(singleDataPath));
         Files.createDirectories(singleDataPath);
-        logger.info("--> Single data path: " + singleDataPath.toString());
+        logger.info("--> Single data path: {}", singleDataPath);
 
         // find multi data path dirs
         nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNode.get()).nodeDataPaths();
@@ -173,7 +173,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertFalse(Files.exists(multiDataPath[1]));
         Files.createDirectories(multiDataPath[0]);
         Files.createDirectories(multiDataPath[1]);
-        logger.info("--> Multi data paths: " + multiDataPath[0].toString() + ", " + multiDataPath[1].toString());
+        logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
 
         replicas.get(); // wait for replicas
     }
@@ -239,13 +239,13 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 if (file.getFileName().toString().equals(IndexWriter.WRITE_LOCK_NAME)) {
                     // skip lock file, we don't need it
-                    logger.trace("Skipping lock file: " + file.toString());
+                    logger.trace("Skipping lock file: {}", file);
                     return FileVisitResult.CONTINUE;
                 }
 
                 Path relativeFile = src.relativize(file);
                 Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
-                logger.trace("--> Moving " + relativeFile.toString() + " to " + destFile.toString());
+                logger.trace("--> Moving {} to {}", relativeFile, destFile);
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));
                 assertTrue(Files.exists(destFile));
@@ -269,7 +269,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
         for (String index : indexes) {
             if (expectedVersions.remove(index) == false) {
-                logger.warn("Old indexes tests contain extra index: " + index);
+                logger.warn("Old indexes tests contain extra index: {}", index);
             }
         }
         if (expectedVersions.isEmpty() == false) {
@@ -287,9 +287,9 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Collections.shuffle(indexes, random());
         for (String index : indexes) {
             long startTime = System.currentTimeMillis();
-            logger.info("--> Testing old index " + index);
+            logger.info("--> Testing old index {}", index);
             assertOldIndexWorks(index);
-            logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
+            logger.info("--> Done testing {}, took {} seconds", index, (System.currentTimeMillis() - startTime) / 1000.0);
         }
     }
 
@@ -344,7 +344,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SearchResponse searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         long numDocs = searchRsp.getHits().getTotalHits();
-        logger.info("Found " + numDocs + " in old index");
+        logger.info("Found {} in old index", numDocs);
 
         logger.info("--> testing basic search with sort");
         searchReq.addSort("long_sort", SortOrder.ASC);
@@ -523,7 +523,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         for (String indexFile : indexes) {
             String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
             Path nodeDir = getNodeDir(indexFile);
-            logger.info("Parsing cluster state files from index [" + indexName + "]");
+            logger.info("Parsing cluster state files from index [{}]", indexName);
             assertNotNull(globalFormat.loadLatestState(logger, nodeDir)); // no exception
             Path indexDir = nodeDir.resolve("indices").resolve(indexName);
             assertNotNull(indexFormat.loadLatestState(logger, indexDir)); // no exception

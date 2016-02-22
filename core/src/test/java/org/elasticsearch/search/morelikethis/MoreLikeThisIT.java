@@ -419,7 +419,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .minTermFreq(1)
                     .minDocFreq(1)
                     .minimumShouldMatch(minimumShouldMatch);
-            logger.info("Testing with minimum_should_match = " + minimumShouldMatch);
+            logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
             SearchResponse response = client().prepareSearch("test").setTypes("type1")
                     .setQuery(mltQuery).get();
             assertSearchResponse(response);

@@ -332,7 +332,7 @@ public class EquivalenceTests extends ESIntegTestCase {
         createIndex("idx");
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
-        logger.info("Indexing [" + numDocs +"] docs");
+        logger.info("Indexing [{}] docs", numDocs);
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));

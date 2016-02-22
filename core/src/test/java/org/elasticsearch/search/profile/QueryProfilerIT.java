@@ -72,7 +72,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int iters = between(20, 100);
         for (int i = 0; i < iters; i++) {
             QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
-            logger.info(q.toString());
+            logger.info("Query: {}", q);
 
             SearchResponse resp = client().prepareSearch()
                     .setQuery(q)
@@ -126,8 +126,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int iters = between(1, 10);
         for (int i = 0; i < iters; i++) {
             QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
-            logger.info(q.toString());
-
+            logger.info("Query: {}", q);
 
             SearchRequestBuilder vanilla = client().prepareSearch("test")
                     .setQuery(q)
@@ -309,7 +308,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.boolQuery();
-        logger.info(q.toString());
+        logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -360,8 +359,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
 
-
-        logger.info(q.toString());
+        logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -408,7 +406,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = QueryBuilders.boostingQuery(QueryBuilders.matchQuery("field1", "one"), QueryBuilders.matchQuery("field1", "two"))
                 .boost(randomFloat())
                 .negativeBoost(randomFloat());
-        logger.info(q.toString());
+        logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -455,7 +453,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = QueryBuilders.disMaxQuery()
                 .boost(0.33703882f)
                 .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
-        logger.info(q.toString());
+        logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -501,7 +499,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         QueryBuilder q = QueryBuilders.rangeQuery("field2").from(0).to(5);
 
-        logger.info(q.toString());
+        logger.info("Query: {}", q.toString());
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -547,7 +545,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         QueryBuilder q = QueryBuilders.matchPhraseQuery("field1", "one two");
 
-        logger.info(q.toString());
+        logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -559,7 +557,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         if (resp.getShardFailures().length > 0) {
             for (ShardSearchFailure f : resp.getShardFailures()) {
-                logger.error(f.toString());
+                logger.error("Shard search failure: {}", f);
             }
             fail();
         }
@@ -603,7 +601,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         refresh();
         QueryBuilder q = QueryBuilders.rangeQuery("field2").from(0).to(5);
 
-        logger.info(q.toString());
+        logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).execute().actionGet();
         assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));

@@ -380,7 +380,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         try {
                             channel.sendResponse(e);
                         } catch (Throwable e1) {
-                            logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                            logger.warn("failed to notify channel of error message for action [{}]", e1, action);
                             logger.warn("actual exception", e);
                         }
                     }
@@ -391,7 +391,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             try {
                 channel.sendResponse(e);
             } catch (Throwable e1) {
-                logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                logger.warn("failed to notify channel of error message for action [{}]", e1, action);
                 logger.warn("actual exception", e1);
             }
         }

@@ -321,7 +321,7 @@ public class ShardStateAction extends AbstractComponent {
             if (numberOfUnassignedShards > 0) {
                 String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
                 if (logger.isTraceEnabled()) {
-                    logger.trace(reason + ", scheduling a reroute");
+                    logger.trace("{}, scheduling a reroute", reason);
                 }
                 routingService.reroute(reason);
             }

@@ -25,11 +25,10 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -55,7 +54,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+
 
 /**
  * Internal startup code.
@@ -208,10 +207,14 @@ final class Bootstrap {
             e.printStackTrace();
         }
     }
-
-    private static Environment initialSettings(boolean foreground) {
-        Terminal terminal = foreground ? Terminal.DEFAULT : null;
-        return InternalSettingsPreparer.prepareEnvironment(EMPTY_SETTINGS, terminal);
+    private static Environment initialSettings(boolean daemonize, String pathHome, String pidFile) {
+        Terminal terminal = !daemonize ? Terminal.DEFAULT : null;
+        Settings.Builder builder = Settings.builder();
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), pathHome);
+        if (!Strings.isNullOrEmpty(pidFile)) {
+            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+        }
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal);
     }
 
     private void start() {
@@ -238,22 +241,13 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
-    static void init(String[] args) throws Throwable {
+    static void init(boolean daemonize, String pathHome, String pidFile) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
-        BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
-        CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
-
-        if (CliTool.ExitStatus.OK != status) {
-            exit(status.status());
-        }
-
         INSTANCE = new Bootstrap();
 
-        boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
-
-        Environment environment = initialSettings(foreground);
+        Environment environment = initialSettings(daemonize, pathHome, pidFile);
         Settings settings = environment.settings();
         setupLogging(settings);
         checkForCustomConfFile();
@@ -269,7 +263,7 @@ final class Bootstrap {
         }
 
         try {
-            if (!foreground) {
+            if (daemonize) {
                 Loggers.disableConsoleLogging();
                 closeSystOut();
             }
@@ -284,12 +278,12 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (!foreground) {
+            if (daemonize) {
                 closeSysError();
             }
         } catch (Throwable e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            if (foreground) {
+            if (!daemonize) {
                 Loggers.disableConsoleLogging();
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
@@ -309,7 +303,7 @@ final class Bootstrap {
                 logger.error("Exception", e);
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
-            if (foreground) {
+            if (!daemonize) {
                 Loggers.enableConsoleLogging();
             }
 

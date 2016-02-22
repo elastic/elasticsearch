@@ -1,0 +1,2 @@
+"-h" is not a valid option
+command must be one of "start" or "version" but was "-h"

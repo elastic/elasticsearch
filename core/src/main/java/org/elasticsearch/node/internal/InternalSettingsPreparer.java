@@ -38,10 +38,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -52,8 +54,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
-    static final String[] PROPERTY_PREFIXES = {"es.", "elasticsearch."};
-    static final String[] PROPERTY_DEFAULTS_PREFIXES = {"es.default.", "elasticsearch.default."};
+    static final String PROPERTY_PREFIX = "es.";
+    static final String PROPERTY_DEFAULTS_PREFIX = "es.default.";
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
@@ -124,13 +126,9 @@ public class InternalSettingsPreparer {
         output.put(input);
         if (useSystemProperties(input)) {
             if (loadDefaults) {
-                for (String prefix : PROPERTY_DEFAULTS_PREFIXES) {
-                    output.putProperties(prefix, BootstrapInfo.getSystemProperties());
-                }
+                output.putProperties(PROPERTY_DEFAULTS_PREFIX, BootstrapInfo.getSystemProperties());
             }
-            for (String prefix : PROPERTY_PREFIXES) {
-                output.putProperties(prefix, BootstrapInfo.getSystemProperties(), PROPERTY_DEFAULTS_PREFIXES);
-            }
+            output.putProperties(PROPERTY_PREFIX, BootstrapInfo.getSystemProperties(), PROPERTY_DEFAULTS_PREFIX);
         }
         output.replacePropertyPlaceholders();
     }

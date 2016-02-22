@@ -14,7 +14,7 @@ attribute as follows:
 
 [source,sh]
 ------------------------
-bin/elasticsearch --node.rack rack1 --node.size big  <1>
+bin/elasticsearch -E es.node.rack=rack1 -E es.node.size=big  <1>
 ------------------------
 <1> These attribute settings can also be specified in the `elasticsearch.yml` config file.
 

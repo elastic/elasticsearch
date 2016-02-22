@@ -256,11 +256,6 @@ final class Bootstrap {
             PidFile.create(environment.pidFile(), true);
         }
 
-        if (System.getProperty("es.max-open-files", "false").equals("true")) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.info("max_open_files [{}]", ProcessProbe.getInstance().getMaxFileDescriptorCount());
-        }
-
         // warn if running using the client VM
         if (JvmInfo.jvmInfo().getVmName().toLowerCase(Locale.ROOT).contains("client")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);

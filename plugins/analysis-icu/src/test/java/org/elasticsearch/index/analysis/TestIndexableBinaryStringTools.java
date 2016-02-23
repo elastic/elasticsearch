@@ -43,13 +43,14 @@ import java.util.Locale;
 public class TestIndexableBinaryStringTools extends LuceneTestCase {
   private static int NUM_RANDOM_TESTS;
   private static int MAX_RANDOM_BINARY_LENGTH;
-  
+  private static final String LINE_SEPARATOR = System.lineSeparator();
+
   @BeforeClass
   public static void beforeClass() throws Exception {
     NUM_RANDOM_TESTS = atLeast(200);
     MAX_RANDOM_BINARY_LENGTH = atLeast(300);
   }
-  
+
   public void testSingleBinaryRoundTrip() {
     byte[] binary = new byte[] { (byte) 0x23, (byte) 0x98, (byte) 0x13,
         (byte) 0xE4, (byte) 0x76, (byte) 0x41, (byte) 0xB2, (byte) 0xC9,
@@ -68,15 +69,15 @@ public class TestIndexableBinaryStringTools extends LuceneTestCase {
         decoded.length);
 
     assertEquals("Round trip decode/decode returned different results:"
-        + System.getProperty("line.separator") + "original: "
+        + LINE_SEPARATOR + "original: "
         + binaryDump(binary, binary.length)
-        + System.getProperty("line.separator") + " encoded: "
+        + LINE_SEPARATOR + " encoded: "
         + charArrayDump(encoded, encoded.length)
-        + System.getProperty("line.separator") + " decoded: "
+        + LINE_SEPARATOR + " decoded: "
         + binaryDump(decoded, decoded.length),
         binaryDump(binary, binary.length), binaryDump(decoded, decoded.length));
   }
-  
+
   public void testEncodedSortability() {
     byte[] originalArray1 = new byte[MAX_RANDOM_BINARY_LENGTH];
     char[] originalString1 = new char[MAX_RANDOM_BINARY_LENGTH];
@@ -127,15 +128,15 @@ public class TestIndexableBinaryStringTools extends LuceneTestCase {
 
       assertEquals("Test #" + (testNum + 1)
           + ": Original bytes and encoded chars compare differently:"
-          + System.getProperty("line.separator") + " binary 1: "
+          + LINE_SEPARATOR + " binary 1: "
           + binaryDump(originalArray1, numBytes1)
-          + System.getProperty("line.separator") + " binary 2: "
+          + LINE_SEPARATOR + " binary 2: "
           + binaryDump(original2, numBytes2)
-          + System.getProperty("line.separator") + "encoded 1: "
+          + LINE_SEPARATOR + "encoded 1: "
           + charArrayDump(encoded1, encodedLen1)
-          + System.getProperty("line.separator") + "encoded 2: "
+          + LINE_SEPARATOR + "encoded 2: "
           + charArrayDump(encoded2, encodedLen2)
-          + System.getProperty("line.separator"), originalComparison,
+          + LINE_SEPARATOR, originalComparison,
           encodedComparison);
     }
   }
@@ -157,7 +158,7 @@ public class TestIndexableBinaryStringTools extends LuceneTestCase {
 
     assertEquals("decoded empty input was not empty", decoded.length, 0);
   }
-  
+
   public void testAllNullInput() {
     byte[] binary = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -174,19 +175,19 @@ public class TestIndexableBinaryStringTools extends LuceneTestCase {
         decoded.length);
 
     assertEquals("Round trip decode/decode returned different results:"
-        + System.getProperty("line.separator") + "  original: "
+        + LINE_SEPARATOR + "  original: "
         + binaryDump(binary, binary.length)
-        + System.getProperty("line.separator") + "decodedBuf: "
+        + LINE_SEPARATOR + "decodedBuf: "
         + binaryDump(decoded, decoded.length),
         binaryDump(binary, binary.length), binaryDump(decoded, decoded.length));
   }
-  
+
   public void testRandomBinaryRoundTrip() {
     byte[] binary = new byte[MAX_RANDOM_BINARY_LENGTH];
     char[] encoded = new char[MAX_RANDOM_BINARY_LENGTH * 10];
     byte[] decoded = new byte[MAX_RANDOM_BINARY_LENGTH];
     for (int testNum = 0; testNum < NUM_RANDOM_TESTS; ++testNum) {
-      int numBytes = random().nextInt(MAX_RANDOM_BINARY_LENGTH - 1) + 1; // Min == 1                                                                   
+      int numBytes = random().nextInt(MAX_RANDOM_BINARY_LENGTH - 1) + 1; // Min == 1
 
       for (int byteNum = 0; byteNum < numBytes; ++byteNum) {
         binary[byteNum] = (byte) random().nextInt(0x100);
@@ -206,15 +207,15 @@ public class TestIndexableBinaryStringTools extends LuceneTestCase {
 
       assertEquals("Test #" + (testNum + 1)
           + ": Round trip decode/decode returned different results:"
-          + System.getProperty("line.separator") + "  original: "
-          + binaryDump(binary, numBytes) + System.getProperty("line.separator")
+          + LINE_SEPARATOR + "  original: "
+          + binaryDump(binary, numBytes) + LINE_SEPARATOR
           + "encodedBuf: " + charArrayDump(encoded, encodedLen)
-          + System.getProperty("line.separator") + "decodedBuf: "
+          + LINE_SEPARATOR + "decodedBuf: "
           + binaryDump(decoded, decodedLen), binaryDump(binary, numBytes),
           binaryDump(decoded, decodedLen));
     }
   }
-  
+
   public String binaryDump(byte[] binary, int numBytes) {
     StringBuilder buf = new StringBuilder();
     for (int byteNum = 0 ; byteNum < numBytes ; ++byteNum) {

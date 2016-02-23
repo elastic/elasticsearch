@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The {@code AgentService} is a service that does the work of publishing the details to the monitoring cluster.
@@ -43,7 +42,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
     private volatile ExportingWorker exportingWorker;
 
     private volatile Thread workerThread;
-    private volatile long samplingInterval;
+    private volatile long samplingIntervalMillis;
     private final Collection<Collector> collectors;
     private final String[] settingsCollectors;
     private final Exporters exporters;
@@ -51,15 +50,16 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
     @Inject
     public AgentService(Settings settings, ClusterSettings clusterSettings, Set<Collector> collectors, Exporters exporters) {
         super(settings);
-        samplingInterval = MarvelSettings.INTERVAL.get(settings).millis();
-        settingsCollectors = MarvelSettings.COLLECTORS.get(settings).toArray(new String[0]);
-        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.INTERVAL, this::setInterval);
+        this.samplingIntervalMillis = MarvelSettings.INTERVAL.get(settings).millis();
+        this.settingsCollectors = MarvelSettings.COLLECTORS.get(settings).toArray(new String[0]);
         this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, settingsCollectors));
         this.exporters = exporters;
+
+        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.INTERVAL, this::setInterval);
     }
 
     private void setInterval(TimeValue interval) {
-        this.samplingInterval = interval.millis();
+        this.samplingIntervalMillis = interval.millis();
         applyIntervalSettings();
     }
 
@@ -80,8 +80,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
     }
 
     protected void applyIntervalSettings() {
-        if (samplingInterval <= 0) {
-            logger.info("data sampling is disabled due to interval settings [{}]", samplingInterval);
+        if (samplingIntervalMillis <= 0) {
+            logger.info("data sampling is disabled due to interval settings [{}]", samplingIntervalMillis);
             if (workerThread != null) {
 
                 // notify  worker to stop on its leisure, not to disturb an exporting operation
@@ -151,7 +151,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
     }
 
     public TimeValue getSamplingInterval() {
-        return new TimeValue(samplingInterval, TimeUnit.MILLISECONDS);
+        return TimeValue.timeValueMillis(samplingIntervalMillis);
     }
 
     public String[] collectors() {
@@ -168,7 +168,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
             while (!closed) {
                 // sleep first to allow node to complete initialization before collecting the first start
                 try {
-                    Thread.sleep(samplingInterval);
+                    Thread.sleep(samplingIntervalMillis);
 
                     if (closed) {
                         continue;

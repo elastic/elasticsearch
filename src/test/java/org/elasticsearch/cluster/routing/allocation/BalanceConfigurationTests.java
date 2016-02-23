@@ -440,7 +440,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
                     }
 
                 }
-                unassigned.clear();
+                unassigned.drain();
                 return changed;
             }
         }), ClusterInfoService.EMPTY);

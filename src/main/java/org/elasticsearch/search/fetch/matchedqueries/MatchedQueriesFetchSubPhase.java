@@ -104,7 +104,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                     if (filterIterator != null && docAndNestedDocsIterator != null) {
                         int matchedDocId = -1;
                         for (int docId = docAndNestedDocsIterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = docAndNestedDocsIterator.nextDoc()) {
-                            if (docId != matchedDocId) {
+                            if (docId > matchedDocId) {
                                 matchedDocId = filterIterator.advance(docId);
                             }
                             if (matchedDocId == docId) {

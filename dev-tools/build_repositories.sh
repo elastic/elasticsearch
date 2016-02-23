@@ -167,7 +167,7 @@ createrepo --update $centosdir
 
 echo "RPM: Resigning repomd.xml"
 rm -f $centosdir/repodata/repomd.xml.asc
-gpg $GPG_HOMEDIR --passphrase "$GPG_PASSPHRASE" -a -b -o $centosdir/repodata/repomd.xml.asc $centosdir/repodata/repomd.xml
+gpg $GPG_HOMEDIR -u $GPG_KEY_ID --passphrase "$GPG_PASSPHRASE" -a -b -o $centosdir/repodata/repomd.xml.asc $centosdir/repodata/repomd.xml
 
 echo "RPM: Syncing back repository for $version into S3 bucket $S3_BUCKET_SYNC_TO"
 $s3cmd sync -P $centosdir/ s3://$S3_BUCKET_SYNC_TO/elasticsearch/$version/centos/
@@ -229,7 +229,7 @@ apt-ftparchive -c $tempdir/elasticsearch-$version-releases.conf release $debbase
 
 echo "DEB: Signing newly created release file at $debbasedir/dists/stable/Release.gpg"
 rm -f $debbasedir/dists/stable/Release.gpg
-gpg $GPG_HOMEDIR --passphrase "$GPG_PASSPHRASE" -a -b -o $debbasedir/dists/stable/Release.gpg $debbasedir/dists/stable/Release
+gpg $GPG_HOMEDIR -u $GPG_KEY_ID --passphrase "$GPG_PASSPHRASE" -a -b -o $debbasedir/dists/stable/Release.gpg $debbasedir/dists/stable/Release
 
 # upload to S3
 echo "DEB: Uploading to S3 bucket to $S3_BUCKET_SYNC_TO"

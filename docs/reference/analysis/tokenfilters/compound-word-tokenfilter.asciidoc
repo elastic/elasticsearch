@@ -1,34 +1,83 @@
 [[analysis-compound-word-tokenfilter]]
 === Compound Word Token Filter
 
-Token filters that allow to decompose compound words. There are two
-types available: `dictionary_decompounder` and
-`hyphenation_decompounder`.
+The `hyphenation_decompounder` and `dictionary_decompounder` token filters can
+decompose compound words found in many German languages into word parts.
 
-The following are settings that can be set for a compound word token
-filter type:
+Both token filters require a dictionary of word parts, which can be provided
+as:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`word_list` |A list of words to use.
+[horizontal]
+`word_list`::
 
-|`word_list_path` |A path (either relative to `config` location, or
-absolute) to a list of words.
+An array of words, specified inline in the token filter configuration, or
 
-|`hyphenation_patterns_path` |A path (either relative to `config` location, or
-absolute) to a FOP XML hyphenation pattern file. (See http://offo.sourceforge.net/hyphenation/)
-Required for `hyphenation_decompounder`.
+`word_list_path`::
 
-|`min_word_size` |Minimum word size(Integer). Defaults to 5.
+The path (either absolute or relative to the `config` directory) to a UTF-8
+encoded file containing one word per line.
 
-|`min_subword_size` |Minimum subword size(Integer). Defaults to 2.
+[float]
+=== Hyphenation decompounder
 
-|`max_subword_size` |Maximum subword size(Integer). Defaults to 15.
+The `hyphenation_decompounder` uses hyphenation grammars to find potential
+subwords that are then checked against the word dictionary. The quality of the
+output tokens is directly connected to the quality of the grammar file you
+use. For languages like German they are quite good.
 
-|`only_longest_match` |Only matching the longest(Boolean). Defaults to
-`false`
-|=======================================================================
+XML based hyphenation grammar files can be found in the
+http://offo.sourceforge.net/hyphenation/#FOP+XML+Hyphenation+Patterns[Objects For Formatting Objects]
+(OFFO) Sourceforge project. You can download http://downloads.sourceforge.net/offo/offo-hyphenation.zip[offo-hyphenation.zip]
+directly and look in the `offo-hyphenation/hyph/` directory.
+Credits for the hyphenation code go to the Apache FOP project .
+
+[float]
+=== Dictionary decompounder
+
+The `dictionary_decompounder` uses a brute force approach in conjuction with
+only the word dictionary to find subwords in a compound word. It is much
+slower than the hyphenation decompounder but can be used as a first start to
+check the quality of your dictionary.
+
+[float]
+=== Compound token filter parameters
+
+The following parameters can be used to configure a compound word token
+filter:
+
+[horizontal]
+`type`::
+
+Either `dictionary_decompounder` or `hyphenation_decompounder`.
+
+`word_list`::
+
+A array containing a list of words to use for the word dictionary.
+
+`word_list_path`::
+
+The path (either absolute or relative to the `config` directory) to the word dictionary.
+
+`hyphenation_patterns_path`::
+
+The path (either absolute or relative to the `config` directory) to a FOP XML hyphenation pattern file. (required for hyphenation)
+
+`min_word_size`::
+
+Minimum word size. Defaults to 5.
+
+`min_subword_size`::
+
+Minimum subword size. Defaults to 2.
+
+`max_subword_size`::
+
+Maximum subword size. Defaults to 15.
+
+`only_longest_match`::
+
+Whether to include only the longest matching subword or not.  Defaults to `false`
+
 
 Here is an example:
 
@@ -44,9 +93,10 @@ index :
         filter :
             myTokenFilter1 :
                 type : dictionary_decompounder
-                word_list: [one, two, three]                
+                word_list: [one, two, three]
             myTokenFilter2 :
                 type : hyphenation_decompounder
                 word_list_path: path/to/words.txt
+                hyphenation_patterns_path: path/to/fop.xml
                 max_subword_size : 22
 --------------------------------------------------

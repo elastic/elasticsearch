@@ -183,7 +183,7 @@ public class ShardStateAction extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (oldState != newState && newState.getRoutingNodes().hasUnassigned()) {
+                if (oldState != newState && newState.getRoutingNodes().unassigned().size() > 0) {
                     logger.trace("unassigned shards after shard failures. scheduling a reroute.");
                     routingService.reroute("unassigned shards after shard failures, scheduling a reroute");
                 }
@@ -311,7 +311,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    static class ShardRoutingEntry extends TransportRequest {
+    public static class ShardRoutingEntry extends TransportRequest {
 
         ShardRouting shardRouting;
 
@@ -328,6 +328,10 @@ public class ShardStateAction extends AbstractComponent {
             this.shardRouting = shardRouting;
             this.reason = reason;
             this.indexUUID = indexUUID;
+        }
+
+        public ShardRouting getShardRouting() {
+            return shardRouting;
         }
 
         @Override

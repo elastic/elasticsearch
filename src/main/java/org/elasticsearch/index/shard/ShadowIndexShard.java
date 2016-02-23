@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -46,7 +45,6 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -69,7 +67,7 @@ public final class ShadowIndexShard extends IndexShard {
     private final Object mutex = new Object();
 
     @Inject
-    public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+    public ShadowIndexShard(ShardId shardId, IndexSettingsService indexSettingsService,
                             IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
                             ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService,
                             IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService,
@@ -81,7 +79,7 @@ public final class ShadowIndexShard extends IndexShard {
                             ShardFixedBitSetFilterCache shardFixedBitSetFilterCache, AnalysisService analysisService,
                             @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
                             MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService) {
-        super(shardId, indexSettings, indexSettingsService, indicesLifecycle, store, mergeScheduler,
+        super(shardId, indexSettingsService, indicesLifecycle, store, mergeScheduler,
                 translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indexingService, getService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,

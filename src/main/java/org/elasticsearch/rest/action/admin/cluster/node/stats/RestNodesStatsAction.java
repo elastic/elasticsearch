@@ -61,6 +61,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.listenerThreaded(false);
+        nodesStatsRequest.timeout(request.param("timeout"));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesStatsRequest.all();

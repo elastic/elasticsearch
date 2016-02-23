@@ -238,10 +238,7 @@ public class ByteSizeValue implements Serializable, Streamable {
 
         ByteSizeValue sizeValue = (ByteSizeValue) o;
 
-        if (size != sizeValue.size) return false;
-        if (sizeUnit != sizeValue.sizeUnit) return false;
-
-        return true;
+        return bytes() == sizeValue.bytes();
     }
 
     @Override

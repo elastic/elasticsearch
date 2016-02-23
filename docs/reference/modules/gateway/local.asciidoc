@@ -46,7 +46,7 @@ The import of dangling indices can be controlled with the
 
     Import dangling indices into the cluster (default).
 
-`close`::
+`closed`::
 
     Import dangling indices into the cluster state, but leave them closed.
 

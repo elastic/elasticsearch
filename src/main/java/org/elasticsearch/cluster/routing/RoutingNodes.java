@@ -51,9 +51,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, RoutingNode> nodesToShards = newHashMap();
 
-    private final UnassignedShards unassignedShards = new UnassignedShards();
-
-    private final List<MutableShardRouting> ignoredUnassignedShards = newArrayList();
+    private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
     private final Map<ShardId, List<MutableShardRouting>> assignedShards = newHashMap();
 
@@ -170,14 +168,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return totalNumberOfShards / nodesToShards.size();
     }
 
-    public boolean hasUnassigned() {
-        return !unassignedShards.isEmpty();
-    }
-
-    public List<MutableShardRouting> ignoredUnassigned() {
-        return this.ignoredUnassignedShards;
-    }
-
     public UnassignedShards unassigned() {
         return this.unassignedShards;
     }
@@ -223,13 +213,24 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesPerAttributesCounts;
     }
 
+    /**
+     * Returns <code>true</code> iff this {@link RoutingNodes} instance has any unassigned primaries even if the
+     * primaries are marked as temporarily ignored.
+     */
     public boolean hasUnassignedPrimaries() {
-        return unassignedShards.numPrimaries() > 0;
+        return unassignedShards.getNumPrimaries() + unassignedShards.getNumIgnoredPrimaries() > 0;
     }
 
+    /**
+     * Returns <code>true</code> iff this {@link RoutingNodes} instance has any unassigned shards even if the
+     * shards are marked as temporarily ignored.
+     * @see UnassignedShards#isEmpty()
+     * @see UnassignedShards#isIgnoredEmpty()
+     */
     public boolean hasUnassignedShards() {
-        return !unassignedShards.isEmpty();
+        return unassignedShards.isEmpty() == false || unassignedShards.isIgnoredEmpty() == false;
     }
+
 
     public boolean hasInactivePrimaries() {
         return inactivePrimaryCount > 0;
@@ -532,25 +533,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public final static class UnassignedShards implements Iterable<MutableShardRouting>  {
-
+        private final RoutingNodes nodes;
         private final List<MutableShardRouting> unassigned;
-
+        private final List<MutableShardRouting> ignored;
         private int primaries = 0;
-        private long transactionId = 0;
-        private final UnassignedShards source;
-        private final long sourceTransactionId;
+        private int ignoredPrimaries = 0;
 
-        public UnassignedShards(UnassignedShards other) {
-            source = other;
-            sourceTransactionId = other.transactionId;
-            unassigned = new ArrayList<>(other.unassigned);
-            primaries = other.primaries;
-        }
-
-        public UnassignedShards() {
+        public UnassignedShards(RoutingNodes nodes) {
             unassigned = new ArrayList<>();
-            source = null;
-            sourceTransactionId = -1;
+            ignored = new ArrayList<>();
+            this.nodes = nodes;
         }
 
         public void add(MutableShardRouting mutableShardRouting) {
@@ -558,7 +550,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 primaries++;
             }
             unassigned.add(mutableShardRouting);
-            transactionId++;
         }
 
         public void addAll(Collection<MutableShardRouting> mutableShardRoutings) {
@@ -571,72 +562,162 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             CollectionUtil.timSort(unassigned, comparator);
         }
 
-        public int size() {
-            return unassigned.size();
-        }
+        /**
+         * Returns the size of the non-ignored unassigned shards
+         */
+        public int size() { return unassigned.size(); }
 
-        public int numPrimaries() {
+        /**
+         * Returns the size of the temporarily marked as ignored unassigned shards
+         */
+        public int ignoredSize() { return ignored.size(); }
+
+        /**
+         * Returns the number of non-ignored unassigned primaries
+         */
+        public int getNumPrimaries() {
             return primaries;
         }
 
-        @Override
-        public Iterator<MutableShardRouting> iterator() {
-            final Iterator<MutableShardRouting> iterator = unassigned.iterator();
-            return new Iterator<MutableShardRouting>() {
-                private  MutableShardRouting current;
-                @Override
-                public boolean hasNext() {
-                    return iterator.hasNext();
-                }
+        /**
+         * Returns the number of temporarily marked as ignored unassigned primaries
+         */
+        public int getNumIgnoredPrimaries() { return ignoredPrimaries; }
 
-                @Override
-                public MutableShardRouting next() {
-                    return current = iterator.next();
-                }
-
-                @Override
-                public void remove() {
-                    iterator.remove();
-                    if (current.primary()) {
-                        primaries--;
-                    }
-                    transactionId++;
-                }
-            };
+        public UnassignedIterator iterator() {
+            return new UnassignedIterator();
         }
 
+
+        /**
+         * The list of ignored unassigned shards (read only). The ignored unassigned shards
+         * are not part of the formal unassigned list, but are kept around and used to build
+         * back the list of unassigned shards as part of the routing table.
+         */
+        public List<MutableShardRouting> ignored() {
+            return Collections.unmodifiableList(ignored);
+        }
+
+        /**
+         * Marks a shard as temporarily ignored and adds it to the ignore unassigned list.
+         * Should be used with caution, typically,
+         * the correct usage is to removeAndIgnore from the iterator.
+         * @see #ignored()
+         * @see UnassignedIterator#removeAndIgnore()
+         * @see #isIgnoredEmpty()
+         */
+        public void ignoreShard(MutableShardRouting shard) {
+            if (shard.primary()) {
+                ignoredPrimaries++;
+            }
+            ignored.add(shard);
+        }
+
+        /**
+         * Takes all unassigned shards that match the given shard id and moves it to the end of the unassigned list.
+         */
+        public void moveToEnd(ShardId shardId) {
+            if (unassigned.isEmpty() == false) {
+                Iterator<MutableShardRouting> iterator = unassigned.iterator();
+                List<MutableShardRouting> shardsToMove = Lists.newArrayList();
+
+                while (iterator.hasNext()) {
+                    MutableShardRouting next = iterator.next();
+                    if (next.shardId().equals(shardId)) {
+                        shardsToMove.add(next);
+                        iterator.remove();
+                    }
+                }
+                if (shardsToMove.isEmpty() == false) {
+                    unassigned.addAll(shardsToMove);
+                }
+            }
+        }
+
+        public class UnassignedIterator implements Iterator<MutableShardRouting> {
+
+            private final Iterator<MutableShardRouting> iterator;
+            private MutableShardRouting current;
+
+            public UnassignedIterator() {
+                this.iterator = unassigned.iterator();
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public MutableShardRouting next() {
+                return current = iterator.next();
+            }
+
+            /**
+             * Removes and ignores the unassigned shard (will be ignored for this run, but
+             * will be added back to unassigned once the metadata is constructed again).
+             * Typically this is used when an allocation decision prevents a shard from being allocated such
+             * that subsequent consumers of this API won't try to allocate this shard again.
+             */
+            public void removeAndIgnore() {
+                innerRemove();
+                ignoreShard(current);
+            }
+
+            /**
+             * Initializes the current unassigned shard and moves it from the unassigned list.
+             */
+            public void initialize(String nodeId, long version) {
+                innerRemove();
+                nodes.assign(new MutableShardRouting(current, version), nodeId);
+            }
+
+
+            /**
+             * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore()} or
+             * {@link #initialize(String, long)}.
+             */
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("remove is not supported in unassigned iterator, use removeAndIgnore or initialize");
+            }
+
+            private void innerRemove() {
+                iterator.remove();
+                if (current.primary()) {
+                    primaries--;
+                }
+            }
+        }
+
+        /**
+         * Returns <code>true</code> iff this collection contains one or more non-ignored unassigned shards.
+         */
         public boolean isEmpty() {
             return unassigned.isEmpty();
+        }
+
+        /**
+         * Returns <code>true</code> iff any unassigned shards are marked as temporarily ignored.
+         * @see UnassignedShards#ignoreShard(MutableShardRouting)
+         * @see UnassignedIterator#removeAndIgnore()
+         */
+        public boolean isIgnoredEmpty() {
+            return ignored.isEmpty();
         }
 
         public void shuffle() {
             Collections.shuffle(unassigned);
         }
 
-        public void clear() {
-            transactionId++;
-            unassigned.clear();
-            primaries = 0;
-        }
-
-        public void transactionEnd(UnassignedShards shards) {
-           assert shards.source == this && shards.sourceTransactionId == transactionId :
-                   "Expected ID: " + shards.sourceTransactionId + " actual: " + transactionId + " Expected Source: " + shards.source + " actual: " + this;
-           transactionId++;
-           this.unassigned.clear();
-           this.unassigned.addAll(shards.unassigned);
-           this.primaries = shards.primaries;
-        }
-
-        public UnassignedShards transactionBegin() {
-            return new UnassignedShards(this);
-        }
-
+        /**
+         * Drains all unassigned shards and returns it.
+         * This method will not drain ignored shards.
+         */
         public MutableShardRouting[] drain() {
             MutableShardRouting[] mutableShardRoutings = unassigned.toArray(new MutableShardRouting[unassigned.size()]);
             unassigned.clear();
             primaries = 0;
-            transactionId++;
             return mutableShardRoutings;
         }
     }
@@ -657,6 +738,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return true;
         }
         int unassignedPrimaryCount = 0;
+        int unassignedIgnoredPrimaryCount = 0;
         int inactivePrimaryCount = 0;
         int inactiveShardCount = 0;
         int relocating = 0;
@@ -713,8 +795,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             seenShards.add(shard.shardId());
         }
 
-        assert unassignedPrimaryCount == routingNodes.unassignedShards.numPrimaries() :
-                "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" + routingNodes.unassigned().numPrimaries() + "]";
+        for (ShardRouting shard : routingNodes.unassigned().ignored()) {
+            if (shard.primary()) {
+                unassignedIgnoredPrimaryCount++;
+            }
+        }
+
+        assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries() :
+                "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" + routingNodes.unassigned().getNumPrimaries() + "]";
+        assert unassignedIgnoredPrimaryCount == routingNodes.unassignedShards.getNumIgnoredPrimaries() :
+                "Unassigned ignored primaries is [" + unassignedIgnoredPrimaryCount + "] but RoutingNodes returned unassigned ignored primaries [" + routingNodes.unassigned().getNumIgnoredPrimaries() + "]";
         assert inactivePrimaryCount == routingNodes.inactivePrimaryCount :
                 "Inactive Primary count [" + inactivePrimaryCount + "] but RoutingNodes returned inactive primaries [" + routingNodes.inactivePrimaryCount + "]";
         assert inactiveShardCount == routingNodes.inactiveShardCount :

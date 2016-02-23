@@ -215,12 +215,12 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
         // verify that NODE_LEAVE is the reason for meta
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(true));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(true));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NODE_LEFT));
@@ -245,12 +245,12 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.routingNodes().shardsWithState(STARTED).get(0);
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail")))).build();
         // verify the reason and details
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(true));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(true));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
@@ -307,7 +307,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
@@ -331,7 +331,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();

@@ -94,6 +94,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private RateLimitingInputStream.Listener snapshotThrottleListener;
 
+    private RateLimitingInputStream.Listener restoreThrottleListener;
+
     private static final String SNAPSHOT_PREFIX = "snapshot-";
 
     @Inject
@@ -124,6 +126,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             @Override
             public void onPause(long nanos) {
                 rateLimiterListener.onSnapshotPause(nanos);
+            }
+        };
+        this.restoreThrottleListener = new RateLimitingInputStream.Listener() {
+            @Override
+            public void onPause(long nanos) {
+                rateLimiterListener.onRestorePause(nanos);
             }
         };
     }
@@ -806,16 +814,19 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void restoreFile(final FileInfo fileInfo) throws IOException {
             boolean success = false;
-            try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
+            try (InputStream partSliceStream = new PartSliceStream(blobContainer, fileInfo)) {
+                final InputStream stream;
+                if (restoreRateLimiter == null) {
+                    stream = partSliceStream;
+                } else {
+                    stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreThrottleListener);
+                }
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while ((length = stream.read(buffer)) > 0) {
                         indexOutput.writeBytes(buffer, 0, length);
                         recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
-                        if (restoreRateLimiter != null) {
-                            rateLimiterListener.onRestorePause(restoreRateLimiter.pause(length));
-                        }
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();

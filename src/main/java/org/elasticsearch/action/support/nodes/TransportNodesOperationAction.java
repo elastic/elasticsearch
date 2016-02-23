@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -102,17 +103,26 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
         private final Request request;
         private final String[] nodesIds;
+        private final DiscoveryNode[] nodes;
+        private final String masterNodeId;
+        private final String localNodeId;
         private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
 
         private AsyncAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
-            clusterState = clusterService.state();
+            ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
+            masterNodeId = clusterState.nodes().masterNodeId();
+            localNodeId = clusterState.nodes().localNodeId();
+            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
+            this.nodes = new DiscoveryNode[nodesIds.length];
+            for (int i = 0; i < nodesIds.length; i++) {
+                this.nodes[i] = nodes.get(nodesIds[i]);
+            }
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }
 
@@ -135,16 +145,16 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             for (int i = 0; i < nodesIds.length; i++) {
                 final String nodeId = nodesIds[i];
                 final int idx = i;
-                final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
+                final DiscoveryNode node = nodes[i];
                 try {
-                    if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
+                    if (nodeId.equals("_local") || nodeId.equals(localNodeId)) {
                         threadPool.executor(executor()).execute(new Runnable() {
                             @Override
                             public void run() {
                                 try {
-                                    onOperation(idx, nodeOperation(newNodeRequest(clusterState.nodes().localNodeId(), request)));
+                                    onOperation(idx, nodeOperation(newNodeRequest(localNodeId, request)));
                                 } catch (Throwable e) {
-                                    onFailure(idx, clusterState.nodes().localNodeId(), e);
+                                    onFailure(idx, localNodeId, e);
                                 }
                             }
                         });
@@ -153,9 +163,9 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                             @Override
                             public void run() {
                                 try {
-                                    onOperation(idx, nodeOperation(newNodeRequest(clusterState.nodes().masterNodeId(), request)));
+                                    onOperation(idx, nodeOperation(newNodeRequest(masterNodeId, request)));
                                 } catch (Throwable e) {
-                                    onFailure(idx, clusterState.nodes().masterNodeId(), e);
+                                    onFailure(idx, masterNodeId, e);
                                 }
                             }
                         });

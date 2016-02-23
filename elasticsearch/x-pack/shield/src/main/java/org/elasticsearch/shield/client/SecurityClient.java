@@ -13,10 +13,6 @@ import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequestBuilder;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
-import org.elasticsearch.shield.action.role.AddRoleAction;
-import org.elasticsearch.shield.action.role.AddRoleRequest;
-import org.elasticsearch.shield.action.role.AddRoleRequestBuilder;
-import org.elasticsearch.shield.action.role.AddRoleResponse;
 import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
 import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.shield.action.role.ClearRolesCacheRequestBuilder;
@@ -29,6 +25,10 @@ import org.elasticsearch.shield.action.role.GetRolesAction;
 import org.elasticsearch.shield.action.role.GetRolesRequest;
 import org.elasticsearch.shield.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
+import org.elasticsearch.shield.action.role.PutRoleAction;
+import org.elasticsearch.shield.action.role.PutRoleRequest;
+import org.elasticsearch.shield.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.action.user.DeleteUserAction;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.action.user.DeleteUserRequestBuilder;
@@ -149,27 +149,27 @@ public class SecurityClient {
 
     /** Role Management */
 
-    public GetRolesRequestBuilder prepareGetRoles() {
-        return new GetRolesRequestBuilder(client);
+    public GetRolesRequestBuilder prepareGetRoles(String... names) {
+        return new GetRolesRequestBuilder(client).names(names);
     }
 
     public void getRoles(GetRolesRequest request, ActionListener<GetRolesResponse> listener) {
         client.execute(GetRolesAction.INSTANCE, request, listener);
     }
 
-    public DeleteRoleRequestBuilder prepareDeleteRole() {
-        return new DeleteRoleRequestBuilder(client);
+    public DeleteRoleRequestBuilder prepareDeleteRole(String name) {
+        return new DeleteRoleRequestBuilder(client).name(name);
     }
 
     public void deleteRole(DeleteRoleRequest request, ActionListener<DeleteRoleResponse> listener) {
         client.execute(DeleteRoleAction.INSTANCE, request, listener);
     }
 
-    public AddRoleRequestBuilder prepareAddRole() {
-        return new AddRoleRequestBuilder(client);
+    public PutRoleRequestBuilder preparePutRole(String name) {
+        return new PutRoleRequestBuilder(client).name(name);
     }
 
-    public void addRole(AddRoleRequest request, ActionListener<AddRoleResponse> listener) {
-        client.execute(AddRoleAction.INSTANCE, request, listener);
+    public void putRole(PutRoleRequest request, ActionListener<PutRoleResponse> listener) {
+        client.execute(PutRoleAction.INSTANCE, request, listener);
     }
 }

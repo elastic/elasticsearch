@@ -15,20 +15,20 @@ import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportAddRoleAction extends HandledTransportAction<AddRoleRequest, AddRoleResponse> {
+public class TransportPutRoleAction extends HandledTransportAction<PutRoleRequest, PutRoleResponse> {
 
     private final ESNativeRolesStore rolesStore;
 
     @Inject
-    public TransportAddRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   ESNativeRolesStore rolesStore, TransportService transportService) {
-        super(settings, AddRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, AddRoleRequest::new);
+        super(settings, PutRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutRoleRequest::new);
         this.rolesStore = rolesStore;
     }
 
     @Override
-    protected void doExecute(AddRoleRequest request, ActionListener<AddRoleResponse> listener) {
+    protected void doExecute(PutRoleRequest request, ActionListener<PutRoleResponse> listener) {
         rolesStore.addRole(request, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean created) {
@@ -37,7 +37,7 @@ public class TransportAddRoleAction extends HandledTransportAction<AddRoleReques
                 } else {
                     logger.info("updated role [{}]", request.name());
                 }
-                listener.onResponse(new AddRoleResponse(created));
+                listener.onResponse(new PutRoleResponse(created));
             }
 
             @Override

@@ -40,7 +40,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.action.role.AddRoleRequest;
+import org.elasticsearch.shield.action.role.PutRoleRequest;
 import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.shield.action.role.DeleteRoleRequest;
@@ -288,15 +288,15 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         return roleAndVersion;
     }
 
-    public void addRole(final AddRoleRequest addRoleRequest, final ActionListener<Boolean> listener) {
+    public void addRole(final PutRoleRequest putRoleRequest, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to add role before service was started");
             listener.onResponse(false);
         }
         try {
             IndexRequest request = client.prepareIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_ROLE_TYPE, addRoleRequest.name())
-                    .setSource(addRoleRequest.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                    INDEX_ROLE_TYPE, putRoleRequest.name())
+                    .setSource(putRoleRequest.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
                     .request();
             client.index(request, new ActionListener<IndexResponse>() {
                 @Override
@@ -305,7 +305,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                         listener.onResponse(indexResponse.isCreated());
                         return;
                     }
-                    clearRoleCache(addRoleRequest.name(), listener, indexResponse.isCreated());
+                    clearRoleCache(putRoleRequest.name(), listener, indexResponse.isCreated());
                 }
 
                 @Override

@@ -11,23 +11,23 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action for adding a role to the shield administrative index
  */
-public class AddRoleAction extends Action<AddRoleRequest, AddRoleResponse, AddRoleRequestBuilder> {
+public class PutRoleAction extends Action<PutRoleRequest, PutRoleResponse, PutRoleRequestBuilder> {
 
-    public static final AddRoleAction INSTANCE = new AddRoleAction();
-    public static final String NAME = "cluster:admin/shield/role/add";
+    public static final PutRoleAction INSTANCE = new PutRoleAction();
+    public static final String NAME = "cluster:admin/shield/role/put";
 
 
-    protected AddRoleAction() {
+    protected PutRoleAction() {
         super(NAME);
     }
 
     @Override
-    public AddRoleRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new AddRoleRequestBuilder(client, this);
+    public PutRoleRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutRoleRequestBuilder(client, this);
     }
 
     @Override
-    public AddRoleResponse newResponse() {
-        return new AddRoleResponse();
+    public PutRoleResponse newResponse() {
+        return new PutRoleResponse();
     }
 }

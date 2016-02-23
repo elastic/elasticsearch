@@ -15,12 +15,12 @@ import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportAddUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
+public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
     private final ESNativeUsersStore usersStore;
 
     @Inject
-    public TransportAddUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   ESNativeUsersStore usersStore, TransportService transportService) {
         super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutUserRequest::new);

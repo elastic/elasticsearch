@@ -17,14 +17,14 @@ import java.io.IOException;
  * Response when adding a role, includes a boolean for whether the role was
  * created or updated.
  */
-public class AddRoleResponse extends ActionResponse implements ToXContent {
+public class PutRoleResponse extends ActionResponse implements ToXContent {
 
     private boolean created;
 
-    public AddRoleResponse() {
+    public PutRoleResponse() {
     }
     
-    public AddRoleResponse(boolean created) {
+    public PutRoleResponse(boolean created) {
         this.created = created;
     }
 

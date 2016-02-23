@@ -17,33 +17,29 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.shield.action.role.AddRoleRequest;
-import org.elasticsearch.shield.action.role.AddRoleResponse;
+import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest endpoint to add a Role to the shield index
  */
-public class RestAddRoleAction extends BaseRestHandler {
+public class RestPutRoleAction extends BaseRestHandler {
 
     @Inject
-    public RestAddRoleAction(Settings settings, RestController controller, Client client) {
+    public RestPutRoleAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.POST, "/_shield/role/{id}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_shield/role/{id}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_shield/role/{name}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_shield/role/{name}", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        AddRoleRequest addRoleReq = new AddRoleRequest(request.content());
-        addRoleReq.name(request.param("id"));
-
-        new SecurityClient(client).addRole(addRoleReq, new RestBuilderListener<AddRoleResponse>(channel) {
+        new SecurityClient(client).preparePutRole(request.param("name")).execute(new RestBuilderListener<PutRoleResponse>(channel) {
             @Override
-            public RestResponse buildResponse(AddRoleResponse addRoleResponse, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK,
                         builder.startObject()
-                        .field("role", addRoleResponse)
+                        .field("role", putRoleResponse)
                         .endObject());
             }
         });

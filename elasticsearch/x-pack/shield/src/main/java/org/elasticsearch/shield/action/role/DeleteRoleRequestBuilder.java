@@ -21,7 +21,7 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
         super(client, action, new DeleteRoleRequest());
     }
 
-    public DeleteRoleRequestBuilder role(String roleName) {
+    public DeleteRoleRequestBuilder name(String roleName) {
         request.role(roleName);
         return this;
     }

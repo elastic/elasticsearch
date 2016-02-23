@@ -12,12 +12,12 @@ cluster:admin/shield/realm/cache/clear
 cluster:admin/shield/realm/cache/clear[n]
 cluster:admin/shield/roles/cache/clear
 cluster:admin/shield/roles/cache/clear[n]
-cluster:admin/shield/role/add
-cluster:admin/shield/role/delete
-cluster:admin/shield/role/get
 cluster:admin/shield/user/put
 cluster:admin/shield/user/delete
 cluster:admin/shield/user/get
+cluster:admin/shield/role/put
+cluster:admin/shield/role/delete
+cluster:admin/shield/role/get
 indices:admin/analyze[s]
 indices:admin/cache/clear[n]
 indices:admin/forcemerge[n]

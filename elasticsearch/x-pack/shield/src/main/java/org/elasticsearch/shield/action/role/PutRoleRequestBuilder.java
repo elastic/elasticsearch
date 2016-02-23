@@ -15,32 +15,32 @@ import java.util.Arrays;
 /**
  * Builder for requests to add a role to the administrative index
  */
-public class AddRoleRequestBuilder extends ActionRequestBuilder<AddRoleRequest, AddRoleResponse, AddRoleRequestBuilder> {
+public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse, PutRoleRequestBuilder> {
 
-    public AddRoleRequestBuilder(ElasticsearchClient client) {
-        this(client, AddRoleAction.INSTANCE);
+    public PutRoleRequestBuilder(ElasticsearchClient client) {
+        this(client, PutRoleAction.INSTANCE);
     }
 
-    public AddRoleRequestBuilder(ElasticsearchClient client, AddRoleAction action) {
-        super(client, action, new AddRoleRequest());
+    public PutRoleRequestBuilder(ElasticsearchClient client, PutRoleAction action) {
+        super(client, action, new PutRoleRequest());
     }
 
-    public AddRoleRequestBuilder name(String name) {
+    public PutRoleRequestBuilder name(String name) {
         request.name(name);
         return this;
     }
 
-    public AddRoleRequestBuilder cluster(String... cluster) {
+    public PutRoleRequestBuilder cluster(String... cluster) {
         request.cluster(Arrays.asList(cluster));
         return this;
     }
 
-    public AddRoleRequestBuilder runAs(String... runAsUsers) {
+    public PutRoleRequestBuilder runAs(String... runAsUsers) {
         request.runAs(Arrays.asList(runAsUsers));
         return this;
     }
 
-    public AddRoleRequestBuilder addIndices(String[] indices, String[] privileges, @Nullable String[] fields,
+    public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges, @Nullable String[] fields,
                                             @Nullable BytesReference query) {
         request.addIndex(indices, privileges, fields, query);
         return this;

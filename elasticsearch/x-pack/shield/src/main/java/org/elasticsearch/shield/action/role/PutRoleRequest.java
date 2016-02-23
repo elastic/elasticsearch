@@ -26,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the shield index
  */
-public class AddRoleRequest extends ActionRequest<AddRoleRequest> implements ToXContent {
+public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToXContent {
 
     private String name;
     private List<String> clusterPriv;
@@ -35,10 +35,10 @@ public class AddRoleRequest extends ActionRequest<AddRoleRequest> implements ToX
     private List<String> runAs = new ArrayList<>();
     private RoleDescriptor roleDescriptor;
     
-    public AddRoleRequest() {
+    public PutRoleRequest() {
     }
 
-    public AddRoleRequest(BytesReference source) throws Exception {
+    public PutRoleRequest(BytesReference source) throws Exception {
         this.roleDescriptor = RoleDescriptor.source(source);
     }
 

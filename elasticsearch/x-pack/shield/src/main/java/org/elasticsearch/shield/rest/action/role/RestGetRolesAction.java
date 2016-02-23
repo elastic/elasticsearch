@@ -31,14 +31,14 @@ public class RestGetRolesAction extends BaseRestHandler {
     public RestGetRolesAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/role/", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_shield/role/{id}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_shield/role/{name}", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String[] roles = Strings.splitStringByCommaToArray(request.param("id"));
+        String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
 
-        new SecurityClient(client).prepareGetRoles().roles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
+        new SecurityClient(client).prepareGetRoles(names).execute(new RestBuilderListener<GetRolesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetRolesResponse getRolesResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();

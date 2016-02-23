@@ -44,10 +44,39 @@ final class JVMCheck {
      */
     static final String JVM_BYPASS = "es.bypass.vm.check";
 
+    /**
+     * Metadata and messaging for checking and reporting HotSpot
+     * issues.
+     */
     interface HotSpotCheck {
+        /**
+         * If this HotSpot check should be executed.
+         *
+         * @return true if this HotSpot check should be executed
+         */
         boolean check();
+
+        /**
+         * The error message to display when this HotSpot issue is
+         * present.
+         *
+         * @return the error message for this HotSpot issue
+         */
         String getErrorMessage();
+
+        /**
+         * The warning message for this HotSpot issue if a workaround
+         * exists and is used.
+         *
+         * @return the warning message for this HotSpot issue
+         */
         Optional<String> getWarningMessage();
+
+        /**
+         * The workaround for this HotSpot issue, if one exists.
+         *
+         * @return the workaround for this HotSpot issue, if one exists
+         */
         Optional<String> workaround();
     }
 

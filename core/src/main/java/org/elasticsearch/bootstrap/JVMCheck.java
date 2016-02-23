@@ -77,7 +77,7 @@ final class JVMCheck {
          *
          * @return the workaround for this HotSpot issue, if one exists
          */
-        Optional<String> workaround();
+        Optional<String> getWorkaround();
     }
 
     /**
@@ -134,7 +134,7 @@ final class JVMCheck {
         }
 
         @Override
-        public Optional<String> workaround() {
+        public Optional<String> getWorkaround() {
             return Optional.of(workAround);
         }
     }
@@ -163,7 +163,7 @@ final class JVMCheck {
         }
 
         @Override
-        public Optional<String> workaround() {
+        public Optional<String> getWorkaround() {
             return Optional.empty();
         }
     }
@@ -199,7 +199,7 @@ final class JVMCheck {
         } else if ("Oracle Corporation".equals(Constants.JVM_VENDOR)) {
             HotSpotCheck bug = JVM_BROKEN_HOTSPOT_VERSIONS.get(Constants.JVM_VERSION);
             if (bug != null && bug.check()) {
-                if (bug.workaround().isPresent() && ManagementFactory.getRuntimeMXBean().getInputArguments().contains(bug.workaround().get())) {
+                if (bug.getWorkaround().isPresent() && ManagementFactory.getRuntimeMXBean().getInputArguments().contains(bug.getWorkaround().get())) {
                     Loggers.getLogger(JVMCheck.class).warn(bug.getWarningMessage().get());
                 } else {
                     throw new RuntimeException(bug.getErrorMessage());

@@ -19,11 +19,19 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
@@ -60,5 +68,121 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNull(doc.rootDoc().getField("foo"));
         assertNotNull(doc.rootDoc().getField("bar"));
         assertNotNull(doc.rootDoc().getField(UidFieldMapper.NAME));
+    }
+
+    public void testDotsAsObject() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").startObject("properties")
+            .startObject("bar").startObject("properties")
+            .startObject("baz").field("type", "integer")
+            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo.bar.baz", 123)
+            .startObject("foo")
+            .field("bar.baz", 456)
+            .endObject()
+            .startObject("foo.bar")
+            .field("baz", 789)
+            .endObject()
+            .endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        String[] values = doc.rootDoc().getValues("foo.bar.baz");
+        assertEquals(3, values.length);
+        assertEquals("123", values[0]);
+        assertEquals("456", values[1]);
+        assertEquals("789", values[2]);
+    }
+
+    DocumentMapper createDummyMapping(MapperService mapperService) throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("a").startObject("properties")
+            .startObject("b").field("type", "object")
+            .endObject().endObject().endObject().endObject().endObject().endObject().string();
+
+        DocumentMapper defaultMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
+        return defaultMapper;
+    }
+
+    // creates an object mapper, which is about 100x harder than it should be....
+    ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
+        String[] nameParts = name.split("\\.");
+        ContentPath path = new ContentPath();
+        for (int i = 0; i < nameParts.length - 1; ++i) {
+            path.add(nameParts[i]);
+        }
+        ParseContext context = new ParseContext.InternalParseContext(Settings.EMPTY,
+            mapperService.documentMapperParser(), mapperService.documentMapper("type"), path);
+        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+        return (ObjectMapper)builder.build(builderContext);
+    }
+
+    public void testEmptyMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
+        assertNull(DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList()));
+    }
+
+    public void testSingleMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
+        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("foo"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        assertNotNull(mapping.root().getMapper("foo"));
+    }
+
+    public void testSubfieldMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
+        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("a.foo"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapper aMapper = mapping.root().getMapper("a");
+        assertNotNull(aMapper);
+        assertTrue(aMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)aMapper).getMapper("foo"));
+    }
+
+    public void testMultipleSubfieldMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
+        List<Mapper> updates = new ArrayList<>();
+        updates.add(new MockFieldMapper("a.foo"));
+        updates.add(new MockFieldMapper("a.bar"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapper aMapper = mapping.root().getMapper("a");
+        assertNotNull(aMapper);
+        assertTrue(aMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)aMapper).getMapper("foo"));
+        assertNotNull(((ObjectMapper)aMapper).getMapper("bar"));
+    }
+
+    public void testDeepSubfieldMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
+        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("a.b.foo"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapper aMapper = mapping.root().getMapper("a");
+        assertNotNull(aMapper);
+        assertTrue(aMapper instanceof ObjectMapper);
+        Mapper bMapper = ((ObjectMapper)aMapper).getMapper("b");
+        assertTrue(bMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)bMapper).getMapper("foo"));
+    }
+
+    public void testObjectMappingUpdate() throws Exception {
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper docMapper = createDummyMapping(mapperService);
+        List<Mapper> updates = new ArrayList<>();
+        updates.add(createObjectMapper(mapperService, "foo"));
+        updates.add(createObjectMapper(mapperService, "foo.bar"));
+        updates.add(new MockFieldMapper("foo.bar.baz"));
+        updates.add(new MockFieldMapper("foo.field"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapper fooMapper = mapping.root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertTrue(fooMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)fooMapper).getMapper("field"));
+        Mapper barMapper = ((ObjectMapper)fooMapper).getMapper("bar");
+        assertTrue(barMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)barMapper).getMapper("baz"));
     }
 }

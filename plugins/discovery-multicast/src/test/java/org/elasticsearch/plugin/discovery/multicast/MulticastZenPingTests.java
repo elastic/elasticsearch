@@ -67,9 +67,11 @@ public class MulticastZenPingTests extends ESTestCase {
         ThreadPool threadPool = new ThreadPool("testSimplePings");
         final ClusterName clusterName = new ClusterName("test");
         final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool).start();
+        transportServiceA.acceptIncomingRequests();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         final TransportService transportServiceB = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool).start();
+        transportServiceB.acceptIncomingRequests();
         final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceB.boundAddress().publishAddress(), Version.CURRENT);
 
         MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName, Version.CURRENT);
@@ -140,6 +142,7 @@ public class MulticastZenPingTests extends ESTestCase {
         final ThreadPool threadPool = new ThreadPool("testExternalPing");
         final ClusterName clusterName = new ClusterName("test");
         final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool).start();
+        transportServiceA.acceptIncomingRequests();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName, Version.CURRENT);

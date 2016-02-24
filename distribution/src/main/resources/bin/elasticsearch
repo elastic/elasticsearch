@@ -57,9 +57,7 @@ CDPATH=""
 SCRIPT="$0"
 
 COMMAND="$1"
-if [[ -z "$COMMAND" ]]; then
-    COMMAND="start"
-elif [ "$COMMAND" = "start" ] || [ "$COMMAND" = "version" ]; then
+if [ "$COMMAND" = "start" ] || [ "$COMMAND" = "version" ]; then
     shift
 else
     COMMAND="start"

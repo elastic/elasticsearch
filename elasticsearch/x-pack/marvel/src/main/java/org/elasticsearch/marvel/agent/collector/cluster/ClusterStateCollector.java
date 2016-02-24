@@ -13,10 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 
@@ -40,9 +39,9 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
     private final Client client;
 
     @Inject
-    public ClusterStateCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+    public ClusterStateCollector(Settings settings, ClusterService clusterService,
                                  MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService,  discoveryService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
     }
 

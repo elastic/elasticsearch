@@ -13,10 +13,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.ArrayList;
@@ -37,9 +36,9 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
     public static final String TYPE = "shards";
 
     @Inject
-    public ShardsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+    public ShardsCollector(Settings settings, ClusterService clusterService,
                            MarvelSettings marvelSettings, MarvelLicensee marvelLicensee) {
-        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
     }
 
     @Override

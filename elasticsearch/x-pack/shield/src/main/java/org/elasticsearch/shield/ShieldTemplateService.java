@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +40,6 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
     private final Provider<InternalClient> clientProvider;
     private final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
 
-    @Inject
     public ShieldTemplateService(Settings settings, ClusterService clusterService,
             Provider<InternalClient> clientProvider, ThreadPool threadPool) {
         super(settings);

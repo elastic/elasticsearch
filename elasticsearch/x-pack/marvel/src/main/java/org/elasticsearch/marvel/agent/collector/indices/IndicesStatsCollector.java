@@ -12,11 +12,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.Shield;
@@ -38,9 +37,9 @@ public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollect
     private final Client client;
 
     @Inject
-    public IndicesStatsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+    public IndicesStatsCollector(Settings settings, ClusterService clusterService,
                                  MarvelSettings  marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
     }
 

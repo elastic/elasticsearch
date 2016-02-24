@@ -14,12 +14,11 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 
@@ -50,10 +49,10 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
     private final Client client;
 
     @Inject
-    public ClusterStatsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+    public ClusterStatsCollector(Settings settings, ClusterService clusterService,
                                  MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client,
                                  LicensesManagerService licensesManagerService, ClusterName clusterName) {
-        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
         this.clusterName = clusterName;
         this.licensesManagerService = licensesManagerService;

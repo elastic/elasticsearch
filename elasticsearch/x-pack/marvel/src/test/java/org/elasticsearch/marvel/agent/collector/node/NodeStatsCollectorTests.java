@@ -9,11 +9,10 @@ import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -50,7 +49,7 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
             assertThat(nodeStatsMarvelDoc.getSourceNode(), notNullValue());
 
             assertThat(nodeStatsMarvelDoc.getNodeId(),
-                    equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
+                    equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().id()));
             assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
             assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
             assertNotNull(nodeStatsMarvelDoc.isDiskThresholdDeciderEnabled());
@@ -96,7 +95,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 internalCluster().getInstance(InternalClient.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(NodeEnvironment.class, nodeId),
                 internalCluster().getInstance(DiskThresholdDecider.class, nodeId));
     }

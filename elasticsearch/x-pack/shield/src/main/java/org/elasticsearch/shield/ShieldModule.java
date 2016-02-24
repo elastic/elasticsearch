@@ -23,7 +23,6 @@ public class ShieldModule extends AbstractShieldModule {
             bind(SecurityContext.Secure.class).asEagerSingleton();
             bind(SecurityContext.class).to(SecurityContext.Secure.class);
             bind(ShieldLifecycleService.class).asEagerSingleton();
-            bind(ShieldTemplateService.class).asEagerSingleton();
             bind(InternalClient.Secure.class).asEagerSingleton();
             bind(InternalClient.class).to(InternalClient.Secure.class);
         }

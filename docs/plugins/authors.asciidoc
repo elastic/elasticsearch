@@ -38,9 +38,7 @@ https://github.com/elastic/elasticsearch/blob/2.x/dev-tools/src/main/resources/p
 Either fill in this template yourself (see
 https://github.com/lmenezes/elasticsearch-kopf/blob/master/plugin-descriptor.properties[elasticsearch-kopf]
 as an example) or, if you are using Elasticsearch's Maven build system, you
-can fill in the necessary values in the `pom.xml` for your plugin. For
-instance, see
-https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/pom.xml[`plugins/site-example/pom.xml`].
+can fill in the necessary values in the `pom.xml` for your plugin.
 
 [float]
 ==== Mandatory elements for all plugins

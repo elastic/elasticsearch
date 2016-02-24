@@ -19,6 +19,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,15 +34,20 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
-public final class PipelineConfiguration implements Writeable<PipelineConfiguration>, ToXContent {
+public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration>
+        implements Writeable<PipelineConfiguration>, ToXContent {
 
-    private final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
+    final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
 
     public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
@@ -61,6 +69,7 @@ public final class PipelineConfiguration implements Writeable<PipelineConfigurat
 
         private String id;
         private BytesReference config;
+        private Map<String, MetaData.Custom> customs = Collections.emptyMap();
 
         void setId(String id) {
             this.id = id;
@@ -113,4 +122,22 @@ public final class PipelineConfiguration implements Writeable<PipelineConfigurat
         out.writeBytesReference(config);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PipelineConfiguration that = (PipelineConfiguration) o;
+
+        if (!id.equals(that.id)) return false;
+        return config.equals(that.config);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = id.hashCode();
+        result = 31 * result + config.hashCode();
+        return result;
+    }
 }

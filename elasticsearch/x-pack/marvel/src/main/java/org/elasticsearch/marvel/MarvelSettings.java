@@ -238,8 +238,6 @@ public class MarvelSettings extends AbstractComponent {
 
     /**
      * Prefix the {@code key} with the Monitoring prefix.
-     * <p>
-     * The {@code key} is prefixed by {@link XPackPlugin#featureSettingPrefix(String)}, {@link Marvel#NAME}, and {@code "."}.
      *
      * @param key The key to prefix
      * @return The key prefixed by the product prefixes.

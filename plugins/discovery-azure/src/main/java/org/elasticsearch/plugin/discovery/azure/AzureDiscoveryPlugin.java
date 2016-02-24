@@ -27,8 +27,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.azure.AzureDiscovery;
 import org.elasticsearch.discovery.azure.AzureUnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
@@ -36,6 +36,7 @@ import java.util.Collections;
 
 public class AzureDiscoveryPlugin extends Plugin {
 
+    public static final String AZURE = "azure";
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
 
@@ -61,8 +62,8 @@ public class AzureDiscoveryPlugin extends Plugin {
 
     public void onModule(DiscoveryModule discoveryModule) {
         if (AzureDiscoveryModule.isDiscoveryReady(settings, logger)) {
-            discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
-            discoveryModule.addUnicastHostProvider(AzureUnicastHostsProvider.class);
+            discoveryModule.addDiscoveryType(AZURE, ZenDiscovery.class);
+            discoveryModule.addUnicastHostProvider(AZURE, AzureUnicastHostsProvider.class);
         }
     }
 

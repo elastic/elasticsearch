@@ -25,8 +25,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.node.service.NodeService;
 
 public class NoopDiscovery implements Discovery {
@@ -35,16 +35,6 @@ public class NoopDiscovery implements Discovery {
     @Override
     public DiscoveryNode localNode() {
         return null;
-    }
-
-    @Override
-    public void addListener(InitialStateDiscoveryListener listener) {
-
-    }
-
-    @Override
-    public void removeListener(InitialStateDiscoveryListener listener) {
-
     }
 
     @Override
@@ -69,6 +59,11 @@ public class NoopDiscovery implements Discovery {
 
     @Override
     public DiscoveryStats stats() {
+        return null;
+    }
+
+    @Override
+    public DiscoverySettings getDiscoverySettings() {
         return null;
     }
 

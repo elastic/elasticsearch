@@ -211,7 +211,7 @@ final class Bootstrap {
         Terminal terminal = daemonize ? null : Terminal.DEFAULT;
         Settings.Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), pathHome);
-        if (!Strings.isNullOrEmpty(pidFile)) {
+        if (Strings.hasLength(pidFile)) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal);

@@ -208,7 +208,7 @@ final class Bootstrap {
         }
     }
     private static Environment initialSettings(boolean daemonize, String pathHome, String pidFile) {
-        Terminal terminal = !daemonize ? Terminal.DEFAULT : null;
+        Terminal terminal = daemonize ? null : Terminal.DEFAULT;
         Settings.Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), pathHome);
         if (!Strings.isNullOrEmpty(pidFile)) {

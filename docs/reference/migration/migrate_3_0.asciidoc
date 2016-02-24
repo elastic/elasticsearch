@@ -323,6 +323,13 @@ hatch of setting the system property "es.netty.gathering" to "false".
 Time has proven enabling gathering by default is a non-issue and this
 non-documented setting has been removed.
 
+==== Removed es.useLinkedTransferQueue
+
+The system property `es.useLinkedTransferQueue` could be used to
+control the queue implementation used in the cluster service and the
+handling of ping responses during discovery. This was an undocumented
+setting and has been removed.
+
 [[breaking_30_mapping_changes]]
 === Mapping changes
 

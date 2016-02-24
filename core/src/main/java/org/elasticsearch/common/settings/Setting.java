@@ -78,7 +78,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true if this setting can be dynamically updateable
+     * @param dynamic true iff this setting can be dynamically updateable
      * @param scope the scope of this setting
      */
     public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
@@ -90,7 +90,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true if this setting can be dynamically updateable
+     * @param dynamic true iff this setting can be dynamically updateable
      * @param scope the scope of this setting
      * @param filtered true if this setting should be filtered
      */

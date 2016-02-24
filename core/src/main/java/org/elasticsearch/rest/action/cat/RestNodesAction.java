@@ -64,6 +64,7 @@ import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -117,6 +118,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
+        table.addCell("http_address", "default:false;alias:http;desc:bound http adress");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
@@ -244,6 +246,12 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getHostAddress());
             if (node.address() instanceof InetSocketTransportAddress) {
                 table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            } else {
+                table.addCell("-");
+            }
+            final Map<String, String> serviceAttributes = info.getServiceAttributes();
+            if (serviceAttributes != null) {
+                table.addCell(serviceAttributes.getOrDefault("http_address", "-"));
             } else {
                 table.addCell("-");
             }

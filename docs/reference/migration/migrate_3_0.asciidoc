@@ -97,6 +97,11 @@ characteristics as the former `scan` search type.
 [[breaking_30_rest_api_changes]]
 === REST API changes
 
+==== id values longer than 512 bytes are rejected
+
+When specifying an `_id` value longer than 512 bytes, the request will be
+rejected.
+
 ==== search exists api removed
 
 The search exists api has been removed in favour of using the search api with
@@ -310,6 +315,13 @@ Elasticsearch to print the number of maximum open files for the
 Elasticsearch process has been removed. This same information can be
 obtained from the <<cluster-nodes-info>> API, and a warning is logged
 on startup if it is set too low.
+
+==== Removed es.netty.gathering
+
+Disabling Netty from using NIO gathering could be done via the escape
+hatch of setting the system property "es.netty.gathering" to "false".
+Time has proven enabling gathering by default is a non-issue and this
+non-documented setting has been removed.
 
 [[breaking_30_mapping_changes]]
 === Mapping changes

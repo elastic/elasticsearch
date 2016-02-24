@@ -1,5 +1,5 @@
 {
-  "template" : ".shield",
+  "template" : ".security",
   "order" : 1000,
   "settings" : {
     "number_of_shards" : 1,

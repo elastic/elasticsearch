@@ -30,12 +30,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * ShieldTemplateService is responsible for adding the template needed for the
- * {@code .shield} administrative index.
+ * {@code .security} administrative index.
  */
 public class ShieldTemplateService extends AbstractComponent implements ClusterStateListener {
 
-    public static final String SHIELD_ADMIN_INDEX_NAME = ".shield";
-    public static final String SHIELD_TEMPLATE_NAME = "shield-index-template";
+    public static final String SHIELD_ADMIN_INDEX_NAME = ".security";
+    public static final String SHIELD_TEMPLATE_NAME = "security-index-template";
 
     private final ThreadPool threadPool;
     private final Provider<InternalClient> clientProvider;

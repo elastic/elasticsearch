@@ -28,7 +28,7 @@ dependencies {
 
 integTest {
   cluster {
-    systemProperty 'es.script.inline', 'true'
-    systemProperty 'es.script.indexed', 'true'
+    esArg 'es.script.inline', 'true'
+    esArg 'es.script.indexed', 'true'
   }
 }

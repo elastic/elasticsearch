@@ -23,8 +23,6 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
-import java.time.LocalDateTime
-
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
 
@@ -64,6 +62,8 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
+    Map<String, String> esArgs = new HashMap<>();
+
     Map<String, String> systemProperties = new HashMap<>()
 
     Map<String, String> settings = new HashMap<>()
@@ -76,6 +76,11 @@ class ClusterConfiguration {
     List<Project> modules = new ArrayList<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
+
+    @Input
+    void esArg(String property, String value) {
+        esArgs.put(property, value);
+    }
 
     @Input
     void systemProperty(String property, String value) {

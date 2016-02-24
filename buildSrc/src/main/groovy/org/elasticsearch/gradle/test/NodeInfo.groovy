@@ -129,14 +129,16 @@ class NodeInfo {
             'JAVA_HOME' : project.javaHome,
             'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
-        args.add("-Des.node.portsfile=true")
+        args.addAll("-E", "es.node.portsfile=true")
+        args.addAll(config.esArgs.collectMany { key, value -> ["-E", "${key}=${value}" ] })
         args.addAll(config.systemProperties.collect { key, value -> "-D${key}=${value}" })
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
-                args.add("-D${property.getKey()}=${property.getValue()}")
+                args.add("-E")
+                args.add("${property.getKey()}=${property.getValue()}")
             }
         }
-        args.add("-Des.path.conf=${confDir}")
+        args.addAll("-E", "es.path.conf=${confDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

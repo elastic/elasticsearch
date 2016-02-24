@@ -216,12 +216,26 @@ public class ElasticsearchCommandLineParsingTests extends CliToolTestCase {
     }
 
     private void assertSystemProperty(String name, String expectedValue) {
-        String msg = String.format(Locale.ROOT, "Expected property %s to be %s, terminal output was %s", name, expectedValue, terminal.getTerminalOutput());
+        String msg =
+            String.format(
+                Locale.ROOT,
+                "Expected property %s to be %s, terminal output was %s",
+                name,
+                expectedValue,
+                terminal.getTerminalOutput());
         assertThat(msg, System.getProperty(name), is(expectedValue));
     }
 
     private void assertStatus(int status, int expectedStatus) {
-        assertThat(String.format(Locale.ROOT, "Expected status to be [%s], but was [%s], terminal output was %s", expectedStatus, status, terminal.getTerminalOutput()), status, is(expectedStatus));
+        assertThat(
+            String.format(
+                Locale.ROOT,
+                "Expected status to be [%s], but was [%s], terminal output was %s",
+                expectedStatus,
+                status,
+                terminal.getTerminalOutput()),
+            status,
+            is(expectedStatus));
     }
 
     private void assertThatTerminalOutput(Matcher<String> matcher) {

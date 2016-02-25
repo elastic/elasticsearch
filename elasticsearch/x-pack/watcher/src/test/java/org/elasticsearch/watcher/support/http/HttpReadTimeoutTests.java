@@ -9,18 +9,15 @@ import com.squareup.okhttp.mockwebserver.Dispatcher;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.BindException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -33,20 +30,11 @@ import static org.mockito.Mockito.mock;
 public class HttpReadTimeoutTests extends ESTestCase {
 
     private MockWebServer webServer;
-    private int webPort;
 
     @Before
     public void init() throws Exception {
-        for (webPort = 9200; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                webServer.start(webPort);
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        webServer = new MockWebServer();
+        webServer.start();
     }
 
     @After
@@ -61,7 +49,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         // we're not going to enqueue an response... so the server will just hang
 
-        HttpRequest request = HttpRequest.builder("localhost", webPort)
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
                 .path("/" + randomAsciiOfLength(5))
                 .build();
@@ -93,19 +81,13 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build()
                 , mock(HttpAuthRegistry.class), environment).start();
 
+        final String path = '/' + randomAsciiOfLength(5);
         final CountDownLatch latch = new CountDownLatch(1);
-        webServer.setDispatcher(new Dispatcher() {
-            @Override
-            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                Thread.sleep(5000);
-                latch.countDown();
-                return new MockResponse().setStatus("200");
-            }
-        });
+        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch));
 
-        HttpRequest request = HttpRequest.builder("localhost", webPort)
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path(path)
                 .build();
 
         long start = System.nanoTime();
@@ -137,20 +119,14 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build()
                 , mock(HttpAuthRegistry.class), environment).start();
 
+        final String path = '/' + randomAsciiOfLength(5);
         final CountDownLatch latch = new CountDownLatch(1);
-        webServer.setDispatcher(new Dispatcher() {
-            @Override
-            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                Thread.sleep(5000);
-                latch.countDown();
-                return new MockResponse().setStatus("200");
-            }
-        });
+        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch));
 
-        HttpRequest request = HttpRequest.builder("localhost", webPort)
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .readTimeout(TimeValue.timeValueSeconds(5))
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path(path)
                 .build();
 
         long start = System.nanoTime();
@@ -171,6 +147,26 @@ public class HttpReadTimeoutTests extends ESTestCase {
         if (!latch.await(7, TimeUnit.SECONDS)) {
             // should never happen
             fail("waited too long for the response to be returned");
+        }
+    }
+
+    private class CountDownLatchDispatcher extends Dispatcher {
+
+        private final String path;
+        private final CountDownLatch latch;
+
+        public CountDownLatchDispatcher(String path, CountDownLatch latch) {
+            this.path = path;
+            this.latch = latch;
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+            if (path.equals(request.getPath())) {
+                Thread.sleep(5000);
+                latch.countDown();
+            }
+            return new MockResponse().setStatus("200");
         }
     }
 }

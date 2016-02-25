@@ -25,6 +25,12 @@ grant {
   
   // groovy IndyInterface bootstrap requires this property for indy logging
   permission java.util.PropertyPermission "groovy.indy.logging", "read";
+
+  // needed by Groovy JsonSlurper
+  permission java.util.PropertyPermission "groovy.json.internKeys", "read";
+  permission java.util.PropertyPermission "jdk.map.althashing.threshold", "read";
+  permission java.util.PropertyPermission "groovy.json.faststringutils.write.to.final.fields", "read";
+  permission java.util.PropertyPermission "groovy.json.faststringutils.disable", "read";
   
   // needed by Rhino engine exception handling
   permission java.util.PropertyPermission "rhino.stack.style", "read";

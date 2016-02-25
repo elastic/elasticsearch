@@ -96,6 +96,8 @@ public class GroovySecurityTests extends ESTestCase {
         // assuming a inflation threshold below 100 (15 is current value on Oracle JVMs), checks that the relevant permission is available.
         assertSuccess("(1..100).collect{ it + 1 }");
 
+        assertSuccess("new groovy.json.JsonSlurper().parseText('{ \"foo\": \"bar\" }')");
+
         // Fail cases:
         assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()", MissingPropertyException.class);
 

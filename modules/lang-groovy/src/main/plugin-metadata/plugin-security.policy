@@ -56,4 +56,6 @@ grant {
   permission org.elasticsearch.script.ClassPermission "groovy.lang.MetaClass";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Range";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Reference";
+  permission org.elasticsearch.script.ClassPermission "groovy.json.JsonSlurper";
+  permission org.elasticsearch.script.ClassPermission "groovy.json.internal.JsonParserCharArray";
 };

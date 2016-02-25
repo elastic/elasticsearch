@@ -24,6 +24,7 @@ esplugin {
 
 dependencies {
   compile 'org.codehaus.groovy:groovy:2.4.4:indy'
+  compile 'org.codehaus.groovy:groovy-json:2.4.4:indy'
 }
 
 integTest {
@@ -36,7 +37,10 @@ integTest {
 thirdPartyAudit.excludes = [
   // classes are missing, we bring in a minimal groovy dist
   // for example we do not need ivy, scripts arent allowed to download code
-  'com.thoughtworks.xstream.XStream', 
+  'com.thoughtworks.xstream.XStream',
+  'groovy.json.internal.FastStringUtils',
+  'groovy.json.internal.FastStringUtils$StringImplementation$1',
+  'groovy.json.internal.FastStringUtils$StringImplementation$2',
   'groovyjarjarasm.asm.util.Textifiable', 
   'org.apache.ivy.Ivy', 
   'org.apache.ivy.core.event.IvyListener', 

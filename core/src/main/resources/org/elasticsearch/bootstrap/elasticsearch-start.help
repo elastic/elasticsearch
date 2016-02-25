@@ -1,5 +1,4 @@
- -E                   : configure an Elasticsearch setting (default: {})
- -H (--path.home) VAL : Elasticsearch path.home
- -d (--daemonize)     : daemonize Elasticsearch (default: false)
- -h (--help)          : print this message (default: false)
- -p (--pidfile) VAL   : pid file location
+ -E                 : configure an Elasticsearch setting (default: {})
+ -d (--daemonize)   : daemonize Elasticsearch (default: false)
+ -h (--help)        : print this message (default: false)
+ -p (--pidfile) VAL : pid file location

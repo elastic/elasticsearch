@@ -140,7 +140,7 @@ public final class Elasticsearch {
 
     public static class StartCommand extends Command {
 
-        @Option(name = "-H", aliases = "--path.home", usage = "Elasticsearch path.home")
+        @Option(name = "--path.home")
         String pathHome;
 
         @Option(name = "-d", aliases = "--daemonize", usage = "daemonize Elasticsearch")

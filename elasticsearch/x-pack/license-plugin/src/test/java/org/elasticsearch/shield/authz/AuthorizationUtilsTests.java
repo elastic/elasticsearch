@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Unit tests for the AuthorizationUtils class
  */
-public class AuthorizationUtilsTest extends ESTestCase {
+public class AuthorizationUtilsTests extends ESTestCase {
 
     private ThreadContext threadContext;
 

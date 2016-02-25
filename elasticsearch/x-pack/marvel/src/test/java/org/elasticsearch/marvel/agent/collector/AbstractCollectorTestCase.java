@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0)
-public class AbstractCollectorTestCase extends MarvelIntegTestCase {
+public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

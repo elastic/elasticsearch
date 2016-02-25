@@ -72,6 +72,10 @@ while (true) {
     }
 }
 --------------------------------------------------
+[NOTE]
+====
+The size-parameter is per shard, so if you run a query against multiple indices (leading to many shards being involved in the query) the result might be more documents per execution of the scroll than you would expect!
+====
 
 [[java-search-msearch]]
 === MultiSearch API

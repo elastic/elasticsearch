@@ -3,7 +3,7 @@
 
 The Elasticsearch repository contains examples of:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/site-example[site plugin]
+* a https://github.com/elastic/elasticsearch/tree/2.2/plugins/site-example[site plugin]
   for serving static HTML, JavaScript, and CSS.
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/jvm-example[Java plugin]
   which contains Java code.

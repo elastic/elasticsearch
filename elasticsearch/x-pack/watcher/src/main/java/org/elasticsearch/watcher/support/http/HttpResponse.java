@@ -52,11 +52,11 @@ public class HttpResponse implements ToXContent {
     }
 
     public HttpResponse(int status, @Nullable byte[] body) {
-        this(status, body != null ? new BytesArray(body) : null, emptyMap());
+        this(status, body != null && body.length > 0 ? new BytesArray(body) : null, emptyMap());
     }
 
     public HttpResponse(int status, @Nullable byte[] body, Map<String, String[]> headers) {
-        this(status, body != null ? new BytesArray(body) : null, headers);
+        this(status, body != null && body.length > 0 ? new BytesArray(body) : null, headers);
     }
 
     public HttpResponse(int status, @Nullable BytesReference body, Map<String, String[]> headers) {

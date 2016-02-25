@@ -34,14 +34,15 @@ public class RestPutRoleAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        new SecurityClient(client).preparePutRole(request.param("name")).execute(new RestBuilderListener<PutRoleResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK,
-                        builder.startObject()
-                        .field("role", putRoleResponse)
-                        .endObject());
-            }
-        });
+        new SecurityClient(client).preparePutRole(request.param("name"), request.content()).execute(
+                new RestBuilderListener<PutRoleResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
+                        return new BytesRestResponse(RestStatus.OK,
+                                builder.startObject()
+                                        .field("role", putRoleResponse)
+                                        .endObject());
+                    }
+                });
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.shield.action.role;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +17,7 @@ import org.elasticsearch.shield.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -29,17 +28,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToXContent {
 
     private String name;
-    private List<String> clusterPriv;
-    // List of index names to privileges
-    private List<RoleDescriptor.IndicesPrivileges> indices = new ArrayList<>();
-    private List<String> runAs = new ArrayList<>();
-    private RoleDescriptor roleDescriptor;
+    private String[] clusterPrivileges;
+    private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+    private String[] runAs;
     
     public PutRoleRequest() {
-    }
-
-    public PutRoleRequest(BytesReference source) throws Exception {
-        this.roleDescriptor = RoleDescriptor.source(source);
     }
 
     @Override
@@ -51,20 +44,24 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToX
         return validationException;
     }
 
+    public void source(String name, BytesReference source) throws Exception {
+        RoleDescriptor descriptor = RoleDescriptor.source(name, source);
+        this.name = descriptor.getName();
+        this.clusterPrivileges = descriptor.getClusterPrivileges();
+        this.indicesPrivileges = Arrays.asList(descriptor.getIndicesPrivileges());
+        this.runAs = descriptor.getRunAs();
+    }
+
     public void name(String name) {
         this.name = name;
     }
 
-    public void cluster(String clusterPrivilege) {
-        this.clusterPriv = Collections.singletonList(clusterPrivilege);
-    }
-
-    public void cluster(List<String> clusterPrivileges) {
-        this.clusterPriv = clusterPrivileges;
+    public void cluster(String... clusterPrivileges) {
+        this.clusterPrivileges = clusterPrivileges;
     }
 
     public void addIndex(String[] indices, String[] privileges, @Nullable String[] fields, @Nullable BytesReference query) {
-        this.indices.add(RoleDescriptor.IndicesPrivileges.builder()
+        this.indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(indices)
                 .privileges(privileges)
                 .fields(fields)
@@ -72,7 +69,7 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToX
                 .build());
     }
 
-    public void runAs(List<String> usernames) {
+    public void runAs(String... usernames) {
         this.runAs = usernames;
     }
 
@@ -80,72 +77,46 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToX
         return name;
     }
 
-    public List<String> cluster() {
-        return clusterPriv;
+    public String[] cluster() {
+        return clusterPrivileges;
     }
 
-    public List<RoleDescriptor.IndicesPrivileges> indices() {
-        return indices;
+    public RoleDescriptor.IndicesPrivileges[] indices() {
+        return indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]);
     }
 
-    public List<String> runAs() {
+    public String[] runAs() {
         return runAs;
     }
 
     private RoleDescriptor roleDescriptor() {
-        if (this.roleDescriptor != null) {
-            return this.roleDescriptor;
-        }
-        this.roleDescriptor = new RoleDescriptor(name, this.clusterPriv.toArray(Strings.EMPTY_ARRAY),
-                this.indices, this.runAs.toArray(Strings.EMPTY_ARRAY));
-        return this.roleDescriptor;
+        return new RoleDescriptor(name, clusterPrivileges,
+                indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]), runAs);
     }
     
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readString();
-        int clusterSize = in.readVInt();
-        List<String> tempCluster = new ArrayList<>(clusterSize);
-        for (int i = 0; i < clusterSize; i++) {
-            tempCluster.add(in.readString());
-        }
-        clusterPriv = tempCluster;
+        clusterPrivileges = in.readOptionalStringArray();
         int indicesSize = in.readVInt();
-        indices = new ArrayList<>(indicesSize);
+        indicesPrivileges = new ArrayList<>(indicesSize);
         for (int i = 0; i < indicesSize; i++) {
-            indices.add(RoleDescriptor.IndicesPrivileges.readIndicesPrivileges(in));
+            indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.readIndicesPrivileges(in));
         }
-        if (in.readBoolean()) {
-            int runAsSize = in.readVInt();
-            runAs = new ArrayList<>(runAsSize);
-            for (int i = 0; i < runAsSize; i++) {
-                runAs.add(in.readString());
-            }
-        }
+        runAs = in.readOptionalStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        out.writeVInt(clusterPriv.size());
-        for (String cluster : clusterPriv) {
-            out.writeString(cluster);
-        }
-        out.writeVInt(indices.size());
-        for (RoleDescriptor.IndicesPrivileges index : indices) {
+        out.writeOptionalStringArray(clusterPrivileges);
+        out.writeVInt(indicesPrivileges.size());
+        for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
-        if (runAs.isEmpty() == false) {
-            out.writeBoolean(true);
-            out.writeVInt(runAs.size());
-            for (String runAsUser : runAs) {
-                out.writeString(runAsUser);
-            }
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalStringArray(runAs);
     }
 
     @Override

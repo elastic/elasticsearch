@@ -29,14 +29,14 @@ import java.util.List;
 public class RoleDescriptor implements ToXContent {
 
     private final String name;
-    private final String[] clusterPattern;
-    private final List<IndicesPrivileges> indicesPrivileges;
+    private final String[] clusterPrivileges;
+    private final IndicesPrivileges[] indicesPrivileges;
     private final String[] runAs;
 
-    public RoleDescriptor(String name, String[] clusterPattern,
-                          List<IndicesPrivileges> indicesPrivileges, String[] runAs) {
+    public RoleDescriptor(String name, String[] clusterPrivileges,
+                          IndicesPrivileges[] indicesPrivileges, String[] runAs) {
         this.name = name;
-        this.clusterPattern = clusterPattern;
+        this.clusterPrivileges = clusterPrivileges;
         this.indicesPrivileges = indicesPrivileges;
         this.runAs = runAs;
     }
@@ -45,11 +45,11 @@ public class RoleDescriptor implements ToXContent {
         return this.name;
     }
 
-    public String[] getClusterPattern() {
-        return this.clusterPattern;
+    public String[] getClusterPrivileges() {
+        return this.clusterPrivileges;
     }
 
-    public List<IndicesPrivileges> getIndicesPrivileges() {
+    public IndicesPrivileges[] getIndicesPrivileges() {
         return this.indicesPrivileges;
     }
 
@@ -149,21 +149,28 @@ public class RoleDescriptor implements ToXContent {
         return tempIndices;
     }
 
-    public static RoleDescriptor source(BytesReference source) throws Exception {
+    public static RoleDescriptor source(String name, BytesReference source) throws Exception {
         try (XContentParser parser = XContentHelper.createParser(source)) {
             XContentParser.Token token;
             String currentFieldName = null;
-            String roleName = null;
+            String roleName = name;
             List<IndicesPrivileges> indicesPrivileges = new ArrayList<>();
             List<String> runAsUsers = new ArrayList<>();
-            List<String> tempClusterPriv = new ArrayList<>();
+            List<String> clusterPrivileges = new ArrayList<>();
             parser.nextToken(); // remove object wrapping
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if ("name".equals(currentFieldName)) {
-                        roleName = parser.text();
+                        if (roleName == null) {
+                            // if the role name is not given, we'll parse it from the source
+                            roleName = parser.text();
+                        } else if (roleName.equals(parser.text()) == false) {
+                            // if the given role name is not the same as the parsed role name, we have inconstency and we need to
+                            // throw an error
+                            throw new ElasticsearchParseException("expected role name [{}] but found [{}] instead", roleName, parser.text());
+                        }
                     } else {
                         throw new ElasticsearchParseException("unexpected field in add role request [{}]", currentFieldName);
                     }
@@ -180,7 +187,7 @@ public class RoleDescriptor implements ToXContent {
                 } else if (token == XContentParser.Token.START_ARRAY && "cluster".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token.isValue()) {
-                            tempClusterPriv.add(parser.text());
+                            clusterPrivileges.add(parser.text());
                         } else {
                             throw new ElasticsearchParseException("unexpected value parsing cluster privileges [{}]", token);
                         }
@@ -193,8 +200,9 @@ public class RoleDescriptor implements ToXContent {
             if (roleName == null) {
                 throw new ElasticsearchParseException("field [name] required for role description");
             }
-            return new RoleDescriptor(roleName, tempClusterPriv.toArray(Strings.EMPTY_ARRAY),
-                    indicesPrivileges, runAsUsers.toArray(Strings.EMPTY_ARRAY));
+            return new RoleDescriptor(roleName, clusterPrivileges.toArray(new String[clusterPrivileges.size()]),
+                    indicesPrivileges.toArray(new IndicesPrivileges[indicesPrivileges.size()]),
+                    runAsUsers.toArray(new String[runAsUsers.size()]));
         }
     }
 
@@ -202,7 +210,7 @@ public class RoleDescriptor implements ToXContent {
     public String toString() {
         StringBuilder sb = new StringBuilder("Role[");
         sb.append("name=").append(name);
-        sb.append(", cluster=[").append(Strings.arrayToCommaDelimitedString(clusterPattern));
+        sb.append(", cluster=[").append(Strings.arrayToCommaDelimitedString(clusterPrivileges));
         sb.append("], indicesPrivileges=[");
         for (IndicesPrivileges group : indicesPrivileges) {
             sb.append(group.toString()).append(",");
@@ -216,8 +224,8 @@ public class RoleDescriptor implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("name", name);
-        builder.field("cluster", clusterPattern);
-        builder.field("indices", indicesPrivileges);
+        builder.field("cluster", clusterPrivileges);
+        builder.field("indices", (Object[]) indicesPrivileges);
         if (runAs != null) {
             builder.field("run_as", runAs);
         }
@@ -236,17 +244,17 @@ public class RoleDescriptor implements ToXContent {
             indicesPrivileges.add(group);
         }
         String[] runAs = in.readStringArray();
-        return new RoleDescriptor(name, clusterPattern, indicesPrivileges, runAs);
+        return new RoleDescriptor(name, clusterPattern, indicesPrivileges.toArray(new IndicesPrivileges[indicesPrivileges.size()]), runAs);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
-        out.writeString(descriptor.getName());
-        out.writeStringArray(descriptor.getClusterPattern());
-        out.writeVInt(descriptor.getIndicesPrivileges().size());
-        for (IndicesPrivileges group : descriptor.getIndicesPrivileges()) {
+        out.writeString(descriptor.name);
+        out.writeStringArray(descriptor.clusterPrivileges);
+        out.writeVInt(descriptor.indicesPrivileges.length);
+        for (IndicesPrivileges group : descriptor.indicesPrivileges) {
             group.writeTo(out);
         }
-        out.writeStringArray(descriptor.getRunAs());
+        out.writeStringArray(descriptor.runAs);
     }
 
     public static class IndicesPrivilegesBuilder {

@@ -169,6 +169,10 @@ public class SecurityClient {
         return new PutRoleRequestBuilder(client).name(name);
     }
 
+    public PutRoleRequestBuilder preparePutRole(String name, BytesReference source) throws Exception {
+        return new PutRoleRequestBuilder(client).source(name, source);
+    }
+
     public void putRole(PutRoleRequest request, ActionListener<PutRoleResponse> listener) {
         client.execute(PutRoleAction.INSTANCE, request, listener);
     }

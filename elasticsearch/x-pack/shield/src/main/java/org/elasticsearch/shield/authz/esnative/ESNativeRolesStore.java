@@ -110,7 +110,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     @Nullable
     private RoleDescriptor transformRole(BytesReference sourceBytes) {
         try {
-            return RoleDescriptor.source(sourceBytes);
+            return RoleDescriptor.source(null, sourceBytes);
         } catch (Exception e) {
             logger.warn("unable to deserialize role from response", e);
             return null;

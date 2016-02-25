@@ -400,7 +400,7 @@ class BuildPlugin implements Plugin<Project> {
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'
             systemProperty 'java.awt.headless', 'true'
-            systemProperty 'tests.maven', 'true' // TODO: rename this once we've switched to gradle!
+            systemProperty 'tests.gradle', 'true'
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'

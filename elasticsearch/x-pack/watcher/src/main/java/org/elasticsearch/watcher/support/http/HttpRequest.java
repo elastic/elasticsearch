@@ -445,9 +445,9 @@ public class HttpRequest implements ToXContent {
         public Builder fromUrl(String supposedUrl) {
             try {
                 URI uri = new URI(supposedUrl);
-                port = uri.getPort() > 0 ? uri.getPort() : 80;
-                host = uri.getHost();
                 scheme = Scheme.parse(uri.getScheme());
+                port = uri.getPort() > 0 ? uri.getPort() : scheme.defaultPort();
+                host = uri.getHost();
                 if (Strings.hasLength(uri.getPath())) {
                     path = uri.getPath();
                 }

@@ -155,6 +155,10 @@ public class HttpRequestTemplateTests extends ESTestCase {
         builder.scheme(Scheme.HTTPS);
         assertThatManualBuilderEqualsParsingFromUrl("https://www.example.org:1234/foo/bar/org?param=test", builder);
 
+        // ssl support, getting the default port right
+        builder = HttpRequestTemplate.builder("www.example.org", 443).scheme(Scheme.HTTPS).path("/test");
+        assertThatManualBuilderEqualsParsingFromUrl("https://www.example.org/test", builder);
+
         // test without specifying port
         builder = HttpRequestTemplate.builder("www.example.org", 80);
         assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org", builder);

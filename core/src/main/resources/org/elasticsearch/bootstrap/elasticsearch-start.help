@@ -1,4 +1,4 @@
- -E                   : configure an Elasticsearch property (default: {})
+ -E                   : configure an Elasticsearch setting (default: {})
  -H (--path.home) VAL : Elasticsearch path.home
  -d (--daemonize)     : daemonize Elasticsearch (default: false)
  -h (--help)          : print this message (default: false)

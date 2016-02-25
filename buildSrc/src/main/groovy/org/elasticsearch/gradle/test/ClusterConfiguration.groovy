@@ -62,7 +62,7 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
-    Map<String, String> esArgs = new HashMap<>();
+    Map<String, String> esSettings = new HashMap<>();
 
     Map<String, String> systemProperties = new HashMap<>()
 
@@ -78,8 +78,8 @@ class ClusterConfiguration {
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
     @Input
-    void esArg(String property, String value) {
-        esArgs.put(property, value);
+    void esSetting(String setting, String value) {
+        esSettings.put(setting, value);
     }
 
     @Input

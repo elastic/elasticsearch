@@ -335,16 +335,16 @@ setting and has been removed.
 Elasticsearch can be configured by setting system properties on the
 command line via `-Des.name.of.property=value.of.property`. This will be
 removed in a future version of Elasticsearch. Instead, use
-`-E es.name.of.property=value.of.property`. Note that in all cases the
-name of the property must be prefixed with `es.`.
+`-E es.name.of.setting=value.of.setting`. Note that in all cases the
+name of the setting must be prefixed with `es.`.
 
 ==== Removed using double-dashes to configure Elasticsearch
 
 Elasticsearch could previously be configured on the command line by
-setting settings via `--name.of.property value.of.property`. This feature
+setting settings via `--name.of.setting value.of.setting`. This feature
 has been removed. Instead, use
-`-E es.name.of.property=value.of.property`. Note that in all cases the
-name of the property must be prefixed with `es.`.
+`-E es.name.of.setting=value.of.setting`. Note that in all cases the
+name of the setting must be prefixed with `es.`.
 
 [[breaking_30_mapping_changes]]
 === Mapping changes

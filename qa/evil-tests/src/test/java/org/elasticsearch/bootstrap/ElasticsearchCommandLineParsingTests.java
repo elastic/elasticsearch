@@ -23,9 +23,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.StreamsUtils;
@@ -40,12 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
-import java.util.StringTokenizer;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -125,13 +118,13 @@ public class ElasticsearchCommandLineParsingTests extends CliToolTestCase {
         assertStatus(command.status, 0);
         assertThat(command, instanceOf(Elasticsearch.StartCommand.class));
         Elasticsearch.StartCommand startCommand = (Elasticsearch.StartCommand)command;
-        assertProperty(startCommand.properties, "es.foo", "bar");
-        assertProperty(startCommand.properties, "es.spam", "eggs");
+        assertSetting(startCommand.settings, "es.foo", "bar");
+        assertSetting(startCommand.settings, "es.spam", "eggs");
     }
 
-    private void assertProperty(Map<String, String> properties, String key, String value) {
-        assertTrue(properties.containsKey(key));
-        assertThat(properties.get(key), equalTo(value));
+    private void assertSetting(Map<String, String> settings, String key, String value) {
+        assertTrue(settings.containsKey(key));
+        assertThat(settings.get(key), equalTo(value));
         assertSystemProperty(key, value);
     }
 
@@ -140,7 +133,7 @@ public class ElasticsearchCommandLineParsingTests extends CliToolTestCase {
             Elasticsearch.parse(args("start -E foo=bar"));
             fail("should have thrown IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Elasticsearch properties must be prefixed with \"es.\" but was \"foo\""));
+            assertThat(e.getMessage(), containsString("Elasticsearch settings must be prefixed with \"es.\" but was \"foo\""));
         }
     }
 
@@ -151,8 +144,8 @@ public class ElasticsearchCommandLineParsingTests extends CliToolTestCase {
         assertStatus(command.status, 0);
         assertThat(command, instanceOf(Elasticsearch.StartCommand.class));
         Elasticsearch.StartCommand startCommand = (Elasticsearch.StartCommand)command;
-        assertProperty(startCommand.properties, "es.network.host", "127.0.0.1");
-        assertProperty(startCommand.properties, "es.my.option", "true");
+        assertSetting(startCommand.settings, "es.network.host", "127.0.0.1");
+        assertSetting(startCommand.settings, "es.my.option", "true");
     }
 
     public void testThatUnknownLongOptionsNeedAValue() throws Exception {
@@ -208,7 +201,7 @@ public class ElasticsearchCommandLineParsingTests extends CliToolTestCase {
         assertThat(command, instanceOf(Elasticsearch.StartCommand.class));
         Elasticsearch.StartCommand startCommand = (Elasticsearch.StartCommand)command;
         assertThat(startCommand.pidFile, equalTo("foo with space"));
-        assertProperty(startCommand.properties, "es.my.param", "my awesome neighbour");
+        assertSetting(startCommand.settings, "es.my.param", "my awesome neighbour");
     }
 
     private void registerProperties(String ... systemProperties) {

@@ -21,6 +21,6 @@ apply plugin: 'elasticsearch.rest-test'
 
 integTest {
     cluster {
-        esArg 'es.node.ingest', 'false'
+        esSetting 'es.node.ingest', 'false'
     }
 }

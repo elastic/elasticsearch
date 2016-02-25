@@ -147,8 +147,8 @@ public final class Elasticsearch {
         @Option(name = "-p", aliases = "--pidfile", usage = "pid file location")
         String pidFile;
 
-        @Option(name = "-E", handler = EsMapOptionHandler.class, usage = "configure an Elasticsearch property")
-        Map<String, String> properties = new HashMap<>();
+        @Option(name = "-E", handler = EsMapOptionHandler.class, usage = "configure an Elasticsearch setting")
+        Map<String, String> settings = new HashMap<>();
 
         @Override
         void execute(Terminal terminal) {
@@ -180,7 +180,7 @@ public final class Elasticsearch {
             @Override
             protected void addToMap(Map m, String key, String value) {
                 if (!key.startsWith("es.")) {
-                    throw new IllegalArgumentException("Elasticsearch properties must be prefixed with \"es.\" but was \"" + key + "\"");
+                    throw new IllegalArgumentException("Elasticsearch settings must be prefixed with \"es.\" but was \"" + key + "\"");
                 }
                 System.setProperty(key, value);
                 super.addToMap(m, key, value);

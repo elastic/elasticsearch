@@ -111,7 +111,7 @@ public final class BootstrapInfo {
     }
 
     /**
-     * Returns a read-only view of all system properties
+     * Returns a read-only view of all system settings
      */
     public static Dictionary<Object,Object> getSystemProperties() {
         SecurityManager sm = System.getSecurityManager();

@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.lessThan;
  * Two groovy-using methods from ManualExecutionTests.
  * They appear to be using groovy as a way to sleep.
  */
-public class GroovyManualExecutionTests extends AbstractWatcherIntegrationTestCase {
+public class GroovyManualExecutionIT extends AbstractWatcherIntegrationTestCase {
   
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {

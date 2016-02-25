@@ -73,7 +73,7 @@ import static org.joda.time.DateTimeZone.UTC;
 /**
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
-public class SearchInputTests extends ESIntegTestCase {
+public class SearchInputIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -100,7 +100,7 @@ public class SearchInputTests extends ESIntegTestCase {
 
         }
         String path = "/org/elasticsearch/watcher/input/search/config/scripts/test_disk_template.mustache";
-        try (InputStream stream  = SearchInputTests.class.getResourceAsStream("/org/elasticsearch/watcher/input/search/config/scripts" +
+        try (InputStream stream  = SearchInputIT.class.getResourceAsStream("/org/elasticsearch/watcher/input/search/config/scripts" +
                 "/test_disk_template.mustache");
              OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
             Streams.copy(stream, out);

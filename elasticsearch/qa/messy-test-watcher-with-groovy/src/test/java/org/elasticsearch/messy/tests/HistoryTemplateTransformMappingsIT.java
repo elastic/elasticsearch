@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
+public class HistoryTemplateTransformMappingsIT extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {

@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 @ShieldIntegTestCase.AwaitsFix(bugUrl = "clean up test to not use mustache templates, otherwise needs many resources here")
-public class ShieldCachePermissionTests extends ShieldIntegTestCase {
+public class ShieldCachePermissionIT extends ShieldIntegTestCase {
     static final String READ_ONE_IDX_USER = "read_user";
     
     @Override

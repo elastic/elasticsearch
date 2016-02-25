@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCase {
+public class TransformIT extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -60,7 +60,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         Path scripts = configDir.resolve("scripts");
         try {
             Files.createDirectories(scripts);
-            try (InputStream stream = TransformIntegrationTests.class.getResourceAsStream("/config/scripts/my-script.groovy");
+            try (InputStream stream = TransformIT.class.getResourceAsStream("/config/scripts/my-script.groovy");
                  OutputStream output = Files.newOutputStream(scripts.resolve("my-script.groovy"))) {
                 Streams.copy(stream, output);
             }

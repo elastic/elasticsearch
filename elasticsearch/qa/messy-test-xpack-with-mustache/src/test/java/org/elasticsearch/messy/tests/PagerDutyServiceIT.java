@@ -11,14 +11,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.watcher.actions.slack.SlackAction;
-import org.elasticsearch.watcher.actions.slack.service.SentMessages;
-import org.elasticsearch.watcher.actions.slack.service.SlackAccount;
-import org.elasticsearch.watcher.actions.slack.service.SlackService;
-import org.elasticsearch.watcher.actions.slack.service.message.Attachment;
-import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
+import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEvent;
+import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEventContext;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
+import org.elasticsearch.watcher.actions.pagerduty.service.SentEvent;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.Collection;
 import java.util.List;
@@ -26,7 +27,8 @@ import java.util.List;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.watcher.actions.ActionBuilders.slackAction;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.watcher.actions.ActionBuilders.pagerDutyAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
@@ -40,7 +42,8 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 @Network
-public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
+public class PagerDutyServiceIT extends AbstractWatcherIntegrationTestCase {
+
     @Override
     protected boolean timeWarped() {
         return true;
@@ -69,48 +72,41 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-
-                // this is for the `test-watcher-integration` group level integration in HipChat
-                .put("watcher.actions.slack.service.account.test_account.url",
-                        "https://hooks.slack.com/services/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")
+                .put("watcher.actions.pagerduty.service.account.test_account.service_api_key", "fc082467005d4072a914e0bb041882d0")
                 .build();
     }
 
-    public void testSendMessage() throws Exception {
-        SlackService service = getInstanceFromMaster(SlackService.class);
-        Attachment[] attachments = new Attachment[] {
-                new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext", "author_name", null, null,
-                        "title", null, "_text", null, null, null)
-        };
-        SlackMessage message = new SlackMessage(
-                "SlackServiceTests",
-                new String[] { "#watcher-test", "#watcher-test-2"}, // TODO once we have a dedicated test user in slack, add it here
-                null,
-                "slack integration test `testSendMessage()`", attachments);
+    public void testSendTriggerEvent() throws Exception {
+        PagerDutyService service = getInstanceFromMaster(PagerDutyService.class);
 
-        SlackAccount account = service.getAccount("test_account");
+        IncidentEvent event = new IncidentEvent("#testIncidentEvent()", null, null, "PagerDutyServiceTests", "_client_url", "_account",
+                true, new IncidentEventContext[] {
+                IncidentEventContext.link("_href", "_text"),
+                IncidentEventContext.image("_src", "_href", "_alt")
+        });
+
+        Payload payload = new Payload.Simple("_key", "_val");
+
+        PagerDutyAccount account = service.getAccount("test_account");
         assertThat(account, notNullValue());
-        SentMessages messages = account.send(message);
-        assertThat(messages.count(), is(2));
-        for (SentMessages.SentMessage sentMessage : messages) {
-            assertThat(sentMessage.successful(), is(true));
-            assertThat(sentMessage.getRequest(), notNullValue());
-            assertThat(sentMessage.getResponse(), notNullValue());
-            assertThat(sentMessage.getResponse().status(), lessThan(300));
-        }
+        SentEvent sentEvent = account.send(event, payload);
+        assertThat(sentEvent, notNullValue());
+        assertThat(sentEvent.successful(), is(true));
+        assertThat(sentEvent.getRequest(), notNullValue());
+        assertThat(sentEvent.getResponse(), notNullValue());
+        assertThat(sentEvent.getResponse().status(), lessThan(300));
     }
 
-    public void testWatchWithSlackAction() throws Exception {
+    public void testWatchWithPagerDutyAction() throws Exception {
         String account = "test_account";
-        SlackAction.Builder actionBuilder = slackAction(account, SlackMessage.Template.builder()
-                .setText("slack integration test `{{ctx.payload.ref}}`")
-                .addTo("#watcher-test", "#watcher-test-2"));
+        PagerDutyAction.Builder actionBuilder = pagerDutyAction(IncidentEvent
+                .templateBuilder("pager duty integration test `{{ctx.payload.ref}}`").setAccount(account));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
-                .input(simpleInput("ref", "testWatchWithSlackAction()"))
+                .input(simpleInput("ref", "testWatchWithPagerDutyAction()"))
                 .condition(alwaysCondition())
-                .addAction("slack", actionBuilder))
+                .addAction("pd", actionBuilder))
                 .execute().get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -120,15 +116,13 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("1", 1L, false);
-
         SearchResponse response = searchHistory(searchSource().query(boolQuery()
-                .must(termQuery("result.actions.id", "slack"))
-                .must(termQuery("result.actions.type", "slack"))
+                .must(termQuery("result.actions.id", "pd"))
+                .must(termQuery("result.actions.type", "pagerduty"))
                 .must(termQuery("result.actions.status", "success"))
-                .must(termQuery("result.actions.slack.account", account))
-                .must(termQuery("result.actions.slack.sent_messages.status", "success"))));
+                .must(termQuery("result.actions.pagerduty.sent_event.event.account", account))));
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits(), is(1L));
+        assertHitCount(response, 1L);
     }
 }

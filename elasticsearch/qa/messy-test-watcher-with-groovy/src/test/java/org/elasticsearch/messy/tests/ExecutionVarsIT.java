@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTestCase {
+public class ExecutionVarsIT extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {

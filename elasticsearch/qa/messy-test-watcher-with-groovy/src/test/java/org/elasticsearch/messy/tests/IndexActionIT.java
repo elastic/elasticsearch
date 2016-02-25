@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class IndexActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
+public class IndexActionIT extends AbstractWatcherIntegrationTestCase {
     
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {

@@ -53,7 +53,9 @@ public final class Elasticsearch {
      */
     public static void main(String[] args) {
         int status = main(args, Terminal.DEFAULT);
-        exit(status);
+        if (status != 0) {
+            exit(status);
+        }
     }
 
     // visible for testing

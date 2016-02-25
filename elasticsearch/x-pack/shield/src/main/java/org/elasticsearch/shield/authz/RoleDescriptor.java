@@ -169,7 +169,8 @@ public class RoleDescriptor implements ToXContent {
                         } else if (roleName.equals(parser.text()) == false) {
                             // if the given role name is not the same as the parsed role name, we have inconstency and we need to
                             // throw an error
-                            throw new ElasticsearchParseException("expected role name [{}] but found [{}] instead", roleName, parser.text());
+                            throw new ElasticsearchParseException("expected role name [{}] but found [{}] instead",
+                                    roleName, parser.text());
                         }
                     } else {
                         throw new ElasticsearchParseException("unexpected field in add role request [{}]", currentFieldName);

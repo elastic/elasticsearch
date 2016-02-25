@@ -83,7 +83,8 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         final String path = '/' + randomAsciiOfLength(5);
         final CountDownLatch latch = new CountDownLatch(1);
-        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch));
+        final TimeValue sleepTime = TimeValue.timeValueSeconds(10);
+        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch, sleepTime));
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
@@ -105,7 +106,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
             assertThat(timeout.seconds(), lessThan(5L));
         }
 
-        if (!latch.await(7, TimeUnit.SECONDS)) {
+        if (!latch.await(sleepTime.seconds(), TimeUnit.SECONDS)) {
             // should never happen
             fail("waited too long for the response to be returned");
         }
@@ -121,7 +122,8 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         final String path = '/' + randomAsciiOfLength(5);
         final CountDownLatch latch = new CountDownLatch(1);
-        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch));
+        final TimeValue sleepTime = TimeValue.timeValueSeconds(10);
+        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch, sleepTime));
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .readTimeout(TimeValue.timeValueSeconds(5))
@@ -144,7 +146,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
             assertThat(timeout.seconds(), lessThan(7L));
         }
 
-        if (!latch.await(7, TimeUnit.SECONDS)) {
+        if (!latch.await(sleepTime.seconds(), TimeUnit.SECONDS)) {
             // should never happen
             fail("waited too long for the response to be returned");
         }
@@ -154,16 +156,18 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         private final String path;
         private final CountDownLatch latch;
+        private TimeValue sleepTime;
 
-        public CountDownLatchDispatcher(String path, CountDownLatch latch) {
+        public CountDownLatchDispatcher(String path, CountDownLatch latch, TimeValue sleepTime) {
             this.path = path;
             this.latch = latch;
+            this.sleepTime = sleepTime;
         }
 
         @Override
         public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
             if (path.equals(request.getPath())) {
-                Thread.sleep(10000);
+                Thread.sleep(sleepTime.millis());
                 latch.countDown();
             }
             return new MockResponse().setStatus("200");

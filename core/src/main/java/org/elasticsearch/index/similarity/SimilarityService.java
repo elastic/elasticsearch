@@ -21,6 +21,7 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
@@ -63,8 +64,10 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
-            if(BUILT_IN.containsKey(name))
+            // Starting with v3.0 indices, it should no longer be possible to redefine built-in similarities
+            if(BUILT_IN.containsKey(name) && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
                 throw new IllegalArgumentException("Cannot redefine built-in Similarity [" + name + "]");
+            }
             Settings settings = entry.getValue();
             String typeName = settings.get("type");
             if (typeName == null) {
@@ -107,6 +110,10 @@ public final class SimilarityService extends AbstractIndexComponent {
 
     public SimilarityProvider getSimilarity(String name) {
         return similarities.get(name);
+    }
+
+    public SimilarityProvider getDefaultSimilarity() {
+      return similarities.get("default");
     }
 
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {

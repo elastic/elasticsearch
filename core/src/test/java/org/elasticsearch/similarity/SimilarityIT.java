@@ -72,47 +72,4 @@ public class SimilarityIT extends ESIntegTestCase {
 
         assertThat(bm25Score, not(equalTo(defaultScore)));
     }
-
-    // Tests #16594
-    public void testCustomBM25SimilarityAsDefault() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject()
-                        .startObject("type1")
-                            .startObject("properties")
-                                .startObject("field1")
-                                    .field("type", "string")
-                                .endObject()
-                                .startObject("field2")
-                                    .field("similarity", "custom")
-                                    .field("type", "string")
-                            .endObject()
-                        .endObject()
-                    .endObject())
-                .setSettings(Settings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .put("similarity.default.type", "BM25")
-                        .put("similarity.custom.type", "classic")
-                ).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
-                                                            "field2", "the quick brown fox jumped over the lazy dog")
-                .setRefresh(true).execute().actionGet();
-
-        SearchResponse bm25SearchResponse = client().prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
-        assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1L));
-        float bm25Score = bm25SearchResponse.getHits().hits()[0].score();
-
-        SearchResponse defaultSearchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
-        assertThat(defaultSearchResponse.getHits().totalHits(), equalTo(1L));
-        float defaultScore = defaultSearchResponse.getHits().hits()[0].score();
-
-        assertThat(bm25Score, not(equalTo(defaultScore)));
-    }
 }

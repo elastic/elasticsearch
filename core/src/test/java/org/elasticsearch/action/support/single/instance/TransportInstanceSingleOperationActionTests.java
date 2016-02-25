@@ -141,6 +141,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         clusterService = new TestClusterService(THREAD_POOL);
         transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
+        transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
                 Settings.EMPTY,
                 "indices:admin/test",

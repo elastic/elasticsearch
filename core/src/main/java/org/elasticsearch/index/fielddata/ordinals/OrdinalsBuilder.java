@@ -190,46 +190,53 @@ public final class OrdinalsBuilder implements Closeable {
 
         public int addOrdinal(int docID, long ordinal) {
             final long position = positions.get(docID);
-
             if (position == 0L) { // on the first level
-                // 0 or 1 ordinal
-                if (firstOrdinals.get(docID) == 0L) {
-                    firstOrdinals.set(docID, ordinal + 1);
-                    return 1;
-                } else {
-                    final long newSlice = newSlice(1);
-                    if (firstNextLevelSlices == null) {
-                        firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
-                    }
-                    firstNextLevelSlices.set(docID, newSlice);
-                    final long offset = startOffset(1, newSlice);
-                    ordinals[1].set(offset, ordinal + 1);
-                    positions.set(docID, position(1, offset)); // current position is on the 1st level and not allocated yet
-                    return 2;
-                }
+                return firstLevel(docID, ordinal);
             } else {
-                int level = level(position);
-                long offset = offset(position, level);
-                assert offset != 0L;
-                if (((offset + 1) & slotsMask(level)) == 0L) {
-                    // reached the end of the slice, allocate a new one on the next level
-                    final long newSlice = newSlice(level + 1);
-                    if (nextLevelSlices[level] == null) {
-                        nextLevelSlices[level] = new PagedGrowableWriter(sizes[level], PAGE_SIZE, 1, acceptableOverheadRatio);
-                    }
-                    nextLevelSlices[level].set(sliceID(level, offset), newSlice);
-                    ++level;
-                    offset = startOffset(level, newSlice);
-                    assert (offset & slotsMask(level)) == 0L;
-                } else {
-                    // just go to the next slot
-                    ++offset;
-                }
-                ordinals[level].set(offset, ordinal + 1);
-                final long newPosition = position(level, offset);
-                positions.set(docID, newPosition);
-                return numOrdinals(level, offset);
+                return nonFirstLevel(docID, ordinal, position);
             }
+        }
+
+        private int firstLevel(int docID, long ordinal) {
+            // 0 or 1 ordinal
+            if (firstOrdinals.get(docID) == 0L) {
+                firstOrdinals.set(docID, ordinal + 1);
+                return 1;
+            } else {
+                final long newSlice = newSlice(1);
+                if (firstNextLevelSlices == null) {
+                    firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
+                }
+                firstNextLevelSlices.set(docID, newSlice);
+                final long offset = startOffset(1, newSlice);
+                ordinals[1].set(offset, ordinal + 1);
+                positions.set(docID, position(1, offset)); // current position is on the 1st level and not allocated yet
+                return 2;
+            }
+        }
+
+        private int nonFirstLevel(int docID, long ordinal, long position) {
+            int level = level(position);
+            long offset = offset(position, level);
+            assert offset != 0L;
+            if (((offset + 1) & slotsMask(level)) == 0L) {
+                // reached the end of the slice, allocate a new one on the next level
+                final long newSlice = newSlice(level + 1);
+                if (nextLevelSlices[level] == null) {
+                    nextLevelSlices[level] = new PagedGrowableWriter(sizes[level], PAGE_SIZE, 1, acceptableOverheadRatio);
+                }
+                nextLevelSlices[level].set(sliceID(level, offset), newSlice);
+                ++level;
+                offset = startOffset(level, newSlice);
+                assert (offset & slotsMask(level)) == 0L;
+            } else {
+                // just go to the next slot
+                ++offset;
+            }
+            ordinals[level].set(offset, ordinal + 1);
+            final long newPosition = position(level, offset);
+            positions.set(docID, newPosition);
+            return numOrdinals(level, offset);
         }
 
         public void appendOrdinals(int docID, LongsRef ords) {

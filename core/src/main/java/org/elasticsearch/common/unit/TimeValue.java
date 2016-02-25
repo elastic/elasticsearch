@@ -265,17 +265,17 @@ public class TimeValue implements Streamable {
             long millis;
             String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
             if (lowerSValue.endsWith("ms")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
+                millis = parse(lowerSValue, 2, 1);
             } else if (lowerSValue.endsWith("s")) {
-                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
+                millis = parse(lowerSValue, 1, 1000);
             } else if (lowerSValue.endsWith("m")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
+                millis = parse(lowerSValue, 1, 60 * 1000);
             } else if (lowerSValue.endsWith("h")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 60 * 1000);
+                millis = parse(lowerSValue, 1, 60 * 60 * 1000);
             } else if (lowerSValue.endsWith("d")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 24 * 60 * 60 * 1000);
+                millis = parse(lowerSValue, 1, 24 * 60 * 60 * 1000);
             } else if (lowerSValue.endsWith("w")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+                millis = parse(lowerSValue, 1, 7 * 24 * 60 * 60 * 1000);
             } else if (lowerSValue.equals("-1")) {
                 // Allow this special value to be unit-less:
                 millis = -1;
@@ -290,6 +290,10 @@ public class TimeValue implements Streamable {
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
         }
+    }
+
+    private static long parse(String s, int suffixLength, long scale) {
+        return (long) (Double.parseDouble(s.substring(0, s.length() - suffixLength)) * scale);
     }
 
     static final long C0 = 1L;

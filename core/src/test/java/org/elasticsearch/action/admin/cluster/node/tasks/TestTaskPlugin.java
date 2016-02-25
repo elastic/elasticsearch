@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -84,8 +85,8 @@ public class TestTaskPlugin extends Plugin {
 
         private volatile boolean blocked = true;
 
-        public TestTask(long id, String type, String action, String description, String parentNode, long parentId) {
-            super(id, type, action, description, parentNode, parentId);
+        public TestTask(long id, String type, String action, String description, TaskId parentTaskId) {
+            super(id, type, action, description, parentTaskId);
         }
 
         public boolean isBlocked() {
@@ -172,8 +173,8 @@ public class TestTaskPlugin extends Plugin {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
-            return new TestTask(id, type, action, this.getDescription(), parentTaskNode, parentTaskId);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new TestTask(id, type, action, this.getDescription(), parentTaskId);
         }
     }
 

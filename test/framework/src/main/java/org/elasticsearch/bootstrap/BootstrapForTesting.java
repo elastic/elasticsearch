@@ -122,7 +122,7 @@ public class BootstrapForTesting {
                 }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
-                if (System.getProperty("tests.maven") == null) {
+                if (System.getProperty("tests.gradle") == null) {
                     perms.add(new RuntimePermission("setIO"));
                 }
 

@@ -20,6 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> {
 
     private String name;
+    private boolean refresh = true;
 
     public DeleteRoleRequest() {
     }
@@ -41,15 +42,25 @@ public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> {
         return name;
     }
 
+    public void refresh(boolean refresh) {
+        this.refresh = refresh;
+    }
+
+    public boolean refresh() {
+        return refresh;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readString();
+        refresh = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
+        out.writeBoolean(refresh);
     }
 }

@@ -25,4 +25,9 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
         request.name(name);
         return this;
     }
+
+    public DeleteRoleRequestBuilder refresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.shield.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.shield.action.role.DeleteRoleResponse;
 import org.elasticsearch.shield.client.SecurityClient;
 
@@ -33,7 +34,11 @@ public class RestDeleteRoleAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        new SecurityClient(client).prepareDeleteRole(request.param("name")).execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
+        DeleteRoleRequestBuilder requestBuilder = new SecurityClient(client).prepareDeleteRole(request.param("name"));
+        if (request.hasParam("refresh")) {
+            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
+        }
+        requestBuilder.execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,

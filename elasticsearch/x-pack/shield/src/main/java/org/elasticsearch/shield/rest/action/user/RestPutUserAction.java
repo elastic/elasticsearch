@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.shield.action.user.PutUserRequestBuilder;
 import org.elasticsearch.shield.action.user.PutUserResponse;
 import org.elasticsearch.shield.client.SecurityClient;
 
@@ -34,15 +35,18 @@ public class RestPutUserAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        new SecurityClient(client).preparePutUser(request.param("username"), request.content())
-                .execute(new RestBuilderListener<PutUserResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK,
-                                builder.startObject()
-                                        .field("user", putUserResponse)
-                                        .endObject());
-                    }
-                });
+        PutUserRequestBuilder requestBuilder = new SecurityClient(client).preparePutUser(request.param("username"), request.content());
+        if (request.hasParam("refresh")) {
+            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
+        }
+        requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
+                return new BytesRestResponse(RestStatus.OK,
+                        builder.startObject()
+                                .field("user", putUserResponse)
+                                .endObject());
+            }
+        });
     }
 }

@@ -302,6 +302,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                             User.Fields.FULL_NAME.getPreferredName(), request.fullName(),
                             User.Fields.EMAIL.getPreferredName(), request.email(),
                             User.Fields.METADATA.getPreferredName(), request.metadata())
+                    .setRefresh(request.refresh())
                     .request();
 
             client.index(indexRequest, new ActionListener<IndexResponse>() {
@@ -337,6 +338,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             DeleteRequest request = client.prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME,
                     USER_DOC_TYPE, deleteUserRequest.username()).request();
             request.indicesOptions().ignoreUnavailable();
+            request.refresh(deleteUserRequest.refresh());
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {

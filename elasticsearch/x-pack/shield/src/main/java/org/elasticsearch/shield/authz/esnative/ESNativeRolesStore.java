@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -42,6 +43,7 @@ import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.shield.action.role.DeleteRoleRequest;
+import org.elasticsearch.shield.action.role.PutRoleRequest;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
@@ -257,7 +259,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         try {
             DeleteRequest request = client.prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, deleteRoleRequest.name()).request();
-            request.indicesOptions().ignoreUnavailable();
+            request.refresh(deleteRoleRequest.refresh());
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
@@ -270,13 +272,16 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                     listener.onFailure(e);
                 }
             });
+        } catch (IndexNotFoundException e) {
+            logger.trace("security index does not exist", e);
+            listener.onResponse(false);
         } catch (Exception e) {
             logger.error("unable to remove role", e);
             listener.onFailure(e);
         }
     }
 
-    public void putRole(final RoleDescriptor role, final ActionListener<Boolean> listener) {
+    public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to put role before service was started");
             listener.onResponse(false);
@@ -284,6 +289,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         try {
             client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role.getName())
                     .setSource(role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                    .setRefresh(request.refresh())
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
@@ -363,8 +369,11 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         try {
             GetRequest request = client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role).request();
-            request.indicesOptions().ignoreUnavailable();
             client.get(request, listener);
+        } catch (IndexNotFoundException e) {
+            logger.trace("security index does not exist", e);
+            listener.onResponse(new GetResponse(
+                    new GetResult(ShieldTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role, -1, false, null, null)));
         } catch (Exception e) {
             logger.error("unable to retrieve role", e);
             listener.onFailure(e);

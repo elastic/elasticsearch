@@ -29,7 +29,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
 
     @Override
     protected void doExecute(final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
-        rolesStore.putRole(request.roleDescriptor(), new ActionListener<Boolean>() {
+        rolesStore.putRole(request, request.roleDescriptor(), new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean created) {
                 if (created) {

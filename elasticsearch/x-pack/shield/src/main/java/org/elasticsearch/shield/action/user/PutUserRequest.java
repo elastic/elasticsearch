@@ -27,6 +27,7 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> {
     private String email;
     private Map<String, Object> metadata;
     private char[] passwordHash;
+    private boolean refresh = true;
 
     public PutUserRequest() {
     }
@@ -70,6 +71,10 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> {
         this.passwordHash = passwordHash;
     }
 
+    public void refresh(boolean refresh) {
+        this.refresh = refresh;
+    }
+
     public String username() {
         return username;
     }
@@ -94,6 +99,10 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> {
         return passwordHash;
     }
 
+    public boolean refresh() {
+        return refresh;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -103,6 +112,7 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> {
         fullName = in.readOptionalString();
         email = in.readOptionalString();
         metadata = in.readBoolean() ? in.readMap() : null;
+        refresh = in.readBoolean();
     }
 
     @Override
@@ -119,5 +129,6 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> {
             out.writeBoolean(true);
             out.writeMap(metadata);
         }
+        out.writeBoolean(refresh);
     }
 }

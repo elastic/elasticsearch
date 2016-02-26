@@ -64,6 +64,11 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
+    public PutUserRequestBuilder refresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
     public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
         username(username);
         try (XContentParser parser = XContentHelper.createParser(source)) {

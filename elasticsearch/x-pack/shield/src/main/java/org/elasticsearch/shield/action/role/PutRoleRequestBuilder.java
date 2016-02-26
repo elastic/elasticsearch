@@ -53,4 +53,9 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.addIndex(indices, privileges, fields, query);
         return this;
     }
+
+    public PutRoleRequestBuilder refresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
 }

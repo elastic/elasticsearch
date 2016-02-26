@@ -80,11 +80,11 @@ final class Bootstrap {
             }
         });
     }
-    
+
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
-        
+
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
             if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
@@ -93,12 +93,12 @@ final class Bootstrap {
                 throw new RuntimeException("don't run elasticsearch as root.");
             }
         }
-        
+
         // enable secure computing mode
         if (seccomp) {
             Natives.trySeccomp(tmpFile);
         }
-        
+
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
@@ -177,8 +177,8 @@ final class Bootstrap {
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings);
         node = nodeBuilder.build();
     }
-    
-    /** 
+
+    /**
      * option for elasticsearch.yml etc to turn off our security manager completely,
      * for example if you want to have your own configuration or just disable.
      */
@@ -194,21 +194,6 @@ final class Bootstrap {
     private void setupSecurity(Settings settings, Environment environment) throws Exception {
         if (settings.getAsBoolean(SECURITY_SETTING, true)) {
             Security.configure(environment, settings.getAsBoolean(SECURITY_FILTER_BAD_DEFAULTS_SETTING, true));
-        }
-    }
-
-    @SuppressForbidden(reason = "Exception#printStackTrace()")
-    private static void setupLogging(Settings settings, Environment environment) {
-        try {
-            Class.forName("org.apache.log4j.Logger");
-            LogConfigurator.configure(settings, true);
-        } catch (ClassNotFoundException e) {
-            // no log4j
-        } catch (NoClassDefFoundError e) {
-            // no log4j
-        } catch (Exception e) {
-            sysError("Failed to configure logging...", false);
-            e.printStackTrace();
         }
     }
 
@@ -255,7 +240,7 @@ final class Bootstrap {
 
         Environment environment = initialSettings(foreground);
         Settings settings = environment.settings();
-        setupLogging(settings, environment);
+        LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
@@ -314,7 +299,7 @@ final class Bootstrap {
             if (foreground) {
                 Loggers.enableConsoleLogging();
             }
-            
+
             throw e;
         }
     }

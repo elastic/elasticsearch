@@ -31,6 +31,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -116,7 +117,6 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
 
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
             int precisionStep = fieldType.numericPrecisionStep();
             if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
                 fieldType.setNumericPrecisionStep(Integer.MAX_VALUE);

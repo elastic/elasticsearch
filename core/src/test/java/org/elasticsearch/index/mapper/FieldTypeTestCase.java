@@ -130,12 +130,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
                 other.setSimilarity(new BM25SimilarityProvider("bar", Settings.EMPTY));
             }
         },
-        new Modifier("norms.loading", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ft.setNormsLoading(MappedFieldType.Loading.LAZY);
-            }
-        },
         new Modifier("fielddata", true) {
             @Override
             public void modify(MappedFieldType ft) {
@@ -217,7 +211,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             ", searchAnalyzer=" + ft.searchAnalyzer() +
             ", searchQuoteAnalyzer=" + ft.searchQuoteAnalyzer() +
             ", similarity=" + ft.similarity() +
-            ", normsLoading=" + ft.normsLoading() +
             ", fieldDataType=" + ft.fieldDataType() +
             ", nullValue=" + ft.nullValue() +
             ", nullValueAsString='" + ft.nullValueAsString() + "'" +

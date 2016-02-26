@@ -58,7 +58,7 @@ public class JsonSettingsLoaderTests extends ESTestCase {
             fail("expected exception");
         } catch (SettingsException e) {
             assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
-            assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [1], column number [13], previous value [bar], current value [baz]"));
+            assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [1], column number [20], previous value [bar], current value [baz]"));
         }
     }
 }

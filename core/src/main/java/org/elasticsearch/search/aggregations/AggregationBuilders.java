@@ -57,6 +57,8 @@ import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.correlation.Correlation;
+import org.elasticsearch.search.aggregations.metrics.correlation.CorrelationAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
@@ -294,6 +296,13 @@ public class AggregationBuilders {
      */
     public static CardinalityAggregatorBuilder cardinality(String name) {
         return new CardinalityAggregatorBuilder(name, null);
+    }
+
+    /**
+     * Create a new {@link Correlation} aggregation with the given name.
+     */
+    public static CorrelationAggregatorBuilder correlation(String name) {
+        return new CorrelationAggregatorBuilder(name);
     }
 
     /**

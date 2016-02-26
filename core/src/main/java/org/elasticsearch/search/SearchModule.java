@@ -166,6 +166,9 @@ import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.correlation.CorrelationAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.correlation.CorrelationParser;
+import org.elasticsearch.search.aggregations.metrics.correlation.InternalCorrelation;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
@@ -375,7 +378,7 @@ public class SearchModule extends AbstractModule {
 
     /**
      * Register a {@link SignificanceHeuristic}.
-     * 
+     *
      * @param heuristicName the name(s) at which the heuristic is parsed and streamed. The {@link ParseField#getPreferredName()} is the name
      *        under which it is streamed. All names work for the parser.
      * @param reader reads the heuristic from a stream
@@ -494,6 +497,7 @@ public class SearchModule extends AbstractModule {
                 PercentileRanksAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(CardinalityAggregatorBuilder::new, new CardinalityParser(),
                 CardinalityAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(CorrelationAggregatorBuilder::new, new CorrelationParser(), CorrelationAggregatorBuilder.AGGREGATION_NAME_FIELD),
         registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MissingAggregatorBuilder::new, new MissingParser(), MissingAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -721,6 +725,7 @@ public class SearchModule extends AbstractModule {
         InternalHDRPercentiles.registerStreams();
         InternalHDRPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
+        InternalCorrelation.registerStreams();
         InternalScriptedMetric.registerStreams();
         InternalGeoCentroid.registerStreams();
 

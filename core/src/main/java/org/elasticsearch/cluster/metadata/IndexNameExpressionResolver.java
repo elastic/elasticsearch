@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -164,18 +166,21 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
 
             for (IndexMetaData index : resolvedIndices) {
-                if (index.getState() == IndexMetaData.State.CLOSE) {
-                    if (failClosed) {
-                        throw new IndexClosedException(index.getIndex());
-                    } else {
-                        if (options.forbidClosedIndices() == false) {
-                            concreteIndices.add(index.getIndex().getName());
+                /* never add an hidden index unless it was due to an alias expansion */
+                if (index.isHidden() == false || options.includeHidden() || aliasOrIndex.isAlias() == false) {
+                    if (index.getState() == IndexMetaData.State.CLOSE) {
+                        if (failClosed) {
+                            throw new IndexClosedException(index.getIndex());
+                        } else {
+                            if (options.forbidClosedIndices() == false) {
+                                concreteIndices.add(index.getIndex().getName());
+                            }
                         }
+                    } else if (index.getState() == IndexMetaData.State.OPEN) {
+                        concreteIndices.add(index.getIndex().getName());
+                    } else {
+                        throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                     }
-                } else if (index.getState() == IndexMetaData.State.OPEN) {
-                    concreteIndices.add(index.getIndex().getName());
-                } else {
-                    throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                 }
             }
         }
@@ -573,17 +578,12 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     expression = expression.substring(1);
                 }
                 if (!Regex.isSimpleMatchPattern(expression)) {
-                    if (!unavailableIgnoredOrExists(options, metaData, expression)) {
-                        throw infe(expression);
-                    }
-                    if (result != null) {
-                        if (add) {
-                            result.add(expression);
-                        } else {
-                            result.remove(expression);
+                    if (aliasOrIndexExists(metaData, expression) == false) {
+                        if (options.ignoreUnavailable() == false) {
+                            throw infe(expression);
                         }
+                        continue;
                     }
-                    continue;
                 }
                 if (result == null) {
                     // add all the previous ones...
@@ -591,27 +591,61 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
 
                 final IndexMetaData.State excludeState = excludeState(options);
-                final Map<String, AliasOrIndex> matches = matches(metaData, expression);
-                Set<String> expand = expand(context, excludeState, matches);
+                final ExpressionMatches expressionMatches = new ExpressionMatches(metaData, expression);
+                final Set<String> expand = expressionMatches.expand(context, excludeState);
                 if (add) {
                     result.addAll(expand);
                 } else {
                     result.removeAll(expand);
                 }
 
-                if (!noIndicesAllowedOrMatches(options, matches)) {
+                if (!noIndicesAllowedOrMatches(options, expressionMatches)) {
                     throw infe(expression);
                 }
             }
             return result;
         }
 
-        private boolean noIndicesAllowedOrMatches(IndicesOptions options, Map<String, AliasOrIndex> matches) {
-            return options.allowNoIndices() || !matches.isEmpty();
+        private static class ExpressionMatches {
+            private final Map<String, AliasOrIndex> matches;
+
+            ExpressionMatches(MetaData metaData, String expression) {
+                if (Regex.isMatchAllPattern(expression)) {
+                    matches = metaData.getAliasAndIndexLookup();
+                } else if (expression.indexOf("*") == expression.length() - 1) {
+                    matches = suffixWildcard(metaData, expression);
+                } else if (metaData.hasAlias(expression)) {
+                    matches = Collections.singletonMap(expression, metaData.getAliasAndIndexLookup().get(expression));
+                } else {
+                    matches = otherWildcard(metaData, expression);
+                }
+            }
+
+            Set<String> expand(Context context, IndexMetaData.State excludeState) {
+                Set<String> expand = new HashSet<>();
+                for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
+                    AliasOrIndex aliasOrIndex = entry.getValue();
+                    if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
+                        expand.add(entry.getKey());
+                    } else {
+                        for (IndexMetaData meta : aliasOrIndex.getIndices()) {
+
+                            if ((excludeState == null || meta.getState() != excludeState) && (meta.isHidden() == false || context.options.includeHidden())) {
+                                expand.add(meta.getIndex().getName());
+                            }
+                        }
+                    }
+                }
+                return expand;
+            }
+
+            public boolean hasMatches() {
+                return matches.isEmpty() == false;
+            }
         }
 
-        private boolean unavailableIgnoredOrExists(IndicesOptions options, MetaData metaData, String expression) {
-            return options.ignoreUnavailable() || aliasOrIndexExists(metaData, expression);
+        private boolean noIndicesAllowedOrMatches(IndicesOptions options, ExpressionMatches matches) {
+            return options.allowNoIndices() || matches.hasMatches();
         }
 
         private boolean aliasOrIndexExists(MetaData metaData, String expression) {
@@ -639,17 +673,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return excludeState;
         }
 
-        private static Map<String, AliasOrIndex> matches(MetaData metaData, String expression) {
-            if (Regex.isMatchAllPattern(expression)) {
-                // Can only happen if the expressions was initially: '-*'
-                return metaData.getAliasAndIndexLookup();
-            } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(metaData, expression);
-            } else {
-                return otherWildcard(metaData, expression);
-            }
-        }
-
         private static Map<String, AliasOrIndex> suffixWildcard(MetaData metaData, String expression) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
@@ -668,37 +691,26 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches) {
-            Set<String> expand = new HashSet<>();
-            for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
-                AliasOrIndex aliasOrIndex = entry.getValue();
-                if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
-                    expand.add(entry.getKey());
-                } else {
-                    for (IndexMetaData meta : aliasOrIndex.getIndices()) {
-                        if (excludeState == null || meta.getState() != excludeState) {
-                            expand.add(meta.getIndex().getName());
-                        }
-                    }
-                }
-            }
-            return expand;
-        }
-
         private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
             return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0))) || Regex.isMatchAllPattern(expressions.get(0)));
         }
 
         private List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData, boolean assertEmpty) {
+            final List<String> list;
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.concreteAllIndices());
+                list = Arrays.asList(metaData.concreteAllIndices());
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metaData.concreteAllOpenIndices());
+                list = Arrays.asList(metaData.concreteAllOpenIndices());
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.concreteAllClosedIndices());
+                list = Arrays.asList(metaData.concreteAllClosedIndices());
             } else {
                 assert assertEmpty : "Shouldn't end up here";
                 return Collections.emptyList();
+            }
+            if (options.includeHidden()) {
+                return list;
+            } else {
+                return list.stream().filter(s -> metaData.index(s).isHidden() == false).collect(Collectors.toList());
             }
         }
     }

@@ -46,10 +46,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "pretty",
             "timeout",
             "master_timeout",
-            "index",
-            "expand_wildcards",
-            "ignore_unavailable",
-            "allow_no_indices"));
+            "index"));
 
     @Inject
     public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
@@ -80,7 +77,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             }
         }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (VALUES_TO_EXCLUDE.contains(entry.getKey())) {
+            if (VALUES_TO_EXCLUDE.contains(entry.getKey()) || IndicesOptions.isIndicesOptions(entry.getKey())) {
                 continue;
             }
             updateSettings.put(entry.getKey(), entry.getValue());

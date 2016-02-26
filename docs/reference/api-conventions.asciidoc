@@ -51,6 +51,11 @@ If `none` is specified then wildcard expansion will be disabled and if `all`
 is specified, wildcard expressions will expand to all indices (this is equivalent
 to specifying `open,closed`).
 
+`include_hidden`::
+
+Controls whether to include hidden indices when resolving expressions. Hidden indices
+are always included if an alias is resolved.
+
 The defaults settings for the above parameters depend on the api being used.
 
 NOTE: Single index APIs such as the <<docs>> and the

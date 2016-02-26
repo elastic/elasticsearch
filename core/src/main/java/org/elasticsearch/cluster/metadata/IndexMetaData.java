@@ -157,6 +157,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
     public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING = Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, false, Setting.Scope.INDEX);
+    /**
+     * Hidden indices don't show up if we search across all indices neither do they expand to expressions. For instance the .scripts index is
+     * hidden by default.
+     */
+    public static final Setting<Boolean> INDEX_HIDDEN_SETTING = Setting.boolSetting("index.hidden", false, true, Setting.Scope.INDEX);
 
     public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
     public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING = Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, false, Setting.Scope.INDEX);
@@ -228,6 +233,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
+    private final boolean hidden;
 
     private IndexMetaData(Index index, long version, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
@@ -252,6 +258,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexUpgradedVersion = indexUpgradedVersion;
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
+        this.hidden = INDEX_HIDDEN_SETTING.get(settings);
     }
 
     public Index getIndex() {
@@ -299,6 +306,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      */
     public org.apache.lucene.util.Version getMinimumCompatibleVersion() {
         return minimumCompatibleLuceneVersion;
+    }
+
+    /**
+     * Retruns <code>true</code> if the index is a hidden index
+     */
+    public boolean isHidden() {
+        return hidden;
     }
 
     public long getCreationDate() {

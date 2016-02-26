@@ -22,9 +22,11 @@ package org.elasticsearch.test;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -77,6 +79,11 @@ public abstract class TestCluster implements Closeable {
         wipeIndices("_all");
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
+        if (size() > 0) { // only do this if the cluster has at least one node
+            final ImmutableOpenMap<String, IndexMetaData> indices = client().admin().cluster().prepareState()
+                .get().getState().metaData().indices();
+            assert indices.size() == 0 : "indices size should be 0 but was: " + indices.size() + " indices: " + indices.keys().toString();
+        }
     }
 
     /**
@@ -137,12 +144,14 @@ public abstract class TestCluster implements Closeable {
         assert indices != null && indices.length > 0;
         if (size() > 0) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(indices));
+                assertAcked(client().admin().indices().prepareDelete(indices).setIndicesOptions(IndicesOptions.fromOptions(
+                    false, true, true, true,
+                    true, false, true/* also work on hidden indices*/)));
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {
                 // Happens if `action.destructive_requires_name` is set to true
-                // which is the case in the CloseIndexDisableCloseAllTests
+                // which is the case in the CloseIndexDisableCloseAllIT
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
                     ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();

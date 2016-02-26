@@ -265,6 +265,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe indices
         Map<String, String> deleteIndicesArgs = new HashMap<>();
         deleteIndicesArgs.put("index", "*");
+        deleteIndicesArgs.put("include_hidden", "true");
         try {
             adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
         } catch (RestException e) {

@@ -31,7 +31,7 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
             Version outputVersion = randomVersion(random());
@@ -61,9 +61,10 @@ public class IndicesOptionsTests extends ESTestCase {
             boolean expandToClosedIndices = randomBoolean();
             boolean allowAliasesToMultipleIndices = randomBoolean();
             boolean forbidClosedIndices = randomBoolean();
+            boolean includeHidden = randomBoolean();
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                     ignoreUnavailable, allowNoIndices,expandToOpenIndices, expandToClosedIndices,
-                    allowAliasesToMultipleIndices, forbidClosedIndices
+                    allowAliasesToMultipleIndices, forbidClosedIndices, includeHidden
             );
 
             assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
@@ -73,6 +74,7 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
             assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
             assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
+            assertThat(indicesOptions.includeHidden(), equalTo(includeHidden));
         }
     }
 }

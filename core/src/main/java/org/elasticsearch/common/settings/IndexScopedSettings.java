@@ -63,6 +63,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
+        IndexMetaData.INDEX_HIDDEN_SETTING,
         IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
         IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING,

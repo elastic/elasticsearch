@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -35,8 +36,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class IndicesOptions {
 
-    private static final IndicesOptions[] VALUES;
-
     private static final byte IGNORE_UNAVAILABLE = 1;
     private static final byte ALLOW_NO_INDICES = 2;
     private static final byte EXPAND_WILDCARDS_OPEN = 4;
@@ -46,21 +45,20 @@ public class IndicesOptions {
 
     private static final byte STRICT_EXPAND_OPEN = 6;
     private static final byte LENIENT_EXPAND_OPEN = 7;
+    private static final byte INCLUDE_HIDDEN_INDICES = 64;
     private static final byte STRICT_EXPAND_OPEN_CLOSED = 14;
     private static final byte STRICT_EXPAND_OPEN_FORBID_CLOSED = 38;
     private static final byte STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = 48;
 
-    static {
-        byte max = 1 << 6;
-        VALUES = new IndicesOptions[max];
-        for (byte id = 0; id < max; id++) {
-            VALUES[id] = new IndicesOptions(id);
-        }
-    }
+    private static final IndicesOptions LENIENT_EXPAND_OPEN_INSTANCE = new IndicesOptions(LENIENT_EXPAND_OPEN);
+    private static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_INSTANCE = new IndicesOptions(STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED);
+    private static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_INSTANCE = new IndicesOptions(STRICT_EXPAND_OPEN_FORBID_CLOSED);
+    private static final IndicesOptions STRICT_EXPAND_OPEN_INSTANCE = new IndicesOptions(STRICT_EXPAND_OPEN);
+    private static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_INSTANCE = new IndicesOptions(STRICT_EXPAND_OPEN_CLOSED);
 
-    private final byte id;
+    private final int id;
 
-    private IndicesOptions(byte id) {
+    private IndicesOptions(int id) {
         this.id = id;
     }
 
@@ -103,6 +101,12 @@ public class IndicesOptions {
     }
 
     /**
+     *
+     * @return Whether expressions should include hidden indices
+     */
+    public boolean includeHidden() { return (id & INCLUDE_HIDDEN_INDICES) != 0;}
+
+    /**
      * @return whether aliases pointing to multiple indices are allowed
      */
     public boolean allowAliasesToMultipleIndices() {
@@ -112,30 +116,40 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id);
+        out.writeInt(id);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         //if we read from a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
         //we just receive the old corresponding value with the new flag set to true (default)
-        byte id = in.readByte();
-        if (id >= VALUES.length) {
-            throw new IllegalArgumentException("No valid missing index type id: " + id);
-        }
-        return VALUES[id];
+        int id = in.readInt();
+        return new IndicesOptions(id);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, IndicesOptions defaultOptions) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices());
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices(), defaultOptions.includeHidden());
     }
 
-    static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
-        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices);
-        return VALUES[id];
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean includeHiddenIndices) {
+        int id = toId(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices, includeHiddenIndices);
+        switch (id) {
+            case LENIENT_EXPAND_OPEN:
+                return LENIENT_EXPAND_OPEN_INSTANCE;
+            case STRICT_EXPAND_OPEN:
+                return STRICT_EXPAND_OPEN_INSTANCE;
+            case STRICT_EXPAND_OPEN_CLOSED:
+                return STRICT_EXPAND_OPEN_CLOSED_INSTANCE;
+            case STRICT_EXPAND_OPEN_FORBID_CLOSED:
+                return STRICT_EXPAND_OPEN_FORBID_CLOSED_INSTANCE;
+            case STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED:
+                return STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_INSTANCE;
+            default:
+                return new IndicesOptions(id);
+        }
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
@@ -143,6 +157,7 @@ public class IndicesOptions {
                 request.param("expand_wildcards"),
                 request.param("ignore_unavailable"),
                 request.param("allow_no_indices"),
+                request.param("include_hidden"),
                 defaultSettings);
     }
 
@@ -151,6 +166,7 @@ public class IndicesOptions {
                 map.containsKey("expand_wildcards") ? map.get("expand_wildcards") : map.get("expandWildcards"),
                 map.containsKey("ignore_unavailable") ? map.get("ignore_unavailable") : map.get("ignoreUnavailable"),
                 map.containsKey("allow_no_indices") ? map.get("allow_no_indices") : map.get("allowNoIndices"),
+                map.getOrDefault("include_hidden", map.getOrDefault("includeHidden", "false")),
                 defaultSettings);
     }
 
@@ -159,13 +175,22 @@ public class IndicesOptions {
      * false otherwise
      */
     public static boolean isIndicesOptions(String name) {
-        return "expand_wildcards".equals(name) || "expandWildcards".equals(name) ||
-                "ignore_unavailable".equals(name) || "ignoreUnavailable".equals(name) ||
-                "allow_no_indices".equals(name) || "allowNoIndices".equals(name);
+        switch (name) {
+            case "expand_wildcards":
+            case "expandWildcards":
+            case "ignore_unavailable":
+            case "ignoreUnavailable":
+            case "allow_no_indices":
+            case "allowNoIndices":
+            case "include_hidden":
+                return true;
+            default:
+                return false;
+        }
     }
 
-    public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString, IndicesOptions defaultSettings) {
-        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null) {
+    public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString, Object includeHidden, IndicesOptions defaultSettings) {
+        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null && includeHidden == null) {
             return defaultSettings;
         }
 
@@ -200,7 +225,8 @@ public class IndicesOptions {
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),
-                defaultSettings.forbidClosedIndices()
+                defaultSettings.forbidClosedIndices(),
+                lenientNodeBooleanValue(includeHidden, defaultSettings.includeHidden())
         );
     }
 
@@ -209,7 +235,7 @@ public class IndicesOptions {
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandOpen() {
-        return VALUES[STRICT_EXPAND_OPEN];
+        return STRICT_EXPAND_OPEN_INSTANCE;
     }
 
     /**
@@ -218,7 +244,7 @@ public class IndicesOptions {
      *         use of closed indices by throwing an error.
      */
     public static IndicesOptions strictExpandOpenAndForbidClosed() {
-        return VALUES[STRICT_EXPAND_OPEN_FORBID_CLOSED];
+        return STRICT_EXPAND_OPEN_FORBID_CLOSED_INSTANCE;
     }
 
     /**
@@ -226,7 +252,7 @@ public class IndicesOptions {
      * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpand() {
-        return VALUES[STRICT_EXPAND_OPEN_CLOSED];
+        return STRICT_EXPAND_OPEN_CLOSED_INSTANCE;
     }
 
     /**
@@ -234,7 +260,7 @@ public class IndicesOptions {
      * throws error if any of the aliases resolves to multiple indices
      */
     public static IndicesOptions strictSingleIndexNoExpandForbidClosed() {
-        return VALUES[STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED];
+        return STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_INSTANCE;
     }
 
     /**
@@ -242,12 +268,12 @@ public class IndicesOptions {
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
-        return VALUES[LENIENT_EXPAND_OPEN];
+        return LENIENT_EXPAND_OPEN_INSTANCE;
     }
 
-    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen,
-                               boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
-        byte id = 0;
+    private static int toId(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen,
+                             boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean includeHidden) {
+        int id = 0;
         if (ignoreUnavailable) {
             id |= IGNORE_UNAVAILABLE;
         }
@@ -268,6 +294,10 @@ public class IndicesOptions {
         if (forbidClosedIndices) {
             id |= FORBID_CLOSED_INDICES;
         }
+
+        if (includeHidden) {
+            id |= INCLUDE_HIDDEN_INDICES;
+        }
         return id;
     }
 
@@ -281,6 +311,20 @@ public class IndicesOptions {
                 ", expand_wildcards_closed=" + expandWildcardsClosed() +
                 ", allow_alisases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
                 ", forbid_closed_indices=" + forbidClosedIndices() +
+                ", include_hidden=" + includeHidden() +
                 ']';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndicesOptions that = (IndicesOptions) o;
+        return id == that.id;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

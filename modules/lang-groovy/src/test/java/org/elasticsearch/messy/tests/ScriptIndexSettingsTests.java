@@ -70,7 +70,8 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
 
         String numberOfShards = settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.number_of_shards");
         String numberOfReplicas = settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.auto_expand_replicas");
-
+        boolean hidden = Boolean.parseBoolean(settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.hidden"));
+        assertTrue(".script index must be hidden", hidden);
         assertEquals("Number of shards should be 1", "1", numberOfShards);
         assertEquals("Auto expand replicas should be 0-all", "0-all", numberOfReplicas);
     }

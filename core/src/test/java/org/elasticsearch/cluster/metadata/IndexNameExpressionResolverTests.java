@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ESTestCase;
@@ -352,6 +354,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
             results = indexNameExpressionResolver.concreteIndices(context, Strings.EMPTY_ARRAY);
             assertEquals(0, results.length);
+
+
         }
 
         //ignore unavailable but don't allow no indices
@@ -414,6 +418,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String[] results = indexNameExpressionResolver.concreteIndices(context, "foofoobar");
             assertEquals(2, results.length);
             assertThat(results, arrayContainingInAnyOrder("foo", "foobar"));
+        }
+
+        {
+            IndicesOptions noExpandStrict = IndicesOptions.fromOptions(true, false, true, true);
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandStrict);
+            String[] results = indexNameExpressionResolver.concreteIndices(context, "foo", "non-existing");
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
         }
     }
 
@@ -899,5 +911,92 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "test-*,alias-*");
         assertNull(strings);
+    }
+
+    public void testHidden() {
+        Settings settings = settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.hidden", "true")
+            .build();
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN).settings(settings).putAlias(AliasMetaData.builder("alias-0")))
+            .put(indexBuilder("test-2").state(State.OPEN).putAlias(AliasMetaData.builder("alias-0")))
+            .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetaData.builder("alias-1")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        String[] resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "+*", "alias-0", "-alias-1");
+        assertArrayEquals(new String[] {"test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen());
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-1", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "_all");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-1", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "test-0", "-alias-0", "alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-1"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "+*", "-alias-1");
+        assertArrayEquals(new String[] {"test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "+*", "-alias-1");
+        assertArrayEquals(new String[] {"test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "alias-0", "-alias-1");
+        assertArrayEquals(new String[] {"test-2"}, resolve);
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "test-*");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-1", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state,  IndicesOptions.lenientExpandOpen(), "test-0", "alias-0", "-alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-2"}, resolve);
+    }
+
+    public void testIncludeHidden() {
+        Settings settings = settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.hidden", "true")
+            .build();
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN).settings(settings).putAlias(AliasMetaData.builder("alias-0")))
+            .put(indexBuilder("test-2").state(State.OPEN).putAlias(AliasMetaData.builder("alias-0")))
+            .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetaData.builder("alias-1")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false, true, false, true);
+        String[] resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "+*", "alias-0", "-alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions);
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-1", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "_all");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-1", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "test-0", "-alias-0", "alias-1");
+        assertArrayEquals(new String[] {"test-1"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "+*", "-alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "+*", "-alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "alias-0", "-alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-2"}, resolve);
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "test-*");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-1", "test-2"}, resolve);
+
+        resolve = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "test-0", "alias-0", "-alias-1");
+        ArrayUtil.timSort(resolve);
+        assertArrayEquals(new String[] {"test-0", "test-2"}, resolve);
     }
 }

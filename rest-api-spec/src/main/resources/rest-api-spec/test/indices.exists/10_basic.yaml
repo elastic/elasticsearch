@@ -23,3 +23,39 @@
         local: true
 
   - is_false: ''
+
+
+---
+"Test indices.exists with hidden index":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          hidden: true
+  - do:
+      indices.exists:
+        index: test_index
+  - is_true: ''
+
+  - do:
+      indices.delete:
+        index: test*
+
+  - do:
+      indices.exists:
+        index: test_index
+  - is_true: ''
+
+  - do:
+      indices.put_settings:
+        index: test*
+        include_hidden: true
+        body:
+          hidden: false
+  - do:
+      indices.delete:
+        index: test*
+  - do:
+      indices.exists:
+        index: test_index
+  - is_false: ''

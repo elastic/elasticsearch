@@ -139,7 +139,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
     }
 
-    UnassignedInfo(StreamInput in) throws IOException {
+    public UnassignedInfo(StreamInput in) throws IOException {
         this.reason = Reason.values()[(int) in.readByte()];
         this.unassignedTimeMillis = in.readLong();
         // As System.nanoTime() cannot be compared across different JVMs, reset it to now.

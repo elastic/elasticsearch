@@ -587,8 +587,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
-        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()), false,
-                oldNonMasterNodes.get(0));
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()), false, oldNonMasterNodes.get(0));
 
         // make sure all nodes agree on master
         String newMaster = internalCluster().getMasterName();
@@ -1016,24 +1015,48 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertTrue(client().prepareGet("index", "doc", "1").get().isExists());
     }
 
-    // tests if indices are really deleted even if a master transition inbetween
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11665")
+    /**
+     * Tests that indices are properly deleted even if there is a master transition in between.
+     * Test for https://github.com/elastic/elasticsearch/issues/11665
+     */
     @Test
     public void testIndicesDeleted() throws Exception {
         configureUnicastCluster(3, null, 2);
-        Future<List<String>> masterNodes= internalCluster().startMasterOnlyNodesAsync(2);
+        Future<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(2);
         Future<String> dataNode = internalCluster().startDataOnlyNodeAsync();
-        dataNode.get();
         masterNodes.get();
+        dataNode.get();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
         ensureYellow();
 
-        String masterNode1 = internalCluster().getMasterName();
+        final String masterNode1 = internalCluster().getMasterName();
         NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), getRandom());
         internalCluster().setDisruptionScheme(networkPartition);
         networkPartition.startDisrupting();
         internalCluster().client(masterNode1).admin().indices().prepareDelete("test").setTimeout("1s").get();
+        // Don't restart the master node until we know the index deletion has taken effect on master.
+        // This overcomes a current known issue where a delete can return before cluster state changes
+        // (in this case, index deletion) takes effect.  We want to ensure that the cluster state changes
+        // are applied to the master node before it is restarted.
+        int numTries = 0;
+        final int maxNumTries = 20; // enforces that we don't end up in an infinite loop should something go wrong
+        final long sleepTime = 200L;
+        while (numTries < maxNumTries) {
+            final ClusterState currState = internalCluster().clusterService(masterNode1).state();
+            if (currState.metaData().hasIndex("test") == false && currState.status() == ClusterState.ClusterStateStatus.APPLIED) {
+                break;
+            }
+            try {
+                Thread.sleep(sleepTime);
+            } catch (InterruptedException e) {
+                throw new Exception("Failed waiting for master's cluster state to change", e);
+            }
+            numTries++;
+        }
+        if (numTries == maxNumTries) {
+            fail("Waited unsuccessfully for " + (numTries * sleepTime) + " ms for cluster state on master to change");
+        }
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
         assertFalse(client().admin().indices().prepareExists("test").get().isExists());

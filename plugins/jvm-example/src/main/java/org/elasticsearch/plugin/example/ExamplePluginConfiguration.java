@@ -34,14 +34,18 @@ public class ExamplePluginConfiguration {
     
     private final Settings settings;
     
+    private final Setting<String> TEST_SETTING;
+    
     @Inject
     public ExamplePluginConfiguration(Environment env) throws IOException {
         // The directory part of the location matches the artifactId of this plugin
         Path path = env.configFile().resolve("jvm-example/example.yaml");
         settings = Settings.builder().loadFromPath(path).build();
+        String testValue = settings.get("test", "default_value");
+        TEST_SETTING = new Setting<>("test", testValue, value -> (value.toLowerCase()), false, Setting.Scope.CLUSTER);
     }
 
-    public String getTestConfig() {
-        return settings.get("test", "not set in config");
+    public Setting<String> getTestConfig() {
+        return TEST_SETTING;
     }
 }

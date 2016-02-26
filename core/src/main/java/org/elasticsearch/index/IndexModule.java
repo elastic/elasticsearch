@@ -154,7 +154,7 @@ public final class IndexModule {
      */
     public void addIndexStore(String type, BiFunction<IndexSettings, IndexStoreConfig, IndexStore> provider) {
         if (storeTypes.containsKey(type)) {
-            throw new IllegalArgumentException("key [" + type +"] already registerd");
+            throw new IllegalArgumentException("key [" + type +"] already registered");
         }
         storeTypes.put(type, provider);
     }

@@ -228,7 +228,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     metaData);
         }
 
-        throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field ["
+        throw new AggregationExecutionException("significant_terms aggregation cannot be applied to field ["
                 + config.fieldContext().field() + "]. It can only be applied to numeric or string fields.");
     }
 

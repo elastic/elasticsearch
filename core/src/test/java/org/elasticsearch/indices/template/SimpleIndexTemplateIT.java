@@ -525,7 +525,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         try {
             createIndex("test");
-            fail("index creation should have failed due to alias with existing index name in mathching index template");
+            fail("index creation should have failed due to alias with existing index name in matching index template");
         } catch(InvalidAliasNameException e) {
             assertThat(e.getMessage(), equalTo("Invalid alias name [index], an index exists with the same name as the alias"));
         }

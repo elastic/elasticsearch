@@ -178,7 +178,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             throw new IllegalArgumentException("[" + NAME + "] requires query value");
         }
         if (fields == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires fields at initalization time");
+            throw new IllegalArgumentException("[" + NAME + "] requires fields at initialization time");
         }
         this.value = value;
         this.fieldsBoosts = new TreeMap<>();

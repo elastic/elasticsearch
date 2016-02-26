@@ -17,25 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.slf4j;
-
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
- *
+ * Classes for streaming objects from one Elasticsearch node to another over its binary internode protocol.
  */
-public class Slf4jESLoggerFactory extends ESLoggerFactory {
-
-    @Override
-    protected ESLogger rootLogger() {
-        return getLogger(Logger.ROOT_LOGGER_NAME);
-    }
-
-    @Override
-    protected ESLogger newInstance(String prefix, String name) {
-        return new Slf4jESLogger(prefix, LoggerFactory.getLogger(name));
-    }
-}
+package org.elasticsearch.common.io.stream;

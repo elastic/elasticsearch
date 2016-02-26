@@ -713,7 +713,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
         }
 
-        logger.debug("now start initializing shards and expect exactly one rebalance from node1 to node 2 sicne index [test] is all on node1");
+        logger.debug("now start initializing shards and expect exactly one rebalance from node1 to node 2 since index [test] is all on node1");
 
         routingNodes = clusterState.getRoutingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState("test1", INITIALIZING)).routingTable();

@@ -199,7 +199,7 @@ public class AggregatorFactories {
                 List<PipelineAggregatorBuilder<?>> orderedPipelineAggregators, List<PipelineAggregatorBuilder<?>> unmarkedBuilders,
                 Set<PipelineAggregatorBuilder<?>> temporarilyMarked, PipelineAggregatorBuilder<?> builder) {
             if (temporarilyMarked.contains(builder)) {
-                throw new IllegalArgumentException("Cyclical dependancy found with pipeline aggregator [" + builder.getName() + "]");
+                throw new IllegalArgumentException("Cyclical dependency found with pipeline aggregator [" + builder.getName() + "]");
             } else if (unmarkedBuilders.contains(builder)) {
                 temporarilyMarked.add(builder);
                 String[] bucketsPaths = builder.getBucketsPaths();

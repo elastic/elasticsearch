@@ -17,12 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.log4j;
+package org.elasticsearch.common.logging;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -50,7 +49,7 @@ public class LoggingConfigurationTests extends ESTestCase {
     }
 
     public void testResolveMultipleConfigs() throws Exception {
-        String level = Log4jESLoggerFactory.getLogger("test").getLevel();
+        String level = ESLoggerFactory.getLogger("test").getLevel();
         try {
             Path configDir = getDataPath("config");
             Settings settings = Settings.builder()
@@ -59,22 +58,22 @@ public class LoggingConfigurationTests extends ESTestCase {
                     .build();
             LogConfigurator.configure(settings, true);
 
-            ESLogger esLogger = Log4jESLoggerFactory.getLogger("test");
-            Logger logger = ((Log4jESLogger) esLogger).logger();
+            ESLogger esLogger = ESLoggerFactory.getLogger("test");
+            Logger logger = esLogger.getLogger();
             Appender appender = logger.getAppender("console");
             assertThat(appender, notNullValue());
 
-            esLogger = Log4jESLoggerFactory.getLogger("second");
-            logger = ((Log4jESLogger) esLogger).logger();
+            esLogger = ESLoggerFactory.getLogger("second");
+            logger = esLogger.getLogger();
             appender = logger.getAppender("console2");
             assertThat(appender, notNullValue());
 
-            esLogger = Log4jESLoggerFactory.getLogger("third");
-            logger = ((Log4jESLogger) esLogger).logger();
+            esLogger = ESLoggerFactory.getLogger("third");
+            logger = esLogger.getLogger();
             appender = logger.getAppender("console3");
             assertThat(appender, notNullValue());
         } finally {
-            Log4jESLoggerFactory.getLogger("test").setLevel(level);
+            ESLoggerFactory.getLogger("test").setLevel(level);
         }
     }
 
@@ -166,8 +165,8 @@ public class LoggingConfigurationTests extends ESTestCase {
                         .build(), new CliToolTestCase.MockTerminal());
         LogConfigurator.configure(environment.settings(), true);
         // args should overwrite whatever is in the config
-        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test_resolve_order");
-        Logger logger = ((Log4jESLogger) esLogger).logger();
+        ESLogger esLogger = ESLoggerFactory.getLogger("test_resolve_order");
+        Logger logger = esLogger.getLogger();
         Appender appender = logger.getAppender("console");
         assertThat(appender, notNullValue());
         assertTrue(logger.isTraceEnabled());
@@ -190,10 +189,10 @@ public class LoggingConfigurationTests extends ESTestCase {
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                         .build(), new CliToolTestCase.MockTerminal());
         LogConfigurator.configure(environment.settings(), false);
-        ESLogger esLogger = Log4jESLoggerFactory.getLogger("test_config_not_read");
+        ESLogger esLogger = ESLoggerFactory.getLogger("test_config_not_read");
 
         assertNotNull(esLogger);
-        Logger logger = ((Log4jESLogger) esLogger).logger();
+        Logger logger = esLogger.getLogger();
         Appender appender = logger.getAppender("console");
         // config was not read
         assertNull(appender);

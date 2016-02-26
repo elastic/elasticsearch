@@ -357,4 +357,8 @@ thirdPartyAudit.excludes = [
  
   // internal java api: sun.misc.SignalHandler
   'org.apache.hadoop.util.SignalLogger$Handler',
+
+  // optional dependencies of slf4j-api
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
 ]

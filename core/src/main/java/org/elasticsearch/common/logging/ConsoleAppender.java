@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.log4j;
+package org.elasticsearch.common.logging;
 
 import org.apache.log4j.Layout;
 import org.apache.log4j.WriterAppender;
 import org.apache.log4j.helpers.LogLog;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.io.OutputStream;

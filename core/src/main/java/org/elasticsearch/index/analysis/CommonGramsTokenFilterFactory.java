@@ -45,7 +45,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {
-            throw new IllegalArgumentException("mising or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+            throw new IllegalArgumentException("missing or empty [common_words] or [common_words_path] configuration for common_grams token filter");
         }
     }
 

@@ -156,7 +156,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .startObject()
                   .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
                   .field("date_field_de", "Mi, 06 Dez 2000 02:55:00 -0800")
-                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a successs!
+                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a success!
                 .endObject()
                 .bytes());
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");

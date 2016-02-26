@@ -928,8 +928,8 @@ TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
 [options="header"]
 |======
 | Name                   | Required  | Default             | Description
-| `match_field`          | yes       | -                   | The field to use for grok expression parsing
-| `match_pattern`        | yes       | -                   | The grok expression to match and extract named captures with
+| `field`                | yes       | -                   | The field to use for grok expression parsing
+| `pattern`              | yes       | -                   | The grok expression to match and extract named captures with
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
 |======
 
@@ -959,8 +959,8 @@ An example pipeline for processing the above document using Grok:
   "processors": [
     {
       "grok": {
-        "match_field": "message",
-        "match_pattern": "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"
+        "field": "message",
+        "pattern": "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"
       }
     }
   ]
@@ -990,8 +990,8 @@ An example of a pipeline specifying custom pattern definitions:
   "processors": [
     {
       "grok": {
-        "match_field": "message",
-        "match_pattern": "my %{FAVORITE_DOG:dog} is colored %{RGB:color}"
+        "field": "message",
+        "pattern": "my %{FAVORITE_DOG:dog} is colored %{RGB:color}"
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"

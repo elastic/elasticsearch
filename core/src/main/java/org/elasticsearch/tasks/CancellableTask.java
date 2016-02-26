@@ -34,8 +34,8 @@ public class CancellableTask extends Task {
         super(id, type, action, description);
     }
 
-    public CancellableTask(long id, String type, String action, String description, String parentNode, long parentId) {
-        super(id, type, action, description, parentNode, parentId);
+    public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId) {
+        super(id, type, action, description, parentTaskId);
     }
 
     /**

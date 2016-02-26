@@ -29,7 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -51,7 +53,8 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     private List<SortBuilder> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<AbstractAggregationBuilder> aggregations;
+    private List<AggregatorBuilder<?>> aggregationBuilders;
+    private List<PipelineAggregatorBuilder> pipelineAggregationBuilders;
 
     /**
      * Sets the document to run the percolate queries against.
@@ -123,11 +126,22 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     /**
      * Add an aggregation definition.
      */
-    public PercolateSourceBuilder addAggregation(AbstractAggregationBuilder aggregationBuilder) {
-        if (aggregations == null) {
-            aggregations = new ArrayList<>();
+    public PercolateSourceBuilder addAggregation(AggregatorBuilder<?> aggregationBuilder) {
+        if (aggregationBuilders == null) {
+            aggregationBuilders = new ArrayList<>();
         }
-        aggregations.add(aggregationBuilder);
+        aggregationBuilders.add(aggregationBuilder);
+        return this;
+    }
+
+    /**
+     * Add an aggregation definition.
+     */
+    public PercolateSourceBuilder addAggregation(PipelineAggregatorBuilder aggregationBuilder) {
+        if (pipelineAggregationBuilders == null) {
+            pipelineAggregationBuilders = new ArrayList<>();
+        }
+        pipelineAggregationBuilders.add(aggregationBuilder);
         return this;
     }
 
@@ -157,13 +171,20 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
             builder.field("track_scores", trackScores);
         }
         if (highlightBuilder != null) {
-            highlightBuilder.toXContent(builder, params);
+            builder.field(SearchSourceBuilder.HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
         }
-        if (aggregations != null) {
+        if (aggregationBuilders != null || pipelineAggregationBuilders != null) {
             builder.field("aggregations");
             builder.startObject();
-            for (AbstractAggregationBuilder aggregation : aggregations) {
-                aggregation.toXContent(builder, params);
+            if (aggregationBuilders != null) {
+                for (AggregatorBuilder<?> aggregation : aggregationBuilders) {
+                    aggregation.toXContent(builder, params);
+                }
+            }
+            if (pipelineAggregationBuilders != null) {
+                for (PipelineAggregatorBuilder aggregation : pipelineAggregationBuilders) {
+                    aggregation.toXContent(builder, params);
+                }
             }
             builder.endObject();
         }

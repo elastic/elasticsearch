@@ -58,8 +58,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     public static final HighlightBuilder PROTOTYPE = new HighlightBuilder();
 
-    public static final String HIGHLIGHT_ELEMENT_NAME = "highlight";
-
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
@@ -226,7 +224,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(HIGHLIGHT_ELEMENT_NAME);
+        builder.startObject();
         innerXContent(builder);
         builder.endObject();
         return builder;
@@ -355,7 +353,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             targetOptionsBuilder.options(highlighterBuilder.options);
         }
         if (highlighterBuilder.highlightQuery != null) {
-            targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
+            targetOptionsBuilder.highlightQuery(QueryBuilder.rewriteQuery(highlighterBuilder.highlightQuery, context).toQuery(context));
         }
     }
 

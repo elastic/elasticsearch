@@ -73,6 +73,11 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
+    public void startInitialJoin() {
+
+    }
+
+    @Override
     public int getMinimumMasterNodes() {
         return -1;
     }

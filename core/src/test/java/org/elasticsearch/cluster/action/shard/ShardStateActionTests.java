@@ -107,6 +107,7 @@ public class ShardStateActionTests extends ESTestCase {
         clusterService = new TestClusterService(THREAD_POOL);
         transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
+        transportService.acceptIncomingRequests();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {});
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});

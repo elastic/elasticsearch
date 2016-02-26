@@ -117,9 +117,12 @@ public class JvmInfo implements Streamable, ToXContent {
             Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
             Method valueMethod = vmOptionClazz.getMethod("getValue");
             info.useCompressedOops = (String)valueMethod.invoke(useCompressedOopsVmOption);
+            Object useG1GCVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
+            info.useG1GC = (String)valueMethod.invoke(useG1GCVmOption);
         } catch (Throwable t) {
             // unable to deduce the state of compressed oops
             info.useCompressedOops = "unknown";
+            info.useG1GC = "unknown";
         }
 
         INSTANCE = info;
@@ -157,6 +160,8 @@ public class JvmInfo implements Streamable, ToXContent {
     String[] memoryPools = Strings.EMPTY_ARRAY;
 
     private String useCompressedOops;
+
+    private String useG1GC;
 
     private JvmInfo() {
     }
@@ -291,6 +296,10 @@ public class JvmInfo implements Streamable, ToXContent {
      */
     public String useCompressedOops() {
         return this.useCompressedOops;
+    }
+
+    public String useG1GC() {
+        return this.useG1GC;
     }
 
     @Override

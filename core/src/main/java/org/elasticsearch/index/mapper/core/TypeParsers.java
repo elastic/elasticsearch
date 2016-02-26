@@ -100,8 +100,9 @@ public class TypeParsers {
     }
 
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
-        NamedAnalyzer indexAnalyzer = builder.fieldType().indexAnalyzer();
-        NamedAnalyzer searchAnalyzer = builder.fieldType().searchAnalyzer();
+        NamedAnalyzer indexAnalyzer = null;
+        NamedAnalyzer searchAnalyzer = null;
+        NamedAnalyzer searchQuoteAnalyzer = null;
 
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -136,18 +137,41 @@ public class TypeParsers {
                 }
                 searchAnalyzer = analyzer;
                 iterator.remove();
+            } else if (propName.equals("search_quote_analyzer")) {
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                searchQuoteAnalyzer = analyzer;
+                iterator.remove();
             }
         }
 
-        if (indexAnalyzer == null) {
-            if (searchAnalyzer != null) {
-                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
-            }
-        } else if (searchAnalyzer == null) {
+        if (indexAnalyzer == null && searchAnalyzer != null) {
+            throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+        }
+
+        if (searchAnalyzer == null && searchQuoteAnalyzer != null) {
+            throw new MapperParsingException("analyzer and search_analyzer on field [" + name + "] must be set when search_quote_analyzer is set");
+        }
+
+        if (searchAnalyzer == null) {
             searchAnalyzer = indexAnalyzer;
         }
-        builder.indexAnalyzer(indexAnalyzer);
-        builder.searchAnalyzer(searchAnalyzer);
+
+        if (searchQuoteAnalyzer == null) {
+            searchQuoteAnalyzer = searchAnalyzer;
+        }
+
+        if (indexAnalyzer != null) {
+            builder.indexAnalyzer(indexAnalyzer);
+        }
+        if (searchAnalyzer != null) {
+            builder.searchAnalyzer(searchAnalyzer);
+        }
+        if (searchQuoteAnalyzer != null) {
+            builder.searchQuoteAnalyzer(searchQuoteAnalyzer);
+        }
     }
 
     /**

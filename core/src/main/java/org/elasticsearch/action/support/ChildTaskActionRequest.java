@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
@@ -31,40 +32,35 @@ import java.io.IOException;
  */
 public abstract class ChildTaskActionRequest<Request extends ActionRequest<Request>> extends ActionRequest<Request> {
 
-    private String parentTaskNode;
-
-    private long parentTaskId;
+    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
     protected ChildTaskActionRequest() {
 
     }
 
     public void setParentTask(String parentTaskNode, long parentTaskId) {
-        this.parentTaskNode = parentTaskNode;
-        this.parentTaskId = parentTaskId;
+        this.parentTaskId = new TaskId(parentTaskNode, parentTaskId);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        parentTaskNode = in.readOptionalString();
-        parentTaskId = in.readLong();
+        parentTaskId = new TaskId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(parentTaskNode);
-        out.writeLong(parentTaskId);
+        parentTaskId.writeTo(out);
     }
 
     @Override
     public final Task createTask(long id, String type, String action) {
-        return createTask(id, type, action, parentTaskNode, parentTaskId);
+        return createTask(id, type, action, parentTaskId);
     }
 
-    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
-        return new Task(id, type, action, getDescription(), parentTaskNode, parentTaskId);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new Task(id, type, action, getDescription(), parentTaskId);
     }
 
 }

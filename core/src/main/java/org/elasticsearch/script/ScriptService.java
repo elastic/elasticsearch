@@ -489,6 +489,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptMetrics.stats();
     }
 
+    public Client getClient() {
+        return client;
+    }
+
     /**
      * A small listener for the script cache that calls each
      * {@code ScriptEngineService}'s {@code scriptRemoved} method when the

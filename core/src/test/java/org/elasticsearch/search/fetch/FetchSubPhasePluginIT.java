@@ -74,7 +74,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                                 .startObject().startObject("type1")
                                 .startObject("properties")
                                 .startObject("test")
-                                .field("type", "string").field("term_vector", "yes")
+                                .field("type", "text").field("term_vector", "yes")
                                 .endObject()
                                 .endObject()
                                 .endObject().endObject()).execute().actionGet();

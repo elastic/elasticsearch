@@ -20,15 +20,11 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 
 public class PercentilesBucketParser extends BucketMetricsParser {
@@ -41,17 +37,17 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                     ValueFormatter formatter, Map<String, Object> unparsedParams) throws ParseException {
+    protected PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
 
-        double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
+        double[] percents = null;
         int counter = 0;
         Object percentParam = unparsedParams.get(PERCENTS.getPreferredName());
 
         if (percentParam != null) {
             if (percentParam instanceof List) {
-                percents = new double[((List) percentParam).size()];
-                for (Object p : (List) percentParam) {
+                percents = new double[((List<?>) percentParam).size()];
+                for (Object p : (List<?>) percentParam) {
                     if (p instanceof Double) {
                         percents[counter] = (Double) p;
                         counter += 1;
@@ -67,6 +63,16 @@ public class PercentilesBucketParser extends BucketMetricsParser {
             }
         }
 
-        return new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter, percents);
+        PercentilesBucketPipelineAggregatorBuilder factory = new
+                PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        if (percents != null) {
+            factory.percents(percents);
+        }
+        return factory;
+    }
+
+    @Override
+    public PercentilesBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return PercentilesBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

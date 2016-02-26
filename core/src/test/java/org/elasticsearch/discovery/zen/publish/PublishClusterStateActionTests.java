@@ -232,6 +232,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     protected MockTransportService buildTransportService(Settings settings, Version version) {
         MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool);
         transportService.start();
+        transportService.acceptIncomingRequests();
         return transportService;
     }
 

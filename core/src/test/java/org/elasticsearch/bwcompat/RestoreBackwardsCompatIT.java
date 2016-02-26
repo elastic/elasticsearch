@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -98,7 +99,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         for (java.lang.reflect.Field field : Version.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version) field.get(Version.class);
-                if (v.snapshot()) continue;
+                if (VersionUtils.isSnapshot(v)) continue;
                 if (v.onOrBefore(Version.V_2_0_0_beta1)) continue;
                 if (v.equals(Version.CURRENT)) continue;
                 expectedVersions.add(v.toString());

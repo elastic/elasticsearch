@@ -33,7 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.indices.TermsLookup;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -271,6 +272,19 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, 2, parsed.values().size());
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        try {
+            termsQueryBuilder.toQuery(queryShardContext());
+            fail();
+        } catch (UnsupportedOperationException ex) {
+            assertEquals("query must be rewritten first", ex.getMessage());
+        }
+        assertEquals(termsQueryBuilder.rewrite(queryShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
+            randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
     }
 }
 

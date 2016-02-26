@@ -22,7 +22,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -195,7 +194,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Query childrenFilter = Queries.not(parentTypeQuery);
-        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, type, score ? ScoreMode.Max : ScoreMode.None, parentChildIndexFieldData);
+        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter,
+                                                         innerQuery,
+                                                         HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
+                                                         HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+                                                         type,
+                                                         score ? ScoreMode.Max : ScoreMode.None,
+                                                         parentChildIndexFieldData,
+                                                         context.getSearchSimilarity());
     }
 
     @Override
@@ -255,5 +261,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected int doHashCode() {
         return Objects.hash(query, type, score, innerHit);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryShardContext);
+        if (rewrite != query) {
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrite);
+            hasParentQueryBuilder.score = score;
+            hasParentQueryBuilder.innerHit = innerHit;
+            return hasParentQueryBuilder;
+        }
+        return this;
     }
 }

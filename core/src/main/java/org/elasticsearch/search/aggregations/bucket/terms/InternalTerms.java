@@ -188,7 +188,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
-            if (terms.buckets.size() < this.shardSize || this.order == InternalOrder.TERM_ASC || this.order == InternalOrder.TERM_DESC) {
+            if (terms.buckets.size() < this.shardSize || InternalOrder.isTermOrder(order)) {
                 thisAggDocCountError = 0;
             } else if (InternalOrder.isCountDesc(this.order)) {
                 thisAggDocCountError = terms.buckets.get(terms.buckets.size() - 1).docCount;

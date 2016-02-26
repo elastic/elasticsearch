@@ -98,7 +98,7 @@ import java.util.Map;
  * <p>
  * When running tests you have to pass it to the test runner like this:
  * <pre>
- * mvn test -Dtests.jvm.argline="-Djava.security.debug=access,failure" ...
+ * gradle test -Dtests.jvm.argline="-Djava.security.debug=access,failure" ...
  * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.

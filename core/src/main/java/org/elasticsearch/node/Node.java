@@ -40,7 +40,6 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -50,7 +49,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -279,8 +277,6 @@ public class Node implements Closeable {
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
-        injector.getInstance(TransportService.class).start();
-        injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
@@ -289,16 +285,24 @@ public class Node implements Closeable {
         // TODO hack around circular dependencies problems
         injector.getInstance(GatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(RoutingService.class));
 
-        DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
-        discoService.waitForInitialState();
-
-        // gateway should start after disco, so it can try and recovery from gateway on "start"
+        injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(GatewayService.class).start();
+
+        // Start the transport service now so the publish address will be added to the local disco node in ClusterService
+        TransportService transportService = injector.getInstance(TransportService.class);
+        transportService.start();
+        injector.getInstance(ClusterService.class).start();
+
+        // start after cluster service so the local disco is known
+        DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
+
+
+        transportService.acceptIncomingRequests();
+        discoService.joinClusterAndWaitForInitialState();
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
-        injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {

@@ -46,7 +46,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         super.setUp();
         MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
-                STRING_FIELD_NAME, "type=string",
+                STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",

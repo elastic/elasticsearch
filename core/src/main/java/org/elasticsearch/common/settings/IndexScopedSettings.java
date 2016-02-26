@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.IndexWarmer;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesRequestCache;
 
 import java.util.Arrays;
 import java.util.Collections;

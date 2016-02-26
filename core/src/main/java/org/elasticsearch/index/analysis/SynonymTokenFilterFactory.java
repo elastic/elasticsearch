@@ -52,7 +52,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             List<String> rules = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
             for (String line : rules) {
-                sb.append(line).append(System.getProperty("line.separator"));
+                sb.append(line).append(System.lineSeparator());
             }
             rulesReader = new FastStringReader(sb.toString());
         } else if (settings.get("synonyms_path") != null) {

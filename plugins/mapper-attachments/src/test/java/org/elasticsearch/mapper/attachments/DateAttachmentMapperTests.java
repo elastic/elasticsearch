@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.junit.Before;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -47,6 +47,6 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
         DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
 
         // Our mapping should be kept as a String
-        assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(TextFieldMapper.class));
     }
 }

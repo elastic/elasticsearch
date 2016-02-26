@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -52,6 +53,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -114,13 +116,15 @@ public class PercolateContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private SearchLookup searchLookup;
+    private final FetchPhase fetchPhase;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
-                            IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter, ParseFieldMatcher parseFieldMatcher) {
+            IndexService indexService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ScriptService scriptService,
+            Query aliasFilter, ParseFieldMatcher parseFieldMatcher, FetchPhase fetchPhase) {
         super(parseFieldMatcher);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.fetchPhase = fetchPhase;
         this.fieldDataService = indexService.fieldData();
         this.mapperService = indexService.mapperService();
         this.searchShardTarget = searchShardTarget;
@@ -154,6 +158,7 @@ public class PercolateContext extends SearchContext {
         this.numberOfShards = 0;
         this.onlyCount = true;
         this.queryShardContext = queryShardContext;
+        this.fetchPhase = null;
     }
 
     public IndexSearcher docSearcher() {
@@ -642,6 +647,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FetchPhase fetchPhase() {
+        return fetchPhase;
     }
 
     @Override

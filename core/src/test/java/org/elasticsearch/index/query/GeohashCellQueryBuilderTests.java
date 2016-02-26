@@ -145,4 +145,10 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
         checkGeneratedJson(json, parsed);
         assertEquals(json, 3, parsed.precision().intValue());
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
+    }
 }

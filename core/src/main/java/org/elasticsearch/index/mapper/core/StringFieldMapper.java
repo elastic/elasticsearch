@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -63,13 +62,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
 
-        /**
-         * Post 2.0 default for position_increment_gap. Set to 100 so that
-         * phrase queries of reasonably high slop will not match across field
-         * values.
-         */
-        public static final int POSITION_INCREMENT_GAP = 100;
-
         public static final int IGNORE_ABOVE = -1;
     }
 
@@ -100,11 +92,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         public Builder positionIncrementGap(int positionIncrementGap) {
             this.positionIncrementGap = positionIncrementGap;
             return this;
-        }
-
-        public Builder searchQuotedAnalyzer(NamedAnalyzer analyzer) {
-            this.fieldType.setSearchQuoteAnalyzer(analyzer);
-            return builder;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -177,13 +164,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(propNode.toString());
-                    iterator.remove();
-                } else if (propName.equals("search_quote_analyzer")) {
-                    NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
-                    if (analyzer == null) {
-                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + fieldName + "]");
-                    }
-                    builder.searchQuotedAnalyzer(analyzer);
                     iterator.remove();
                 } else if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);

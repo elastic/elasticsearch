@@ -97,6 +97,11 @@ characteristics as the former `scan` search type.
 [[breaking_30_rest_api_changes]]
 === REST API changes
 
+==== id values longer than 512 bytes are rejected
+
+When specifying an `_id` value longer than 512 bytes, the request will be
+rejected.
+
 ==== search exists api removed
 
 The search exists api has been removed in favour of using the search api with
@@ -172,6 +177,12 @@ This is in opposition to the HTTP spec which specifies the Accept
 header field for this purpose. Elasticsearch now uses the Accept header
 field and support for using the Content-Type header field for this
 purpose has been removed.
+
+==== Host field removed from the cat nodes API
+
+The `host` field has been removed from the cat nodes API as its value
+is always equal to the `ip` field. The `name` field is available in the
+cat nodes API and should be used instead of the `host` field.
 
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
@@ -274,6 +285,12 @@ now doesn't accept a value less than `100ms` which prevents fsyncing too often i
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
 
+`indices.requests.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
+==== Field Data Cache Settings
+
+`indices.fielddata.cache.clean_interval` has been replaced with `indices.cache.clean_interval` and is no longer supported.
+
 ==== Allocation settings
 
 Allocation settings deprecated in 1.x have been removed:
@@ -290,6 +307,28 @@ The 'default' similarity has been renamed to 'classic'.
 
 `indices.memory.min_shard_index_buffer_size` and `indices.memory.max_shard_index_buffer_size` are removed since Elasticsearch now allows any one shard to any
 amount of heap as long as the total indexing buffer heap used across all shards is below the node's `indices.memory.index_buffer_size` (default: 10% of the JVM heap)
+
+==== Removed es.max-open-files
+
+Setting the system property es.max-open-files to true to get
+Elasticsearch to print the number of maximum open files for the
+Elasticsearch process has been removed. This same information can be
+obtained from the <<cluster-nodes-info>> API, and a warning is logged
+on startup if it is set too low.
+
+==== Removed es.netty.gathering
+
+Disabling Netty from using NIO gathering could be done via the escape
+hatch of setting the system property "es.netty.gathering" to "false".
+Time has proven enabling gathering by default is a non-issue and this
+non-documented setting has been removed.
+
+==== Removed es.useLinkedTransferQueue
+
+The system property `es.useLinkedTransferQueue` could be used to
+control the queue implementation used in the cluster service and the
+handling of ping responses during discovery. This was an undocumented
+setting and has been removed.
 
 [[breaking_30_mapping_changes]]
 === Mapping changes
@@ -432,6 +471,13 @@ cloud:
 ==== Cloud GCE plugin changes
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
+
+
+==== Mapper Attachments plugin deprecated
+
+Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
+plugin.
+
 
 [[breaking_30_java_api_changes]]
 === Java API changes

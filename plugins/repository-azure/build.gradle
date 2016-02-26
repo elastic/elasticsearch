@@ -35,3 +35,8 @@ dependencyLicenses {
   mapping from: /stax-.*/, to: 'stax'
 }
 
+thirdPartyAudit.excludes = [
+  // Optional and not enabled by Elasticsearch
+  'org.slf4j.Logger',
+  'org.slf4j.LoggerFactory',
+]

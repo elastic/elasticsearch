@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
@@ -38,13 +37,4 @@ public class BasicReplicationRequest extends ReplicationRequest<BasicReplication
     public BasicReplicationRequest(ShardId shardId) {
         super(shardId);
     }
-
-    /**
-     * Copy constructor that creates a new request that is a copy of the one
-     * provided as an argument.
-     */
-    protected BasicReplicationRequest(BasicReplicationRequest request) {
-        super(request);
-    }
-
 }

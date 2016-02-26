@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.EncryptionMaterials;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -154,4 +155,5 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
     }
 
     AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries);
+    AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries, EncryptionMaterials clientSideEncryptionMaterials);
 }

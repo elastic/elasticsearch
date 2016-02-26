@@ -236,6 +236,16 @@ The following settings are supported:
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
 
+`client_symmetric_key`::
+    Sets the keys to use to encrypt your snapshots. You can specify either a symmetric key or a public/private key pair.
+    No encryption by default. This sets a Base64-encoded AES symmetric-key (128, 192 or 256 bits)
+
+`client_public_key`::
+    Sets the a base64-encoded RSA public key
+
+`client_private_key`::
+    Sets the a base64-encoded RSA private key
+
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
 

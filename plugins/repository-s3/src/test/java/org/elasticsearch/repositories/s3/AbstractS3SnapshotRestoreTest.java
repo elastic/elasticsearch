@@ -23,15 +23,9 @@ import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-<<<<<<< HEAD:plugins/repository-s3/src/test/java/org/elasticsearch/repositories/s3/AbstractS3SnapshotRestoreTest.java
-=======
 
 import com.amazonaws.util.Base64;
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.gson.stream.JsonReader;
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.gson.stream.MalformedJsonException;
->>>>>>> 98d508f... Add client-side encryption:src/test/java/org/elasticsearch/repositories/s3/AbstractS3SnapshotRestoreTest.java
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -41,11 +35,7 @@ import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-<<<<<<< HEAD:plugins/repository-s3/src/test/java/org/elasticsearch/repositories/s3/AbstractS3SnapshotRestoreTest.java
-=======
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryException;
->>>>>>> 98d508f... Add client-side encryption:src/test/java/org/elasticsearch/repositories/s3/AbstractS3SnapshotRestoreTest.java
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -56,8 +46,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.crypto.KeyGenerator;
-import java.io.InputStreamReader;
-import java.security.*;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -112,7 +104,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(settings
-                        ).get();
+                ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -135,7 +127,6 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        assertMetadataFileIsNotEncrypted("test-snap");
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
@@ -265,77 +256,6 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
-    }
-
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
-    public void testClientSideEncryption() throws NoSuchAlgorithmException {
-
-        KeyGenerator keyGenerator1 = KeyGenerator.getInstance("AES");
-        keyGenerator1.init(128);
-        String symmetricEncryptionKeyBase64 = Base64.encodeAsString(keyGenerator1.generateKey().getEncoded());
-
-        KeyPairGenerator keyGenerator2 = KeyPairGenerator.getInstance("RSA");
-        keyGenerator2.initialize(512, new SecureRandom());
-        KeyPair keyPair = keyGenerator2.generateKeyPair();
-        String publicEncryptionKeyBase64 = Base64.encodeAsString(keyPair.getPublic().getEncoded());
-        String privateEncryptionKeyBase64 = Base64.encodeAsString(keyPair.getPrivate().getEncoded());
-
-        Client client = client();
-        try {
-            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                    .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
-                                    .put("base_path", basePath)
-                                    .put("client_side_encryption_key.symmetric", symmetricEncryptionKeyBase64)
-                                    .put("client_side_encryption_key.public", publicEncryptionKeyBase64)
-                                    .put("client_side_encryption_key.private", privateEncryptionKeyBase64)
-                                    .put("chunk_size", randomIntBetween(1000, 10000))
-                    ).get();
-            fail("Symmetric and public/private key pairs are exclusive options. An exception should be thrown.");
-        } catch(RepositoryException e) {
-        }
-
-        List<ImmutableSettings.Builder> allSettings = Arrays.asList(
-            ImmutableSettings.settingsBuilder()
-                    .put("base_path", basePath)
-                    .put("client_side_encryption_key.symmetric", symmetricEncryptionKeyBase64)
-                    .put("chunk_size", randomIntBetween(1000, 10000)),
-            ImmutableSettings.settingsBuilder()
-                    .put("base_path", basePath)
-                    .put("client_side_encryption_key.public", publicEncryptionKeyBase64)
-                    .put("client_side_encryption_key.private", privateEncryptionKeyBase64)
-                    .put("chunk_size", randomIntBetween(1000, 10000))
-        );
-        for(ImmutableSettings.Builder settings: allSettings) {
-            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                    .setType("s3").setSettings(settings).get();
-
-            // Create the index and index some data
-            createIndex("test-idx-1");
-            for (int i = 0; i < 100; i++) {
-                index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
-            }
-            refresh();
-
-            // Take the snapshot
-            CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").get();
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-            assertMetadataFileIsEncrypted("test-snap");
-
-            // Restore
-            cluster().wipeIndices("test-idx-1");
-            RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").execute().actionGet();
-            ensureGreen();
-            assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-            assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
-
-            // Clean, the test will bbe run with different settings
-            cluster().wipeIndices("test-idx-1");
-            wipeRepositories();
-            cleanRepositoryFiles(basePath);
-        }
     }
 
     /**
@@ -488,6 +408,75 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
+    public void testClientSideEncryption() throws NoSuchAlgorithmException {
+
+        KeyGenerator keyGenerator1 = KeyGenerator.getInstance("AES");
+        keyGenerator1.init(128);
+        String symmetricEncryptionKeyBase64 = Base64.encodeAsString(keyGenerator1.generateKey().getEncoded());
+
+        KeyPairGenerator keyGenerator2 = KeyPairGenerator.getInstance("RSA");
+        keyGenerator2.initialize(512, new SecureRandom());
+        KeyPair keyPair = keyGenerator2.generateKeyPair();
+        String publicEncryptionKeyBase64 = Base64.encodeAsString(keyPair.getPublic().getEncoded());
+        String privateEncryptionKeyBase64 = Base64.encodeAsString(keyPair.getPrivate().getEncoded());
+
+        Client client = client();
+        try {
+            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("s3").setSettings(Settings.settingsBuilder()
+                                    .put("base_path", basePath)
+                                    .put("client_side_encryption_key.symmetric", symmetricEncryptionKeyBase64)
+                                    .put("client_side_encryption_key.public", publicEncryptionKeyBase64)
+                                    .put("client_side_encryption_key.private", privateEncryptionKeyBase64)
+                                    .put("chunk_size", randomIntBetween(1000, 10000))
+                    ).get();
+            fail("Symmetric and public/private key pairs are exclusive options. An exception should be thrown.");
+        } catch (RepositoryException e) {
+        }
+
+        List<Settings.Builder> allSettings = Arrays.asList(
+                Settings.settingsBuilder()
+                        .put("base_path", basePath)
+                        .put("client_side_encryption_key.symmetric", symmetricEncryptionKeyBase64)
+                        .put("chunk_size", randomIntBetween(1000, 10000)),
+                Settings.settingsBuilder()
+                        .put("base_path", basePath)
+                        .put("client_side_encryption_key.public", publicEncryptionKeyBase64)
+                        .put("client_side_encryption_key.private", privateEncryptionKeyBase64)
+                        .put("chunk_size", randomIntBetween(1000, 10000))
+        );
+        for (Settings.Builder settings : allSettings) {
+            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("s3").setSettings(settings).get();
+
+            // Create the index and index some data
+            createIndex("test-idx-1");
+            for (int i = 0; i < 100; i++) {
+                index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            }
+            refresh();
+
+            // Take the snapshot
+            CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").get();
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+            // Restore
+            cluster().wipeIndices("test-idx-1");
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").execute().actionGet();
+            ensureGreen();
+            assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+            assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
+
+            // Clean, the test will bbe run with different settings
+            cluster().wipeIndices("test-idx-1");
+            wipeRepositories();
+            cleanRepositoryFiles(basePath);
+        }
+    }
+
     private void assertRepositoryIsOperational(Client client, String repository) {
         createIndex("test-idx-1");
         ensureGreen();
@@ -524,51 +513,6 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
     }
 
-    private void assertMetadataFileIsEncrypted(String snapshotName) {
-
-        Settings settings = internalCluster().getInstance(Settings.class);
-        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
-                settings.get("repositories.s3.endpoint"),
-                settings.get("repositories.s3.protocol"),
-                settings.get("repositories.s3.region"),
-                settings.get("cloud.aws.access_key"),
-                settings.get("cloud.aws.secret_key"));
-        String bucket = settings.get("repositories.s3.bucket");
-        String objectKey = basePath + "/metadata-" + snapshotName;
-        S3Object object = s3Client.getObject(bucket, objectKey);
-
-        try {
-            JsonReader jsonReader = new JsonReader(new InputStreamReader(object.getObjectContent()));
-            jsonReader.beginObject();
-            assertThat("The file hasn't been encrypted properly, its content is still readable!", jsonReader.nextName(), not(equalTo("meta-data")));
-        } catch(Exception e) {
-            // The json is not valid, the file is encrypted
-
-            // MalformedJsonException can't be catched directly so the following
-            //   assertion is necessary to avoid silent failures.
-            assertThat(e, instanceOf(MalformedJsonException.class));
-        }
-    }
-
-    private void assertMetadataFileIsNotEncrypted(String snapshotName) {
-
-        Settings settings = internalCluster().getInstance(Settings.class);
-        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
-                settings.get("repositories.s3.endpoint"),
-                settings.get("repositories.s3.protocol"),
-                settings.get("repositories.s3.region"),
-                settings.get("cloud.aws.access_key"),
-                settings.get("cloud.aws.secret_key"));
-        String bucket = settings.get("repositories.s3.bucket");
-        String objectKey = basePath + "/metadata-" + snapshotName;
-        S3Object object = s3Client.getObject(bucket, objectKey);
-
-        JsonReader jsonReader = new JsonReader(new InputStreamReader(object.getObjectContent()));
-        jsonReader.beginObject();
-        assertThat("The file wasn't decrypted properly", jsonReader.nextName(), equalTo("meta-data"));
-
-        // The beginning of the file looks like json. If it was encrypted, it wouldn't.
-    }
 
     /**
      * Deletes repositories, supports wildcard notation.

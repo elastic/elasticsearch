@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
@@ -461,10 +462,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     public void testTasksDescriptions() throws Exception {
+        long minimalStartTime = System.currentTimeMillis();
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        long maximumStartTimeNanos = System.nanoTime();
 
         // Check task counts using transport with filtering
         TestNode testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
@@ -478,12 +481,15 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         // Check task counts using transport with detailed description
+        long minimalDurationNanos = System.nanoTime() - maximumStartTimeNanos;
         listTasksRequest.detailed(true); // same request only with detailed description
         response = testNode.transportListTasksAction.execute(listTasksRequest).get();
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
             assertEquals("CancellableNodeRequest[Test Request, true]", entry.getValue().get(0).getDescription());
+            assertThat(entry.getValue().get(0).getStartTime(), greaterThanOrEqualTo(minimalStartTime));
+            assertThat(entry.getValue().get(0).getRunningTimeNanos(), greaterThanOrEqualTo(minimalDurationNanos));
         }
 
         // Release all tasks and wait for response

@@ -203,6 +203,8 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                     if (!names.isEmpty()) {
                                         name = new Privilege.Name(names);
                                     }
+                                } else if (token == XContentParser.Token.VALUE_NULL) {
+                                    continue;
                                 } else {
                                     logger.error("invalid role definition [{}] in roles file [{}]. [cluster] field value can either " +
                                                     "be a string or a list of strings, but [{}] was found instead. skipping role...",
@@ -264,6 +266,8 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                             } else {
                                                                 fields = Collections.singletonList(field);
                                                             }
+                                                        } else if (token == XContentParser.Token.VALUE_NULL) {
+                                                            fields = Collections.emptyList();
                                                         }
                                                     } else if ("query".equals(currentFieldName)) {
                                                         if (token == XContentParser.Token.START_OBJECT) {
@@ -319,6 +323,8 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                         return null;
                                                     }
                                                 }
+                                                continue;
+                                            } else if (token == XContentParser.Token.VALUE_NULL) {
                                                 continue;
                                             } else {
                                                 logger.error("invalid role definition [{}] in roles file [{}]. " +

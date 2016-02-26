@@ -33,6 +33,7 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryParser;
@@ -287,14 +288,15 @@ public class SearchModule extends AbstractModule {
     /**
      * Register a new ScoreFunctionParser.
      */
-    public void registerFunctionScoreParser(ScoreFunctionParser<?> parser) {
+    public void registerFunctionScoreParser(ScoreFunctionParser<? extends ScoreFunctionBuilder> parser) {
         for (String name: parser.getNames()) {
             Object oldValue = functionScoreParsers.putIfAbsent(name, parser);
             if (oldValue != null) {
                 throw new IllegalArgumentException("Function score parser [" + oldValue + "] already registered for name [" + name + "]");
             }
         }
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, parser.getBuilderPrototype());
+        @SuppressWarnings("unchecked") NamedWriteable<? extends ScoreFunctionBuilder> sfb = parser.getBuilderPrototype();
+        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
     }
 
     public void registerQueryParser(Supplier<QueryParser<?>> parser) {
@@ -358,14 +360,15 @@ public class SearchModule extends AbstractModule {
     public IndicesQueriesRegistry buildQueryParserRegistry() {
         Map<String, QueryParser<?>> queryParsersMap = new HashMap<>();
         for (Supplier<QueryParser<?>> parserSupplier : queryParsers) {
-            QueryParser<?> parser = parserSupplier.get();
+            QueryParser<? extends QueryBuilder> parser = parserSupplier.get();
             for (String name: parser.names()) {
                 Object oldValue = queryParsersMap.putIfAbsent(name, parser);
                 if (oldValue != null) {
                     throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
                 }
             }
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, parser.getBuilderPrototype());
+            @SuppressWarnings("unchecked") NamedWriteable<? extends QueryBuilder> qb = parser.getBuilderPrototype();
+            namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
         }
         return new IndicesQueriesRegistry(settings, queryParsersMap);
     }

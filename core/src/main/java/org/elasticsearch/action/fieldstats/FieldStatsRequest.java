@@ -62,7 +62,7 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
     public void setIndexConstraints(IndexConstraint[] indexConstraints) {
         if (indexConstraints == null) {
-            throw new NullPointerException("specified index_contraints can't be null");
+            throw new NullPointerException("specified index_constraints can't be null");
         }
         this.indexConstraints = indexConstraints;
     }

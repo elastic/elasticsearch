@@ -458,7 +458,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     public void started(ShardRouting shard) {
         ensureMutable();
-        assert !shard.active() : "expected an intializing shard " + shard;
+        assert !shard.active() : "expected an initializing shard " + shard;
         if (shard.relocatingNodeId() == null) {
             // if this is not a target shard for relocation, we need to update statistics
             inactiveShardCount--;

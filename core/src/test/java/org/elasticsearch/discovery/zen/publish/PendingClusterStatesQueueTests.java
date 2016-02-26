@@ -112,7 +112,7 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         for (ClusterStateContext context : queue.pendingStates) {
             final String pendingMaster = context.state.nodes().masterNodeId();
             assertThat("found a cluster state from [" + pendingMaster
-                            + "], after a state from [" + processedMaster + "] was proccessed",
+                            + "], after a state from [" + processedMaster + "] was processed",
                     pendingMaster, equalTo(processedMaster));
         }
         // and check all committed contexts from another master were failed

@@ -31,9 +31,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -297,6 +300,27 @@ public class ScopedSettingsTests extends ESTestCase {
             assertEquals("ERROR", ESLoggerFactory.getRootLogger().getLevel());
         } finally {
             ESLoggerFactory.getRootLogger().setLevel(level);
+        }
+    }
+
+    public void testOverlappingComplexMatchSettings() {
+        Set<Setting<?>> settings = new LinkedHashSet<>(2);
+        final boolean groupFirst = randomBoolean();
+        final Setting<?> groupSetting = Setting.groupSetting("foo.", false, Setting.Scope.CLUSTER);
+        final Setting<?> listSetting = Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), false,
+            Setting.Scope.CLUSTER);
+        settings.add(groupFirst ? groupSetting : listSetting);
+        settings.add(groupFirst ? listSetting : groupSetting);
+
+        try {
+            new ClusterSettings(Settings.EMPTY, settings);
+            fail("an exception should have been thrown because settings overlap");
+        } catch (IllegalArgumentException e) {
+            if (groupFirst) {
+                assertEquals("complex setting key: [foo.bar] overlaps existing setting key: [foo.]", e.getMessage());
+            } else {
+                assertEquals("complex setting key: [foo.] overlaps existing setting key: [foo.bar]", e.getMessage());
+            }
         }
     }
 }

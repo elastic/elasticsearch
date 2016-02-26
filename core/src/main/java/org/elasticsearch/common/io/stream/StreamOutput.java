@@ -63,19 +63,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
  */
 public abstract class StreamOutput extends OutputStream {
 
     private Version version = Version.CURRENT;
 
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
-    public StreamOutput setVersion(Version version) {
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
+    public void setVersion(Version version) {
         this.version = version;
-        return this;
     }
 
     public long position() throws IOException {

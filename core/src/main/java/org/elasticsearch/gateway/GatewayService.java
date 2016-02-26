@@ -133,27 +133,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     @Override
     protected void doStart() {
         clusterService.addLast(this);
-        // check we didn't miss any cluster state that came in until now / during the addition
-        clusterService.submitStateUpdateTask("gateway_initial_state_recovery", new ClusterStateUpdateTask() {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                checkStateMeetsSettingsAndMaybeRecover(currentState);
-                return currentState;
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                // It's OK to run on non masters as checkStateMeetsSettingsAndMaybeRecover checks for this
-                // we return false to avoid unneeded failure logs
-                return false;
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("unexpected failure while checking if state can be recovered. another attempt will be made with the next cluster state change", t);
-            }
-        });
     }
 
     @Override
@@ -170,10 +149,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        checkStateMeetsSettingsAndMaybeRecover(event.state());
-    }
 
-    protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state) {
+        final ClusterState state = event.state();
+
         if (state.nodes().localNodeMaster() == false) {
             // not our job to recover
             return;

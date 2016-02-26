@@ -52,7 +52,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
     private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
-    private final boolean optimizeSingleShard;
 
     @Inject
     public TransportSearchAction(Settings settings, ThreadPool threadPool,
@@ -68,27 +67,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.queryThenFetchAction = queryThenFetchAction;
         this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
-        this.optimizeSingleShard = this.settings.getAsBoolean("action.search.optimize_single_shard", true);
     }
 
     @Override
     protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
-        if (optimizeSingleShard) {
-            try {
-                ClusterState clusterState = clusterService.state();
-                String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest);
-                Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
-                int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, routingMap);
-                if (shardCount == 1) {
-                    // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
-                    searchRequest.searchType(QUERY_AND_FETCH);
-                }
-            } catch (IndexNotFoundException | IndexClosedException e) {
-                // ignore these failures, we will notify the search response if its really the case from the actual action
-            } catch (Exception e) {
-                logger.debug("failed to optimize search type, continue as normal", e);
+        try {
+            ClusterState clusterState = clusterService.state();
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest);
+            Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
+            int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, routingMap);
+            if (shardCount == 1) {
+                // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
+                searchRequest.searchType(QUERY_AND_FETCH);
             }
+        } catch (IndexNotFoundException | IndexClosedException e) {
+            // ignore these failures, we will notify the search response if its really the case from the actual action
+        } catch (Exception e) {
+            logger.debug("failed to optimize search type, continue as normal", e);
         }
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
             dfsQueryThenFetchAction.execute(searchRequest, listener);

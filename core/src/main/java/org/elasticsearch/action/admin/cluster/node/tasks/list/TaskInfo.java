@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
@@ -41,7 +42,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
 
     private final DiscoveryNode node;
 
-    private final long id;
+    private final TaskId taskId;
 
     private final String type;
 
@@ -51,28 +52,21 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
 
     private final Task.Status status;
 
-    private final String parentNode;
+    private final TaskId parentTaskId;
 
-    private final long parentId;
-
-    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status) {
-        this(node, id, type, action, description, status, null, -1L);
-    }
-
-    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, String parentNode, long parentId) {
+    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, TaskId parentTaskId) {
         this.node = node;
-        this.id = id;
+        this.taskId = new TaskId(node.getId(), id);
         this.type = type;
         this.action = action;
         this.description = description;
         this.status = status;
-        this.parentNode = parentNode;
-        this.parentId = parentId;
+        this.parentTaskId = parentTaskId;
     }
 
     public TaskInfo(StreamInput in) throws IOException {
         node = DiscoveryNode.readNode(in);
-        id = in.readLong();
+        taskId = new TaskId(node.getId(), in.readLong());
         type = in.readString();
         action = in.readString();
         description = in.readOptionalString();
@@ -81,8 +75,11 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         } else {
             status = null;
         }
-        parentNode = in.readOptionalString();
-        parentId = in.readLong();
+        parentTaskId = new TaskId(in);
+    }
+
+    public TaskId getTaskId() {
+        return taskId;
     }
 
     public DiscoveryNode getNode() {
@@ -90,7 +87,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
     }
 
     public long getId() {
-        return id;
+        return taskId.getId();
     }
 
     public String getType() {
@@ -113,12 +110,8 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         return status;
     }
 
-    public String getParentNode() {
-        return parentNode;
-    }
-
-    public long getParentId() {
-        return parentId;
+    public TaskId getParentTaskId() {
+        return parentTaskId;
     }
 
     @Override
@@ -129,7 +122,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(taskId.getId());
         out.writeString(type);
         out.writeString(action);
         out.writeOptionalString(description);
@@ -139,15 +132,13 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         } else {
             out.writeBoolean(false);
         }
-        out.writeOptionalString(parentNode);
-        out.writeLong(parentId);
+        parentTaskId.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.field("node", node.getId());
-        builder.field("id", id);
+        builder.field("id", taskId.getId());
         builder.field("type", type);
         builder.field("action", action);
         if (status != null) {
@@ -156,11 +147,9 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         if (description != null) {
             builder.field("description", description);
         }
-        if (parentNode != null) {
-            builder.field("parent_node", parentNode);
-            builder.field("parent_id", parentId);
+        if (parentTaskId.isSet() == false) {
+            builder.field("parent_task_id", parentTaskId.toString());
         }
-        builder.endObject();
         return builder;
     }
 }

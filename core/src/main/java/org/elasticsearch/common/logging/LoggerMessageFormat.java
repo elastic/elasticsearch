@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.support;
+package org.elasticsearch.common.logging;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- *
+ * Format string for Elasticsearch log messages.
  */
 public class LoggerMessageFormat {
 
@@ -79,13 +79,13 @@ public class LoggerMessageFormat {
                         // itself escaped: "abc x:\\{}"
                         // we have to consume one backward slash
                         sbuf.append(messagePattern.substring(i, j - 1));
-                        deeplyAppendParameter(sbuf, argArray[L], new HashMap());
+                        deeplyAppendParameter(sbuf, argArray[L], new HashSet<Object[]>());
                         i = j + 2;
                     }
                 } else {
                     // normal case
                     sbuf.append(messagePattern.substring(i, j));
-                    deeplyAppendParameter(sbuf, argArray[L], new HashMap());
+                    deeplyAppendParameter(sbuf, argArray[L], new HashSet<Object[]>());
                     i = j + 2;
                 }
             }
@@ -117,7 +117,7 @@ public class LoggerMessageFormat {
         }
     }
 
-    private static void deeplyAppendParameter(StringBuilder sbuf, Object o, Map seenMap) {
+    private static void deeplyAppendParameter(StringBuilder sbuf, Object o, Set<Object[]> seen) {
         if (o == null) {
             sbuf.append("null");
             return;
@@ -144,7 +144,7 @@ public class LoggerMessageFormat {
             } else if (o instanceof double[]) {
                 doubleArrayAppend(sbuf, (double[]) o);
             } else {
-                objectArrayAppend(sbuf, (Object[]) o, seenMap);
+                objectArrayAppend(sbuf, (Object[]) o, seen);
             }
         }
     }
@@ -159,18 +159,18 @@ public class LoggerMessageFormat {
 
     }
 
-    private static void objectArrayAppend(StringBuilder sbuf, Object[] a, Map seenMap) {
+    private static void objectArrayAppend(StringBuilder sbuf, Object[] a, Set<Object[]> seen) {
         sbuf.append('[');
-        if (!seenMap.containsKey(a)) {
-            seenMap.put(a, null);
+        if (!seen.contains(a)) {
+            seen.add(a);
             final int len = a.length;
             for (int i = 0; i < len; i++) {
-                deeplyAppendParameter(sbuf, a[i], seenMap);
+                deeplyAppendParameter(sbuf, a[i], seen);
                 if (i != len - 1)
                     sbuf.append(", ");
             }
             // allow repeats in siblings
-            seenMap.remove(a);
+            seen.remove(a);
         } else {
             sbuf.append("...");
         }

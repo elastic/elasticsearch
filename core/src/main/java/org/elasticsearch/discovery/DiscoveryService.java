@@ -87,8 +87,9 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         logger.info(discovery.nodeDescription());
     }
 
-    public void waitForInitialState() {
+    public void joinClusterAndWaitForInitialState() {
         try {
+            discovery.startInitialJoin();
             if (!initialStateListener.waitForInitialState(initialStateTimeout)) {
                 logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
             }

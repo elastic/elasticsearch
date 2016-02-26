@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.common.logging.log4j;
+package org.elasticsearch.common.logging;
 
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.spi.LoggingEvent;

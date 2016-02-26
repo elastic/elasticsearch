@@ -72,16 +72,22 @@ import java.util.function.Supplier;
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
+/**
+ * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+ */
 public abstract class StreamInput extends InputStream {
-
     private Version version = Version.CURRENT;
 
-    protected StreamInput() { }
-
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
     public void setVersion(Version version) {
         this.version = version;
     }

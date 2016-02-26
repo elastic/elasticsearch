@@ -429,7 +429,7 @@ public class GeoUtils {
                     return point.resetFromGeoHash(geohash);
                 }
             } else if (numberFormatException != null) {
-                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", LATITUDE, LONGITUDE);
+                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE, LONGITUDE);
             } else if (Double.isNaN(lat)) {
                 throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
             } else if (Double.isNaN(lon)) {

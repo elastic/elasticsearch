@@ -43,11 +43,13 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.lang.NumberFormatException;
 
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonHash;
 import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -282,6 +284,42 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
 
         }
+
+        try {
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("point").field("lat", "-").field("lon", 1.3).endObject()
+                    .endObject()
+                    .bytes());
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
+        }
+
+        try {
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("point").field("lat", 1.2).field("lon", "-").endObject()
+                    .endObject()
+                    .bytes());
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
+        }
+
+        try {
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("point").field("lat", "-").field("lon", "-").endObject()
+                    .endObject()
+                    .bytes());
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
+        }
     }
 
     public void testNoValidateLatLonValues() throws Exception {
@@ -323,6 +361,24 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", 181).endObject()
+                .endObject()
+                .bytes());
+
+        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", "-").field("lon", 1.3).endObject()
+                .endObject()
+                .bytes());
+
+        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", 1.2).field("lon", "-").endObject()
+                .endObject()
+                .bytes());
+
+        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", "-").field("lon", "-").endObject()
                 .endObject()
                 .bytes());
     }

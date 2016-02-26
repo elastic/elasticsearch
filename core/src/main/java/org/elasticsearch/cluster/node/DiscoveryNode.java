@@ -46,6 +46,11 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Streamable, ToXContent {
 
+    public static final String DATA_ATTR = "data";
+    public static final String MASTER_ATTR = "master";
+    public static final String CLIENT_ATTR = "client";
+    public static final String INGEST_ATTR = "ingest";
+
     public static boolean localNode(Settings settings) {
         if (Node.NODE_LOCAL_SETTING.exists(settings)) {
             return Node.NODE_LOCAL_SETTING.get(settings);
@@ -274,7 +279,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Should this node hold data (shards) or not.
      */
     public boolean dataNode() {
-        String data = attributes.get("data");
+        String data = attributes.get(DATA_ATTR);
         if (data == null) {
             return !clientNode();
         }
@@ -292,7 +297,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Is the node a client node or not.
      */
     public boolean clientNode() {
-        String client = attributes.get("client");
+        String client = attributes.get(CLIENT_ATTR);
         return client != null && Booleans.parseBooleanExact(client);
     }
 
@@ -304,7 +309,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Can this node become master or not.
      */
     public boolean masterNode() {
-        String master = attributes.get("master");
+        String master = attributes.get(MASTER_ATTR);
         if (master == null) {
             return !clientNode();
         }
@@ -322,7 +327,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Returns a boolean that tells whether this an ingest node or not
      */
     public boolean isIngestNode() {
-        String ingest = attributes.get("ingest");
+        String ingest = attributes.get(INGEST_ATTR);
         return ingest == null ? true : Booleans.parseBooleanExact(ingest);
     }
 

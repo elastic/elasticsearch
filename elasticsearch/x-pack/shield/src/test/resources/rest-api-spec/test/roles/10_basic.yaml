@@ -27,7 +27,6 @@
         username: "joe"
         body:  >
             {
-              "username": "joe",
               "password": "s3krit",
               "roles" : [ "admin_role" ]
             }

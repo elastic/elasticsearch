@@ -18,13 +18,13 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -55,6 +57,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -143,9 +146,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             @Override
             public void onFailure(Throwable t) {
                 if (t instanceof IndexNotFoundException) {
-                    logger.trace("failed to retrieve user", t);
+                    logger.trace("failed to retrieve user [{}] since security index does not exist", username);
                 } else {
-                    logger.info("failed to retrieve user", t);
+                    logger.info("failed to retrieve user [{}]", t, username);
                 }
 
                 // We don't invoke the onFailure listener here, instead
@@ -184,7 +187,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             // This function is MADNESS! But it works, don't think about it too hard...
             client.search(request, new ActionListener<SearchResponse>() {
                 @Override
-                public void onResponse(SearchResponse resp) {
+                public void onResponse(final SearchResponse resp) {
                     boolean hasHits = resp.getHits().getHits().length > 0;
                     if (hasHits) {
                         for (SearchHit hit : resp.getHits().getHits()) {
@@ -207,7 +210,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                             @Override
                             public void onFailure(Throwable t) {
                                 // Not really much to do here except for warn about it...
-                                logger.warn("failed to clear scroll after retrieving all users", t);
+                                logger.warn("failed to clear scroll [{}] after retrieving all users", t, resp.getScrollId());
                             }
                         });
                         // Finally, return the list of users
@@ -259,7 +262,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     private void getUserAndPassword(String user, final ActionListener<UserAndPassword> listener) {
         try {
             GetRequest request = client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
-            request.indicesOptions().ignoreUnavailable();
             client.get(request, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse response) {
@@ -294,38 +296,84 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
 
         try {
-            IndexRequest indexRequest = client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, request.username())
-                    // we still index the username for more intuitive searchability (e.g. using queries like "username: joe")
-                    .setSource(User.Fields.USERNAME.getPreferredName(), request.username(),
-                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()),
-                            User.Fields.ROLES.getPreferredName(), request.roles(),
-                            User.Fields.FULL_NAME.getPreferredName(), request.fullName(),
-                            User.Fields.EMAIL.getPreferredName(), request.email(),
-                            User.Fields.METADATA.getPreferredName(), request.metadata())
-                    .setRefresh(request.refresh())
-                    .request();
-
-            client.index(indexRequest, new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    // if the document was just created, then we don't need to clear cache
-                    if (indexResponse.isCreated()) {
-                        listener.onResponse(indexResponse.isCreated());
-                        return;
-                    }
-
-                    clearRealmCache(request.username(), listener, indexResponse.isCreated());
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
+            if (request.passwordHash() == null) {
+                updateUserWithoutPassword(request, listener);
+            } else {
+                indexUser(request, listener);
+            }
         } catch (Exception e) {
-            logger.error("unable to add user", e);
+            logger.error("unable to put user [{}]", e, request.username());
             listener.onFailure(e);
         }
+    }
+
+    private void updateUserWithoutPassword(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+        assert putUserRequest.passwordHash() == null;
+        // We must have an existing document
+        client.prepareUpdate(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, putUserRequest.username())
+                .setDoc(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
+                .setRefresh(putUserRequest.refresh())
+                .execute(new ActionListener<UpdateResponse>() {
+                    @Override
+                    public void onResponse(UpdateResponse updateResponse) {
+                        assert updateResponse.isCreated() == false;
+                        clearRealmCache(putUserRequest.username(), listener, false);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        Throwable cause = e;
+                        if (e instanceof RemoteTransportException) {
+                            cause = ExceptionsHelper.unwrapCause(e);
+                            if ((cause instanceof IndexNotFoundException) == false
+                                    && (cause instanceof DocumentMissingException) == false) {
+                                listener.onFailure(e);
+                                return;
+                            }
+                        }
+
+                        // if the index doesn't exist we can never update a user
+                        // if the document doesn't exist, then this update is not valid
+                        logger.debug("failed to update user document with username [{}]", cause, putUserRequest.username());
+                        ValidationException validationException = new ValidationException();
+                        validationException.addValidationError("password must be specified unless you are updating an existing user");
+                        listener.onFailure(validationException);
+                    }
+                });
+    }
+
+    private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+        assert putUserRequest.passwordHash() != null;
+        client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME,
+                USER_DOC_TYPE, putUserRequest.username())
+                .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                        User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
+                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
+                .setRefresh(putUserRequest.refresh())
+                .execute(new ActionListener<IndexResponse>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        // if the document was just created, then we don't need to clear cache
+                        if (indexResponse.isCreated()) {
+                            listener.onResponse(indexResponse.isCreated());
+                            return;
+                        }
+
+                        clearRealmCache(putUserRequest.username(), listener, indexResponse.isCreated());
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        listener.onFailure(e);
+                    }
+                });
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {

@@ -8,6 +8,7 @@ package org.elasticsearch.shield.action.user;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,8 +45,8 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder password(char[] password) {
-        request.passwordHash(hasher.hash(new SecuredString(password)));
+    public PutUserRequestBuilder password(@Nullable char[] password) {
+        request.passwordHash(password == null ? null : hasher.hash(new SecuredString(password)));
         return this;
     }
 

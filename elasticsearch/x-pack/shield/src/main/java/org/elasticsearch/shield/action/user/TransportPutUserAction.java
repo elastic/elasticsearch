@@ -42,7 +42,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
             @Override
             public void onFailure(Throwable e) {
-                logger.error("failed to add user: ", e);
+                logger.error("failed to put user [{}]", e, request.username());
                 listener.onFailure(e);
             }
         });

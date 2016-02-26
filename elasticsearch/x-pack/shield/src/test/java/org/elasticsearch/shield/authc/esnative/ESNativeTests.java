@@ -34,6 +34,7 @@ import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -315,6 +316,79 @@ public class ESNativeTests extends ShieldIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
+    }
+
+    public void testPutUserWithoutPassword() {
+        SecurityClient client = securityClient();
+        // create some roles
+        client.preparePutRole("admin_role")
+                .cluster("all")
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null)
+                .get();
+        client.preparePutRole("read_role")
+                .cluster("none")
+                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null)
+                .get();
+
+        assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
+        // check that putting a user without a password fails if the user doesn't exist
+        try {
+            client.preparePutUser("joe", null, "admin_role").get();
+            fail("cannot create a user without a password");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("password must be specified"));
+        }
+
+        assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
+
+        // create joe with a password and verify the user works
+        client.preparePutUser("joe", "changeme".toCharArray(), "admin_role").get();
+        assertThat(client.prepareGetUsers("joe").get().hasUsers(), is(true));
+        final String token = basicAuthHeaderValue("joe", new SecuredString("changeme".toCharArray()));
+        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
+                .prepareHealth().get();
+        assertFalse(response.isTimedOut());
+
+        // modify joe without sending the password
+        client.preparePutUser("joe", null, "read_role").fullName("Joe Smith").get();
+        GetUsersResponse getUsersResponse = client.prepareGetUsers("joe").get();
+        assertThat(getUsersResponse.hasUsers(), is(true));
+        assertThat(getUsersResponse.users().length, is(1));
+        User joe = getUsersResponse.users()[0];
+        assertThat(joe.roles(), arrayContaining("read_role"));
+        assertThat(joe.fullName(), is("Joe Smith"));
+
+        // test that role change took effect
+        try {
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+            fail("test_role does not have permission to get health");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), containsString("authorized"));
+        }
+
+        // update the user with password and admin role again
+        client.preparePutUser("joe", "changeme2".toCharArray(), "admin_role").fullName("Joe Smith").get();
+        getUsersResponse = client.prepareGetUsers("joe").get();
+        assertThat(getUsersResponse.hasUsers(), is(true));
+        assertThat(getUsersResponse.users().length, is(1));
+        joe = getUsersResponse.users()[0];
+        assertThat(joe.roles(), arrayContaining("admin_role"));
+        assertThat(joe.fullName(), is("Joe Smith"));
+
+        // validate that joe cannot auth with the old token
+        try {
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+            fail("should not authenticate with old password");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), containsString("authenticate"));
+        }
+
+        // test with new password and role
+        response = client()
+                .filterWithHeader(
+                        Collections.singletonMap("Authorization",basicAuthHeaderValue("joe", new SecuredString("changeme2".toCharArray()))))
+                .admin().cluster().prepareHealth().get();
+        assertFalse(response.isTimedOut());
     }
 
     @Before

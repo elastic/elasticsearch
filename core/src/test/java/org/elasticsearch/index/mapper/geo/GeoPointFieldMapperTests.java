@@ -325,6 +325,24 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("point").field("lat", 1.2).field("lon", 181).endObject()
                 .endObject()
                 .bytes());
+
+        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", "-").field("lon", 1.3).endObject()
+                .endObject()
+                .bytes());
+
+        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", 1.2).field("lon", "-").endObject()
+                .endObject()
+                .bytes());
+
+        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", "-").field("lon", "-").endObject()
+                .endObject()
+                .bytes());
     }
 
     public void testLatLonValuesStored() throws Exception {

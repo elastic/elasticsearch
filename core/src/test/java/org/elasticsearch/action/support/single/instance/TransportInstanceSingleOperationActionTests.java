@@ -108,8 +108,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-            return true;
+        protected void resolveRequest(ClusterState state, Request request) {
         }
 
         @Override
@@ -230,7 +229,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         listener.get();
     }
 
-    public void testSuccessAfterRetryWithExcpetionFromTransport() throws Exception {
+    public void testSuccessAfterRetryWithExceptionFromTransport() throws Exception {
         Request request = new Request().index("test");
         request.shardId = 0;
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -290,13 +289,13 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
                 Settings.EMPTY,
                 "indices:admin/test_unresolvable",
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(new HashSet<>()),
                 new MyResolver(),
                 Request::new
         ) {
             @Override
-            protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-                return false;
+            protected void resolveRequest(ClusterState state, Request request) {
+                throw new IllegalStateException("request cannot be resolved");
             }
         };
         Request request = new Request().index("test");

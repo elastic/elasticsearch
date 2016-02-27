@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -81,9 +82,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String DEFAULT_MAPPING = "_default_";
-    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, true, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, true, SettingsProperty.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
-    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
+        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, false, SettingsProperty.IndexScope);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"

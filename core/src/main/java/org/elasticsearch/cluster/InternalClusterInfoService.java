@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -64,8 +65,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
-    public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING = Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING = Setting.positiveTimeSetting("cluster.info.update.timeout", TimeValue.timeValueSeconds(15), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
+        Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10), true,
+            SettingsProperty.ClusterScope);
+    public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("cluster.info.update.timeout", TimeValue.timeValueSeconds(15), true, SettingsProperty.ClusterScope);
 
     private volatile TimeValue updateFrequency;
 

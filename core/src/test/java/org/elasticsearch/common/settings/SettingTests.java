@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -27,26 +28,28 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
 
 
     public void testGet() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, SettingsProperty.ClusterScope);
         assertFalse(booleanSetting.get(Settings.EMPTY));
         assertFalse(booleanSetting.get(Settings.builder().put("foo.bar", false).build()));
         assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
     }
 
     public void testByteSize() {
-        Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), true, Setting.Scope.CLUSTER);
+        Setting<ByteSizeValue> byteSizeValueSetting =
+            Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), true, SettingsProperty.ClusterScope);
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 1024);
 
-        byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", true, Setting.Scope.CLUSTER);
+        byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", true, SettingsProperty.ClusterScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 2048);
 
@@ -65,7 +68,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testSimpleUpdate() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, SettingsProperty.ClusterScope);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<Boolean> settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger);
         Settings build = Settings.builder().put("foo.bar", false).build();
@@ -86,7 +89,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testUpdateNotDynamic() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, false, Setting.Scope.CLUSTER);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, false, SettingsProperty.ClusterScope);
         assertFalse(booleanSetting.isGroupSetting());
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
         try {
@@ -98,7 +101,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testUpdaterIsIsolated() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, SettingsProperty.ClusterScope);
         AtomicReference<Boolean> ab1 = new AtomicReference<>(null);
         AtomicReference<Boolean> ab2 = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<Boolean> settingUpdater = booleanSetting.newUpdater(ab1::set, logger);
@@ -109,24 +112,27 @@ public class SettingTests extends ESTestCase {
 
     public void testDefault() {
         TimeValue defautlValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
-        Setting<TimeValue> setting = Setting.positiveTimeSetting("my.time.value", defautlValue, randomBoolean(), Setting.Scope.CLUSTER);
+        Setting<TimeValue> setting =
+            Setting.positiveTimeSetting("my.time.value", defautlValue, randomBoolean(), SettingsProperty.ClusterScope);
         assertFalse(setting.isGroupSetting());
         String aDefault = setting.getDefaultRaw(Settings.EMPTY);
         assertEquals(defautlValue.millis() + "ms", aDefault);
         assertEquals(defautlValue.millis(), setting.get(Settings.EMPTY).millis());
         assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
 
-        Setting<String> secondaryDefault = new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, randomBoolean(), Setting.Scope.CLUSTER);
+        Setting<String> secondaryDefault =
+            new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, randomBoolean(), SettingsProperty.ClusterScope);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
-        Setting<String> secondaryDefaultViaSettings = new Setting<>("foo.bar", secondaryDefault, (s) -> s, randomBoolean(), Setting.Scope.CLUSTER);
+        Setting<String> secondaryDefaultViaSettings =
+            new Setting<>("foo.bar", secondaryDefault, (s) -> s, randomBoolean(), SettingsProperty.ClusterScope);
         assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
         assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
     }
 
     public void testComplexType() {
         AtomicReference<ComplexType> ref = new AtomicReference<>(null);
-        Setting<ComplexType> setting = new Setting<>("foo.bar", (s) -> "", (s) -> new ComplexType(s), true, Setting.Scope.CLUSTER);
+        Setting<ComplexType> setting = new Setting<>("foo.bar", (s) -> "", (s) -> new ComplexType(s), true, SettingsProperty.ClusterScope);
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();
@@ -147,15 +153,19 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testType() {
-        Setting<Integer> integerSetting = Setting.intSetting("foo.int.bar", 1, true, Setting.Scope.CLUSTER);
-        assertEquals(integerSetting.getScope(), Setting.Scope.CLUSTER);
-        integerSetting = Setting.intSetting("foo.int.bar", 1, true, Setting.Scope.INDEX);
-        assertEquals(integerSetting.getScope(), Setting.Scope.INDEX);
+        Setting<Integer> integerSetting = Setting.intSetting("foo.int.bar", 1, true, SettingsProperty.ClusterScope);
+        assertThat(integerSetting.hasClusterScope(), is(true));
+        assertThat(integerSetting.hasIndexScope(), is(false));
+        assertThat(integerSetting.hasNodeScope(), is(false));
+        integerSetting = Setting.intSetting("foo.int.bar", 1, true, SettingsProperty.IndexScope);
+        assertThat(integerSetting.hasIndexScope(), is(true));
+        assertThat(integerSetting.hasClusterScope(), is(false));
+        assertThat(integerSetting.hasNodeScope(), is(false));
     }
 
     public void testGroups() {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
-        Setting<Settings> setting = Setting.groupSetting("foo.bar.", true, Setting.Scope.CLUSTER);
+        Setting<Settings> setting = Setting.groupSetting("foo.bar.", true, SettingsProperty.ClusterScope);
         assertTrue(setting.isGroupSetting());
         ClusterSettings.SettingUpdater<Settings> settingUpdater = setting.newUpdater(ref::set, logger);
 
@@ -233,8 +243,8 @@ public class SettingTests extends ESTestCase {
 
     public void testComposite() {
         Composite c = new Composite();
-        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, true, Setting.Scope.CLUSTER);
-        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, true, Setting.Scope.CLUSTER);
+        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, true, SettingsProperty.ClusterScope);
+        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, true, SettingsProperty.ClusterScope);
         ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, a, b, logger);
         assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertNull(c.a);
@@ -262,7 +272,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testListSettings() {
-        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(), true, Setting.Scope.CLUSTER);
+        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(), true, SettingsProperty.ClusterScope);
         List<String> value = listSetting.get(Settings.EMPTY);
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
@@ -301,7 +311,7 @@ public class SettingTests extends ESTestCase {
         assertEquals(1, ref.get().size());
         assertEquals("foo,bar", ref.get().get(0));
 
-        Setting<List<Integer>> otherSettings = Setting.listSetting("foo.bar", Collections.emptyList(), Integer::parseInt, true, Setting.Scope.CLUSTER);
+        Setting<List<Integer>> otherSettings = Setting.listSetting("foo.bar", Collections.emptyList(), Integer::parseInt, true, SettingsProperty.ClusterScope);
         List<Integer> defaultValue = otherSettings.get(Settings.EMPTY);
         assertEquals(0, defaultValue.size());
         List<Integer> intValues = otherSettings.get(Settings.builder().put("foo.bar", "0,1,2,3").build());
@@ -310,7 +320,7 @@ public class SettingTests extends ESTestCase {
             assertEquals(i, intValues.get(i).intValue());
         }
 
-        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, s -> s, true, Setting.Scope.CLUSTER);
+        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, s -> s, true, SettingsProperty.ClusterScope);
         value = settingWithFallback.get(Settings.EMPTY);
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
@@ -332,7 +342,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testListSettingAcceptsNumberSyntax() {
-        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(), true, Setting.Scope.CLUSTER);
+        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(), true, SettingsProperty.ClusterScope);
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
         Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
         // try to parse this really annoying format
@@ -350,7 +360,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDynamicKeySetting() {
-        Setting<Boolean> setting = Setting.dynamicKeySetting("foo.", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
+        Setting<Boolean> setting = Setting.dynamicKeySetting("foo.", "false", Boolean::parseBoolean, false, SettingsProperty.ClusterScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar"));
         assertFalse(setting.match("foo"));
@@ -367,7 +377,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testMinMaxInt() {
-        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, false, Setting.Scope.CLUSTER);
+        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, false, SettingsProperty.ClusterScope);
         try {
             integerSetting.get(Settings.builder().put("foo.bar", 11).build());
             fail();

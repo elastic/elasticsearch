@@ -26,6 +26,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -83,7 +84,7 @@ public final class EngineConfig {
                 }
                 return s;
         }
-    }, false, Setting.Scope.INDEX);
+    }, false, SettingsProperty.IndexScope);
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";

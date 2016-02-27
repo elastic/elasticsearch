@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
@@ -54,12 +55,23 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     private final ESLogger deleteLogger;
 
     private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
-    public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING = Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, true, Setting.Scope.INDEX);
-    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING =
+        Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1),
+            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING =
+        Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info", TimeValue.timeValueNanos(-1),
+            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING =
+        Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug", TimeValue.timeValueNanos(-1),
+            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING =
+        Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace", TimeValue.timeValueNanos(-1),
+            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+    public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING =
+        Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, true, SettingsProperty.IndexScope);
+    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING =
+        new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, true,
+            SettingsProperty.IndexScope);
     /**
      * Reads how much of the source to log. The user can specify any value they
      * like and numbers are interpreted the maximum number of characters to log
@@ -72,7 +84,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         } catch (NumberFormatException e) {
             return Booleans.parseBoolean(value, true) ? Integer.MAX_VALUE : 0;
         }
-    }, true, Setting.Scope.INDEX);
+    }, true, SettingsProperty.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
         this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index"),

@@ -35,6 +35,7 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 
@@ -83,7 +84,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterClusterDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("foo.bar", false, true, SettingsProperty.ClusterScope));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
@@ -98,7 +99,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterIndexDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX));
+        module.registerSetting(Setting.boolSetting("foo.bar", false, true, SettingsProperty.IndexScope));
         assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 

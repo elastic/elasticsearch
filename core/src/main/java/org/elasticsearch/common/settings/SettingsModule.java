@@ -76,19 +76,17 @@ public class SettingsModule extends AbstractModule {
                 registerSettingsFilter(setting.getKey());
             }
         }
-        switch (setting.getScope()) {
-            case CLUSTER:
-                if (clusterSettings.containsKey(setting.getKey())) {
-                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
-                }
-                clusterSettings.put(setting.getKey(), setting);
-                break;
-            case INDEX:
-                if (indexSettings.containsKey(setting.getKey())) {
-                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
-                }
-                indexSettings.put(setting.getKey(), setting);
-                break;
+        if (setting.hasClusterScope()) {
+            if (clusterSettings.containsKey(setting.getKey())) {
+                throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+            }
+            clusterSettings.put(setting.getKey(), setting);
+        }
+        if (setting.hasIndexScope()) {
+            if (indexSettings.containsKey(setting.getKey())) {
+                throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+            }
+            indexSettings.put(setting.getKey(), setting);
         }
     }
 
@@ -110,11 +108,11 @@ public class SettingsModule extends AbstractModule {
      * Check if a setting has already been registered
      */
     public boolean exists(Setting<?> setting) {
-        switch (setting.getScope()) {
-            case CLUSTER:
-                return clusterSettings.containsKey(setting.getKey());
-            case INDEX:
-                return indexSettings.containsKey(setting.getKey());
+        if (setting.hasClusterScope()) {
+            return clusterSettings.containsKey(setting.getKey());
+        }
+        if (setting.hasIndexScope()) {
+            return indexSettings.containsKey(setting.getKey());
         }
         throw new IllegalArgumentException("setting scope is unknown. This should never happen!");
     }

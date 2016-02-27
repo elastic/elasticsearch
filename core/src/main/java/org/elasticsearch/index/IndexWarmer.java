@@ -27,6 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
@@ -56,7 +57,7 @@ public final class IndexWarmer extends AbstractComponent {
 
     public static final Setting<MappedFieldType.Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading",
         MappedFieldType.Loading.LAZY.toString(), (s) -> MappedFieldType.Loading.parse(s, MappedFieldType.Loading.LAZY),
-        false, Setting.Scope.INDEX);
+        false, SettingsProperty.IndexScope);
     private final List<Listener> listeners;
 
     IndexWarmer(Settings settings, ThreadPool threadPool, Listener... listeners) {

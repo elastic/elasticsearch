@@ -77,6 +77,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -268,7 +269,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The value of this seed can be used to initialize a random context for a specific index.
      * It's set once per test via a generic index template.
      */
-    public static final Setting<Long> INDEX_TEST_SEED_SETTING = Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, false, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_TEST_SEED_SETTING =
+        Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, false, SettingsProperty.IndexScope);
 
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the

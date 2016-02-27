@@ -42,7 +42,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkService.TcpSettings;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -147,40 +147,46 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX = "transport_client_worker";
     public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
 
-    public static final Setting<Integer> WORKER_COUNT = new Setting<>("transport.netty.worker_count",
+    public static final Setting<Integer> WORKER_COUNT =
+        new Setting<>("transport.netty.worker_count",
             (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY = intSetting("transport.connections_per_node.recovery", 2, 1, false,
-            Scope.CLUSTER);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_BULK = intSetting("transport.connections_per_node.bulk", 3, 1, false,
-            Scope.CLUSTER);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_REG = intSetting("transport.connections_per_node.reg", 6, 1, false,
-            Scope.CLUSTER);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_STATE = intSetting("transport.connections_per_node.state", 1, 1, false,
-            Scope.CLUSTER);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_PING = intSetting("transport.connections_per_node.ping", 1, 1, false,
-            Scope.CLUSTER);
+            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY =
+        intSetting("transport.connections_per_node.recovery", 2, 1, false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> CONNECTIONS_PER_NODE_BULK =
+        intSetting("transport.connections_per_node.bulk", 3, 1, false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> CONNECTIONS_PER_NODE_REG =
+        intSetting("transport.connections_per_node.reg", 6, 1, false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> CONNECTIONS_PER_NODE_STATE =
+        intSetting("transport.connections_per_node.state", 1, 1, false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> CONNECTIONS_PER_NODE_PING =
+        intSetting("transport.connections_per_node.ping", 1, 1, false, SettingsProperty.ClusterScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
-    public static final Setting<TimeValue> PING_SCHEDULE = timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), false,
-            Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> TCP_BLOCKING_CLIENT = boolSetting("transport.tcp.blocking_client", TcpSettings.TCP_BLOCKING_CLIENT,
-            false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT = timeSetting("transport.tcp.connect_timeout",
-            TcpSettings.TCP_CONNECT_TIMEOUT, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> TCP_NO_DELAY = boolSetting("transport.tcp_no_delay", TcpSettings.TCP_NO_DELAY, false,
-            Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> TCP_KEEP_ALIVE = boolSetting("transport.tcp.keep_alive", TcpSettings.TCP_KEEP_ALIVE, false,
-            Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> TCP_BLOCKING_SERVER = boolSetting("transport.tcp.blocking_server", TcpSettings.TCP_BLOCKING_SERVER,
-            false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> TCP_REUSE_ADDRESS = boolSetting("transport.tcp.reuse_address", TcpSettings.TCP_REUSE_ADDRESS,
-            false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> PING_SCHEDULE =
+        timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> TCP_BLOCKING_CLIENT =
+        boolSetting("transport.tcp.blocking_client", TcpSettings.TCP_BLOCKING_CLIENT, false, SettingsProperty.ClusterScope);
+    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
+        timeSetting("transport.tcp.connect_timeout", TcpSettings.TCP_CONNECT_TIMEOUT, false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> TCP_NO_DELAY =
+        boolSetting("transport.tcp_no_delay", TcpSettings.TCP_NO_DELAY, false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> TCP_KEEP_ALIVE =
+        boolSetting("transport.tcp.keep_alive", TcpSettings.TCP_KEEP_ALIVE, false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> TCP_BLOCKING_SERVER =
+        boolSetting("transport.tcp.blocking_server", TcpSettings.TCP_BLOCKING_SERVER, false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> TCP_REUSE_ADDRESS =
+        boolSetting("transport.tcp.reuse_address", TcpSettings.TCP_REUSE_ADDRESS, false, SettingsProperty.ClusterScope);
 
-    public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE = Setting.byteSizeSetting("transport.tcp.send_buffer_size", TcpSettings.TCP_SEND_BUFFER_SIZE, false, Setting.Scope.CLUSTER);
-    public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting("transport.tcp.receive_buffer_size", TcpSettings.TCP_RECEIVE_BUFFER_SIZE, false, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
+        Setting.byteSizeSetting("transport.tcp.send_buffer_size", TcpSettings.TCP_SEND_BUFFER_SIZE, false, SettingsProperty.ClusterScope);
+    public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
+        Setting.byteSizeSetting("transport.tcp.receive_buffer_size", TcpSettings.TCP_RECEIVE_BUFFER_SIZE, false,
+            SettingsProperty.ClusterScope);
 
-    public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY = Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, false, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
+        Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
+        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, false, SettingsProperty.ClusterScope);
 
     // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
@@ -193,12 +199,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
                 return new ByteSizeValue(defaultReceiverPredictor).toString();
-            }, false, Setting.Scope.CLUSTER);
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN = byteSizeSetting("transport.netty.receive_predictor_min",
-            NETTY_RECEIVE_PREDICTOR_SIZE, false, Scope.CLUSTER);
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting("transport.netty.receive_predictor_max",
-            NETTY_RECEIVE_PREDICTOR_SIZE, false, Scope.CLUSTER);
-    public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, false, Scope.CLUSTER);
+            }, false, SettingsProperty.ClusterScope);
+    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
+        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, false, SettingsProperty.ClusterScope);
+    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
+        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, false, SettingsProperty.ClusterScope);
+    public static final Setting<Integer> NETTY_BOSS_COUNT =
+        intSetting("transport.netty.boss_count", 1, 1, false, SettingsProperty.ClusterScope);
 
     protected final NetworkService networkService;
     protected final Version version;

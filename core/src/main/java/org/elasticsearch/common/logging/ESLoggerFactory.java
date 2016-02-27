@@ -24,6 +24,7 @@ import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
 import org.elasticsearch.common.logging.slf4j.Slf4jESLoggerFactory;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
@@ -36,8 +37,10 @@ import java.util.regex.Pattern;
  */
 public abstract class ESLoggerFactory {
 
-    public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING = new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, false, Setting.Scope.CLUSTER);
-    public static final Setting<LogLevel> LOG_LEVEL_SETTING = Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse, true, Setting.Scope.CLUSTER);
+    public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING =
+        new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, false, SettingsProperty.ClusterScope);
+    public static final Setting<LogLevel> LOG_LEVEL_SETTING =
+        Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse, true, SettingsProperty.ClusterScope);
 
     private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
 

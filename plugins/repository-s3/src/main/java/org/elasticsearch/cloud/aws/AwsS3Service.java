@@ -23,6 +23,7 @@ import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 
 import java.util.Locale;
 import java.util.function.Function;
@@ -38,40 +39,44 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
     /**
      * cloud.aws.access_key: AWS Access key. Shared with discovery-ec2 plugin
      */
-    Setting<String> KEY_SETTING = Setting.simpleString("cloud.aws.access_key", false, Setting.Scope.CLUSTER, true);
+    Setting<String> KEY_SETTING =
+        Setting.simpleString("cloud.aws.access_key", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     /**
      * cloud.aws.secret_key: AWS Secret key. Shared with discovery-ec2 plugin
      */
-    Setting<String> SECRET_SETTING = Setting.simpleString("cloud.aws.secret_key", false, Setting.Scope.CLUSTER, true);
+    Setting<String> SECRET_SETTING =
+        Setting.simpleString("cloud.aws.secret_key", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     /**
      * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with discovery-ec2 plugin
      */
     Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
-        false, Setting.Scope.CLUSTER);
+        false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.host: In case of proxy, define its hostname/IP. Shared with discovery-ec2 plugin
      */
-    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", false, Setting.Scope.CLUSTER);
+    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.port: In case of proxy, define its port. Defaults to 80. Shared with discovery-ec2 plugin
      */
-    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, false, Setting.Scope.CLUSTER);
+    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with discovery-ec2 plugin
      */
-    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", false, Setting.Scope.CLUSTER);
+    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with discovery-ec2 plugin
      */
-    Setting<String> PROXY_PASSWORD_SETTING = Setting.simpleString("cloud.aws.proxy.password", false, Setting.Scope.CLUSTER, true);
+    Setting<String> PROXY_PASSWORD_SETTING =
+        Setting.simpleString("cloud.aws.proxy.password", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     /**
      * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with discovery-ec2 plugin
      */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", false, Setting.Scope.CLUSTER);
+    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.region: Region. Shared with discovery-ec2 plugin
      */
-    Setting<String> REGION_SETTING = new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+    Setting<String> REGION_SETTING =
+        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), false, SettingsProperty.ClusterScope);
 
     /**
      * Defines specific s3 settings starting with cloud.aws.s3.
@@ -82,33 +87,36 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
          * @see AwsS3Service#KEY_SETTING
          */
         Setting<String> KEY_SETTING =
-            new Setting<>("cloud.aws.s3.access_key", AwsS3Service.KEY_SETTING, Function.identity(), false, Setting.Scope.CLUSTER, true);
+            new Setting<>("cloud.aws.s3.access_key", AwsS3Service.KEY_SETTING, Function.identity(), false,
+                SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * cloud.aws.s3.secret_key: AWS Secret key specific for S3 API calls. Defaults to cloud.aws.secret_key.
          * @see AwsS3Service#SECRET_SETTING
          */
         Setting<String> SECRET_SETTING =
-            new Setting<>("cloud.aws.s3.secret_key", AwsS3Service.SECRET_SETTING, Function.identity(), false, Setting.Scope.CLUSTER, true);
+            new Setting<>("cloud.aws.s3.secret_key", AwsS3Service.SECRET_SETTING, Function.identity(), false,
+                SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * cloud.aws.s3.protocol: Protocol for AWS API specific for S3 API calls: http or https. Defaults to cloud.aws.protocol.
          * @see AwsS3Service#PROTOCOL_SETTING
          */
         Setting<Protocol> PROTOCOL_SETTING =
             new Setting<>("cloud.aws.s3.protocol", AwsS3Service.PROTOCOL_SETTING, s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false,
-                Setting.Scope.CLUSTER);
+                SettingsProperty.ClusterScope);
         /**
          * cloud.aws.s3.proxy.host: In case of proxy, define its hostname/IP specific for S3 API calls. Defaults to cloud.aws.proxy.host.
          * @see AwsS3Service#PROXY_HOST_SETTING
          */
         Setting<String> PROXY_HOST_SETTING =
-            new Setting<>("cloud.aws.s3.proxy.host", AwsS3Service.PROXY_HOST_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+            new Setting<>("cloud.aws.s3.proxy.host", AwsS3Service.PROXY_HOST_SETTING, Function.identity(), false,
+                SettingsProperty.ClusterScope);
         /**
          * cloud.aws.s3.proxy.port: In case of proxy, define its port specific for S3 API calls.  Defaults to cloud.aws.proxy.port.
          * @see AwsS3Service#PROXY_PORT_SETTING
          */
         Setting<Integer> PROXY_PORT_SETTING =
             new Setting<>("cloud.aws.s3.proxy.port", AwsS3Service.PROXY_PORT_SETTING,
-                s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.s3.proxy.port"), false, Setting.Scope.CLUSTER);
+                s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.s3.proxy.port"), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.s3.proxy.username: In case of proxy with auth, define the username specific for S3 API calls.
          * Defaults to cloud.aws.proxy.username.
@@ -116,7 +124,7 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
          */
         Setting<String> PROXY_USERNAME_SETTING =
             new Setting<>("cloud.aws.s3.proxy.username", AwsS3Service.PROXY_USERNAME_SETTING, Function.identity(), false,
-                Setting.Scope.CLUSTER);
+                SettingsProperty.ClusterScope);
         /**
          * cloud.aws.s3.proxy.password: In case of proxy with auth, define the password specific for S3 API calls.
          * Defaults to cloud.aws.proxy.password.
@@ -124,26 +132,26 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
          */
         Setting<String> PROXY_PASSWORD_SETTING =
             new Setting<>("cloud.aws.s3.proxy.password", AwsS3Service.PROXY_PASSWORD_SETTING, Function.identity(), false,
-                Setting.Scope.CLUSTER, true);
+                SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * cloud.aws.s3.signer: If you are using an old AWS API version, you can define a Signer. Specific for S3 API calls.
          * Defaults to cloud.aws.signer.
          * @see AwsS3Service#SIGNER_SETTING
          */
         Setting<String> SIGNER_SETTING =
-            new Setting<>("cloud.aws.s3.signer", AwsS3Service.SIGNER_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+            new Setting<>("cloud.aws.s3.signer", AwsS3Service.SIGNER_SETTING, Function.identity(), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.s3.region: Region specific for S3 API calls. Defaults to cloud.aws.region.
          * @see AwsS3Service#REGION_SETTING
          */
         Setting<String> REGION_SETTING =
             new Setting<>("cloud.aws.s3.region", AwsS3Service.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT), false,
-                Setting.Scope.CLUSTER);
+                SettingsProperty.ClusterScope);
         /**
          * cloud.aws.s3.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
         Setting<String> ENDPOINT_SETTING =
-            Setting.simpleString("cloud.aws.s3.endpoint", false, Setting.Scope.CLUSTER);
+            Setting.simpleString("cloud.aws.s3.endpoint", false, SettingsProperty.ClusterScope);
     }
 
     AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries);

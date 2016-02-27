@@ -22,6 +22,7 @@ package org.elasticsearch.cloud.aws;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.ec2.AmazonEC2;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -32,7 +33,8 @@ import java.util.Locale;
 import java.util.function.Function;
 
 public interface AwsEc2Service {
-    Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, false, Setting.Scope.CLUSTER);
+    Setting<Boolean> AUTO_ATTRIBUTE_SETTING =
+        Setting.boolSetting("cloud.node.auto_attributes", false, false, SettingsProperty.ClusterScope);
 
     // Global AWS settings (shared between discovery-ec2 and repository-s3)
     // Each setting starting with `cloud.aws` also exists in repository-s3 project. Don't forget to update
@@ -40,40 +42,44 @@ public interface AwsEc2Service {
     /**
      * cloud.aws.access_key: AWS Access key. Shared with repository-s3 plugin
      */
-    Setting<String> KEY_SETTING = Setting.simpleString("cloud.aws.access_key", false, Setting.Scope.CLUSTER, true);
+    Setting<String> KEY_SETTING =
+        Setting.simpleString("cloud.aws.access_key", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     /**
      * cloud.aws.secret_key: AWS Secret key. Shared with repository-s3 plugin
      */
-    Setting<String> SECRET_SETTING = Setting.simpleString("cloud.aws.secret_key", false, Setting.Scope.CLUSTER, true);
+    Setting<String> SECRET_SETTING =
+        Setting.simpleString("cloud.aws.secret_key", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     /**
      * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with repository-s3 plugin
      */
     Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
-        false, Setting.Scope.CLUSTER);
+        false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.host: In case of proxy, define its hostname/IP. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", false, Setting.Scope.CLUSTER);
+    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.port: In case of proxy, define its port. Defaults to 80. Shared with repository-s3 plugin
      */
-    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, false, Setting.Scope.CLUSTER);
+    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", false, Setting.Scope.CLUSTER);
+    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_PASSWORD_SETTING = Setting.simpleString("cloud.aws.proxy.password", false, Setting.Scope.CLUSTER, true);
+    Setting<String> PROXY_PASSWORD_SETTING =
+        Setting.simpleString("cloud.aws.proxy.password", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     /**
      * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
      */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", false, Setting.Scope.CLUSTER);
+    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", false, SettingsProperty.ClusterScope);
     /**
      * cloud.aws.region: Region. Shared with repository-s3 plugin
      */
-    Setting<String> REGION_SETTING = new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+    Setting<String> REGION_SETTING =
+        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), false, SettingsProperty.ClusterScope);
 
     /**
      * Defines specific ec2 settings starting with cloud.aws.ec2.
@@ -84,62 +90,62 @@ public interface AwsEc2Service {
          * @see AwsEc2Service#KEY_SETTING
          */
         Setting<String> KEY_SETTING = new Setting<>("cloud.aws.ec2.access_key", AwsEc2Service.KEY_SETTING, Function.identity(), false,
-            Setting.Scope.CLUSTER, true);
+            SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * cloud.aws.ec2.secret_key: AWS Secret key specific for EC2 API calls. Defaults to cloud.aws.secret_key.
          * @see AwsEc2Service#SECRET_SETTING
          */
         Setting<String> SECRET_SETTING = new Setting<>("cloud.aws.ec2.secret_key", AwsEc2Service.SECRET_SETTING, Function.identity(), false,
-            Setting.Scope.CLUSTER, true);
+            SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * cloud.aws.ec2.protocol: Protocol for AWS API specific for EC2 API calls: http or https.  Defaults to cloud.aws.protocol.
          * @see AwsEc2Service#PROTOCOL_SETTING
          */
         Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.ec2.protocol", AwsEc2Service.PROTOCOL_SETTING,
-            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false, Setting.Scope.CLUSTER);
+            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.ec2.proxy.host: In case of proxy, define its hostname/IP specific for EC2 API calls. Defaults to cloud.aws.proxy.host.
          * @see AwsEc2Service#PROXY_HOST_SETTING
          */
         Setting<String> PROXY_HOST_SETTING = new Setting<>("cloud.aws.ec2.proxy.host", AwsEc2Service.PROXY_HOST_SETTING,
-            Function.identity(), false, Setting.Scope.CLUSTER);
+            Function.identity(), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.ec2.proxy.port: In case of proxy, define its port specific for EC2 API calls.  Defaults to cloud.aws.proxy.port.
          * @see AwsEc2Service#PROXY_PORT_SETTING
          */
         Setting<Integer> PROXY_PORT_SETTING = new Setting<>("cloud.aws.ec2.proxy.port", AwsEc2Service.PROXY_PORT_SETTING,
-            s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.ec2.proxy.port"), false, Setting.Scope.CLUSTER);
+            s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.ec2.proxy.port"), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.ec2.proxy.username: In case of proxy with auth, define the username specific for EC2 API calls.
          * Defaults to cloud.aws.proxy.username.
          * @see AwsEc2Service#PROXY_USERNAME_SETTING
          */
         Setting<String> PROXY_USERNAME_SETTING = new Setting<>("cloud.aws.ec2.proxy.username", AwsEc2Service.PROXY_USERNAME_SETTING,
-            Function.identity(), false, Setting.Scope.CLUSTER);
+            Function.identity(), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.ec2.proxy.password: In case of proxy with auth, define the password specific for EC2 API calls.
          * Defaults to cloud.aws.proxy.password.
          * @see AwsEc2Service#PROXY_PASSWORD_SETTING
          */
         Setting<String> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
-            Function.identity(), false, Setting.Scope.CLUSTER, true);
+            Function.identity(), false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * cloud.aws.ec2.signer: If you are using an old AWS API version, you can define a Signer. Specific for EC2 API calls.
          * Defaults to cloud.aws.signer.
          * @see AwsEc2Service#SIGNER_SETTING
          */
         Setting<String> SIGNER_SETTING = new Setting<>("cloud.aws.ec2.signer", AwsEc2Service.SIGNER_SETTING, Function.identity(),
-            false, Setting.Scope.CLUSTER);
+            false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.ec2.region: Region specific for EC2 API calls. Defaults to cloud.aws.region.
          * @see AwsEc2Service#REGION_SETTING
          */
         Setting<String> REGION_SETTING = new Setting<>("cloud.aws.ec2.region", AwsEc2Service.REGION_SETTING,
-            s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+            s -> s.toLowerCase(Locale.ROOT), false, SettingsProperty.ClusterScope);
         /**
          * cloud.aws.ec2.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.ec2.endpoint", false, Setting.Scope.CLUSTER);
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.ec2.endpoint", false, SettingsProperty.ClusterScope);
     }
 
     /**
@@ -159,31 +165,31 @@ public interface AwsEc2Service {
          */
         Setting<HostType> HOST_TYPE_SETTING =
             new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP.name(), s -> HostType.valueOf(s.toUpperCase(Locale.ROOT)), false,
-                Setting.Scope.CLUSTER);
+                SettingsProperty.ClusterScope);
         /**
          * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
          * discovery. Defaults to true.
          */
         Setting<Boolean> ANY_GROUP_SETTING =
-            Setting.boolSetting("discovery.ec2.any_group", true, false, Setting.Scope.CLUSTER);
+            Setting.boolSetting("discovery.ec2.any_group", true, false, SettingsProperty.ClusterScope);
         /**
          * discovery.ec2.groups: Either a comma separated list or array based list of (security) groups. Only instances with the provided
          * security groups will be used in the cluster discovery. (NOTE: You could provide either group NAME or group ID.)
          */
         Setting<List<String>> GROUPS_SETTING =
-            Setting.listSetting("discovery.ec2.groups", new ArrayList<>(), s -> s.toString(), false, Setting.Scope.CLUSTER);
+            Setting.listSetting("discovery.ec2.groups", new ArrayList<>(), s -> s.toString(), false, SettingsProperty.ClusterScope);
         /**
          * discovery.ec2.availability_zones: Either a comma separated list or array based list of availability zones. Only instances within
          * the provided availability zones will be used in the cluster discovery.
          */
         Setting<List<String>> AVAILABILITY_ZONES_SETTING =
             Setting.listSetting("discovery.ec2.availability_zones", Collections.emptyList(), s -> s.toString(), false,
-                Setting.Scope.CLUSTER);
+                SettingsProperty.ClusterScope);
         /**
          * discovery.ec2.node_cache_time: How long the list of hosts is cached to prevent further requests to the AWS API. Defaults to 10s.
          */
         Setting<TimeValue> NODE_CACHE_TIME_SETTING =
-            Setting.timeSetting("discovery.ec2.node_cache_time", TimeValue.timeValueSeconds(10), false, Setting.Scope.CLUSTER);
+            Setting.timeSetting("discovery.ec2.node_cache_time", TimeValue.timeValueSeconds(10), false, SettingsProperty.ClusterScope);
 
         /**
          * discovery.ec2.tag.*: The ec2 discovery can filter machines to include in the cluster based on tags (and not just groups).
@@ -191,7 +197,7 @@ public interface AwsEc2Service {
          * instances with a tag key set to stage, and a value of dev. Several tags set will require all of those tags to be set for the
          * instance to be included.
          */
-        Setting<Settings> TAG_SETTING = Setting.groupSetting("discovery.ec2.tag.", false,Setting.Scope.CLUSTER);
+        Setting<Settings> TAG_SETTING = Setting.groupSetting("discovery.ec2.tag.", false, SettingsProperty.ClusterScope);
     }
 
     AmazonEC2 client();

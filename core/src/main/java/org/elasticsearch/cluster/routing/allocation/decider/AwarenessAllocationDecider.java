@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -77,8 +78,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
 
-    public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = new Setting<>("cluster.routing.allocation.awareness.attributes", "", Strings::splitStringByCommaToArray , true, Setting.Scope.CLUSTER);
-    public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.awareness.force.", true, Setting.Scope.CLUSTER);
+    public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING =
+        new Setting<>("cluster.routing.allocation.awareness.attributes", "", Strings::splitStringByCommaToArray , true,
+            SettingsProperty.ClusterScope);
+    public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING =
+        Setting.groupSetting("cluster.routing.allocation.awareness.force.", true, SettingsProperty.ClusterScope);
 
     private String[] awarenessAttributes;
 

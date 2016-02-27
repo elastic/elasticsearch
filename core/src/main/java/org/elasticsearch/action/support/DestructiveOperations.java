@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -33,7 +34,8 @@ public final class DestructiveOperations extends AbstractComponent {
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
-    public static final Setting<Boolean> REQUIRES_NAME_SETTING = Setting.boolSetting("action.destructive_requires_name", false, true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> REQUIRES_NAME_SETTING =
+        Setting.boolSetting("action.destructive_requires_name", false, true, SettingsProperty.ClusterScope);
     private volatile boolean destructiveRequiresName;
 
     @Inject

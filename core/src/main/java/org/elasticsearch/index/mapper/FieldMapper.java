@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -49,8 +50,10 @@ import java.util.Map;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
-    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", false, false, Setting.Scope.INDEX);
-    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
+        Setting.boolSetting("index.mapping.ignore_malformed", false, false, SettingsProperty.IndexScope);
+    public static final Setting<Boolean> COERCE_SETTING =
+        Setting.boolSetting("index.mapping.coerce", false, false, SettingsProperty.IndexScope);
     public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final MappedFieldType fieldType;

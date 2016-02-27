@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -40,8 +41,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
-    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), false, Setting.Scope.CLUSTER);
-    public static final Setting<Long> DISCOVERY_SEED_SETTING = Setting.longSetting("discovery.id.seed", 0L, Long.MIN_VALUE, false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), false,
+            SettingsProperty.ClusterScope);
+    public static final Setting<Long> DISCOVERY_SEED_SETTING =
+        Setting.longSetting("discovery.id.seed", 0L, Long.MIN_VALUE, false, SettingsProperty.ClusterScope);
 
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 

@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -69,7 +70,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
     // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a separate public service
-    public static final Setting<TimeValue> INDICES_STORE_DELETE_SHARD_TIMEOUT = Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_STORE_DELETE_SHARD_TIMEOUT =
+        Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS), false,
+            SettingsProperty.ClusterScope);
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
     private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
     private final IndicesService indicesService;

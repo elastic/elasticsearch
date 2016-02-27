@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -67,7 +68,8 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
-    public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, SettingsProperty.ClusterScope);
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;

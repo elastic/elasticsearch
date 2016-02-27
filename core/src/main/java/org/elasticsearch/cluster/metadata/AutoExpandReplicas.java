@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 
 /**
  * This class acts as a functional wrapper around the <tt>index.auto_expand_replicas</tt> setting.
@@ -56,7 +57,7 @@ final class AutoExpandReplicas {
             }
         }
         return new AutoExpandReplicas(min, max, true);
-    }, true, Setting.Scope.INDEX);
+    }, true, SettingsProperty.IndexScope);
 
     private final int minReplicas;
     private final int maxReplicas;

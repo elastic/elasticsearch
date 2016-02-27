@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -57,7 +58,8 @@ public class InternalSettingsPreparer {
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-    public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING = Setting.boolSetting("config.ignore_system_properties", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING =
+        Setting.boolSetting("config.ignore_system_properties", false, false, SettingsProperty.ClusterScope);
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.

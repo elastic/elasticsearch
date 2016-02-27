@@ -22,7 +22,7 @@ package org.elasticsearch.cloud.azure.management;
 import com.microsoft.windowsazure.core.utils.KeyStoreType;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.azure.AzureUnicastHostsProvider;
 
@@ -30,27 +30,29 @@ public interface AzureComputeService {
 
     final class Management {
         public static final Setting<String> SUBSCRIPTION_ID_SETTING =
-            Setting.simpleString("cloud.azure.management.subscription.id", false, Scope.CLUSTER, true);
+            Setting.simpleString("cloud.azure.management.subscription.id", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         public static final Setting<String> SERVICE_NAME_SETTING =
-            Setting.simpleString("cloud.azure.management.cloud.service.name", false, Scope.CLUSTER);
+            Setting.simpleString("cloud.azure.management.cloud.service.name", false, SettingsProperty.ClusterScope);
 
         // Keystore settings
         public static final Setting<String> KEYSTORE_PATH_SETTING =
-            Setting.simpleString("cloud.azure.management.keystore.path", false, Scope.CLUSTER, true);
+            Setting.simpleString("cloud.azure.management.keystore.path", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         public static final Setting<String> KEYSTORE_PASSWORD_SETTING =
-            Setting.simpleString("cloud.azure.management.keystore.password", false, Scope.CLUSTER, true);
+            Setting.simpleString("cloud.azure.management.keystore.password", false, SettingsProperty.ClusterScope,
+                SettingsProperty.Filtered);
         public static final Setting<KeyStoreType> KEYSTORE_TYPE_SETTING =
             new Setting<>("cloud.azure.management.keystore.type", KeyStoreType.pkcs12.name(), KeyStoreType::fromString, false,
-                Scope.CLUSTER, false);
+                SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     }
 
     final class Discovery {
         public static final Setting<TimeValue> REFRESH_SETTING =
-            Setting.positiveTimeSetting("discovery.azure.refresh_interval", TimeValue.timeValueSeconds(0), false, Scope.CLUSTER);
+            Setting.positiveTimeSetting("discovery.azure.refresh_interval", TimeValue.timeValueSeconds(0), false,
+                SettingsProperty.ClusterScope);
 
         public static final Setting<AzureUnicastHostsProvider.HostType> HOST_TYPE_SETTING =
             new Setting<>("discovery.azure.host.type", AzureUnicastHostsProvider.HostType.PRIVATE_IP.name(),
-                AzureUnicastHostsProvider.HostType::fromString, false, Scope.CLUSTER);
+                AzureUnicastHostsProvider.HostType::fromString, false, SettingsProperty.ClusterScope);
 
         public static final String ENDPOINT_NAME = "discovery.azure.endpoint.name";
         public static final String DEPLOYMENT_NAME = "discovery.azure.deployment.name";

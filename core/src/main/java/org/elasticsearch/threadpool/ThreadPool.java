@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.SizeValue;
@@ -188,7 +189,8 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    public static final Setting<Settings> THREADPOOL_GROUP_SETTING = Setting.groupSetting("threadpool.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> THREADPOOL_GROUP_SETTING =
+        Setting.groupSetting("threadpool.", true, SettingsProperty.ClusterScope);
 
     private volatile Map<String, ExecutorHolder> executors;
 

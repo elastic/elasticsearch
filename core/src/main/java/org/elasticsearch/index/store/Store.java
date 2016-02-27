@@ -62,6 +62,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -129,7 +130,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
     static final String CORRUPTED = "corrupted_";
-    public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), false, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
+        Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), false, SettingsProperty.IndexScope);
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;

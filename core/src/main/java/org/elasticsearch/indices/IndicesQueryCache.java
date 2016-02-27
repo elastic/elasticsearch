@@ -30,10 +30,9 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -50,9 +49,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class IndicesQueryCache extends AbstractComponent implements QueryCache, Closeable {
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = Setting.byteSizeSetting(
-            "indices.queries.cache.size", "10%", false, Scope.CLUSTER);
+            "indices.queries.cache.size", "10%", false, SettingsProperty.ClusterScope);
     public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = Setting.intSetting(
-            "indices.queries.cache.count", 10000, 1, false, Scope.CLUSTER);
+            "indices.queries.cache.count", 10000, 1, false, SettingsProperty.ClusterScope);
 
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();

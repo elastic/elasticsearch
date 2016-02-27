@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -100,10 +101,14 @@ public class TransportClientNodesService extends AbstractComponent {
     private volatile boolean closed;
 
 
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL = Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT = Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME = Setting.boolSetting("client.transport.ignore_cluster_name", false, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF = Setting.boolSetting("client.transport.sniff", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
+        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), false, SettingsProperty.ClusterScope);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
+        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
+        Setting.boolSetting("client.transport.ignore_cluster_name", false, false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
+        Setting.boolSetting("client.transport.sniff", false, false, SettingsProperty.ClusterScope);
 
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,

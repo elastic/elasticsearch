@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -106,11 +107,14 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-    public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING = Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
+        Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, SettingsProperty.ClusterScope);
+    public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, SettingsProperty.ClusterScope);
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
-    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING =
+        Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, SettingsProperty.ClusterScope);
 
 
     private final ThreadPool threadPool;

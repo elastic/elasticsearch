@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -29,8 +30,10 @@ import org.elasticsearch.index.shard.ShardPath;
  *
  */
 public class IndexStore extends AbstractIndexComponent {
-    public static final Setting<IndexRateLimitingType> INDEX_STORE_THROTTLE_TYPE_SETTING = new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString, true, Setting.Scope.INDEX) ;
-    public static final Setting<ByteSizeValue> INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0), true, Setting.Scope.INDEX);
+    public static final Setting<IndexRateLimitingType> INDEX_STORE_THROTTLE_TYPE_SETTING =
+        new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString, true, SettingsProperty.IndexScope);
+    public static final Setting<ByteSizeValue> INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING =
+        Setting.byteSizeSetting("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0), true, SettingsProperty.IndexScope);
 
     protected final IndexStoreConfig indexStoreConfig;
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();

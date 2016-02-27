@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -45,13 +46,13 @@ public class SettingsModuleTests extends ModuleTestCase {
         {
             Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
             SettingsModule module = new SettingsModule(settings);
-            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, SettingsProperty.ClusterScope));
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
         {
             Settings settings = Settings.builder().put("some.custom.setting", "false").build();
             SettingsModule module = new SettingsModule(settings);
-            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, SettingsProperty.ClusterScope));
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
@@ -131,9 +132,9 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testRegisterSettingsFilter() {
         Settings settings = Settings.builder().put("foo.bar", "false").put("bar.foo", false).put("bar.baz", false).build();
         SettingsModule module = new SettingsModule(settings);
-        module.registerSetting(Setting.boolSetting("foo.bar", true, false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting("bar.foo", true, false, Setting.Scope.CLUSTER, true));
-        module.registerSetting(Setting.boolSetting("bar.baz", true, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("foo.bar", true, false, SettingsProperty.ClusterScope));
+        module.registerSetting(Setting.boolSetting("bar.foo", true, false, SettingsProperty.ClusterScope, SettingsProperty.Filtered));
+        module.registerSetting(Setting.boolSetting("bar.baz", true, false, SettingsProperty.ClusterScope));
 
         module.registerSettingsFilter("foo.*");
         try {

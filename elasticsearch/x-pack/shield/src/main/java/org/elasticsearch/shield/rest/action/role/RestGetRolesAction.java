@@ -9,7 +9,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.authz.RoleDescriptor;
 
 /**
  * Rest endpoint to retrieve a Role from the shield index
@@ -35,20 +35,25 @@ public class RestGetRolesAction extends BaseRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
-
-        new SecurityClient(client).prepareGetRoles(names).execute(new RestBuilderListener<GetRolesResponse>(channel) {
+    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+        final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
+        new SecurityClient(client).prepareGetRoles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetRolesResponse getRolesResponse, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field("found", getRolesResponse.isExists());
-                builder.startArray("roles");
-                for (ToXContent role : getRolesResponse.roles()) {
-                    role.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                for (RoleDescriptor role : response.roles()) {
+                    builder.field(role.getName(), role);
                 }
-                builder.endArray();
                 builder.endObject();
+
+                // if the user asked for specific roles, but none of them were found
+                // we'll return an empty result and 404 status code
+                if (roles.length != 0 && response.roles().length == 0) {
+                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                }
+
+                // either the user asked for all roles, or at least one of the roles
+                // the user asked for was found
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.shield.authz.RoleDescriptor;
 
 /**
  * Builder for requests to add a role to the administrative index
@@ -24,7 +25,11 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     }
 
     public PutRoleRequestBuilder source(String name, BytesReference source) throws Exception {
-        request.source(name, source);
+        RoleDescriptor descriptor = RoleDescriptor.parse(name, source);
+        request.name(descriptor.getName());
+        request.cluster(descriptor.getClusterPrivileges());
+        request.addIndex(descriptor.getIndicesPrivileges());
+        request.runAs(descriptor.getRunAs());
         return this;
     }
 
@@ -33,8 +38,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         return this;
     }
 
-    public PutRoleRequestBuilder cluster(String... clusterPrivileges) {
-        request.cluster(clusterPrivileges);
+    public PutRoleRequestBuilder cluster(String... cluster) {
+        request.cluster(cluster);
         return this;
     }
 
@@ -43,8 +48,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         return this;
     }
 
-    public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges, @Nullable String[] fields,
-                                            @Nullable BytesReference query) {
+    public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges,
+            @Nullable String[] fields, @Nullable BytesReference query) {
         request.addIndex(indices, privileges, fields, query);
         return this;
     }

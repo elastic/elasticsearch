@@ -19,41 +19,37 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> {
 
-    private String role;
+    private String name;
 
     public DeleteRoleRequest() {
-    }
-
-    public DeleteRoleRequest(String roleName) {
-        this.role = roleName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (role == null) {
-            validationException = addValidationError("role is missing", validationException);
+        if (name == null) {
+            validationException = addValidationError("role name is missing", validationException);
         }
         return validationException;
     }
 
-    public void role(String role) {
-        this.role = role;
+    public void name(String name) {
+        this.name = name;
     }
 
-    public String role() {
-        return role;
+    public String name() {
+        return name;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        role = in.readString();
+        name = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(role);
+        out.writeString(name);
     }
 }

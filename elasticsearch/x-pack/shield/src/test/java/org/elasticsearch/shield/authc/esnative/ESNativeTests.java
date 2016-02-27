@@ -55,7 +55,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertFalse("user should not exist", resp.hasUsers());
         GetRolesResponse resp2 = c.prepareGetRoles().names("role").get();
-        assertFalse("role should not exist", resp2.isExists());
+        assertFalse("role should not exist", resp2.hasRoles());
     }
 
     public void testAddAndGetUser() throws Exception {
@@ -117,8 +117,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
         ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving role");
         GetRolesResponse resp = c.prepareGetRoles().names("test_role").get();
-        assertTrue("role should exist", resp.isExists());
-        RoleDescriptor testRole = resp.roles().get(0);
+        assertTrue("role should exist", resp.hasRoles());
+        RoleDescriptor testRole = resp.roles()[0];
         assertNotNull(testRole);
 
         c.preparePutRole("test_role2")
@@ -139,20 +139,20 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
         logger.info("--> retrieving all roles");
         GetRolesResponse allRolesResp = c.prepareGetRoles().get();
-        assertTrue("roles should exist", allRolesResp.isExists());
-        assertEquals("should be 3 roles total", 3, allRolesResp.roles().size());
+        assertTrue("roles should exist", allRolesResp.hasRoles());
+        assertEquals("should be 3 roles total", 3, allRolesResp.roles().length);
 
         logger.info("--> retrieving all roles");
         GetRolesResponse someRolesResp = c.prepareGetRoles().names("test_role", "test_role3").get();
-        assertTrue("roles should exist", someRolesResp.isExists());
-        assertEquals("should be 2 roles total", 2, someRolesResp.roles().size());
+        assertTrue("roles should exist", someRolesResp.hasRoles());
+        assertEquals("should be 2 roles total", 2, someRolesResp.roles().length);
 
         logger.info("--> deleting role");
         DeleteRoleResponse delResp = c.prepareDeleteRole("test_role").get();
         assertTrue(delResp.found());
         logger.info("--> retrieving role");
         GetRolesResponse resp2 = c.prepareGetRoles().names("test_role").get();
-        assertFalse("role should not exist after being deleted", resp2.isExists());
+        assertFalse("role should not exist after being deleted", resp2.hasRoles());
     }
 
     public void testAddUserAndRoleThenAuth() throws Exception {
@@ -160,8 +160,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
         logger.error("--> creating role");
         c.preparePutRole("test_role")
                 .cluster("all")
-                .addIndices(new String[]{"*"}, new String[]{"read"},
-                        new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
+                .addIndices(new String[] { "*" }, new String[] { "read" },
+                        new String[] { "body", "title" }, new BytesArray("{\"match_all\": {}}"))
                 .get();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
@@ -284,19 +284,20 @@ public class ESNativeTests extends ShieldIntegTestCase {
             }
         } else {
             GetRolesResponse getRolesResponse = c.prepareGetRoles().names("test_role").get();
-            assertTrue("test_role does not exist!", getRolesResponse.isExists());
+            assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/foo"));
+                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/foo"));
+
             c.preparePutRole("test_role")
                     .cluster("none")
                     .addIndices(new String[]{"*"}, new String[]{"read"},
                             new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                     .get();
             getRolesResponse = c.prepareGetRoles().names("test_role").get();
-            assertTrue("test_role does not exist!", getRolesResponse.isExists());
+            assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/bar"));
+                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/bar"));
         }
     }
 

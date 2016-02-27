@@ -12,7 +12,6 @@
         name: "admin_role2"
         body:  >
             {
-              "name": "admin_role2",
               "cluster": ["all"],
               "indices": [
                 {
@@ -65,9 +64,7 @@
   - do:
       shield.get_role:
         name: "admin_role2"
-  - match: { found: true }
-  - match: { roles.0.name: "admin_role2" }
-  - match: { roles.0.cluster.0:  "all" }
-  - match: { roles.0.indices.0.names.0: "foo" }
-  - match: { roles.0.indices.0.names.1: "bar" }
-  - match: { roles.0.indices.0.privileges.0:  "all" }
+  - match: { admin_role2.cluster.0:  "all" }
+  - match: { admin_role2.indices.0.names.0: "foo" }
+  - match: { admin_role2.indices.0.names.1: "bar" }
+  - match: { admin_role2.indices.0.privileges.0:  "all" }

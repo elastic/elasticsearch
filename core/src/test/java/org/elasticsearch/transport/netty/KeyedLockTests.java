@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -29,9 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class KeyedLockTests extends ESTestCase {
@@ -68,28 +67,6 @@ public class KeyedLockTests extends ESTestCase {
         }
     }
 
-    public void testCannotAcquireTwoLocks() throws InterruptedException {
-        KeyedLock<String> connectionLock = new KeyedLock<String>();
-        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
-        connectionLock.acquire(name);
-        try {
-            connectionLock.acquire(name);
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), containsString("Lock already acquired"));
-        }
-    }
-
-    public void testCannotReleaseUnacquiredLock() throws InterruptedException {
-        KeyedLock<String> connectionLock = new KeyedLock<String>();
-        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
-        try {
-            connectionLock.release(name);
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("Lock not acquired"));
-        }
-    }
 
     public static class AcquireAndReleaseThread extends Thread {
         private CountDownLatch startLatch;
@@ -117,16 +94,16 @@ public class KeyedLockTests extends ESTestCase {
             int numRuns = scaledRandomIntBetween(5000, 50000);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
-                connectionLock.acquire(curName);
-                try {
+                assert connectionLock.isHeldByCurrentThread(curName) == false;
+                try (Releasable ignored = connectionLock.acquire(curName)) {
+                    assert connectionLock.isHeldByCurrentThread(curName);
+                    assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
                     Integer integer = counter.get(curName);
                     if (integer == null) {
                         counter.put(curName, 1);
                     } else {
                         counter.put(curName, integer.intValue() + 1);
                     }
-                } finally {
-                    connectionLock.release(curName);
                 }
                 AtomicInteger atomicInteger = new AtomicInteger(0);
                 AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);

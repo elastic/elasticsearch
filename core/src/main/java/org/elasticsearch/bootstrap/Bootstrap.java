@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -358,6 +359,9 @@ final class Bootstrap {
     )));
 
     private static boolean enforceLimits(Settings settings) {
+        if (Build.CURRENT.isSnapshot()) {
+            return false;
+        }
         for (Setting setting : ENFORCE_SETTINGS) {
             if (setting.exists(settings)) {
                 return true;

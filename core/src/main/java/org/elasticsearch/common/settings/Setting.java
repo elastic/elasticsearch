@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -486,6 +487,10 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
+      return groupSetting(key, dynamic, scope, (s) -> true);
+    }
+
+    public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope, Predicate<String> settingsValidator) {
         if (key.endsWith(".") == false) {
             throw new IllegalArgumentException("key must end with a '.'");
         }
@@ -498,7 +503,7 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public Settings get(Settings settings) {
-                return settings.getByPrefix(key);
+                return settings.getByPrefix(key).filter(settingsValidator);
             }
 
             @Override

@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -133,8 +134,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         IndexWarmer.INDEX_NORMS_LOADING_SETTING,
-        // this sucks but we can't really validate all the analyzers/similarity in here
-        Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX), // this allows similarity settings to be passed
+        // validate that built-in similarities don't get redefined
+        Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX, (s) -> {
+          boolean valid = true;
+          String similarityName = s.substring(0, s.indexOf("."));
+          if(SimilarityService.BUILT_IN.keySet().contains(similarityName)) {
+            throw new IllegalArgumentException("Cannot redefine built-in Similarity [" + similarityName + "]");
+          }
+          return valid;
+        }), // this allows similarity settings to be passed
         Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this allows analysis settings to be passed
 
     )));

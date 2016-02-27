@@ -81,7 +81,13 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             providers.put(name, factory.apply(name, settings));
         }
-        addSimilarities(similaritySettings, providers, DEFAULTS);
+        for (Map.Entry<String, SimilarityProvider> entry : addSimilarities(similaritySettings, DEFAULTS).entrySet()) {
+            // Avoid overwriting custom providers for indices older that v3.0
+            if (providers.containsKey(entry.getKey()) && indexSettings.getIndexVersionCreated().before(Version.V_3_0_0)) {
+                continue;
+            }
+            providers.put(entry.getKey(), entry.getValue());
+        }
         this.similarities = providers;
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
@@ -96,7 +102,9 @@ public final class SimilarityService extends AbstractIndexComponent {
                 defaultSimilarity;
     }
 
-    private void addSimilarities(Map<String, Settings>  similaritySettings, Map<String, SimilarityProvider> providers, Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities)  {
+    private Map<String, SimilarityProvider> addSimilarities(Map<String, Settings>  similaritySettings,
+                                 Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities)  {
+        Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
         for (Map.Entry<String, BiFunction<String, Settings, SimilarityProvider>> entry : similarities.entrySet()) {
             String name = entry.getKey();
             BiFunction<String, Settings, SimilarityProvider> factory = entry.getValue();
@@ -106,6 +114,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             providers.put(name, factory.apply(name, settings));
         }
+      return providers;
     }
 
     public SimilarityProvider getSimilarity(String name) {

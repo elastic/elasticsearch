@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,6 +33,7 @@ public class BootstrapSettingsTests extends ESTestCase {
         assertTrue(BootstrapSettings.CTRLHANDLER_SETTING.get(Settings.EMPTY));
     }
 
+    @AwaitsFix(bugUrl = "this feature is disabled for snapshot builds, for now - see #16835")
     public void testEnforceMaxFileDescriptorLimits() {
         // nothing should happen since we are in OOB mode
         Bootstrap.enforceOrLogLimits(Settings.EMPTY);

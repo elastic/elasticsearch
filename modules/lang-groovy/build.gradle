@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile 'org.codehaus.groovy:groovy:2.4.4:indy'
+  compile 'org.codehaus.groovy:groovy:2.4.6:indy'
 }
 
 integTest {

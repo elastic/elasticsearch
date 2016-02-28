@@ -421,6 +421,17 @@ be highlighted regardless of whether the query matched specifically on them.
 The default behaviour is `true`, meaning that only fields that hold a query
 match will be highlighted.
 
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "require_field_match": false
+        "fields" : {...}
+    }
+}
+--------------------------------------------------
+
 [[boundary-characters]]
 ==== Boundary Characters
 

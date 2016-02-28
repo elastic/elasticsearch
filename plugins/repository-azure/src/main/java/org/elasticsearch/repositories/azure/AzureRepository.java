@@ -68,17 +68,14 @@ public class AzureRepository extends BlobStoreRepository {
     public final static String TYPE = "azure";
 
     public static final class Repository {
-        public static final Setting<String> ACCOUNT_SETTING =
-            Setting.simpleString("account", false, SettingsProperty.ClusterScope);
+        public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("account", SettingsProperty.ClusterScope);
         public static final Setting<String> CONTAINER_SETTING =
-            new Setting<>("container", "elasticsearch-snapshots", Function.identity(), false, SettingsProperty.ClusterScope);
-        public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", false, SettingsProperty.ClusterScope);
-        public static final Setting<String> LOCATION_MODE_SETTING =
-            Setting.simpleString("location_mode", false, SettingsProperty.ClusterScope);
+            new Setting<>("container", "elasticsearch-snapshots", Function.identity(), SettingsProperty.ClusterScope);
+        public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", SettingsProperty.ClusterScope);
+        public static final Setting<String> LOCATION_MODE_SETTING = Setting.simpleString("location_mode", SettingsProperty.ClusterScope);
         public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, false, SettingsProperty.ClusterScope);
-        public static final Setting<Boolean> COMPRESS_SETTING =
-            Setting.boolSetting("compress", false, false, SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, SettingsProperty.ClusterScope);
+        public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, SettingsProperty.ClusterScope);
     }
 
     private final AzureBlobStore blobStore;

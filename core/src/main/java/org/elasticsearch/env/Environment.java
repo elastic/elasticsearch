@@ -47,18 +47,17 @@ import static org.elasticsearch.common.Strings.cleanPath;
 // TODO: move PathUtils to be package-private here instead of
 // public+forbidden api!
 public class Environment {
-    public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", false, SettingsProperty.ClusterScope);
-    public static final Setting<String> PATH_CONF_SETTING = Setting.simpleString("path.conf", false, SettingsProperty.ClusterScope);
-    public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", false, SettingsProperty.ClusterScope);
+    public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", SettingsProperty.ClusterScope);
+    public static final Setting<String> PATH_CONF_SETTING = Setting.simpleString("path.conf", SettingsProperty.ClusterScope);
+    public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", SettingsProperty.ClusterScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
-        Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), false, SettingsProperty.ClusterScope);
-    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", false, SettingsProperty.ClusterScope);
-    public static final Setting<String> PATH_PLUGINS_SETTING = Setting.simpleString("path.plugins", false, SettingsProperty.ClusterScope);
+        Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
+    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", SettingsProperty.ClusterScope);
+    public static final Setting<String> PATH_PLUGINS_SETTING = Setting.simpleString("path.plugins", SettingsProperty.ClusterScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
-        Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), false, SettingsProperty.ClusterScope);
-    public static final Setting<String> PATH_SHARED_DATA_SETTING =
-        Setting.simpleString("path.shared_data", false, SettingsProperty.ClusterScope);
-    public static final Setting<String> PIDFILE_SETTING = Setting.simpleString("pidfile", false, SettingsProperty.ClusterScope);
+        Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
+    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", SettingsProperty.ClusterScope);
+    public static final Setting<String> PIDFILE_SETTING = Setting.simpleString("pidfile", SettingsProperty.ClusterScope);
 
     private final Settings settings;
 

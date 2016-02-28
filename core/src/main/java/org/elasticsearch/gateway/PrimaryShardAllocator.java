@@ -70,11 +70,11 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
     public static final Setting<String> NODE_INITIAL_SHARDS_SETTING =
         new Setting<>("gateway.initial_shards", (settings) -> settings.get("gateway.local.initial_shards", "quorum"), INITIAL_SHARDS_PARSER,
-            true, SettingsProperty.ClusterScope);
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     @Deprecated
     public static final Setting<String> INDEX_RECOVERY_INITIAL_SHARDS_SETTING =
-        new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER, true,
-            SettingsProperty.IndexScope);
+        new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
     public PrimaryShardAllocator(Settings settings) {
         super(settings);

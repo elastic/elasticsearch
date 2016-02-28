@@ -99,10 +99,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     // tracer log
 
     public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING =
-        listSetting("transport.tracer.include", emptyList(), Function.identity(), true, SettingsProperty.ClusterScope);
+        listSetting("transport.tracer.include", emptyList(), Function.identity(), SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
         listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME),
-            Function.identity(), true, SettingsProperty.ClusterScope);
+            Function.identity(), SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private final ESLogger tracerLog;
 

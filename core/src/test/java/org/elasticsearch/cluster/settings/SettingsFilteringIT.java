@@ -47,9 +47,9 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
     public static class SettingsFilteringPlugin extends Plugin {
         public static final Setting<Boolean> SOME_NODE_SETTING =
-            Setting.boolSetting("some.node.setting", false, false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+            Setting.boolSetting("some.node.setting", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
-            Setting.boolSetting("some.other.node.setting", false, false, SettingsProperty.ClusterScope);
+            Setting.boolSetting("some.other.node.setting", false, SettingsProperty.ClusterScope);
 
         /**
          * The name of the plugin.
@@ -75,7 +75,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         public void onModule(SettingsModule module) {
             module.registerSetting(SOME_NODE_SETTING);
             module.registerSetting(SOME_OTHER_NODE_SETTING);
-            module.registerSetting(Setting.groupSetting("index.filter_test.", false, SettingsProperty.IndexScope));
+            module.registerSetting(Setting.groupSetting("index.filter_test.", SettingsProperty.IndexScope));
             module.registerSettingsFilter("index.filter_test.foo");
             module.registerSettingsFilter("index.filter_test.bar*");
         }

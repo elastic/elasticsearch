@@ -57,7 +57,7 @@ public final class IndexWarmer extends AbstractComponent {
 
     public static final Setting<MappedFieldType.Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading",
         MappedFieldType.Loading.LAZY.toString(), (s) -> MappedFieldType.Loading.parse(s, MappedFieldType.Loading.LAZY),
-        false, SettingsProperty.IndexScope);
+        SettingsProperty.IndexScope);
     private final List<Listener> listeners;
 
     IndexWarmer(Settings settings, ThreadPool threadPool, Listener... listeners) {

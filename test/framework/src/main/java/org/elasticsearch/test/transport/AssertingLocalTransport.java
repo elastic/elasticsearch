@@ -70,10 +70,10 @@ public class AssertingLocalTransport extends LocalTransport {
 
     public static final Setting<Version> ASSERTING_TRANSPORT_MIN_VERSION_KEY =
         new Setting<>("transport.asserting.version.min", Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id),
-            (s) -> Version.fromId(Integer.parseInt(s)), false, SettingsProperty.ClusterScope);
+            (s) -> Version.fromId(Integer.parseInt(s)), SettingsProperty.ClusterScope);
     public static final Setting<Version> ASSERTING_TRANSPORT_MAX_VERSION_KEY =
         new Setting<>("transport.asserting.version.max", Integer.toString(Version.CURRENT.id),
-            (s) -> Version.fromId(Integer.parseInt(s)), false, SettingsProperty.ClusterScope);
+            (s) -> Version.fromId(Integer.parseInt(s)), SettingsProperty.ClusterScope);
     private final Random random;
     private final Version minVersion;
     private final Version maxVersion;

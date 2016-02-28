@@ -73,7 +73,7 @@ public class PluginsService extends AbstractComponent {
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
     public static final Setting<List<String>> MANDATORY_SETTING =
-        Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), false, SettingsProperty.ClusterScope);
+        Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 

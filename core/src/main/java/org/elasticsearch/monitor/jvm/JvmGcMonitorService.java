@@ -48,13 +48,13 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     private volatile ScheduledFuture scheduledFuture;
 
     public final static Setting<Boolean> ENABLED_SETTING =
-        Setting.boolSetting("monitor.jvm.gc.enabled", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("monitor.jvm.gc.enabled", true, SettingsProperty.ClusterScope);
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1), false,
+        Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             SettingsProperty.ClusterScope);
 
     private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
-    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, false, SettingsProperty.ClusterScope);
+    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, SettingsProperty.ClusterScope);
 
     static class GcThreshold {
         public final String name;

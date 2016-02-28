@@ -45,7 +45,8 @@ public class IndexSettingsTests extends ESTestCase {
         Version version = VersionUtils.getPreviousVersion();
         Settings theSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef").build();
         final AtomicInteger integer = new AtomicInteger(0);
-        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, true, SettingsProperty.IndexScope);
+        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         IndexMetaData metaData = newIndexMeta("index", theSettings);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
         settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set);
@@ -66,8 +67,10 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef").build();
         final AtomicInteger integer = new AtomicInteger(0);
         final StringBuilder builder = new StringBuilder();
-        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, true, SettingsProperty.IndexScope);
-        Setting<String> notUpdated = new Setting<>("index.not.updated", "", Function.identity(), true, SettingsProperty.IndexScope);
+        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+        Setting<String> notUpdated = new Setting<>("index.not.updated", "", Function.identity(),
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting, notUpdated);
         settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set);
@@ -129,7 +132,7 @@ public class IndexSettingsTests extends ESTestCase {
 
         Settings nodeSettings = Settings.settingsBuilder().put("index.foo.bar", 43).build();
         final AtomicInteger indexValue = new AtomicInteger(0);
-        Setting<Integer> integerSetting = Setting.intSetting("index.foo.bar", -1, true, SettingsProperty.IndexScope);
+        Setting<Integer> integerSetting = Setting.intSetting("index.foo.bar", -1, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings, integerSetting);
         settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, indexValue::set);
         assertEquals(numReplicas, settings.getNumberOfReplicas());

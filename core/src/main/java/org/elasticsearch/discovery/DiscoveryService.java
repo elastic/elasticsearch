@@ -42,10 +42,9 @@ import java.util.concurrent.TimeUnit;
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
     public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), false,
-            SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), SettingsProperty.ClusterScope);
     public static final Setting<Long> DISCOVERY_SEED_SETTING =
-        Setting.longSetting("discovery.id.seed", 0L, Long.MIN_VALUE, false, SettingsProperty.ClusterScope);
+        Setting.longSetting("discovery.id.seed", 0L, Long.MIN_VALUE, SettingsProperty.ClusterScope);
 
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 

@@ -122,7 +122,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     // internal settings only
-    public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", false, SettingsProperty.ClusterScope);
+    public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", SettingsProperty.ClusterScope);
     private final ClusterService clusterService;
     private final String[] blockIndicesWrite;
     private final String[] blockIndicesRead;
@@ -141,21 +141,18 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 throw new IllegalArgumentException(
                     "Invalid value for [tribe.on_conflict] must be either [any, drop or start with prefer_] but was: [" + s + "]");
         }
-    }, false, SettingsProperty.ClusterScope);
+    }, SettingsProperty.ClusterScope);
 
     public static final Setting<Boolean> BLOCKS_METADATA_SETTING =
-        Setting.boolSetting("tribe.blocks.metadata", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("tribe.blocks.metadata", false, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> BLOCKS_WRITE_SETTING =
-        Setting.boolSetting("tribe.blocks.write", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("tribe.blocks.write", false, SettingsProperty.ClusterScope);
     public static final Setting<List<String>> BLOCKS_WRITE_INDICES_SETTING =
-        Setting.listSetting("tribe.blocks.write.indices", Collections.emptyList(), Function.identity(), false,
-            SettingsProperty.ClusterScope);
+        Setting.listSetting("tribe.blocks.write.indices", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> BLOCKS_READ_INDICES_SETTING =
-        Setting.listSetting("tribe.blocks.read.indices", Collections.emptyList(), Function.identity(), false,
-            SettingsProperty.ClusterScope);
+        Setting.listSetting("tribe.blocks.read.indices", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> BLOCKS_METADATA_INDICES_SETTING =
-        Setting.listSetting("tribe.blocks.metadata.indices", Collections.emptyList(), Function.identity(), false,
-            SettingsProperty.ClusterScope);
+        Setting.listSetting("tribe.blocks.metadata.indices", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
 
     public static final Set<String> TRIBE_SETTING_KEYS = Sets.newHashSet(TRIBE_NAME_SETTING.getKey(), ON_CONFLICT_SETTING.getKey(),
         BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());

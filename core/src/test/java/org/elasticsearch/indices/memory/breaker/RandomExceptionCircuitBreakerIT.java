@@ -199,9 +199,9 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
         public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
-            Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, false, SettingsProperty.IndexScope);
+            Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, SettingsProperty.IndexScope);
         public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
-            Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, false, SettingsProperty.IndexScope);
+            Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, SettingsProperty.IndexScope);
         public static class TestPlugin extends Plugin {
             @Override
             public String name() {

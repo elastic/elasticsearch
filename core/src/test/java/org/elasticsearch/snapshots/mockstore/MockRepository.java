@@ -60,10 +60,9 @@ public class MockRepository extends FsRepository {
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin {
 
-        public static final Setting<String> USERNAME_SETTING =
-            Setting.simpleString("secret.mock.username", false, SettingsProperty.ClusterScope);
+        public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", SettingsProperty.ClusterScope);
         public static final Setting<String> PASSWORD_SETTING =
-            Setting.simpleString("secret.mock.password", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+            Setting.simpleString("secret.mock.password", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
 
         @Override
         public String name() {

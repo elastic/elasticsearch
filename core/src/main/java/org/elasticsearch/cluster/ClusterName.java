@@ -38,7 +38,7 @@ public class ClusterName implements Streamable {
             throw new IllegalArgumentException("[cluster.name] must not be empty");
         }
         return s;
-    }, false, SettingsProperty.ClusterScope);
+    }, SettingsProperty.ClusterScope);
 
 
     public static final ClusterName DEFAULT = new ClusterName(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).intern());

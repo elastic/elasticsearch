@@ -45,7 +45,6 @@ public class ScriptSettings {
                 ScriptModes.sourceKey(scriptType),
                 scriptType.getDefaultScriptMode().getMode(),
                 ScriptMode::parse,
-                false,
                 SettingsProperty.ClusterScope));
         }
         SCRIPT_TYPE_SETTING_MAP = Collections.unmodifiableMap(scriptTypeSettingMap);
@@ -67,7 +66,7 @@ public class ScriptSettings {
                 throw new IllegalArgumentException("unregistered default language [" + setting + "]");
             }
             return setting;
-        }, false, SettingsProperty.ClusterScope);
+        }, SettingsProperty.ClusterScope);
     }
 
     private static Map<ScriptContext, Setting<ScriptMode>> contextSettings(ScriptContextRegistry scriptContextRegistry) {
@@ -77,7 +76,6 @@ public class ScriptSettings {
                 ScriptModes.operationKey(scriptContext),
                 ScriptMode.OFF.getMode(),
                 ScriptMode::parse,
-                false,
                 SettingsProperty.ClusterScope
             ));
         }
@@ -138,7 +136,6 @@ public class ScriptSettings {
                                 ScriptModes.getKey(language, scriptType, scriptContext),
                                 defaultSetting,
                                 ScriptMode::parse,
-                                false,
                                 SettingsProperty.ClusterScope);
                         scriptModeSettings.add(setting);
                     }

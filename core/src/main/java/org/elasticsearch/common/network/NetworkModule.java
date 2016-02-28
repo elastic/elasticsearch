@@ -155,12 +155,11 @@ public class NetworkModule extends AbstractModule {
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
-    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", false, SettingsProperty.ClusterScope);
-    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, false, SettingsProperty.ClusterScope);
+    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, SettingsProperty.ClusterScope);
     public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
-        Setting.simpleString("transport.service.type", false, SettingsProperty.ClusterScope);
-    public static final Setting<String> TRANSPORT_TYPE_SETTING =
-        Setting.simpleString("transport.type", false, SettingsProperty.ClusterScope);
+        Setting.simpleString("transport.service.type", SettingsProperty.ClusterScope);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", SettingsProperty.ClusterScope);
 
 
 

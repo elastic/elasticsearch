@@ -102,13 +102,13 @@ public class TransportClientNodesService extends AbstractComponent {
 
 
     public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
-        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
-        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), SettingsProperty.ClusterScope);
     public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
-        Setting.boolSetting("client.transport.ignore_cluster_name", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("client.transport.ignore_cluster_name", false, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
-        Setting.boolSetting("client.transport.sniff", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("client.transport.sniff", false, SettingsProperty.ClusterScope);
 
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,

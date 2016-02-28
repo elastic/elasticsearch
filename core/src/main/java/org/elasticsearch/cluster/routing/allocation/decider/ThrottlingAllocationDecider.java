@@ -54,20 +54,22 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING =
         new Setting<>("cluster.routing.allocation.node_concurrent_recoveries",
             Integer.toString(DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES),
-            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_recoveries"), true, SettingsProperty.ClusterScope);
+            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_recoveries"),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING =
         Setting.intSetting("cluster.routing.allocation.node_initial_primaries_recoveries",
-            DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, 0, true, SettingsProperty.ClusterScope);
+            DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, 0,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING =
         new Setting<>("cluster.routing.allocation.node_concurrent_incoming_recoveries",
             (s) -> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getRaw(s),
-            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_incoming_recoveries"), true,
-            SettingsProperty.ClusterScope);
+            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_incoming_recoveries"),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING =
         new Setting<>("cluster.routing.allocation.node_concurrent_outgoing_recoveries",
             (s) -> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getRaw(s),
-            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_outgoing_recoveries"), true,
-            SettingsProperty.ClusterScope);
+            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_outgoing_recoveries"),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
 
     private volatile int primariesInitialRecoveries;

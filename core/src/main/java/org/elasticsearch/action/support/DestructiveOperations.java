@@ -35,7 +35,7 @@ public final class DestructiveOperations extends AbstractComponent {
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name", false, true, SettingsProperty.ClusterScope);
+        Setting.boolSetting("action.destructive_requires_name", false, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     private volatile boolean destructiveRequiresName;
 
     @Inject

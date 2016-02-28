@@ -61,7 +61,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
             default:
                 throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
         }
-    }, false, SettingsProperty.IndexScope);
+    }, SettingsProperty.IndexScope);
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 

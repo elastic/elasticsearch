@@ -88,10 +88,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
-        Setting.listSetting("discovery.zen.ping.unicast.hosts", Collections.emptyList(), Function.identity(), false,
+        Setting.listSetting("discovery.zen.ping.unicast.hosts", Collections.emptyList(), Function.identity(),
             SettingsProperty.ClusterScope);
     public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
-        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, false, SettingsProperty.ClusterScope);
+        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, SettingsProperty.ClusterScope);
 
     // these limits are per-address
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;

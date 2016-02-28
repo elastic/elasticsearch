@@ -41,7 +41,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      * Disables relocation of shards that are currently being snapshotted.
      */
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.snapshot.relocation_enabled", false, true, SettingsProperty.ClusterScope);
+        Setting.boolSetting("cluster.routing.allocation.snapshot.relocation_enabled", false,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private volatile boolean enableRelocation = false;
 

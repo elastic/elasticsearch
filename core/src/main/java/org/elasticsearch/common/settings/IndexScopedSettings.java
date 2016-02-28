@@ -135,8 +135,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         IndexWarmer.INDEX_NORMS_LOADING_SETTING,
         // this sucks but we can't really validate all the analyzers/similarity in here
-        Setting.groupSetting("index.similarity.", false, SettingsProperty.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", false, SettingsProperty.IndexScope) // this allows analysis settings to be passed
+        Setting.groupSetting("index.similarity.", SettingsProperty.IndexScope), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", SettingsProperty.IndexScope) // this allows analysis settings to be passed
 
     )));
 

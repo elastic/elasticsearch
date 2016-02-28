@@ -38,15 +38,15 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public abstract class FaultDetection extends AbstractComponent {
 
     public static final Setting<Boolean> CONNECT_ON_NETWORK_DISCONNECT_SETTING =
-        Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> PING_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("discovery.zen.fd.ping_interval", timeValueSeconds(1), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("discovery.zen.fd.ping_interval", timeValueSeconds(1), SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> PING_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.zen.fd.ping_timeout", timeValueSeconds(30), false, SettingsProperty.ClusterScope);
+        Setting.timeSetting("discovery.zen.fd.ping_timeout", timeValueSeconds(30), SettingsProperty.ClusterScope);
     public static final Setting<Integer> PING_RETRIES_SETTING =
-        Setting.intSetting("discovery.zen.fd.ping_retries", 3, false, SettingsProperty.ClusterScope);
+        Setting.intSetting("discovery.zen.fd.ping_retries", 3, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> REGISTER_CONNECTION_LISTENER_SETTING =
-        Setting.boolSetting("discovery.zen.fd.register_connection_listener", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("discovery.zen.fd.register_connection_listener", true, SettingsProperty.ClusterScope);
 
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;

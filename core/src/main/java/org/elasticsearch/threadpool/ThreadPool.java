@@ -190,7 +190,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     public static final Setting<Settings> THREADPOOL_GROUP_SETTING =
-        Setting.groupSetting("threadpool.", true, SettingsProperty.ClusterScope);
+        Setting.groupSetting("threadpool.", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private volatile Map<String, ExecutorHolder> executors;
 

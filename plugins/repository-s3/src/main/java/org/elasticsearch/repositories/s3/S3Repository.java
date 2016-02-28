@@ -67,41 +67,41 @@ public class S3Repository extends BlobStoreRepository {
          * @see CLOUD_S3#KEY_SETTING
          */
         Setting<String> KEY_SETTING =
-            new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, Function.identity(), false, SettingsProperty.ClusterScope);
+            new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, Function.identity(), SettingsProperty.ClusterScope);
         /**
          * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
          * @see CLOUD_S3#SECRET_SETTING
          */
         Setting<String> SECRET_SETTING =
-            new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, Function.identity(), false, SettingsProperty.ClusterScope);
+            new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, Function.identity(), SettingsProperty.ClusterScope);
         /**
          * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.
          * @see CLOUD_S3#REGION_SETTING
          */
         Setting<String> REGION_SETTING =
-            new Setting<>("repositories.s3.region", CLOUD_S3.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT), false, SettingsProperty.ClusterScope);
+            new Setting<>("repositories.s3.region", CLOUD_S3.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT), SettingsProperty.ClusterScope);
         /**
          * repositories.s3.endpoint: Endpoint specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.endpoint.
          * @see CLOUD_S3#ENDPOINT_SETTING
          */
         Setting<String> ENDPOINT_SETTING =
-            new Setting<>("repositories.s3.endpoint", CLOUD_S3.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), false, SettingsProperty.ClusterScope);
+            new Setting<>("repositories.s3.endpoint", CLOUD_S3.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), SettingsProperty.ClusterScope);
         /**
          * repositories.s3.protocol: Protocol specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.protocol.
          * @see CLOUD_S3#PROTOCOL_SETTING
          */
         Setting<Protocol> PROTOCOL_SETTING =
-            new Setting<>("repositories.s3.protocol", CLOUD_S3.PROTOCOL_SETTING, s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false, SettingsProperty.ClusterScope);
+            new Setting<>("repositories.s3.protocol", CLOUD_S3.PROTOCOL_SETTING, s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), SettingsProperty.ClusterScope);
         /**
          * repositories.s3.bucket: The name of the bucket to be used for snapshots.
          */
-        Setting<String> BUCKET_SETTING = Setting.simpleString("repositories.s3.bucket", false, SettingsProperty.ClusterScope);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("repositories.s3.bucket", SettingsProperty.ClusterScope);
         /**
          * repositories.s3.server_side_encryption: When set to true files are encrypted on server side using AES256 algorithm.
          * Defaults to false.
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
-            Setting.boolSetting("repositories.s3.server_side_encryption", false, false, SettingsProperty.ClusterScope);
+            Setting.boolSetting("repositories.s3.server_side_encryption", false, SettingsProperty.ClusterScope);
         /**
          * repositories.s3.buffer_size: Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
          * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
@@ -109,35 +109,35 @@ public class S3Repository extends BlobStoreRepository {
          * use of the Multipart API and may result in upload errors. Defaults to 5mb.
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.buffer_size", S3BlobStore.MIN_BUFFER_SIZE, false, SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("repositories.s3.buffer_size", S3BlobStore.MIN_BUFFER_SIZE, SettingsProperty.ClusterScope);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
          */
-        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, false, SettingsProperty.ClusterScope);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, SettingsProperty.ClusterScope);
         /**
          * repositories.s3.chunk_size: Big files can be broken down into chunks during snapshotting if needed. Defaults to 100m.
          */
         Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB), false, SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("repositories.s3.chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB), SettingsProperty.ClusterScope);
         /**
          * repositories.s3.compress: When set to true metadata files are stored in compressed format. This setting doesn’t affect index
          * files that are already compressed by default. Defaults to false.
          */
-        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("repositories.s3.compress", false, false, SettingsProperty.ClusterScope);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("repositories.s3.compress", false, SettingsProperty.ClusterScope);
         /**
          * repositories.s3.storage_class: Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
          * standard_ia. Defaults to standard.
          */
-        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("repositories.s3.storage_class", false, SettingsProperty.ClusterScope);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("repositories.s3.storage_class", SettingsProperty.ClusterScope);
         /**
          * repositories.s3.canned_acl: The S3 repository supports all S3 canned ACLs : private, public-read, public-read-write,
          * authenticated-read, log-delivery-write, bucket-owner-read, bucket-owner-full-control. Defaults to private.
          */
-        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("repositories.s3.canned_acl", false, SettingsProperty.ClusterScope);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("repositories.s3.canned_acl", SettingsProperty.ClusterScope);
         /**
          * repositories.s3.base_path: Specifies the path within bucket to repository data. Defaults to root directory.
          */
-        Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", false, SettingsProperty.ClusterScope);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", SettingsProperty.ClusterScope);
     }
 
     /**
@@ -149,77 +149,75 @@ public class S3Repository extends BlobStoreRepository {
          * access_key
          * @see  Repositories#KEY_SETTING
          */
-        Setting<String> KEY_SETTING =
-            Setting.simpleString("access_key", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+        Setting<String> KEY_SETTING = Setting.simpleString("access_key", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * secret_key
          * @see  Repositories#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING =
-            Setting.simpleString("secret_key", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         /**
          * bucket
          * @see  Repositories#BUCKET_SETTING
          */
-        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket", false, SettingsProperty.ClusterScope);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket", SettingsProperty.ClusterScope);
         /**
          * endpoint
          * @see  Repositories#ENDPOINT_SETTING
          */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", false, SettingsProperty.ClusterScope);
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", SettingsProperty.ClusterScope);
         /**
          * protocol
          * @see  Repositories#PROTOCOL_SETTING
          */
         Setting<Protocol> PROTOCOL_SETTING =
-            new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false, SettingsProperty.ClusterScope);
+            new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), SettingsProperty.ClusterScope);
         /**
          * region
          * @see  Repositories#REGION_SETTING
          */
-        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT), false, SettingsProperty.ClusterScope);
+        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT), SettingsProperty.ClusterScope);
         /**
          * server_side_encryption
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
-            Setting.boolSetting("server_side_encryption", false, false, SettingsProperty.ClusterScope);
+            Setting.boolSetting("server_side_encryption", false, SettingsProperty.ClusterScope);
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("buffer_size", S3BlobStore.MIN_BUFFER_SIZE, false, SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("buffer_size", S3BlobStore.MIN_BUFFER_SIZE, SettingsProperty.ClusterScope);
         /**
          * max_retries
          * @see  Repositories#MAX_RETRIES_SETTING
          */
-        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, false, SettingsProperty.ClusterScope);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, SettingsProperty.ClusterScope);
         /**
          * chunk_size
          * @see  Repositories#CHUNK_SIZE_SETTING
          */
-        Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", "-1", false, SettingsProperty.ClusterScope);
+        Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", "-1", SettingsProperty.ClusterScope);
         /**
          * compress
          * @see  Repositories#COMPRESS_SETTING
          */
-        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, false, SettingsProperty.ClusterScope);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, SettingsProperty.ClusterScope);
         /**
          * storage_class
          * @see  Repositories#STORAGE_CLASS_SETTING
          */
-        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class", false, SettingsProperty.ClusterScope);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class", SettingsProperty.ClusterScope);
         /**
          * canned_acl
          * @see  Repositories#CANNED_ACL_SETTING
          */
-        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl", false, SettingsProperty.ClusterScope);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl", SettingsProperty.ClusterScope);
         /**
          * base_path
          * @see  Repositories#BASE_PATH_SETTING
          */
-        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", false, SettingsProperty.ClusterScope);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", SettingsProperty.ClusterScope);
     }
 
     private final S3BlobStore blobStore;

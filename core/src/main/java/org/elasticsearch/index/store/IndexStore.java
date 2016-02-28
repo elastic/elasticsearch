@@ -31,9 +31,11 @@ import org.elasticsearch.index.shard.ShardPath;
  */
 public class IndexStore extends AbstractIndexComponent {
     public static final Setting<IndexRateLimitingType> INDEX_STORE_THROTTLE_TYPE_SETTING =
-        new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString, true, SettingsProperty.IndexScope);
+        new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<ByteSizeValue> INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING =
-        Setting.byteSizeSetting("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0), true, SettingsProperty.IndexScope);
+        Setting.byteSizeSetting("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0),
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
     protected final IndexStoreConfig indexStoreConfig;
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();

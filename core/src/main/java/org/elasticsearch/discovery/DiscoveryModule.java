@@ -46,10 +46,10 @@ import java.util.function.Function;
 public class DiscoveryModule extends AbstractModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", settings -> DiscoveryNode.localNode(settings) ? "local" : "zen", Function.identity(), false,
+        new Setting<>("discovery.type", settings -> DiscoveryNode.localNode(settings) ? "local" : "zen", Function.identity(),
             SettingsProperty.ClusterScope);
     public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING =
-        new Setting<>("discovery.zen.masterservice.type", "zen", Function.identity(), false, SettingsProperty.ClusterScope);
+        new Setting<>("discovery.zen.masterservice.type", "zen", Function.identity(), SettingsProperty.ClusterScope);
 
     private final Settings settings;
     private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = new ArrayList<>();

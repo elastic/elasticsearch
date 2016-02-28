@@ -135,20 +135,20 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     /**
      * Maximum number of data nodes that should run in an environment.
      */
-    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1, false,
+    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1,
             SettingsProperty.ClusterScope);
 
     /**
      * If true automatically append node id to custom data paths.
      */
-    public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH = Setting.boolSetting("node.add_id_to_custom_path", true, false,
-            SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH =
+        Setting.boolSetting("node.add_id_to_custom_path", true, SettingsProperty.ClusterScope);
 
     /**
      * If true the [verbose] SegmentInfos.infoStream logging is sent to System.out.
      */
-    public static final Setting<Boolean> ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING = Setting
-            .boolSetting("node.enable_lucene_segment_infos_trace", false, false, SettingsProperty.ClusterScope);
+    public static final Setting<Boolean> ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING =
+        Setting.boolSetting("node.enable_lucene_segment_infos_trace", false, SettingsProperty.ClusterScope);
 
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";

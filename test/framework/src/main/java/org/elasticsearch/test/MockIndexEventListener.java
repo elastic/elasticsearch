@@ -64,7 +64,7 @@ public final class MockIndexEventListener {
         /**
          * For tests to pass in to fail on listener invocation
          */
-        public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, false, SettingsProperty.IndexScope);
+        public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, SettingsProperty.IndexScope);
         public void onModule(SettingsModule module) {
             module.registerSetting(INDEX_FAIL);
         }

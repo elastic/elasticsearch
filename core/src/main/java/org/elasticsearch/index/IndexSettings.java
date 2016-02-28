@@ -51,25 +51,25 @@ import java.util.function.Predicate;
 public final class IndexSettings {
 
     public static final Setting<String> DEFAULT_FIELD_SETTING =
-        new Setting<>("index.query.default_field", AllFieldMapper.NAME, Function.identity(), false, SettingsProperty.IndexScope);
+        new Setting<>("index.query.default_field", AllFieldMapper.NAME, Function.identity(), SettingsProperty.IndexScope);
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
-        Setting.boolSetting("index.query_string.lenient", false, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.query_string.lenient", false, SettingsProperty.IndexScope);
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD =
-        Setting.boolSetting("indices.query.query_string.analyze_wildcard", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("indices.query.query_string.analyze_wildcard", false, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> QUERY_STRING_ALLOW_LEADING_WILDCARD =
-        Setting.boolSetting("indices.query.query_string.allowLeadingWildcard", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("indices.query.query_string.allowLeadingWildcard", true, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> ALLOW_UNMAPPED =
-        Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING =
-        Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100), false,
+        Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100),
             SettingsProperty.IndexScope);
     public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING =
         new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(),
-            (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, SettingsProperty.IndexScope);
+            (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
-        Setting.boolSetting("index.warmer.enabled", true, true, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.warmer.enabled", true, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING =
-        Setting.boolSetting("index.ttl.disable_purge", false, true, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.ttl.disable_purge", false, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
         switch(s) {
             case "false":
@@ -80,7 +80,7 @@ public final class IndexSettings {
             default:
                 throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, fix, checksum] but was: " + s);
         }
-    }, false, SettingsProperty.IndexScope);
+    }, SettingsProperty.IndexScope);
 
     /**
      * Index setting describing the maximum value of from + size on a query.
@@ -91,13 +91,13 @@ public final class IndexSettings {
      * safely.
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
-        Setting.intSetting("index.max_result_window", 10000, 1, true, SettingsProperty.IndexScope);
+        Setting.intSetting("index.max_result_window", 10000, 1, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS), true,
-            SettingsProperty.IndexScope);
+        Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), true,
+        Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), SettingsProperty.Dynamic,
             SettingsProperty.IndexScope);
 
 
@@ -107,7 +107,7 @@ public final class IndexSettings {
      */
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
-        Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), true,
+        Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), SettingsProperty.Dynamic,
             SettingsProperty.IndexScope);
 
     private final Index index;

@@ -84,7 +84,7 @@ public final class EngineConfig {
                 }
                 return s;
         }
-    }, false, SettingsProperty.IndexScope);
+    }, SettingsProperty.IndexScope);
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";

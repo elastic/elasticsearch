@@ -74,11 +74,12 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 public class BalancedShardsAllocator extends AbstractComponent implements ShardsAllocator {
 
     public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, true, SettingsProperty.ClusterScope);
+        Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.shard", 0.45f, true, SettingsProperty.ClusterScope);
+        Setting.floatSetting("cluster.routing.allocation.balance.shard", 0.45f, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Float> THRESHOLD_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.threshold", 1.0f, 0.0f, true, SettingsProperty.ClusterScope);
+        Setting.floatSetting("cluster.routing.allocation.balance.threshold", 1.0f, 0.0f,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private volatile WeightFunction weightFunction;
     private volatile float threshold;

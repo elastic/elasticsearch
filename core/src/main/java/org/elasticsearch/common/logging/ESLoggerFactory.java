@@ -38,9 +38,10 @@ import java.util.regex.Pattern;
 public abstract class ESLoggerFactory {
 
     public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING =
-        new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, false, SettingsProperty.ClusterScope);
+        new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, SettingsProperty.ClusterScope);
     public static final Setting<LogLevel> LOG_LEVEL_SETTING =
-        Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse, true, SettingsProperty.ClusterScope);
+        Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
 

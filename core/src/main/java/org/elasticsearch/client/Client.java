@@ -115,7 +115,7 @@ public interface Client extends ElasticsearchClient, Releasable {
             default:
                 throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
         }
-    }, false, SettingsProperty.ClusterScope);
+    }, SettingsProperty.ClusterScope);
 
     /**
      * The admin client that can be used to perform administrative operations.

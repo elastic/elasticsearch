@@ -62,14 +62,18 @@ public class EnableAllocationDecider extends AllocationDecider {
     public static final String NAME = "enable";
 
     public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING =
-        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse, true, SettingsProperty.ClusterScope);
+        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Allocation> INDEX_ROUTING_ALLOCATION_ENABLE_SETTING =
-        new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse, true, SettingsProperty.IndexScope);
+        new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
     public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING =
-        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse, true, SettingsProperty.ClusterScope);
+        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Rebalance> INDEX_ROUTING_REBALANCE_ENABLE_SETTING =
-        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse, true, SettingsProperty.IndexScope);
+        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
     private volatile Rebalance enableRebalance;
     private volatile Allocation enableAllocation;

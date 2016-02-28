@@ -195,9 +195,9 @@ public class IndexModuleTests extends ESTestCase {
 
 
     public void testListener() throws IOException {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, SettingsProperty.IndexScope);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings, booleanSetting), null, new AnalysisRegistry(null, environment));
-        Setting<Boolean> booleanSetting2 = Setting.boolSetting("foo.bar.baz", false, true, SettingsProperty.IndexScope);
+        Setting<Boolean> booleanSetting2 = Setting.boolSetting("foo.bar.baz", false, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         module.addSettingsUpdateConsumer(booleanSetting, atomicBoolean::set);
 

@@ -38,7 +38,7 @@ public class FsService extends AbstractComponent {
     private final SingleObjectCache<FsInfo> fsStatsCache;
 
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1), false,
+        Setting.timeSetting("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             SettingsProperty.ClusterScope);
 
     public FsService(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {

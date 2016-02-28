@@ -53,32 +53,32 @@ public final class SearchSlowLog {
     private static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.info", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.debug", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.trace", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.warn", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.info", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.debug", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.trace", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), true, SettingsProperty.IndexScope);
+            TimeValue.timeValueMillis(-1), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<Boolean> INDEX_SEARCH_SLOWLOG_REFORMAT =
-        Setting.boolSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".reformat", true, true, SettingsProperty.IndexScope);
+        Setting.boolSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".reformat", true, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL =
-        new Setting<>(INDEX_SEARCH_SLOWLOG_PREFIX + ".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, true,
+        new Setting<>(INDEX_SEARCH_SLOWLOG_PREFIX + ".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, SettingsProperty.Dynamic,
             SettingsProperty.IndexScope);
 
     public SearchSlowLog(IndexSettings indexSettings) {

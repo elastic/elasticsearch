@@ -76,7 +76,7 @@ public class ClusterModule extends AbstractModule {
     public static final String EVEN_SHARD_COUNT_ALLOCATOR = "even_shard";
     public static final String BALANCED_ALLOCATOR = "balanced"; // default
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING =
-        new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), false, SettingsProperty.ClusterScope);
+        new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), SettingsProperty.ClusterScope);
     public static final List<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS =
         Collections.unmodifiableList(Arrays.asList(
             SameShardAllocationDecider.class,

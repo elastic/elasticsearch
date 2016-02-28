@@ -42,7 +42,7 @@ import java.util.List;
 public class ElectMasterService extends AbstractComponent {
 
     public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
-        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, true, SettingsProperty.ClusterScope);
+        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     // This is the minimum version a master needs to be on, otherwise it gets ignored
     // This is based on the minimum compatible version of the current version this node is on

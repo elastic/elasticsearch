@@ -69,7 +69,8 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
     public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;

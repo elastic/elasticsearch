@@ -95,11 +95,10 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-        Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30), true,
-            SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), false,
-            SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), SettingsProperty.ClusterScope);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;

@@ -55,7 +55,7 @@ import java.util.List;
 public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
     // this is private since it has a different default
     private static final Setting<Boolean> COERCE_SETTING =
-        Setting.boolSetting("index.mapping.coerce", true, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mapping.coerce", true, SettingsProperty.IndexScope);
 
     public static class Defaults {
 

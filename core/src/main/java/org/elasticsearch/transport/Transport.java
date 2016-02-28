@@ -36,7 +36,7 @@ import java.util.Map;
 public interface Transport extends LifecycleComponent<Transport> {
 
 
-    Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, false, SettingsProperty.ClusterScope);
+    Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, SettingsProperty.ClusterScope);
 
     void transportServiceAdapter(TransportServiceAdapter service);
 

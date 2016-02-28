@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
-        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, SettingsProperty.ClusterScope);
     private final Client client;
     protected final ParseFieldMatcher parseFieldMatcher;
 

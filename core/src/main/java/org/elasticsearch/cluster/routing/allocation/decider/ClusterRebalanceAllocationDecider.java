@@ -51,7 +51,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     public static final String NAME = "cluster_rebalance";
     public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING =
         new Setting<>("cluster.routing.allocation.allow_rebalance", ClusterRebalanceType.INDICES_ALL_ACTIVE.name().toLowerCase(Locale.ROOT),
-            ClusterRebalanceType::parseString, true, SettingsProperty.ClusterScope);
+            ClusterRebalanceType::parseString, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     /**
      * An enum representation for the configured re-balance type.

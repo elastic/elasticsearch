@@ -63,7 +63,7 @@ import java.util.concurrent.TimeUnit;
 public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
     public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
-        Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, SettingsProperty.IndexScope);
 
     private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final QueryShardContext queryShardContext;

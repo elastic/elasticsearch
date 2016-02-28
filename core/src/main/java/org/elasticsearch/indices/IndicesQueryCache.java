@@ -49,9 +49,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class IndicesQueryCache extends AbstractComponent implements QueryCache, Closeable {
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = Setting.byteSizeSetting(
-            "indices.queries.cache.size", "10%", false, SettingsProperty.ClusterScope);
+            "indices.queries.cache.size", "10%", SettingsProperty.ClusterScope);
     public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = Setting.intSetting(
-            "indices.queries.cache.count", 10000, 1, false, SettingsProperty.ClusterScope);
+            "indices.queries.cache.count", 10000, 1, SettingsProperty.ClusterScope);
 
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();

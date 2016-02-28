@@ -108,13 +108,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
-        Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), SettingsProperty.ClusterScope);
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
     public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING =
-        Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, SettingsProperty.ClusterScope);
+        Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
 
     private final ThreadPool threadPool;

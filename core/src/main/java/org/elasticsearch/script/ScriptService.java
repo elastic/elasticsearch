@@ -86,12 +86,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
     public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
-        Setting.intSetting("script.cache.max_size", 100, 0, false, SettingsProperty.ClusterScope);
+        Setting.intSetting("script.cache.max_size", 100, 0, SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
-        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), SettingsProperty.ClusterScope);
     public static final String SCRIPT_INDEX = ".scripts";
     public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING =
-        Setting.boolSetting("script.auto_reload_enabled", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("script.auto_reload_enabled", true, SettingsProperty.ClusterScope);
 
     private final String defaultLang;
 

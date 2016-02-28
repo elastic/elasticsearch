@@ -57,7 +57,7 @@ final class AutoExpandReplicas {
             }
         }
         return new AutoExpandReplicas(min, max, true);
-    }, true, SettingsProperty.IndexScope);
+    }, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
     private final int minReplicas;
     private final int maxReplicas;

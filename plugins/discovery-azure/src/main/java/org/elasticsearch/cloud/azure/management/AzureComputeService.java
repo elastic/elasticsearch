@@ -30,29 +30,28 @@ public interface AzureComputeService {
 
     final class Management {
         public static final Setting<String> SUBSCRIPTION_ID_SETTING =
-            Setting.simpleString("cloud.azure.management.subscription.id", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+            Setting.simpleString("cloud.azure.management.subscription.id", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         public static final Setting<String> SERVICE_NAME_SETTING =
-            Setting.simpleString("cloud.azure.management.cloud.service.name", false, SettingsProperty.ClusterScope);
+            Setting.simpleString("cloud.azure.management.cloud.service.name", SettingsProperty.ClusterScope);
 
         // Keystore settings
         public static final Setting<String> KEYSTORE_PATH_SETTING =
-            Setting.simpleString("cloud.azure.management.keystore.path", false, SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+            Setting.simpleString("cloud.azure.management.keystore.path", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         public static final Setting<String> KEYSTORE_PASSWORD_SETTING =
-            Setting.simpleString("cloud.azure.management.keystore.password", false, SettingsProperty.ClusterScope,
+            Setting.simpleString("cloud.azure.management.keystore.password", SettingsProperty.ClusterScope,
                 SettingsProperty.Filtered);
         public static final Setting<KeyStoreType> KEYSTORE_TYPE_SETTING =
-            new Setting<>("cloud.azure.management.keystore.type", KeyStoreType.pkcs12.name(), KeyStoreType::fromString, false,
+            new Setting<>("cloud.azure.management.keystore.type", KeyStoreType.pkcs12.name(), KeyStoreType::fromString,
                 SettingsProperty.ClusterScope, SettingsProperty.Filtered);
     }
 
     final class Discovery {
         public static final Setting<TimeValue> REFRESH_SETTING =
-            Setting.positiveTimeSetting("discovery.azure.refresh_interval", TimeValue.timeValueSeconds(0), false,
-                SettingsProperty.ClusterScope);
+            Setting.positiveTimeSetting("discovery.azure.refresh_interval", TimeValue.timeValueSeconds(0), SettingsProperty.ClusterScope);
 
         public static final Setting<AzureUnicastHostsProvider.HostType> HOST_TYPE_SETTING =
             new Setting<>("discovery.azure.host.type", AzureUnicastHostsProvider.HostType.PRIVATE_IP.name(),
-                AzureUnicastHostsProvider.HostType::fromString, false, SettingsProperty.ClusterScope);
+                AzureUnicastHostsProvider.HostType::fromString, SettingsProperty.ClusterScope);
 
         public static final String ENDPOINT_NAME = "discovery.azure.endpoint.name";
         public static final String DEPLOYMENT_NAME = "discovery.azure.deployment.name";

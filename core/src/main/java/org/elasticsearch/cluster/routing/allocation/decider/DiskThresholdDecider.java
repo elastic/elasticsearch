@@ -83,16 +83,21 @@ public class DiskThresholdDecider extends AllocationDecider {
     private volatile TimeValue rerouteInterval;
 
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, true, SettingsProperty.ClusterScope);
+        Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =
-        new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"), true, SettingsProperty.ClusterScope);
+        new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%",
+            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING =
-        new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"), true, SettingsProperty.ClusterScope);
+        new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%",
+            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true, true, SettingsProperty.ClusterScope);;
+        Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);;
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60), true,
-            SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     /**
      * Listens for a node to go over the high watermark and kicks off an empty

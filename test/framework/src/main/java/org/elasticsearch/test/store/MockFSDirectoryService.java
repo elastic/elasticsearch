@@ -63,15 +63,15 @@ import java.util.Random;
 public class MockFSDirectoryService extends FsDirectoryService {
 
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING =
-        Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, false, SettingsProperty.IndexScope);
+        Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, SettingsProperty.IndexScope);
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_SETTING =
-        Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, false, SettingsProperty.IndexScope);
+        Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, SettingsProperty.IndexScope);
     public static final Setting<Boolean> RANDOM_PREVENT_DOUBLE_WRITE_SETTING =
-        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, false, SettingsProperty.IndexScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, SettingsProperty.IndexScope);// true is default in MDW
     public static final Setting<Boolean> RANDOM_NO_DELETE_OPEN_FILE_SETTING =
-        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, false, SettingsProperty.IndexScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, SettingsProperty.IndexScope);// true is default in MDW
     public static final Setting<Boolean> CRASH_INDEX_SETTING =
-        Setting.boolSetting("index.store.mock.random.crash_index", true, false, SettingsProperty.IndexScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.crash_index", true, SettingsProperty.IndexScope);// true is default in MDW
 
     private final FsDirectoryService delegateService;
     private final Random random;

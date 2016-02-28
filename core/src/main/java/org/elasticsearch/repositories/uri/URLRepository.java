@@ -58,22 +58,20 @@ public class URLRepository extends BlobStoreRepository {
 
     public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
         Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),
-            Function.identity(), false, SettingsProperty.ClusterScope);
+            Function.identity(), SettingsProperty.ClusterScope);
 
     public static final Setting<List<URIPattern>> ALLOWED_URLS_SETTING =
-        Setting.listSetting("repositories.url.allowed_urls", Collections.emptyList(), URIPattern::new, false,
-            SettingsProperty.ClusterScope);
+        Setting.listSetting("repositories.url.allowed_urls", Collections.emptyList(), URIPattern::new, SettingsProperty.ClusterScope);
 
-    public static final Setting<URL> URL_SETTING =
-        new Setting<>("url", "http:", URLRepository::parseURL, false, SettingsProperty.ClusterScope);
+    public static final Setting<URL> URL_SETTING = new Setting<>("url", "http:", URLRepository::parseURL, SettingsProperty.ClusterScope);
     public static final Setting<URL> REPOSITORIES_URL_SETTING =
-        new Setting<>("repositories.url.url", (s) -> s.get("repositories.uri.url", "http:"), URLRepository::parseURL, false,
+        new Setting<>("repositories.url.url", (s) -> s.get("repositories.uri.url", "http:"), URLRepository::parseURL,
             SettingsProperty.ClusterScope);
 
     public static final Setting<Boolean> LIST_DIRECTORIES_SETTING =
-        Setting.boolSetting("list_directories", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("list_directories", true, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> REPOSITORIES_LIST_DIRECTORIES_SETTING =
-        Setting.boolSetting("repositories.uri.list_directories", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("repositories.uri.list_directories", true, SettingsProperty.ClusterScope);
 
     private final List<String> supportedProtocols;
 

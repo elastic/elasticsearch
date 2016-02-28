@@ -29,13 +29,13 @@ public final class BootstrapSettings {
 
     // TODO: remove this hack when insecure defaults are removed from java
     public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING =
-            Setting.boolSetting("security.manager.filter_bad_defaults", true, false, SettingsProperty.ClusterScope);
+            Setting.boolSetting("security.manager.filter_bad_defaults", true, SettingsProperty.ClusterScope);
 
     public static final Setting<Boolean> MLOCKALL_SETTING =
-        Setting.boolSetting("bootstrap.mlockall", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("bootstrap.mlockall", false, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> SECCOMP_SETTING =
-        Setting.boolSetting("bootstrap.seccomp", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("bootstrap.seccomp", true, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> CTRLHANDLER_SETTING =
-        Setting.boolSetting("bootstrap.ctrlhandler", true, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("bootstrap.ctrlhandler", true, SettingsProperty.ClusterScope);
 
 }

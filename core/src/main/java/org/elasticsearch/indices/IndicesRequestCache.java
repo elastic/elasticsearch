@@ -70,11 +70,11 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
      * since we are checking on the cluster state IndexMetaData always.
      */
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING =
-        Setting.boolSetting("index.requests.cache.enable", false, true, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.requests.cache.enable", false, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE =
-        Setting.byteSizeSetting("indices.requests.cache.size", "1%", false, SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("indices.requests.cache.size", "1%", SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
-        Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), false, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), SettingsProperty.ClusterScope);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();

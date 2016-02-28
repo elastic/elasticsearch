@@ -73,11 +73,11 @@ import java.util.function.Function;
 public class HunspellService extends AbstractComponent {
 
     public final static Setting<Boolean> HUNSPELL_LAZY_LOAD =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, SettingsProperty.ClusterScope);
     public final static Setting<Boolean> HUNSPELL_IGNORE_CASE =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, SettingsProperty.ClusterScope);
     public final static Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
-        Setting.groupSetting("indices.analysis.hunspell.dictionary.", false, SettingsProperty.ClusterScope);
+        Setting.groupSetting("indices.analysis.hunspell.dictionary.", SettingsProperty.ClusterScope);
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;

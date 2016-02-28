@@ -41,7 +41,7 @@ import java.util.List;
 public final class AutoCreateIndex {
 
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
-        new Setting<>("action.auto_create_index", "true", AutoCreate::new, false, SettingsProperty.ClusterScope);
+        new Setting<>("action.auto_create_index", "true", AutoCreate::new, SettingsProperty.ClusterScope);
 
     private final boolean dynamicMappingDisabled;
     private final IndexNameExpressionResolver resolver;

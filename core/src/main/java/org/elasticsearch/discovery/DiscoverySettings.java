@@ -45,7 +45,8 @@ public class DiscoverySettings extends AbstractComponent {
      * will continue to process the next cluster state update after this time has elapsed
      **/
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(30), true, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(30),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     /**
      * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
@@ -53,12 +54,13 @@ public class DiscoverySettings extends AbstractComponent {
      */
     public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING =
         new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s),
-            (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"), true,
-            SettingsProperty.ClusterScope);
+            (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING =
-        new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock, true, SettingsProperty.ClusterScope);
+        new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING =
-        Setting.boolSetting("discovery.zen.publish_diff.enable", true, true, SettingsProperty.ClusterScope);
+        Setting.boolSetting("discovery.zen.publish_diff.enable", true, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout;

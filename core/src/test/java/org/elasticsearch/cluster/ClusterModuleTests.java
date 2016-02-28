@@ -84,7 +84,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterClusterDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, SettingsProperty.ClusterScope));
+        module.registerSetting(Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.ClusterScope));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
@@ -99,7 +99,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterIndexDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, SettingsProperty.IndexScope));
+        module.registerSetting(Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.IndexScope));
         assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 

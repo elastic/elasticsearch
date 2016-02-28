@@ -62,11 +62,11 @@ public class FilterAllocationDecider extends AllocationDecider {
     public static final String NAME = "filter";
 
     public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.require.", true, SettingsProperty.ClusterScope);
+        Setting.groupSetting("cluster.routing.allocation.require.", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.include.", true, SettingsProperty.ClusterScope);
+        Setting.groupSetting("cluster.routing.allocation.include.", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.exclude.", true, SettingsProperty.ClusterScope);
+        Setting.groupSetting("cluster.routing.allocation.exclude.", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;

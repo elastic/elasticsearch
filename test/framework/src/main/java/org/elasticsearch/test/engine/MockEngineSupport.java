@@ -57,12 +57,12 @@ public final class MockEngineSupport {
      * slow if {@link org.apache.lucene.index.AssertingDirectoryReader} is used.
      */
     public static final Setting<Double> WRAP_READER_RATIO =
-        Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, false, SettingsProperty.IndexScope);
+        Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, SettingsProperty.IndexScope);
     /**
      * Allows tests to prevent an engine from being flushed on close ie. to test translog recovery...
      */
     public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE =
-        Setting.boolSetting("index.mock.disable_flush_on_close", false, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mock.disable_flush_on_close", false, SettingsProperty.IndexScope);
 
 
     private final AtomicBoolean closing = new AtomicBoolean(false);

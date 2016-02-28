@@ -73,11 +73,11 @@ public class AttachmentMapper extends FieldMapper {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
     public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING =
-        Setting.boolSetting("index.mapping.attachment.ignore_errors", true, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mapping.attachment.ignore_errors", true, SettingsProperty.IndexScope);
     public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING =
-        Setting.boolSetting("index.mapping.attachment.detect_language", false, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mapping.attachment.detect_language", false, SettingsProperty.IndexScope);
     public static final Setting<Integer> INDEX_ATTACHMENT_INDEXED_CHARS_SETTING =
-        Setting.intSetting("index.mapping.attachment.indexed_chars", 100000, false, SettingsProperty.IndexScope);
+        Setting.intSetting("index.mapping.attachment.indexed_chars", 100000, SettingsProperty.IndexScope);
 
     public static final String CONTENT_TYPE = "attachment";
 

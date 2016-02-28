@@ -36,11 +36,11 @@ public final class InternalSettingsPlugin extends Plugin {
     }
 
     public static final Setting<Integer> VERSION_CREATED =
-        Setting.intSetting("index.version.created", 0, false, SettingsProperty.IndexScope);
+        Setting.intSetting("index.version.created", 0, SettingsProperty.IndexScope);
     public static final Setting<Boolean> MERGE_ENABLED =
-        Setting.boolSetting("index.merge.enabled", true, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.merge.enabled", true, SettingsProperty.IndexScope);
     public static final Setting<Long> INDEX_CREATION_DATE_SETTING =
-        Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, false, SettingsProperty.IndexScope);
+        Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, SettingsProperty.IndexScope);
 
     public void onModule(SettingsModule module) {
         module.registerSetting(VERSION_CREATED);

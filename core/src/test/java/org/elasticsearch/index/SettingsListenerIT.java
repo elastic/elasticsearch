@@ -44,7 +44,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
     public static class SettingsListenerPlugin extends Plugin {
         private final SettingsTestingService service = new SettingsTestingService();
-        private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0, true, SettingsProperty.IndexScope);
+        private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         /**
          * The name of the plugin.
          */
@@ -94,7 +95,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
     public static class SettingsTestingService {
         public volatile int value;
-        public static Setting<Integer> VALUE = Setting.intSetting("index.test.new.setting", -1, -1, true, SettingsProperty.IndexScope);
+        public static Setting<Integer> VALUE = Setting.intSetting("index.test.new.setting", -1, -1,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
         public void setValue(int value) {
             this.value = value;

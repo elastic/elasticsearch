@@ -47,12 +47,12 @@ import java.util.stream.Collectors;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
- * Some (dynamic=true) can by modified at run time using the API.
+ * Some (SettingsProperty.Dynamic) can by modified at run time using the API.
  * All settings inside elasticsearch or in any of the plugins should use this type-safe and generic settings infrastructure
  * together with {@link AbstractScopedSettings}. This class contains several utility methods that makes it straight forward
  * to add settings for the majority of the cases. For instance a simple boolean settings can be defined like this:
  * <pre>{@code
- * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, false, SettingsProperty.ClusterScope);}
+ * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, SettingsProperty.ClusterScope);}
  * </pre>
  * To retrieve the value of the setting a {@link Settings} object can be passed directly to the {@link Setting#get(Settings)} method.
  * <pre>
@@ -64,24 +64,48 @@ import java.util.stream.Collectors;
  *     RED, GREEN, BLUE;
  * }
  * public static final Setting<Color> MY_BOOLEAN =
- *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, false, SettingsProperty.ClusterScope);
+ *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, SettingsProperty.ClusterScope);
  * }
  * </pre>
  */
 public class Setting<T> extends ToXContentToBytes {
 
     public enum SettingsProperty {
+        /**
+         * should be filtered in some api (mask password/credentials)
+         */
         Filtered,
+
+        /**
+         * iff this setting can be dynamically updateable
+         */
         Dynamic,
+
+        /**
+         * Cluster scope.
+         * @See IndexScope
+         * @See NodeScope
+         */
         ClusterScope,
+
+        /**
+         * Node scope.
+         * @See ClusterScope
+         * @See IndexScope
+         */
         NodeScope,
+
+        /**
+         * Index scope.
+         * @See ClusterScope
+         * @See NodeScope
+         */
         IndexScope;
     }
 
     private final String key;
     protected final Function<Settings, String> defaultValue;
     private final Function<String, T> parser;
-    private final boolean dynamic;
     private final EnumSet<SettingsProperty> properties;
 
     /**
@@ -89,16 +113,13 @@ public class Setting<T> extends ToXContentToBytes {
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true iff this setting can be dynamically updateable
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic,
-                   SettingsProperty... properties) {
+    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, SettingsProperty... properties) {
         assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
-        this.dynamic = dynamic;
         if (properties.length == 0) {
             this.properties = EnumSet.of(SettingsProperty.NodeScope);
         } else {
@@ -111,11 +132,10 @@ public class Setting<T> extends ToXContentToBytes {
      * @param key the settings key for this setting.
      * @param defaultValue a default value.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true iff this setting can be dynamically updateable
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, SettingsProperty... properties) {
-        this(key, s -> defaultValue, parser, dynamic, properties);
+    public Setting(String key, String defaultValue, Function<String, T> parser, SettingsProperty... properties) {
+        this(key, s -> defaultValue, parser, properties);
     }
 
     /**
@@ -123,11 +143,10 @@ public class Setting<T> extends ToXContentToBytes {
      * @param key the settings key for this setting.
      * @param fallBackSetting a setting to fall back to if the current setting is not set.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true iff this setting can be dynamically updateable
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, boolean dynamic, SettingsProperty... properties) {
-        this(key, fallBackSetting::getRaw, parser, dynamic, properties);
+    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, SettingsProperty... properties) {
+        this(key, fallBackSetting::getRaw, parser, properties);
     }
 
     /**
@@ -145,7 +164,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
-        return dynamic;
+        return properties.contains(SettingsProperty.Dynamic);
     }
 
     /**
@@ -261,7 +280,6 @@ public class Setting<T> extends ToXContentToBytes {
         builder.startObject();
         builder.field("key", key);
         builder.field("properties", properties);
-        builder.field("dynamic", dynamic);
         builder.field("is_group_setting", isGroupSetting());
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();
@@ -380,35 +398,34 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
 
-    public static Setting<Float> floatSetting(String key, float defaultValue, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, dynamic, properties);
+    public static Setting<Float> floatSetting(String key, float defaultValue, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
     }
 
-    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, boolean dynamic, SettingsProperty... properties) {
+    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, SettingsProperty... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return value;
-        }, dynamic, properties);
+        }, properties);
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, boolean dynamic,
-                                              SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), dynamic, properties);
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), properties);
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), dynamic, properties);
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), properties);
     }
 
-    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, properties);
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), properties);
     }
 
-    public static Setting<String> simpleString(String key, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, s -> "", Function.identity(), dynamic, properties);
+    public static Setting<String> simpleString(String key, SettingsProperty... properties) {
+        return new Setting<>(key, s -> "", Function.identity(), properties);
     }
 
     public static int parseInt(String s, int minValue, String key) {
@@ -434,58 +451,57 @@ public class Setting<T> extends ToXContentToBytes {
         return value;
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, boolean dynamic, SettingsProperty... properties) {
-        return intSetting(key, defaultValue, Integer.MIN_VALUE, dynamic, properties);
+    public static Setting<Integer> intSetting(String key, int defaultValue, SettingsProperty... properties) {
+        return intSetting(key, defaultValue, Integer.MIN_VALUE, properties);
     }
 
-    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, dynamic, properties);
+    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, properties);
     }
 
-    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, boolean dynamic,
-                                               SettingsProperty... properties) {
-        return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, dynamic, properties);
+    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, SettingsProperty... properties) {
+        return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), dynamic, properties);
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, boolean dynamic, SettingsProperty... properties) {
-        return byteSizeSetting(key, (s) -> value.toString(), dynamic, properties);
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, SettingsProperty... properties) {
+        return byteSizeSetting(key, (s) -> value.toString(), properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSettings, boolean dynamic,
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSettings,
                                                          SettingsProperty... properties) {
-        return byteSizeSetting(key, fallbackSettings::getRaw, dynamic, properties);
+        return byteSizeSetting(key, fallbackSettings::getRaw, properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, boolean dynamic,
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue,
                                                          SettingsProperty... properties) {
-        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), dynamic, properties);
+        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
-    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, boolean dynamic, SettingsProperty... properties) {
-        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), dynamic, properties);
+    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, SettingsProperty... properties) {
+        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser,
-                                                   boolean dynamic, SettingsProperty... properties) {
-        return listSetting(key, (s) -> defaultStringValue, singleValueParser, dynamic, properties);
+                                                   SettingsProperty... properties) {
+        return listSetting(key, (s) -> defaultStringValue, singleValueParser, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, Setting<List<T>> fallbackSetting, Function<String, T> singleValueParser,
-                                                   boolean dynamic, SettingsProperty... properties) {
-        return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, dynamic, properties);
+                                                   SettingsProperty... properties) {
+        return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
-                                                   Function<String, T> singleValueParser, boolean dynamic, SettingsProperty... properties) {
+                                                   Function<String, T> singleValueParser, SettingsProperty... properties) {
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
         return new Setting<List<T>>(key, (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser,
-            dynamic, properties) {
+            properties) {
             private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
             @Override
             public String getRaw(Settings settings) {
@@ -539,11 +555,11 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-    public static Setting<Settings> groupSetting(String key, boolean dynamic, SettingsProperty... properties) {
+    public static Setting<Settings> groupSetting(String key, SettingsProperty... properties) {
         if (key.endsWith(".") == false) {
             throw new IllegalArgumentException("key must end with a '.'");
         }
-        return new Setting<Settings>(key, "", (s) -> null, dynamic, properties) {
+        return new Setting<Settings>(key, "", (s) -> null, properties) {
 
             @Override
             public boolean isGroupSetting() {
@@ -602,7 +618,7 @@ public class Setting<T> extends ToXContentToBytes {
         };
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue, boolean dynamic,
+    public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue,
                                                  SettingsProperty... properties) {
         return new Setting<>(key, defaultValue, (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
@@ -610,32 +626,29 @@ public class Setting<T> extends ToXContentToBytes {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return timeValue;
-        }, dynamic, properties);
+        }, properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, boolean dynamic,
-                                                 SettingsProperty... properties) {
-        return timeSetting(key, (s) -> defaultValue.getStringRep(), minValue, dynamic, properties);
+    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, SettingsProperty... properties) {
+        return timeSetting(key, (s) -> defaultValue.getStringRep(), minValue, properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, boolean dynamic, SettingsProperty... properties) {
-        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), dynamic, properties);
+    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, SettingsProperty... properties) {
+        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, boolean dynamic,
-                                                 SettingsProperty... properties) {
-        return new Setting<>(key, fallbackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), dynamic, properties);
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, SettingsProperty... properties) {
+        return new Setting<>(key, fallbackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
-    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, boolean dynamic,
-                                                SettingsProperty... properties) {
+    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, SettingsProperty... properties) {
         return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
             final double d = Double.parseDouble(s);
             if (d < minValue) {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return d;
-        }, dynamic, properties);
+        }, properties);
     }
 
     @Override
@@ -656,9 +669,9 @@ public class Setting<T> extends ToXContentToBytes {
      * can easily be added with this setting. Yet, dynamic key settings don't support updaters our of the box unless {@link #getConcreteSetting(String)}
      * is used to pull the updater.
      */
-    public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser, boolean dynamic,
+    public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser,
                                                    SettingsProperty... properties) {
-        return new Setting<T>(key, defaultValue, parser, dynamic, properties) {
+        return new Setting<T>(key, defaultValue, parser, properties) {
 
             @Override
             boolean isGroupSetting() {
@@ -678,7 +691,7 @@ public class Setting<T> extends ToXContentToBytes {
             @Override
             public Setting<T> getConcreteSetting(String key) {
                 if (match(key)) {
-                    return new Setting<>(key, defaultValue, parser, dynamic, properties);
+                    return new Setting<>(key, defaultValue, parser, properties);
                 } else {
                     throw new IllegalArgumentException("key must match setting but didn't ["+key +"]");
                 }

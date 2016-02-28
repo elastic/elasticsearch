@@ -64,8 +64,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
 
     public static final String PREFIX = "request.headers";
-    public static final Setting<Settings> DEFAULT_HEADERS_SETTING =
-        Setting.groupSetting(PREFIX + ".", false, SettingsProperty.ClusterScope);
+    public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", SettingsProperty.ClusterScope);
     private final Map<String, String> defaultHeader;
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct(Collections.emptyMap());
     private final ContextThreadLocal threadLocal;

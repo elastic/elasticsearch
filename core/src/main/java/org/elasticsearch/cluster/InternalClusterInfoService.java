@@ -66,10 +66,11 @@ import java.util.concurrent.TimeUnit;
 public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
-        Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10), true,
-            SettingsProperty.ClusterScope);
+        Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("cluster.info.update.timeout", TimeValue.timeValueSeconds(15), true, SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("cluster.info.update.timeout", TimeValue.timeValueSeconds(15),
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private volatile TimeValue updateFrequency;
 

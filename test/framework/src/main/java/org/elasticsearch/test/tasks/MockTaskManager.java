@@ -35,7 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MockTaskManager extends TaskManager {
 
     public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING =
-        Setting.boolSetting("tests.mock.taskmanager.enabled", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("tests.mock.taskmanager.enabled", false, SettingsProperty.ClusterScope);
 
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 

@@ -59,7 +59,7 @@ public class InternalSettingsPreparer {
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
     public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING =
-        Setting.boolSetting("config.ignore_system_properties", false, false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("config.ignore_system_properties", false, SettingsProperty.ClusterScope);
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.

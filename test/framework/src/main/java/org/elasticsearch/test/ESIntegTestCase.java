@@ -270,7 +270,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * It's set once per test via a generic index template.
      */
     public static final Setting<Long> INDEX_TEST_SEED_SETTING =
-        Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, false, SettingsProperty.IndexScope);
+        Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, SettingsProperty.IndexScope);
 
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the

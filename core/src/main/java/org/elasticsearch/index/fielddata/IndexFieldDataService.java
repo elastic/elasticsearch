@@ -67,7 +67,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             default:
                 throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,node]");
         }
-    }, false, SettingsProperty.IndexScope);
+    }, SettingsProperty.IndexScope);
 
     private static final IndexFieldData.Builder MISSING_DOC_VALUES_BUILDER = (indexProperties, fieldType, cache, breakerService, mapperService1) -> {
         throw new IllegalStateException("Can't load fielddata on [" + fieldType.name()

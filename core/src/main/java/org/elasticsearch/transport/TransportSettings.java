@@ -36,18 +36,18 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
 final public class TransportSettings {
 
     public static final Setting<List<String>> HOST =
-        listSetting("transport.host", emptyList(), s -> s, false, SettingsProperty.ClusterScope);
+        listSetting("transport.host", emptyList(), s -> s, SettingsProperty.ClusterScope);
     public static final Setting<List<String>> PUBLISH_HOST =
-        listSetting("transport.publish_host", HOST, s -> s, false, SettingsProperty.ClusterScope);
+        listSetting("transport.publish_host", HOST, s -> s, SettingsProperty.ClusterScope);
     public static final Setting<List<String>> BIND_HOST =
-        listSetting("transport.bind_host", HOST, s -> s, false, SettingsProperty.ClusterScope);
+        listSetting("transport.bind_host", HOST, s -> s, SettingsProperty.ClusterScope);
     public static final Setting<String> PORT =
-        new Setting<>("transport.tcp.port", "9300-9400", s -> s, false, SettingsProperty.ClusterScope);
+        new Setting<>("transport.tcp.port", "9300-9400", s -> s, SettingsProperty.ClusterScope);
     public static final Setting<Integer> PUBLISH_PORT =
-        intSetting("transport.publish_port", -1, -1, false, SettingsProperty.ClusterScope);
+        intSetting("transport.publish_port", -1, -1, SettingsProperty.ClusterScope);
     public static final String DEFAULT_PROFILE = "default";
     public static final Setting<Settings> TRANSPORT_PROFILES_SETTING =
-        groupSetting("transport.profiles.", true, SettingsProperty.ClusterScope);
+        groupSetting("transport.profiles.", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     private TransportSettings() {
 

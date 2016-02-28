@@ -644,11 +644,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         }
 
         private static final Setting<String> INDEX_A =
-            new Setting<>("index.a", "", Function.identity(), true, SettingsProperty.IndexScope);
+            new Setting<>("index.a", "", Function.identity(), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         private static final Setting<String> INDEX_C =
-            new Setting<>("index.c", "", Function.identity(), true, SettingsProperty.IndexScope);
+            new Setting<>("index.c", "", Function.identity(), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
         private static final Setting<String> INDEX_E =
-            new Setting<>("index.e", "", Function.identity(), false, SettingsProperty.IndexScope);
+            new Setting<>("index.e", "", Function.identity(), SettingsProperty.IndexScope);
 
 
         public void onModule(SettingsModule module) {

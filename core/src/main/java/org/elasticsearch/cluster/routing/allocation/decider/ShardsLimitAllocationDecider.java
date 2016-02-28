@@ -61,14 +61,16 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      * node. Negative values are interpreted as unlimited.
      */
     public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING =
-        Setting.intSetting("index.routing.allocation.total_shards_per_node", -1, -1, true, SettingsProperty.IndexScope);
+        Setting.intSetting("index.routing.allocation.total_shards_per_node", -1, -1,
+            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
 
     /**
      * Controls the maximum number of shards per node on a global level.
      * Negative values are interpreted as unlimited.
      */
     public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING =
-        Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1, true, SettingsProperty.ClusterScope);
+        Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
+            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
 
     @Inject

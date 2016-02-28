@@ -51,9 +51,9 @@ import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
-        Setting.boolSetting("index.mapping.ignore_malformed", false, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mapping.ignore_malformed", false, SettingsProperty.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
-        Setting.boolSetting("index.mapping.coerce", false, false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mapping.coerce", false, SettingsProperty.IndexScope);
     public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final MappedFieldType fieldType;

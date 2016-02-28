@@ -167,8 +167,6 @@ Client client = TransportClient.builder().settings(settings).build();
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 
-Or using `elasticsearch.yml` file as shown in <<node-client>>
-
 The client allows sniffing the rest of the cluster, which adds data nodes
 into its list of machines to use. In this case, note that the IP addresses
 used will be the ones that the other nodes were started with (the

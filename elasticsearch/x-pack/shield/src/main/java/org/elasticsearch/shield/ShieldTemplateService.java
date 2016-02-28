@@ -34,8 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class ShieldTemplateService extends AbstractComponent implements ClusterStateListener {
 
-    public static final String SHIELD_ADMIN_INDEX_NAME = ".security";
-    public static final String SHIELD_TEMPLATE_NAME = "security-index-template";
+    public static final String SECURITY_INDEX_NAME = ".security";
+    public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
 
     private final ThreadPool threadPool;
     private final Provider<InternalClient> clientProvider;
@@ -52,22 +52,22 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
 
     private void createShieldTemplate() {
         final Client client = clientProvider.get();
-        try (InputStream is = getClass().getResourceAsStream("/" + SHIELD_TEMPLATE_NAME + ".json")) {
+        try (InputStream is = getClass().getResourceAsStream("/" + SECURITY_TEMPLATE_NAME + ".json")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
             final byte[] template = out.toByteArray();
             logger.info("--> putting the shield index template");
             PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
-                    .preparePutTemplate(SHIELD_TEMPLATE_NAME).setSource(template).request();
+                    .preparePutTemplate(SECURITY_TEMPLATE_NAME).setSource(template).request();
             PutIndexTemplateResponse templateResponse = client.admin().indices().putTemplate(putTemplateRequest).get();
             if (templateResponse.isAcknowledged() == false) {
                 throw new ElasticsearchException("adding template for shield admin index was not acknowledged");
             }
         } catch (Exception e) {
             logger.error("failed to create shield admin index template [{}]",
-                    e, SHIELD_ADMIN_INDEX_NAME);
+                    e, SECURITY_INDEX_NAME);
             throw new IllegalStateException("failed to create shield admin index template [" +
-                    SHIELD_ADMIN_INDEX_NAME + "]", e);
+                    SECURITY_INDEX_NAME + "]", e);
         }
     }
 
@@ -80,13 +80,13 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
             return;
         }
         
-        IndexRoutingTable shieldIndexRouting = event.state().routingTable().index(SHIELD_ADMIN_INDEX_NAME);
+        IndexRoutingTable shieldIndexRouting = event.state().routingTable().index(SECURITY_INDEX_NAME);
 
         if (shieldIndexRouting == null) {
             if (event.localNodeMaster()) {
                 ClusterState state = event.state();
                 // TODO for the future need to add some checking in the event the template needs to be updated...
-                IndexTemplateMetaData templateMeta = state.metaData().templates().get(SHIELD_TEMPLATE_NAME);
+                IndexTemplateMetaData templateMeta = state.metaData().templates().get(SECURITY_TEMPLATE_NAME);
                 final boolean createTemplate = (templateMeta == null);
 
                 if (createTemplate && templateCreationPending.compareAndSet(false, true)) {

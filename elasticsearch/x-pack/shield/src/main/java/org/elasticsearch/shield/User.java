@@ -158,13 +158,12 @@ public class User implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.USERNAME.getPreferredName(), principal());
-        builder.array(Fields.ROLES.getPreferredName(), roles());
+        builder.field(Fields.USERNAME.getPreferredName(), username);
+        builder.array(Fields.ROLES.getPreferredName(), roles);
         builder.field(Fields.FULL_NAME.getPreferredName(), fullName);
         builder.field(Fields.EMAIL.getPreferredName(), email);
         builder.field(Fields.METADATA.getPreferredName(), metadata);
-        builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 
     public static User readFrom(StreamInput input) throws IOException {

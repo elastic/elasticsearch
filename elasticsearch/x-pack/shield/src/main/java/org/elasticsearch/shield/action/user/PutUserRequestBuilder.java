@@ -64,7 +64,8 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder source(BytesReference source) throws IOException {
+    public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
+        username(username);
         try (XContentParser parser = XContentHelper.createParser(source)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
@@ -73,11 +74,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.USERNAME)) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        username(parser.text());
-                    } else {
-                        throw new ElasticsearchParseException(
-                                "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
+                    if (username.equals(parser.text()) == false) {
+                        throw new ElasticsearchParseException("failed to parse user [{}]. username doesn't match user id [{}]",
+                                username, parser.text());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD)) {
                     if (token == XContentParser.Token.VALUE_STRING) {

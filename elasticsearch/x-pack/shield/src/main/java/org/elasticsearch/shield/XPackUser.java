@@ -43,7 +43,7 @@ public class XPackUser extends User {
 
 //            these will be the index permissions required by shield (will uncomment once we optimize watcher permissions)
 
-//            .add(IndexPrivilege.ALL, ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+//            .add(IndexPrivilege.ALL, ShieldTemplateService.SECURITY_INDEX_NAME)
 //            .add(IndexPrivilege.ALL, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
 
 

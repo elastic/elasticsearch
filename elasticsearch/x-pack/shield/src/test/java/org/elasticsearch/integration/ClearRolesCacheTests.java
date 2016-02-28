@@ -88,7 +88,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
 
         // warm up the caches on every node
         for (ESNativeRolesStore rolesStore : internalCluster().getInstances(ESNativeRolesStore.class)) {
@@ -134,7 +134,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
-            UpdateResponse response = client.prepareUpdate().setId(role).setIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+            UpdateResponse response = client.prepareUpdate().setId(role).setIndex(ShieldTemplateService.SECURITY_INDEX_NAME)
                     .setType(ESNativeRolesStore.INDEX_ROLE_TYPE)
                     .setDoc("run_as", new String[] { role })
                     .get();
@@ -177,7 +177,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         List<RoleDescriptor> foundRoles = securityClient.prepareGetRoles().names(role).get().roles();
         assertThat(foundRoles.size(), is(1));
         logger.debug("--> deleting role [{}]", role);
-        DeleteResponse response = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
+        DeleteResponse response = client.prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME,
                 ESNativeRolesStore.INDEX_ROLE_TYPE, role).get();
         assertThat(response.isFound(), is(true));
 

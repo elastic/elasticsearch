@@ -88,7 +88,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     }
 
     // TODO - perhaps separate indices for users/roles instead of types?
-    public static final String INDEX_USER_TYPE = "user";
+    public static final String USER_DOC_TYPE = "user";
 
     // this map contains the mapping for username -> version, which is used when polling the index to easily detect of
     // any changes that may have been missed since the last update.
@@ -168,12 +168,13 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             final List<User> users = new ArrayList<>();
             QueryBuilder query;
             if (usernames == null || usernames.length == 0) {
-                query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("_type", INDEX_USER_TYPE));
+                query = QueryBuilders.matchAllQuery();
             } else {
-                query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(INDEX_USER_TYPE).addIds(usernames));
+                query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(usernames));
             }
-            SearchRequest request = client.prepareSearch(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+            SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                     .setScroll(scrollKeepAlive)
+                    .setTypes(USER_DOC_TYPE)
                     .setQuery(query)
                     .setSize(scrollSize)
                     .setFetchSource(true)
@@ -187,7 +188,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                     boolean hasHits = resp.getHits().getHits().length > 0;
                     if (hasHits) {
                         for (SearchHit hit : resp.getHits().getHits()) {
-                            UserAndPassword u = transformUser(hit.getSource());
+                            UserAndPassword u = transformUser(hit.getId(), hit.getSource());
                             if (u != null) {
                                 users.add(u.user());
                             }
@@ -257,12 +258,12 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
     private void getUserAndPassword(String user, final ActionListener<UserAndPassword> listener) {
         try {
-            GetRequest request = client.prepareGet(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, INDEX_USER_TYPE, user).request();
+            GetRequest request = client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
             request.indicesOptions().ignoreUnavailable();
             client.get(request, new ActionListener<GetResponse>() {
                 @Override
-                public void onResponse(GetResponse getFields) {
-                    listener.onResponse(transformUser(getFields.getSource()));
+                public void onResponse(GetResponse response) {
+                    listener.onResponse(transformUser(response.getId(), response.getSource()));
                 }
 
                 @Override
@@ -286,24 +287,24 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
     }
 
-    public void putUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+    public void putUser(final PutUserRequest request, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             listener.onFailure(new IllegalStateException("user cannot be added as native user service has not been started"));
             return;
         }
 
         try {
-            IndexRequest request = client.prepareIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_USER_TYPE, putUserRequest.username())
-                    .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
-                            User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                            User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                            User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                            User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
+            IndexRequest indexRequest = client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, request.username())
+                    // we still index the username for more intuitive searchability (e.g. using queries like "username: joe")
+                    .setSource(User.Fields.USERNAME.getPreferredName(), request.username(),
+                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()),
+                            User.Fields.ROLES.getPreferredName(), request.roles(),
+                            User.Fields.FULL_NAME.getPreferredName(), request.fullName(),
+                            User.Fields.EMAIL.getPreferredName(), request.email(),
+                            User.Fields.METADATA.getPreferredName(), request.metadata())
                     .request();
 
-            client.index(request, new ActionListener<IndexResponse>() {
+            client.index(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     // if the document was just created, then we don't need to clear cache
@@ -312,7 +313,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                         return;
                     }
 
-                    clearRealmCache(putUserRequest.username(), listener, indexResponse.isCreated());
+                    clearRealmCache(request.username(), listener, indexResponse.isCreated());
                 }
 
                 @Override
@@ -333,8 +334,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
 
         try {
-            DeleteRequest request = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_USER_TYPE, deleteUserRequest.username()).request();
+            DeleteRequest request = client.prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME,
+                    USER_DOC_TYPE, deleteUserRequest.username()).request();
             request.indicesOptions().ignoreUnavailable();
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
@@ -366,21 +367,21 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             return false;
         }
 
-        if (clusterState.metaData().templates().get(ShieldTemplateService.SHIELD_TEMPLATE_NAME) == null) {
+        if (clusterState.metaData().templates().get(ShieldTemplateService.SECURITY_TEMPLATE_NAME) == null) {
             logger.debug("native users template [{}] does not exist, so service cannot start",
-                    ShieldTemplateService.SHIELD_TEMPLATE_NAME);
+                    ShieldTemplateService.SECURITY_TEMPLATE_NAME);
             return false;
         }
 
-        IndexMetaData metaData = clusterState.metaData().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        IndexMetaData metaData = clusterState.metaData().index(ShieldTemplateService.SECURITY_INDEX_NAME);
         if (metaData == null) {
-            logger.debug("shield user index [{}] does not exist, so service can start", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+            logger.debug("shield user index [{}] does not exist, so service can start", ShieldTemplateService.SECURITY_INDEX_NAME);
             return true;
         }
 
-        if (clusterState.routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
+        if (clusterState.routingTable().index(ShieldTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
             logger.debug("shield user index [{}] all primary shards started, so service can start",
-                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+                    ShieldTemplateService.SECURITY_INDEX_NAME);
             return true;
         }
         return false;
@@ -472,11 +473,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME) != null;
+        final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SECURITY_INDEX_NAME) != null;
         // make sure all the primaries are active
-        if (exists && event.state().routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
+        if (exists && event.state().routingTable().index(ShieldTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
             logger.debug("shield user index [{}] all primary shards started, so polling can start",
-                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+                    ShieldTemplateService.SECURITY_INDEX_NAME);
             shieldIndexExists = true;
         } else {
             // always set the value - it may have changed...
@@ -502,12 +503,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     }
 
     @Nullable
-    private UserAndPassword transformUser(Map<String, Object> sourceMap) {
+    private UserAndPassword transformUser(String username, Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }
         try {
-            String username = (String) sourceMap.get(User.Fields.USERNAME.getPreferredName());
             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
             String[] roles = ((List<String>) sourceMap.get(User.Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(User.Fields.FULL_NAME.getPreferredName());
@@ -529,7 +529,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             }
             if (shieldIndexExists == false) {
                 logger.trace("cannot poll for user changes since shield admin index [{}] does not exist", ShieldTemplateService
-                        .SHIELD_ADMIN_INDEX_NAME);
+                        .SECURITY_INDEX_NAME);
                 return;
             }
 
@@ -609,9 +609,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             final ObjectLongMap<String> map = new ObjectLongHashMap<>();
             SearchResponse response = null;
             try {
-                SearchRequest request = client.prepareSearch(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+                SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                         .setScroll(scrollKeepAlive)
-                        .setQuery(QueryBuilders.typeQuery(INDEX_USER_TYPE))
+                        .setQuery(QueryBuilders.typeQuery(USER_DOC_TYPE))
                         .setSize(scrollSize)
                         .setVersion(true)
                         .setFetchSource(true)

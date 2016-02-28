@@ -19,9 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.test.ESTestCase;
 
 public class BootstrapSettingsTests extends ESTestCase {
@@ -31,24 +29,6 @@ public class BootstrapSettingsTests extends ESTestCase {
         assertFalse(BootstrapSettings.MLOCKALL_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.SECCOMP_SETTING.get(Settings.EMPTY));
         assertTrue(BootstrapSettings.CTRLHANDLER_SETTING.get(Settings.EMPTY));
-    }
-
-    @AwaitsFix(bugUrl = "this feature is disabled for snapshot builds, for now - see #16835")
-    public void testEnforceMaxFileDescriptorLimits() {
-        // nothing should happen since we are in OOB mode
-        Bootstrap.enforceOrLogLimits(Settings.EMPTY);
-
-        Settings build = Settings.builder().put(randomFrom(Bootstrap.ENFORCE_SETTINGS.toArray(new Setting[0])).getKey(),
-            "127.0.0.1").build();
-        long maxFileDescriptorCount = ProcessProbe.getInstance().getMaxFileDescriptorCount();
-        try {
-            Bootstrap.enforceOrLogLimits(build);
-            if (maxFileDescriptorCount != -1 && maxFileDescriptorCount < (1 << 16)) {
-                fail("must have enforced limits: " + maxFileDescriptorCount);
-            }
-        } catch (IllegalStateException ex) {
-            assertTrue(ex.getMessage(), ex.getMessage().startsWith("max file descriptors"));
-        }
     }
 
 }

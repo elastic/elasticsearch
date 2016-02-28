@@ -22,7 +22,6 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -33,8 +32,6 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -42,17 +39,12 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -189,7 +181,8 @@ final class Bootstrap {
                 .put(settings)
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
-        enforceOrLogLimits(nodeSettings);
+
+        BootstrapCheck.check(nodeSettings);
 
         node = new Node(nodeSettings);
     }
@@ -349,50 +342,4 @@ final class Bootstrap {
         }
     }
 
-    static final Set<Setting> ENFORCE_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        TransportSettings.BIND_HOST,
-        TransportSettings.HOST,
-        TransportSettings.PUBLISH_HOST,
-        NetworkService.GLOBAL_NETWORK_HOST_SETTING,
-        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
-        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING
-    )));
-
-    private static boolean enforceLimits(Settings settings) {
-        if (Build.CURRENT.isSnapshot()) {
-            return false;
-        }
-        for (Setting setting : ENFORCE_SETTINGS) {
-            if (setting.exists(settings)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static void enforceOrLogLimits(Settings settings) { // pkg private for testing
-        /* We enforce limits once any network host is configured. In this case we assume the node is running in production
-         * and all production limit checks must pass. This should be extended as we go to settings like:
-         *   - discovery.zen.minimum_master_nodes
-         *   - discovery.zen.ping.unicast.hosts is set if we use zen disco
-         *   - ensure we can write in all data directories
-         *   - fail if mlockall failed and was configured
-         *   - fail if vm.max_map_count is under a certain limit (not sure if this works cross platform)
-         *   - fail if the default cluster.name is used, if this is setup on network a real clustername should be used?*/
-        final boolean enforceLimits = enforceLimits(settings);
-        final ESLogger logger = Loggers.getLogger(Bootstrap.class);
-        final long maxFileDescriptorCount = ProcessProbe.getInstance().getMaxFileDescriptorCount();
-        if (maxFileDescriptorCount != -1) {
-            final int fileDescriptorCountThreshold = (1 << 16);
-            if (maxFileDescriptorCount < fileDescriptorCountThreshold) {
-                if (enforceLimits){
-                    throw new IllegalStateException("max file descriptors [" + maxFileDescriptorCount
-                        + "] for elasticsearch process likely too low, increase it to at least [" + fileDescriptorCountThreshold +"]");
-                }
-                logger.warn(
-                    "max file descriptors [{}] for elasticsearch process likely too low, consider increasing to at least [{}]",
-                    maxFileDescriptorCount, fileDescriptorCountThreshold);
-            }
-        }
-    }
 }

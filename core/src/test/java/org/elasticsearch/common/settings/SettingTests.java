@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -399,5 +400,56 @@ public class SettingTests extends ESTestCase {
 
         assertEquals(5, integerSetting.get(Settings.builder().put("foo.bar", 5).build()).intValue());
         assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
+    }
+
+    /**
+     * Only one single scope can be added to any setting
+     */
+    public void testMutuallyExclusiveScopes() {
+        // Those should pass
+        Setting<String> setting = Setting.simpleString("foo.bar", SettingsProperty.ClusterScope);
+        assertThat(setting.hasClusterScope(), is(true));
+        assertThat(setting.hasNodeScope(), is(false));
+        assertThat(setting.hasIndexScope(), is(false));
+        setting = Setting.simpleString("foo.bar", SettingsProperty.NodeScope);
+        assertThat(setting.hasNodeScope(), is(true));
+        assertThat(setting.hasIndexScope(), is(false));
+        assertThat(setting.hasClusterScope(), is(false));
+        setting = Setting.simpleString("foo.bar", SettingsProperty.IndexScope);
+        assertThat(setting.hasIndexScope(), is(true));
+        assertThat(setting.hasNodeScope(), is(false));
+        assertThat(setting.hasClusterScope(), is(false));
+
+        // We test the default scope
+        setting = Setting.simpleString("foo.bar");
+        assertThat(setting.hasNodeScope(), is(true));
+        assertThat(setting.hasIndexScope(), is(false));
+        assertThat(setting.hasClusterScope(), is(false));
+
+        // Those should fail
+        try {
+            Setting.simpleString("foo.bar", SettingsProperty.IndexScope, SettingsProperty.ClusterScope);
+            fail("Multiple scopes should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+        }
+        try {
+            Setting.simpleString("foo.bar", SettingsProperty.IndexScope, SettingsProperty.NodeScope);
+            fail("Multiple scopes should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+        }
+        try {
+            Setting.simpleString("foo.bar", SettingsProperty.ClusterScope, SettingsProperty.NodeScope);
+            fail("Multiple scopes should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+        }
+        try {
+            Setting.simpleString("foo.bar", SettingsProperty.IndexScope, SettingsProperty.ClusterScope, SettingsProperty.NodeScope);
+            fail("Multiple scopes should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+        }
     }
 }

@@ -125,6 +125,18 @@ public class Setting<T> extends ToXContentToBytes {
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
         }
+        // We validate scope settings. They are mutually exclusive
+        int numScopes = 0;
+        for (SettingsProperty property : properties) {
+            if (property == SettingsProperty.ClusterScope ||
+                property == SettingsProperty.IndexScope ||
+                property == SettingsProperty.NodeScope) {
+                numScopes++;
+            }
+        }
+        if (numScopes > 1) {
+            throw new IllegalArgumentException("More than one scope has been added to the setting [" + key + "]");
+        }
     }
 
     /**

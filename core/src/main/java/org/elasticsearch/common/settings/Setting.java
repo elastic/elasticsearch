@@ -102,6 +102,18 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
+     * @param defaultValue a default value using its string representation.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param dynamic true iff this setting can be dynamically updateable
+     * @param scope the scope of this setting
+     */
+    public Setting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        this(key, (s) -> defaultValue, parser, dynamic, scope);
+    }
+
+    /**
      * Returns the settings key or a prefix if this setting is a group setting.
      * <b>Note: this method should not be used to retrieve a value from a {@link Settings} object.
      * Use {@link #get(Settings)} instead</b>
@@ -135,6 +147,10 @@ public class Setting<T> extends ToXContentToBytes {
         return false;
     }
 
+    /**
+     * Returns <code>true</code> if this setting will require more work (e.g., more expensive) to determine if the
+     * current setting matches a given key.
+     */
     boolean hasComplexMatcher() {
         return isGroupSetting();
     }
@@ -220,6 +236,9 @@ public class Setting<T> extends ToXContentToBytes {
         return get(secondary);
     }
 
+    /**
+     * Returns either the <em>same</em> {@link Setting} or a child setting in more complicated setups.
+     */
     public Setting<T> getConcreteSetting(String key) {
         assert key.startsWith(this.getKey()) : "was " + key + " expected: " + getKey(); // we use startsWith here since the key might be foo.bar.0 if it's an array
         return this;
@@ -329,10 +348,6 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-
-    public Setting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
-        this(key, (s) -> defaultValue, parser, dynamic, scope);
-    }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, boolean dynamic, Scope scope) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, dynamic, scope);
@@ -595,7 +610,7 @@ public class Setting<T> extends ToXContentToBytes {
 
     /**
      * This setting type allows to validate settings that have the same type and a common prefix. For instance feature.${type}=[true|false]
-     * can easily be added with this setting. Yet, dynamic key settings don't support updaters our of the box unless {@link #getConcreteSetting(String)}
+     * can easily be added with this setting. Yet, dynamic key settings don't support updaters out of the box unless {@link #getConcreteSetting(String)}
      * is used to pull the updater.
      */
     public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
@@ -625,5 +640,22 @@ public class Setting<T> extends ToXContentToBytes {
                 }
             }
         };
+    }
+
+    /**
+     * This setting type allows an already created {@code setting} to be marked as deprecated whenever it is used.
+     */
+    public static <T> Setting<T> deprecatedSetting(Setting<T> setting) {
+        return deprecatedSetting(setting, null);
+    }
+
+    /**
+     * This setting type allows an already created {@code setting} to be marked as deprecated whenever it is used.
+     * <p>
+     * If the {@code replacementKey} is non-{@code null}, then it will be included in any warning messages about deprecated usage.
+     */
+    public static <T> Setting<T> deprecatedSetting(Setting<T> setting, String replacementKey) {
+        return new DeprecatedSetting<>(setting, replacementKey,
+                                       setting.key, setting.defaultValue, setting.parser, setting.dynamic, setting.scope);
     }
 }

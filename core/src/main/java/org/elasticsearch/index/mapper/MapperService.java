@@ -138,18 +138,7 @@ public class MapperService extends AbstractIndexComponent {
         this.mapperRegistry = mapperRegistry;
 
         this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
-        if (index().getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingSource =  "{" +
-                "\"_default_\": {" +
-                    "\"properties\": {" +
-                        "\"script\": { \"enabled\": false }," +
-                        "\"template\": { \"enabled\": false }" +
-                    "}" +
-                "}" +
-            "}";
-        } else {
-            defaultMappingSource = "{\"_default_\":{}}";
-        }
+        defaultMappingSource = "{\"_default_\":{}}";
 
         if (logger.isTraceEnabled()) {
             logger.trace("using dynamic[{}], default mapping source[{}]", dynamic, defaultMappingSource);

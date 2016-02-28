@@ -35,6 +35,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -93,9 +95,11 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     boolean isFilter; // pkg private for testing
 
-    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache, IndexReader reader) {
-        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, reader);
+    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
+                             MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
+                             final IndicesQueriesRegistry indicesQueriesRegistry, Client client, PercolatorQueryCache percolatorQueryCache,
+                             IndexReader reader, ClusterState clusterState) {
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -108,7 +112,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache, source.reader);
+        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+                source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
+                source.percolatorQueryCache, source.reader, source.clusterState);
         this.types = source.getTypes();
     }
 

@@ -566,7 +566,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.scrollContext().scroll = request.scroll();
             }
             if (request.template() != null) {
-                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH,
+                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry(), parser,
@@ -774,7 +775,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
+                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

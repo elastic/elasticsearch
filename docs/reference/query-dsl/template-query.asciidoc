@@ -79,7 +79,7 @@ GET /_search
 ------------------------------------------
 <1> Name of the query template in `config/scripts/`, i.e., `my_template.mustache`.
 
-Alternatively, you can register a query template in the special `.scripts` index with:
+Alternatively, you can register a query template in the cluster state with:
 
 [source,js]
 ------------------------------------------

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -155,7 +156,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getScriptService(), context.lookup());
+        return new ScriptQuery(script, context.getScriptService(), context.lookup(), context.getClusterState());
     }
 
     static class ScriptQuery extends Query {
@@ -164,9 +165,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         private final SearchScript searchScript;
 
-        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup, ClusterState state) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), state);
         }
 
         @Override

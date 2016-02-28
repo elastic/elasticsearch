@@ -631,7 +631,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         if (this.collateQuery != null) {
             CompiledScript compiledScript = context.getScriptService().compile(this.collateQuery, ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap());
+                    Collections.emptyMap(), context.getClusterState());
             suggestionContext.setCollateQueryScript(compiledScript);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);

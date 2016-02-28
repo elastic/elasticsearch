@@ -92,7 +92,8 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
+                Collections.emptyMap(), reduceContext.clusterState());
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();

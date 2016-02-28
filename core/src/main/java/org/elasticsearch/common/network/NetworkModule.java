@@ -139,17 +139,17 @@ import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
-import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
-import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
-import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
-import org.elasticsearch.rest.action.template.RestDeleteSearchTemplateAction;
-import org.elasticsearch.rest.action.template.RestGetSearchTemplateAction;
-import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
@@ -271,9 +271,9 @@ public class NetworkModule extends AbstractModule {
         RestDeleteSearchTemplateAction.class,
 
         // Scripts API
-        RestGetIndexedScriptAction.class,
-        RestPutIndexedScriptAction.class,
-        RestDeleteIndexedScriptAction.class,
+        RestGetStoredScriptAction.class,
+        RestPutStoredScriptAction.class,
+        RestDeleteStoredScriptAction.class,
 
         RestFieldStatsAction.class,
 

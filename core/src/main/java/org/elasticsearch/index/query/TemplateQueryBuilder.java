@@ -50,7 +50,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     static {
         parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
         parametersToTypes.put("file", ScriptService.ScriptType.FILE);
-        parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
+        parametersToTypes.put("id", ScriptService.ScriptType.STORED);
     }
 
     /** Template to fill. */
@@ -175,7 +175,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            ScriptContext.Standard.SEARCH, Collections.emptyMap(), queryRewriteContext.getClusterState());
         BytesReference querySource = (BytesReference) executable.run();
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);

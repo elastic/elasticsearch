@@ -22,6 +22,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -95,7 +96,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
             }
         };
@@ -226,7 +227,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null) {
+                indicesQueriesRegistry, null, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

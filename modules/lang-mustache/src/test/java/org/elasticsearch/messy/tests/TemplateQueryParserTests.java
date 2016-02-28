@@ -149,7 +149,8 @@ public class TemplateQueryParserTests extends ESTestCase {
             }
         });
         IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, null, null);
+        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService,
+                similarityService, scriptService, indicesQueriesRegistry, proxy, null, null, null);
     }
 
     @Override

@@ -745,7 +745,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
+     * different defaults than a regular SearchSourceBuilder would have and use
+     * {@link #fromXContent(XContentParser, QueryParseContext, AggregatorParsers)} if you have normal defaults.
      */
     public void parseXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers) throws IOException {
         XContentParser.Token token = parser.currentToken();

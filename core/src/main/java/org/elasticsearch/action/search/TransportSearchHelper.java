@@ -17,13 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
+package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
@@ -42,17 +39,19 @@ import static java.util.Collections.emptyMap;
 /**
  *
  */
-public abstract class TransportSearchHelper {
+final class TransportSearchHelper {
 
-    public static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis) {
+    static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request,
+                                                             String[] filteringAliases, long nowInMillis) {
         return new ShardSearchTransportRequest(request, shardRouting, numberOfShards, filteringAliases, nowInMillis);
     }
 
-    public static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
+    static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    public static String buildScrollId(SearchType searchType, AtomicArray<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
+    static String buildScrollId(SearchType searchType, AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
+                                @Nullable Map<String, String> attributes) throws IOException {
         if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults, attributes);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
@@ -62,7 +61,8 @@ public abstract class TransportSearchHelper {
         }
     }
 
-    public static String buildScrollId(String type, AtomicArray<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
+    static String buildScrollId(String type, AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
+                                @Nullable Map<String, String> attributes) throws IOException {
         StringBuilder sb = new StringBuilder().append(type).append(';');
         sb.append(searchPhaseResults.asList().size()).append(';');
         for (AtomicArray.Entry<? extends SearchPhaseResult> entry : searchPhaseResults.asList()) {
@@ -81,7 +81,7 @@ public abstract class TransportSearchHelper {
         return Base64.encodeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length, Base64.URL_SAFE);
     }
 
-    public static ParsedScrollId parseScrollId(String scrollId) {
+    static ParsedScrollId parseScrollId(String scrollId) {
         CharsRefBuilder spare = new CharsRefBuilder();
         try {
             byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
@@ -128,5 +128,4 @@ public abstract class TransportSearchHelper {
     private TransportSearchHelper() {
 
     }
-
 }

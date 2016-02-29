@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
+package org.elasticsearch.action.search;
 
 import java.util.Map;
 
 /**
  *
  */
-public class ParsedScrollId {
+class ParsedScrollId {
 
     public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
 

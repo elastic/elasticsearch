@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -378,7 +377,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 format.loadLatestState(logger, dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
-                assertThat(ExceptionsHelper.unwrap(ex, CorruptIndexException.class), notNullValue());
+                assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
             }
         }
 

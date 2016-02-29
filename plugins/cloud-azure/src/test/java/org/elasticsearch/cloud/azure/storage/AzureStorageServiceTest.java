@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.URI;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AzureStorageServiceTest extends ESTestCase {
     final static Settings settings = Settings.builder()
@@ -135,9 +136,21 @@ public class AzureStorageServiceTest extends ESTestCase {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         azureStorageService.doStart();
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(5 * 60 * 1000));
+        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), nullValue());
         CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
         assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
+    }
+
+    public void testGetSelectedClientNoTimeout() {
+        Settings timeoutSettings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .build();
+
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
+        azureStorageService.doStart();
+        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure", LocationMode.PRIMARY_ONLY);
+        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
     }
 
     /**

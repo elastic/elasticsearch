@@ -139,7 +139,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
-        table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node");
+        table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node, i:ingest node");
         table.addCell("master", "alias:m;desc:m:master-eligible, *:current master");
         table.addCell("name", "alias:n;desc:node name");
 
@@ -276,8 +276,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
-            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
-            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
+            table.addCell(node.isClientNode() ? "c" : node.isDataNode() ? "d" : node.isIngestNode() ? "i" : "-");
+            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.isMasterNode() ? "m" : "-");
             table.addCell(node.name());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();

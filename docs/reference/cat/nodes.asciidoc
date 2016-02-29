@@ -105,7 +105,7 @@ descriptors |1024
 |`cpu` | |No |Recent system CPU usage as percent |12
 |`uptime` |`u` |No |Node uptime |17.3m
 |`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Data node (d); Client
-node (c) |d
+node (c); Ingest node (i) |d
 |`master` |`m` |Yes |Current master (*); master eligible (m) |m
 |`name` |`n` |Yes |Node name |Venom
 |`completion.size` |`cs`, `completionSize` |No |Size of completion |0b

@@ -86,7 +86,7 @@ public class AzureStorageSettings {
         String account = settings.get(Storage.ACCOUNT_DEPRECATED);
         String key = settings.get(Storage.KEY_DEPRECATED);
 
-        TimeValue globalTimeout = settings.getAsTime(Storage.TIMEOUT, TimeValue.timeValueMinutes(5));
+        TimeValue globalTimeout = settings.getAsTime(Storage.TIMEOUT, TimeValue.timeValueSeconds(-1));
 
         if (account != null) {
             logger.warn("[{}] and [{}] have been deprecated. Use now [{}xxx.account] and [{}xxx.key] where xxx is any name",

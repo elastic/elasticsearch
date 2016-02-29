@@ -243,7 +243,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
     // moved the core percolation logic to a pck protected method to make testing easier:
     static PercolateShardResponse doPercolate(PercolateContext context, PercolatorQueriesRegistry queriesRegistry, AggregationPhase aggregationPhase, @Nullable BucketCollector aggregatorCollector, HighlightPhase highlightPhase) throws IOException {
         PercolatorQuery.Builder builder = new PercolatorQuery.Builder(context.docSearcher(), queriesRegistry.getPercolateQueries(), context.percolatorTypeFilter());
-        if (queriesRegistry.indexSettings().getSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0)) {
+        if (queriesRegistry.indexSettings().getSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_5_0_0)) {
             builder.extractQueryTermsQuery(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME, PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME);
         }
         if (context.percolateQuery() != null || context.aliasFilter() != null) {

@@ -64,7 +64,7 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
     private static boolean nodeBooleanValue(Object node, Mapper.TypeParser.ParserContext parserContext) {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
             return XContentMapValues.nodeBooleanValue(node);
         } else {
             return XContentMapValues.lenientNodeBooleanValue(node);
@@ -353,7 +353,7 @@ public class TypeParsers {
     }
 
     public static boolean parseIndex(String fieldName, String index, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
             switch (index) {
             case "true":
                 return true;
@@ -379,7 +379,7 @@ public class TypeParsers {
     }
 
     public static boolean parseStore(String fieldName, String store, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
             return XContentMapValues.nodeBooleanValue(store);
         } else {
             if ("no".equals(store)) {
@@ -406,7 +406,7 @@ public class TypeParsers {
     }
 
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        if (parserContext.indexVersionCreated().before(Version.V_3_0_0) && "default".equals(value)) {
+        if (parserContext.indexVersionCreated().before(Version.V_5_0_0) && "default".equals(value)) {
             // "default" similarity has been renamed into "classic" in 3.x.
             value = SimilarityService.DEFAULT_SIMILARITY;
         }

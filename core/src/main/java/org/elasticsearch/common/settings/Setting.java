@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -644,18 +645,12 @@ public class Setting<T> extends ToXContentToBytes {
 
     /**
      * This setting type allows an already created {@code setting} to be marked as deprecated whenever it is used.
+     *
+     * @param setting the setting to deprecate
+     * @param version the version that it was deprecated
      */
-    public static <T> Setting<T> deprecatedSetting(Setting<T> setting) {
-        return deprecatedSetting(setting, null);
-    }
-
-    /**
-     * This setting type allows an already created {@code setting} to be marked as deprecated whenever it is used.
-     * <p>
-     * If the {@code replacementKey} is non-{@code null}, then it will be included in any warning messages about deprecated usage.
-     */
-    public static <T> Setting<T> deprecatedSetting(Setting<T> setting, String replacementKey) {
-        return new DeprecatedSetting<>(setting, replacementKey,
+    public static <T> DeprecatedSetting<T> deprecatedSetting(Setting<T> setting, Version version) {
+        return new DeprecatedSetting<>(setting, version,
                                        setting.key, setting.defaultValue, setting.parser, setting.dynamic, setting.scope);
     }
 }

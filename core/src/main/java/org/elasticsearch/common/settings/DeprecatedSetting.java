@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -41,31 +42,32 @@ class DeprecatedSetting<T> extends Setting<T> {
      */
     private final Setting<T> setting;
     /**
-     * The key replacing the current one, if any.
+     * The version that the {@link #setting} was deprecated.
      */
-    private final String replacementKey;
+    private final Version version;
 
     /**
      * Creates a new {@link DeprecatedSetting} instance.
      *
      * @param setting the setting being deprecated (whose values <em>must</em> match)
-     * @param replacementKey the key replacing this one, if any
+     * @param version the version that the setting was deprecated
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param dynamic true iff this setting can be dynamically updateable
      * @param scope the scope of this setting
      */
-    public DeprecatedSetting(Setting<T> setting, String replacementKey,
+    public DeprecatedSetting(Setting<T> setting, Version version,
                              String key,
                              Function<Settings, String> defaultValue, Function<String, T> parser,
                              boolean dynamic, Scope scope) {
         super(key, defaultValue, parser, dynamic, scope);
 
         assert setting != null;
+        assert version != null;
 
         this.setting = setting;
-        this.replacementKey = replacementKey;
+        this.version = version;
     }
 
     /**
@@ -78,17 +80,10 @@ class DeprecatedSetting<T> extends Setting<T> {
     public String getRaw(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (setting.exists(settings)) {
-            // if we were given a key, then we can advertise it
-            if (replacementKey != null) {
-                logger.warn("[{}] setting is deprecated and it will be removed in a future release! Use the updated setting [{}]",
-                            getKey(), replacementKey);
-            }
-            else {
-                // It would be convenient to show its replacement key, but replacement is often not so simple
-                logger.warn("[{}] setting is deprecated and it will be removed in a future release! " +
-                            "See the breaking changes lists in the documentation for details",
-                            getKey());
-            }
+            // It would be convenient to show its replacement key, but replacement is often not so simple
+            logger.warn("[{}] setting was deprecated in Elasticsearch {} and it will be removed in a future release! " +
+                        "See the breaking changes lists in the documentation for details",
+                        getKey(), version);
         }
 
         return setting.getRaw(settings);

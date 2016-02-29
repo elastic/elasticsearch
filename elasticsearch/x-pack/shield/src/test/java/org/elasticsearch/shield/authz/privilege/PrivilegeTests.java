@@ -7,6 +7,10 @@ package org.elasticsearch.shield.authz.privilege;
 
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.ingest.DeletePipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
@@ -71,6 +75,16 @@ public class PrivilegeTests extends ESTestCase {
         Privilege.Name name2 = new Privilege.Name("none", "monitor");
         ClusterPrivilege cluster2 = ClusterPrivilege.get(name2);
         assertThat(cluster, is(cluster2));
+    }
+
+    public void testIngestPrivilege() throws Exception {
+        Privilege.Name name = new Privilege.Name("manage_pipeline");
+        ClusterPrivilege cluster = ClusterPrivilege.get(name);
+        assertThat(cluster, is(ClusterPrivilege.MANAGE_PIPELINE));
+        assertThat(cluster.predicate().test(PutPipelineAction.NAME), is(true));
+        assertThat(cluster.predicate().test(DeletePipelineAction.NAME), is(true));
+        assertThat(cluster.predicate().test(GetPipelineAction.NAME), is(true));
+        assertThat(cluster.predicate().test(SimulatePipelineAction.NAME), is(true));
     }
 
     public void testClusterTemplateActions() throws Exception {

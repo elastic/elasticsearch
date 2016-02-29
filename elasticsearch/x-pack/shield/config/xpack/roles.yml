@@ -67,3 +67,7 @@ remote_monitoring_agent:
   indices:
     '.monitoring-es-*':
       privileges: all
+
+# Allows all operations required to manage ingest pipelines
+ingest_admin:
+  cluster: manage_pipeline

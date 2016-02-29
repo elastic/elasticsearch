@@ -251,6 +251,10 @@ fi
     install_and_check_plugin mapper size
 }
 
+@test "[$GROUP] install reindex plugin" {
+    install_and_check_plugin - reindex
+}
+
 @test "[$GROUP] install repository-azure plugin" {
     install_and_check_plugin repository azure azure-storage-*.jar
 }
@@ -351,6 +355,10 @@ fi
 
 @test "[$GROUP] remove size mapper plugin" {
     remove_plugin mapper-size
+}
+
+@test "[$GROUP] remove reindex plugin" {
+    remove_plugin reindex
 }
 
 @test "[$GROUP] remove repository-azure plugin" {

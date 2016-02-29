@@ -37,6 +37,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 
 import java.util.Map;
 
@@ -48,9 +49,9 @@ public class RestUpdateByQueryAction extends
         AbstractBaseReindexRestHandler<UpdateByQueryRequest, BulkIndexByScrollResponse, TransportUpdateByQueryAction> {
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService,
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, ClusterService clusterService,
             TransportUpdateByQueryAction action) {
-        super(settings, client, indicesQueriesRegistry, clusterService, action);
+        super(settings, client, indicesQueriesRegistry, aggParsers, clusterService, action);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
@@ -95,7 +96,7 @@ public class RestUpdateByQueryAction extends
             }
         }
         RestSearchAction.parseSearchRequest(internalRequest.getSource(), indicesQueriesRegistry, request,
-                parseFieldMatcher, bodyContent);
+                parseFieldMatcher, aggParsers, bodyContent);
 
         String conflicts = request.param("conflicts");
         if (conflicts != null) {

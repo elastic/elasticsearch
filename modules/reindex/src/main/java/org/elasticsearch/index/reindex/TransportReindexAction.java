@@ -122,26 +122,44 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         @Override
         protected IndexRequest buildIndexRequest(SearchHit doc) {
-            IndexRequest index = new IndexRequest(mainRequest.getDestination());
+            IndexRequest index = new IndexRequest();
 
-            // We want the index from the copied request, not the doc.
-            index.id(doc.id());
-            if (index.type() == null) {
-                /*
-                 * Default to doc's type if not specified in request so its easy
-                 * to do a scripted update.
-                 */
+            // Copy the index from the request so we always write where it asked to write
+            index.index(mainRequest.getDestination().index());
+
+            // If the request override's type then the user wants all documents in that type. Otherwise keep the doc's type.
+            if (mainRequest.getDestination().type() == null) {
                 index.type(doc.type());
+            } else {
+                index.type(mainRequest.getDestination().type());
             }
-            index.source(doc.sourceRef());
+
             /*
-             * Internal versioning can just use what we copied from the
-             * destionation request. Otherwise we assume we're using external
+             * Internal versioning can just use what we copied from the destination request. Otherwise we assume we're using external
              * versioning and use the doc's version.
              */
-            if (index.versionType() != INTERNAL) {
+            index.versionType(mainRequest.getDestination().versionType());
+            if (index.versionType() == INTERNAL) {
+                index.version(mainRequest.getDestination().version());
+            } else {
                 index.version(doc.version());
             }
+
+            // id and source always come from the found doc. Scripts can change them but they operate on the index request.
+            index.id(doc.id());
+            index.source(doc.sourceRef());
+
+            /*
+             * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the superclass
+             * here on out operates on the index request rather than the template.
+             */
+            index.routing(mainRequest.getDestination().routing());
+            index.parent(mainRequest.getDestination().parent());
+            index.timestamp(mainRequest.getDestination().timestamp());
+            index.ttl(mainRequest.getDestination().ttl());
+            index.contentType(mainRequest.getDestination().getContentType());
+            // OpType is synthesized from version so it is handled when we copy version above.
+
             return index;
         }
 

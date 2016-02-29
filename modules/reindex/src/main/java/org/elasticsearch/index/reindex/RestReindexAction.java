@@ -42,6 +42,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,9 +56,9 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  * Expose IndexBySearchRequest over rest.
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexResponse, TransportReindexAction> {
-    private static final ObjectParser<ReindexRequest, QueryParseContext> PARSER = new ObjectParser<>("reindex");
+    private static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
     static {
-        ObjectParser.Parser<SearchRequest, QueryParseContext> sourceParser = (parser, search, context) -> {
+        ObjectParser.Parser<SearchRequest, ReindexParseContext> sourceParser = (parser, search, context) -> {
             /*
              * Extract the parameters that we need from the parser. We could do
              * away with this hack when search source has an ObjectParser.
@@ -74,8 +75,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             parser = parser.contentType().xContent().createParser(builder.bytes());
-            context.reset(parser);
-            search.source().parseXContent(parser, context);
+            context.queryParseContext.reset(parser);
+            search.source().parseXContent(parser, context.queryParseContext, context.aggParsers);
         };
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
@@ -93,14 +94,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSource(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.parseFieldMatcher())), new ParseField("script"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.parseFieldMatcher())), new ParseField("script"),
+                ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
     @Inject
     public RestReindexAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService, TransportReindexAction action) {
-        super(settings, client, indicesQueriesRegistry, clusterService, action);
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, ClusterService clusterService,
+            TransportReindexAction action) {
+        super(settings, client, indicesQueriesRegistry, aggParsers, clusterService, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -114,7 +117,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         ReindexRequest internalRequest = new ReindexRequest(new SearchRequest(), new IndexRequest());
 
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internalRequest, new QueryParseContext(indicesQueriesRegistry));
+            PARSER.parse(xcontent, internalRequest, new ReindexParseContext(new QueryParseContext(indicesQueriesRegistry), aggParsers));
         } catch (ParsingException e) {
             logger.warn("Bad request", e);
             badRequest(channel, e.getDetailedMessage());
@@ -160,6 +163,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             return new String[] {(String) value};
         } else {
             throw new IllegalArgumentException("Expected [" + name + "] to be a list of a string but was [" + value + ']');
+        }
+    }
+
+    private class ReindexParseContext {
+        private final QueryParseContext queryParseContext;
+        private final AggregatorParsers aggParsers;
+
+        public ReindexParseContext(QueryParseContext queryParseContext, AggregatorParsers aggParsers) {
+            this.queryParseContext = queryParseContext;
+            this.aggParsers = aggParsers;
         }
     }
 }

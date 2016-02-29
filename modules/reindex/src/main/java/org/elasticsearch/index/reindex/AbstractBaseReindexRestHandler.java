@@ -32,6 +32,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
@@ -40,13 +41,15 @@ import java.io.IOException;
 public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse,
         TA extends TransportAction<Request, Response>> extends BaseRestHandler {
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
+    protected final AggregatorParsers aggParsers;
     private final ClusterService clusterService;
     private final TA action;
 
     protected AbstractBaseReindexRestHandler(Settings settings, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService, TA action) {
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, ClusterService clusterService, TA action) {
         super(settings, client);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.aggParsers = aggParsers;
         this.clusterService = clusterService;
         this.action = action;
     }

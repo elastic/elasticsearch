@@ -35,15 +35,16 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
         return super.configUsers() +
                 "user1:" + USERS_PASSWD_HASHED + "\n" +
                 "user2:" + USERS_PASSWD_HASHED + "\n" +
-                "user3:" + USERS_PASSWD_HASHED + "\n" ;
+                "user3:" + USERS_PASSWD_HASHED + "\n" +
+                "user4:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1\n" +
-                "role2:user2\n" +
-                "role3:user3\n";
+                "role1:user1,user4\n" +
+                "role2:user2,user4\n" +
+                "role3:user3,user4\n";
     }
 
     @Override
@@ -107,6 +108,14 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
         assertSearchHits(response, "2");
         assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSource().get("field2").toString(), equalTo("value2"));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
+                .prepareSearch("test")
+                .get();
+        assertHitCount(response, 2);
+        assertSearchHits(response, "1", "2");
+        assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(1).getSource().get("field2").toString(), equalTo("value2"));
     }
 
     public void testQueryCache() throws Exception {
@@ -149,6 +158,19 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
             assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(0));
+
+            // user4 has all roles
+            response = client().filterWithHeader(
+                    Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .get();
+            assertHitCount(response, 2);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
+            assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+            assertThat(response.getHits().getAt(1).sourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(1).sourceAsMap().get("field2"), equalTo("value2"));
         }
     }
 

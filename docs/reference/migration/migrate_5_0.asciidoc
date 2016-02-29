@@ -667,6 +667,13 @@ to index a document only if it doesn't already exist.
 
 The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
 
+==== Elasticsearch will no longer detect logging implementations
+
+Elasticsearch now logs only to log4j 1.2. Previously if log4j wasn't on the classpath it made some effort to degrade to
+slf4j or java.util.logging. Now it'll fail to work without the log4j 1.2 api. The log4j-over-slf4j bridge ought to work
+when using the java client. As should log4j 2's log4j-1.2-api. The Elasticsearch server now only supports log4j as
+configured by logging.yml and it no longer makes any effort to work if log4j isn't present.
+
 [[breaking_50_cache_concurrency]]
 === Cache concurrency level settings removed
 

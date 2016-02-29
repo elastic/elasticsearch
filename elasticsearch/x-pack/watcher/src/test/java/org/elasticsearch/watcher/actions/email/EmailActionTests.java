@@ -513,6 +513,65 @@ public class EmailActionTests extends ESTestCase {
         assertThat(dataAttachment.contentType(), is("application/yaml"));
     }
 
+    public void testThatOneFailedEmailAttachmentResultsInActionFailure() throws Exception {
+        EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
+        TextTemplateEngine engine = mock(TextTemplateEngine.class);
+        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
+        HttpClient httpClient = mock(HttpClient.class);
+
+        // setup mock response, second one is an error
+        Map<String, String[]> headers = new HashMap<>(1);
+        headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[]{"plain/text"});
+        when(httpClient.execute(any(HttpRequest.class)))
+                .thenReturn(new HttpResponse(200, "body", headers))
+                .thenReturn(new HttpResponse(403));
+
+        // setup email attachment parsers
+        HttpRequestTemplate.Parser httpRequestTemplateParser = new HttpRequestTemplate.Parser(registry);
+        Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser,
+                engine));
+        EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
+
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("attachments")
+                .startObject("first")
+                .startObject("http")
+                .startObject("request").field("url", "http://localhost/first").endObject()
+                .endObject()
+                .endObject()
+                .startObject("second")
+                .startObject("http")
+                .startObject("request").field("url", "http://localhost/second").endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        logger.info("JSON: {}", builder.string());
+
+        parser.nextToken();
+
+        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
+                emailAttachmentsParser).parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
+        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
+                .wid(wid)
+                .payload(new Payload.Simple())
+                .time("watch1", now)
+                .metadata(metadata)
+                .buildMock();
+
+        Action.Result result = executableEmailAction.execute("test", ctx, new Payload.Simple());
+        assertThat(result, instanceOf(EmailAction.Result.Failure.class));
+        EmailAction.Result.Failure failure = (EmailAction.Result.Failure) result;
+        assertThat(failure.reason(),
+                is("Unable to get attachment of type [http] with id [second] in watch [watch1] aborting watch execution"));
+    }
+
     private EmailActionFactory createEmailActionFactory() {
         EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
         TextTemplateEngine engine = mock(TextTemplateEngine.class);

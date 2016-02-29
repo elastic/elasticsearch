@@ -44,7 +44,6 @@ OFFICIAL PLUGINS
     - mapper-attachments
     - mapper-murmur3
     - mapper-size
-    - reindex
     - repository-azure
     - repository-hdfs
     - repository-s3

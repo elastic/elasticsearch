@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -29,6 +28,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -43,8 +43,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -383,7 +382,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 format.loadLatestState(logger, dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
-                assertThat(ex.getCause(), instanceOf(CorruptStateException.class));
+                assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
             }
         }
 

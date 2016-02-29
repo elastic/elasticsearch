@@ -40,7 +40,7 @@ public class SettingTests extends ESTestCase {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
         assertFalse(booleanSetting.get(Settings.EMPTY));
         assertFalse(booleanSetting.get(Settings.builder().put("foo.bar", false).build()));
-        assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", SettingsProperty.Dynamic).build()));
+        assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
     }
 
     public void testByteSize() {

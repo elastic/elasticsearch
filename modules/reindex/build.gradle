@@ -18,6 +18,6 @@
  */
 
 esplugin {
-  description 'The Reindex Plugin adds APIs to reindex from one index to another or update documents in place.'
+  description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }

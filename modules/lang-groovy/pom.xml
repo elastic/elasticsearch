@@ -24,7 +24,7 @@
     <dependencies>
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
+            <artifactId>groovy</artifactId>
             <classifier>indy</classifier>
             <version>2.4.6</version>
         </dependency>

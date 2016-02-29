@@ -5,6 +5,7 @@ This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.3.
 
 * <<breaking_23_index_apis>>
+* <<breaking_23_scripting>>
 
 [[breaking_23_index_apis]]
 === Mappings
@@ -17,3 +18,17 @@ the number of nested fields that can be defined per index has been limited to 50
 This default limit can be changed with the index setting `index.mapping.nested_fields.limit`.
 Note that the limit is only checked when new indices are created or mappings are updated. It
 will thus only affect existing pre-2.3 indices if their mapping is changed.
+
+[[breaking_23_scripting]]
+=== Scripting
+
+==== Groovy dependencies
+
+In previous versions of Elasticsearch, the Groovy scripting capabilities
+depended on the `org.codehaus.groovy:groovy-all` artifact.  In addition
+to pulling in the Groovy language, this pulls in a very large set of
+functionality, none of which is needed for scripting within
+Elasticsearch. Aside from the inherent difficulties in managing such a
+large set of dependencies, this also increases the surface area for
+security issues. This dependency has been reduced to the core Groovy
+language `org.codehaus.groovy:groovy` artifact.

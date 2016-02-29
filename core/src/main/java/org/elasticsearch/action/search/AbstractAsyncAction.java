@@ -17,22 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
+package org.elasticsearch.action.search;
 
-public class ScrollIdForNode {
-    private final String node;
-    private final long scrollId;
+/**
+ * Base implementation for an async action.
+ */
+abstract class AbstractAsyncAction {
 
-    public ScrollIdForNode(String node, long scrollId) {
-        this.node = node;
-        this.scrollId = scrollId;
+    private final long startTime;
+
+    protected AbstractAsyncAction() {
+        this.startTime = System.currentTimeMillis();
     }
 
-    public String getNode() {
-        return node;
+    /**
+     * Return the time when the action started.
+     */
+    protected final long startTime() {
+        return startTime;
     }
 
-    public long getScrollId() {
-        return scrollId;
+    /**
+     * Builds how long it took to execute the search.
+     */
+    protected final long buildTookInMillis() {
+        // protect ourselves against time going backwards
+        // negative values don't make sense and we want to be able to serialize that thing as a vLong
+        return Math.max(1, System.currentTimeMillis() - startTime);
     }
+
+    abstract void start();
 }

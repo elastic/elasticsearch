@@ -20,6 +20,9 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.common.util.iterable.Iterables;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -54,6 +57,24 @@ public class CompoundProcessor implements Processor {
 
     public List<Processor> getProcessors() {
         return processors;
+    }
+
+    public List<Processor> flattenProcessors() {
+        List<Processor> allProcessors = new ArrayList<>(flattenProcessors(processors));
+        allProcessors.addAll(flattenProcessors(onFailureProcessors));
+        return allProcessors;
+    }
+
+    private static List<Processor> flattenProcessors(List<Processor> processors) {
+        List<Processor> flattened = new ArrayList<>();
+        for (Processor processor : processors) {
+            if (processor instanceof CompoundProcessor) {
+                flattened.addAll(((CompoundProcessor) processor).flattenProcessors());
+            } else {
+                flattened.add(processor);
+            }
+        }
+        return flattened;
     }
 
     @Override

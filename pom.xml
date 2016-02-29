@@ -128,6 +128,7 @@
         <integ.http.port.sec>9600</integ.http.port.sec>
         <integ.transport.port.sec>9700</integ.transport.port.sec>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
+        <tests.jarhell.check>true</tests.jarhell.check>
     </properties>
 
     <repositories>
@@ -696,6 +697,7 @@
                             <!-- true if we are running tests from maven (as opposed to IDE, etc).
                                  allows us to assert certain things work, like libsigar -->
                             <tests.maven>true</tests.maven>
+                            <tests.jarhell.check>${tests.jarhell.check}</tests.jarhell.check>
                         </systemProperties>
                         <listeners>
                             <report-text

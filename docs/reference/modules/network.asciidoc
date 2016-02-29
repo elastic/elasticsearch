@@ -163,9 +163,8 @@ settings, but may be further configured independently:
 
 TCP Transport::
 
-Used for communication between nodes in the cluster and by the Java
-{javaclient}/node-client.html[Node client],
-{javaclient}/transport-client.html[Transport client], and by the
+Used for communication between nodes in the cluster, by the Java
+{javaclient}/transport-client.html[Transport client] and by the
 <<modules-tribe,Tribe node>>.  See the <<modules-transport,Transport module>>
 for more information.
 

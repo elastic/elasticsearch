@@ -807,6 +807,17 @@ values `off`, `false`, `0`, and `no` for disabling a scripting mode.
 The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
 and `no` for disabling are no longer supported.
 
+==== Groovy dependencies
+
+In previous versions of Elasticsearch, the Groovy scripting capabilities
+depended on the `org.codehaus.groovy:groovy-all` artifact.  In addition
+to pulling in the Groovy language, this pulls in a very large set of
+functionality, none of which is needed for scripting within
+Elasticsearch. Aside from the inherent difficulties in managing such a
+large set of dependencies, this also increases the surface area for
+security issues. This dependency has been reduced to the core Groovy
+language `org.codehaus.groovy:groovy` artifact.
+
 [[breaking_30_term_vectors]]
 === Term vectors
 

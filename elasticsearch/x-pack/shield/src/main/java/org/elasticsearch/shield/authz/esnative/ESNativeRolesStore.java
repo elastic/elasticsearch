@@ -179,7 +179,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                 @Override
                 public void onFailure(Throwable t) {
                     if (t instanceof IndexNotFoundException) {
-                        logger.trace("could not retrieve roles because shield index does not exist");
+                        logger.trace("could not retrieve roles because security index does not exist");
                     } else {
                         logger.info("failed to retrieve roles", t);
                     }
@@ -334,7 +334,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we
-            // think may not have the .shield index but they it may not have
+            // think may not have the .security index but they it may not have
             // been restored from the cluster state on disk yet
             logger.debug("native roles store waiting until gateway has recovered from disk");
             return false;
@@ -429,7 +429,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SECURITY_INDEX_NAME) != null;
         // make sure all the primaries are active
         if (exists && event.state().routingTable().index(ShieldTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("shield roles index [{}] all primary shards started, so polling can start",
+            logger.debug("security index [{}] all primary shards started, so polling can start",
                     ShieldTemplateService.SECURITY_INDEX_NAME);
             shieldIndexExists = true;
         } else {
@@ -459,7 +459,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                 return;
             }
             if (shieldIndexExists == false) {
-                logger.trace("cannot poll for role changes since shield admin index [{}] does not exist",
+                logger.trace("cannot poll for role changes since security index [{}] does not exist",
                         ShieldTemplateService.SECURITY_INDEX_NAME);
                 return;
             }
@@ -519,7 +519,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                     }
                 }
             } catch (IndexNotFoundException e) {
-                logger.trace("shield roles index does not exist", e);
+                logger.trace("security index does not exist", e);
             } finally {
                 if (response != null) {
                     ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();

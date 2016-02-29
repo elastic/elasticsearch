@@ -301,7 +301,7 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 return state;
             } catch (Throwable e) {
-                exceptions.add(e);
+                exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
             }
         }

@@ -368,12 +368,12 @@ Core types don't support the object notation anymore, which allowed to provide
 values as follows:
 
 [source,json]
------
+---------------
 {
   "value": "field_value",
   "boost": 42
 }
-----
+---------------
 
 ==== `fielddata.format`
 

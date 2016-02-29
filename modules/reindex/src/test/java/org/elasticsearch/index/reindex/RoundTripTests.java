@@ -69,8 +69,8 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
-        request.getSource().indices("test");
-        request.getSource().source().size(between(1, 1000));
+        request.getSearchRequest().indices("test");
+        request.getSearchRequest().source().size(between(1, 1000));
         request.setSize(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
@@ -81,8 +81,8 @@ public class RoundTripTests extends ESTestCase {
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
             AbstractBulkIndexByScrollRequest<?> tripped) {
-        assertArrayEquals(request.getSource().indices(), tripped.getSource().indices());
-        assertEquals(request.getSource().source().size(), tripped.getSource().source().size());
+        assertArrayEquals(request.getSearchRequest().indices(), tripped.getSearchRequest().indices());
+        assertEquals(request.getSearchRequest().source().size(), tripped.getSearchRequest().source().size());
         assertEquals(request.isAbortOnVersionConflict(), tripped.isAbortOnVersionConflict());
         assertEquals(request.isRefresh(), tripped.isRefresh());
         assertEquals(request.getTimeout(), tripped.getTimeout());

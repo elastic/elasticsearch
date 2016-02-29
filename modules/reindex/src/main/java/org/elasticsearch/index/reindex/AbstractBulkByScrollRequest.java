@@ -46,7 +46,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The search to be executed.
      */
-    private SearchRequest source;
+    private SearchRequest searchRequest;
 
     /**
      * Maximum number of processed documents. Defaults to -1 meaning process all
@@ -89,7 +89,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     public AbstractBulkByScrollRequest(SearchRequest source) {
-        this.source = source;
+        this.searchRequest = source;
 
         // Set the defaults which differ from SearchRequest's defaults.
         source.scroll(DEFAULT_SCROLL_TIMEOUT);
@@ -106,8 +106,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException e = source.validate();
-        if (source.source().from() != -1) {
+        ActionRequestValidationException e = searchRequest.validate();
+        if (searchRequest.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
         }
         if (maxRetries < 0) {
@@ -173,8 +173,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The search request that matches the documents to process.
      */
-    public SearchRequest getSource() {
-        return source;
+    public SearchRequest getSearchRequest() {
+        return searchRequest;
     }
 
     /**
@@ -260,8 +260,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        source = new SearchRequest();
-        source.readFrom(in);
+        searchRequest = new SearchRequest();
+        searchRequest.readFrom(in);
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
@@ -274,7 +274,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        source.writeTo(out);
+        searchRequest.writeTo(out);
         out.writeBoolean(abortOnVersionConflict);
         out.writeVInt(size);
         out.writeBoolean(refresh);
@@ -289,13 +289,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * to make toString.
      */
     protected void searchToString(StringBuilder b) {
-        if (source.indices() != null && source.indices().length != 0) {
-            b.append(Arrays.toString(source.indices()));
+        if (searchRequest.indices() != null && searchRequest.indices().length != 0) {
+            b.append(Arrays.toString(searchRequest.indices()));
         } else {
             b.append("[all indices]");
         }
-        if (source.types() != null && source.types().length != 0) {
-            b.append(Arrays.toString(source.types()));
+        if (searchRequest.types() != null && searchRequest.types().length != 0) {
+            b.append(Arrays.toString(searchRequest.types()));
         }
     }
 }

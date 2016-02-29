@@ -71,7 +71,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<ReindexResponse> listener) {
-        validateAgainstAliases(request.getSource(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex,
+        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex,
                 clusterService.state());
         new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, request, listener).start();
     }
@@ -117,7 +117,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
                 ThreadPool threadPool, ReindexRequest request, ActionListener<ReindexResponse> listener) {
-            super(task, logger, scriptService, client, threadPool, request, request.getSource(), listener);
+            super(task, logger, scriptService, client, threadPool, request, request.getSearchRequest(), listener);
         }
 
         @Override

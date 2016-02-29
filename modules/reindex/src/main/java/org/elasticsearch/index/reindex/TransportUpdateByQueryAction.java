@@ -78,7 +78,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
                 ThreadPool threadPool, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-            super(task, logger, scriptService, client, threadPool, request, request.getSource(), listener);
+            super(task, logger, scriptService, client, threadPool, request, request.getSearchRequest(), listener);
         }
 
         @Override

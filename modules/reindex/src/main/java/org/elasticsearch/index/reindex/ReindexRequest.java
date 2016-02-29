@@ -53,7 +53,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
-        if (getSource().indices() == null || getSource().indices().length == 0) {
+        if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
         /*

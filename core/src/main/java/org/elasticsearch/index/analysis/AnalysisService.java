@@ -127,7 +127,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
         if (analyzers.containsKey("default_index")) {
             final Version createdVersion = indexSettings.getIndexVersionCreated();
-            if (createdVersion.onOrAfter(Version.V_3_0_0)) {
+            if (createdVersion.onOrAfter(Version.V_5_0_0)) {
                 throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index().getName() + "]");
             } else {
                 deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index().getName());

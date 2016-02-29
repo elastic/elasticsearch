@@ -77,9 +77,9 @@ function migratePlugin() {
 	removeLines "<repositories>" "<\/repositories>" "plugins/$1/pom.xml"
 	removeLines "<url>" "<\/scm>" "plugins/$1/pom.xml"
 
-	# echo "### remove version 3.0.0-SNAPSHOT from $1 pom.xml"
-	# All plugins for ES 2.0.0 uses 3.0.0-SNAPSHOT version number
-	replaceLine "    <version>3.0.0-SNAPSHOT<\/version>" "" "plugins/$1/pom.xml"
+        # echo "### remove version 5.0.0-SNAPSHOT from $1 pom.xml"
+        # All plugins for ES 5.0.0 uses 5.0.0-SNAPSHOT version number
+        replaceLine "    <version>5.0.0-SNAPSHOT<\/version>" "" "plugins/$1/pom.xml"
 
 	# echo "### remove unused dev-tools and .git dirs and LICENSE.txt and CONTRIBUTING.md files"
 	rm -r plugins/$1/dev-tools

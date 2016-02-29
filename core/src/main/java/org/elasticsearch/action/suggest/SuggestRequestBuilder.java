@@ -19,17 +19,10 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
-
-import java.io.IOException;
 
 /**
  * A suggest action request builder.
@@ -86,13 +79,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
 
     @Override
     protected SuggestRequest beforeExecute(SuggestRequest request) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            request.suggest(builder.bytes());
-        } catch (IOException e) {
-            throw new ElasticsearchException("Unable to build suggestion request", e);
-        }
+        request.suggest(suggest);
         return request;
     }
 }

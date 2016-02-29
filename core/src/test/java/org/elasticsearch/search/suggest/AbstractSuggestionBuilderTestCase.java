@@ -136,13 +136,16 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected SB randomTestBuilder() {
         SB randomSuggestion = randomSuggestionBuilder();
-        maybeSet(randomSuggestion::text, randomAsciiOfLengthBetween(2, 20));
+        return randomSuggestion;
+    }
+
+    public static void setCommonPropertiesOnRandomBuilder(SuggestionBuilder<?> randomSuggestion) {
+        randomSuggestion.text(randomAsciiOfLengthBetween(2, 20)); // have to set the text because we don't know if the global text was set
         maybeSet(randomSuggestion::prefix, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::regex, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::analyzer, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::size, randomIntBetween(1, 20));
         maybeSet(randomSuggestion::shardSize, randomIntBetween(1, 20));
-        return randomSuggestion;
     }
 
     /**

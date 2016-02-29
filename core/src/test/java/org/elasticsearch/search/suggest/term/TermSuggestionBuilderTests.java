@@ -46,7 +46,15 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
      */
     @Override
     protected TermSuggestionBuilder randomSuggestionBuilder() {
+        return randomTermSuggestionBuilder();
+    }
+
+    /**
+     * Creates a random TermSuggestionBuilder
+     */
+    public static TermSuggestionBuilder randomTermSuggestionBuilder() {
         TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        setCommonPropertiesOnRandomBuilder(testBuilder);
         maybeSet(testBuilder::suggestMode, randomSuggestMode());
         maybeSet(testBuilder::accuracy, randomFloat());
         maybeSet(testBuilder::sort, randomSort());
@@ -60,7 +68,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         return testBuilder;
     }
 
-    private SuggestMode randomSuggestMode() {
+    private static SuggestMode randomSuggestMode() {
         final int randomVal = randomIntBetween(0, 2);
         switch (randomVal) {
             case 0: return SuggestMode.MISSING;
@@ -70,7 +78,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         }
     }
 
-    private SortBy randomSort() {
+    private static SortBy randomSort() {
         int randomVal = randomIntBetween(0, 1);
         switch (randomVal) {
             case 0: return SortBy.SCORE;
@@ -79,7 +87,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         }
     }
 
-    private StringDistanceImpl randomStringDistance() {
+    private static StringDistanceImpl randomStringDistance() {
         int randomVal = randomIntBetween(0, 4);
         switch (randomVal) {
             case 0: return StringDistanceImpl.INTERNAL;

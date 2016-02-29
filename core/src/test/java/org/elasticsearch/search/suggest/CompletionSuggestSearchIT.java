@@ -23,8 +23,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
@@ -81,6 +80,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+// nocommit
+@LuceneTestCase.AwaitsFix(bugUrl = "waiting on completion suggestion builder refactoring")
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
@@ -208,32 +209,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         for (CompletionSuggestion.Entry.Option option : options) {
             Map<String, List<Object>> payloads = option.getPayload();
             assertThat(payloads.keySet(), contains("count"));
-        }
-    }
-
-    public void testMalformedRequestPayload() throws Exception {
-        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
-        createIndexAndMapping(mapping);
-        SuggestRequest request = new SuggestRequest(INDEX);
-        XContentBuilder suggest = jsonBuilder().startObject()
-                .startObject("bad-payload")
-                .field("prefix", "sug")
-                .startObject("completion")
-                .field("field", FIELD)
-                .startArray("payload")
-                .startObject()
-                .field("payload", "field")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject().endObject();
-        request.suggest(suggest.bytes());
-        ensureGreen();
-
-        SuggestResponse suggestResponse = client().suggest(request).get();
-        assertThat(suggestResponse.getSuccessfulShards(), equalTo(0));
-        for (ShardOperationFailedException exception : suggestResponse.getShardFailures()) {
-            assertThat(exception.reason(), containsString("ParsingException[[completion] failed to parse field [payload]]; nested: IllegalStateException[Can't get text on a START_OBJECT"));
         }
     }
 

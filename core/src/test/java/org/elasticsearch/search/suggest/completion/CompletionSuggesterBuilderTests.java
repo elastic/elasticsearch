@@ -21,12 +21,8 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
@@ -36,7 +32,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.search.suggest.completion.context.QueryContext;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,6 +59,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     private BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
         final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
             case 0:
                 testBuilder.prefix(randomAsciiOfLength(10));

@@ -112,13 +112,18 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         return builder;
     }
 
-    public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
+    public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters, final boolean fromStart)
+        throws IOException {
+
         XContentParser parser = parseContext.parser();
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         String fieldName = null;
 
         XContentParser.Token token;
+        if (fromStart && parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Suggestion must start as an object");
+        }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();

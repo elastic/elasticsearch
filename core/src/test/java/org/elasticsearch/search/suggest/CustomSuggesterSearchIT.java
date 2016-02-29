@@ -20,10 +20,15 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
@@ -75,16 +80,20 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         // TODO: infer type once JI-9019884 is fixed
         // TODO: see also JDK-8039214
-        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions
-                = CollectionUtils.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>iterableAsArrayList(searchResponse.getSuggest().getSuggestion("someName"));
+        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions =
+            CollectionUtils.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>iterableAsArrayList(
+                searchResponse.getSuggest().getSuggestion("someName"));
         assertThat(suggestions, hasSize(2));
-        assertThat(suggestions.get(0).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
-        assertThat(suggestions.get(1).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));
+        assertThat(suggestions.get(0).getText().string(),
+            is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
+        assertThat(suggestions.get(1).getText().string(),
+            is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));
     }
 
-    static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
+    public static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
 
         public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
+        protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
         private String randomSuffix;
 
@@ -95,7 +104,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         @Override
         protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("suffix", randomSuffix);
+            builder.field(RANDOM_SUFFIX_FIELD.getPreferredName(), randomSuffix);
             return builder;
         }
 
@@ -125,19 +134,64 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext)
-                throws IOException {
-            // TODO some parsing
-            return new CustomSuggestionBuilder(field(), randomSuffix);
+        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+            XContentParser parser = parseContext.parser();
+            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+            XContentParser.Token token;
+            String currentFieldName = null;
+            String fieldname = null;
+            String suffix = null;
+            String analyzer = null;
+            int sizeField = -1;
+            int shardSize = -1;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                        analyzer = parser.text();
+                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                        fieldname = parser.text();
+                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                        sizeField = parser.intValue();
+                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                        shardSize = parser.intValue();
+                    } else if (parseFieldMatcher.match(currentFieldName, RANDOM_SUFFIX_FIELD)) {
+                        suffix = parser.text();
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                                               "suggester[custom] doesn't support field [" + currentFieldName + "]");
+                }
+            }
+
+            // now we should have field name, check and copy fields over to the suggestion builder we return
+            if (fieldname == null) {
+                throw new ParsingException(parser.getTokenLocation(), "the required field option is missing");
+            }
+            CustomSuggestionBuilder builder = new CustomSuggestionBuilder(fieldname, suffix);
+            if (analyzer != null) {
+                builder.analyzer(analyzer);
+            }
+            if (sizeField != -1) {
+                builder.size(sizeField);
+            }
+            if (shardSize != -1) {
+                builder.shardSize(shardSize);
+            }
+            return builder;
         }
 
         @Override
         protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
             Map<String, Object> options = new HashMap<>();
-            options.put("field", field());
-            options.put("suffix", randomSuffix);
-            CustomSuggester.CustomSuggestionsContext customSuggestionsContext = new CustomSuggester.CustomSuggestionsContext(context, options);
+            options.put(FIELDNAME_FIELD.getPreferredName(), field());
+            options.put(RANDOM_SUFFIX_FIELD.getPreferredName(), randomSuffix);
+            CustomSuggester.CustomSuggestionsContext customSuggestionsContext =
+                new CustomSuggester.CustomSuggestionsContext(context, options);
             customSuggestionsContext.setField(field());
+            assert text != null;
+            customSuggestionsContext.setText(BytesRefs.toBytesRef(text));
             return customSuggestionsContext;
         }
 

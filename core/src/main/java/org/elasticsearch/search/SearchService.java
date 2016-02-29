@@ -55,7 +55,6 @@ import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -92,6 +91,7 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -150,14 +150,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final Map<String, SearchParseElement> elementParsers;
 
     private final ParseFieldMatcher parseFieldMatcher;
-    private AggregatorParsers aggParsers;
+    private final AggregatorParsers aggParsers;
+    private final Suggesters suggesters;
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-            ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
-            QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers) {
+                         ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
+                         QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings);
         this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -556,7 +558,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers));
+                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers, suggesters));
                 }
             }
             parseSource(context, request.source());
@@ -719,20 +721,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.suggest() != null) {
-            XContentParser suggestParser = null;
             try {
-                suggestParser = XContentFactory.xContent(source.suggest()).createParser(source.suggest());
-                suggestParser.nextToken();
-                this.elementParsers.get("suggest").parse(suggestParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = suggestParser != null ? suggestParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+                context.suggest(source.suggest().build(queryShardContext));
+            } catch (IOException e) {
+                throw new SearchContextException(context, "failed to create SuggestionSearchContext", e);
             }
         }
         if (source.rescores() != null) {

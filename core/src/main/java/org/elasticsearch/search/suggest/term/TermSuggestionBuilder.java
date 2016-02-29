@@ -398,9 +398,12 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     tmpSuggestion.minWordLength(parser.intValue());
                 } else if (parseFieldMatcher.match(currentFieldName, MIN_DOC_FREQ)) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                                                  "suggester[term] doesn't support field [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "suggester[term] doesn't support field [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "suggester[term] parsing failed on [" + currentFieldName + "]");
             }
         }
 

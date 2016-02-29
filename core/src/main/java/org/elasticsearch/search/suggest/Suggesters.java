@@ -59,7 +59,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
         return parsers.get(type);
     }
 
-    public SuggestionBuilder<?> getSuggestionPrototype(String suggesterName) {
+    public SuggestionBuilder<? extends SuggestionBuilder> getSuggestionPrototype(String suggesterName) {
         Suggester<?> suggester = parsers.get(suggesterName);
         if (suggester == null) {
             throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");

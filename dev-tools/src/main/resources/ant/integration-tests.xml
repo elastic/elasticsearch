@@ -399,7 +399,12 @@
   </target>
 
   <target name="start-external-cluster-deb" depends="setup-workspace-deb">
-    <startup-elasticsearch home="${integ.scratch}/deb-extracted/usr/share/elasticsearch/"/>
+    <startup-elasticsearch home="${integ.scratch}/deb-extracted/usr/share/elasticsearch/">
+      <!-- Use a proper config directory to start elasticsearch so logging won't blow up. -->
+      <additional-args>
+        <arg value="--default.path.conf=${integ.scratch}/deb-extracted/etc/elasticsearch"/>
+      </additional-args>
+    </startup-elasticsearch>
   </target>
 
   <!-- distribution tests: .rpm -->
@@ -439,6 +444,11 @@
   </target>
 
   <target name="start-external-cluster-rpm" depends="setup-workspace-rpm">
-    <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
+    <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/">
+      <!-- Use a proper config directory to start elasticsearch so logging won't blow up. -->
+      <additional-args>
+        <arg value="--default.path.conf=${integ.scratch}/rpm-extracted/etc/elasticsearch"/>
+      </additional-args>
+    </startup-elasticsearch>
   </target>
 </project>

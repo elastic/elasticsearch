@@ -40,7 +40,9 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -115,9 +117,10 @@ public class GceDiscoverTests extends ESIntegTestCase {
     @BeforeClass
     public static void startHttpd() throws Exception {
         logDir = createTempDir();
-        httpsServer = HttpsServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSSLContext()));
+        SSLContext sslContext = getSSLContext();
+        httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpServer.createContext("/computeMetadata/v1/instance/service-accounts/default/token", (s) -> {
             String response = GceComputeServiceMock.readGoogleInternalJsonResponse(
                 "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token");
@@ -174,9 +177,12 @@ public class GceDiscoverTests extends ESIntegTestCase {
     }
 
     private static SSLContext getSSLContext() throws Exception{
-        char[] passphrase = "passphrase".toCharArray();
+        char[] passphrase = "keypass".toCharArray();
         KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(GceDiscoverTests.class.getResourceAsStream("keystore.jks"), passphrase);
+        try (InputStream stream = GceDiscoverTests.class.getResourceAsStream("/test-node.jks")) {
+            assertNotNull("can't find keystore file", stream);
+            ks.load(stream, passphrase);
+        }
         KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
         kmf.init(ks, passphrase);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");

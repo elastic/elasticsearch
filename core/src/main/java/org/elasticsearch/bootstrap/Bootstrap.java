@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -193,21 +194,6 @@ final class Bootstrap {
         node = new Node(nodeSettings);
     }
 
-    @SuppressForbidden(reason = "Exception#printStackTrace()")
-    private static void setupLogging(Settings settings) {
-        try {
-            Class.forName("org.apache.log4j.Logger");
-            LogConfigurator.configure(settings, true);
-        } catch (ClassNotFoundException e) {
-            // no log4j
-        } catch (NoClassDefFoundError e) {
-            // no log4j
-        } catch (Exception e) {
-            sysError("Failed to configure logging...", false);
-            e.printStackTrace();
-        }
-    }
-
     private static Environment initialSettings(boolean foreground) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         return InternalSettingsPreparer.prepareEnvironment(EMPTY_SETTINGS, terminal);
@@ -254,7 +240,7 @@ final class Bootstrap {
 
         Environment environment = initialSettings(foreground);
         Settings settings = environment.settings();
-        setupLogging(settings);
+        LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
@@ -373,6 +359,9 @@ final class Bootstrap {
     )));
 
     private static boolean enforceLimits(Settings settings) {
+        if (Build.CURRENT.isSnapshot()) {
+            return false;
+        }
         for (Setting setting : ENFORCE_SETTINGS) {
             if (setting.exists(settings)) {
                 return true;

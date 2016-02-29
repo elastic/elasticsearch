@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.single.instance.TransportInstanceSingleO
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -99,13 +100,16 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        request.routing((state.metaData().resolveIndexRouting(request.parent(), request.routing(), request.index())));
+    protected void resolveRequest(ClusterState state, UpdateRequest request) {
+        resolveAndValidateRouting(state.metaData(), request.concreteIndex(), request);
+    }
+
+    public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
+        request.routing((metaData.resolveIndexRouting(request.parent(), request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.type())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.type(), request.id());
+        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
+            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
         }
-        return true;
     }
 
     @Override

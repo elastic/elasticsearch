@@ -48,7 +48,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -954,6 +954,23 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public XContentBuilder dateValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTimestamp) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, defaultDatePrinter.print(rawTimestamp));
+        }
+        field(rawFieldName, rawTimestamp);
+        return this;
+    }
+
+    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime, TimeUnit timeUnit) throws
+        IOException {
+        if (humanReadable) {
+            field(readableFieldName, new TimeValue(rawTime, timeUnit).toString());
+        }
+        field(rawFieldName, rawTime);
+        return this;
+    }
+
+    public XContentBuilder dateValueField(String rawFieldName, String readableFieldName, long rawTimestamp) throws IOException {
         if (humanReadable) {
             field(readableFieldName, defaultDatePrinter.print(rawTimestamp));
         }

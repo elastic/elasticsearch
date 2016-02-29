@@ -86,10 +86,10 @@ public class EmailActionTests extends ESTestCase {
     private HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
     private HttpClient httpClient = mock(HttpClient.class);
     private EmailAttachmentsParser emailAttachmentParser;
-    private Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
 
     @Before
     public void addEmailAttachmentParsers() {
+        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
                 new HttpRequestTemplate.Parser(registry), new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -138,7 +138,7 @@ public class EmailActionTests extends ESTestCase {
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
         ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer,
-                emailAttachmentParsers);
+                emailAttachmentParser.getParsers());
 
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
@@ -300,7 +300,7 @@ public class EmailActionTests extends ESTestCase {
         parser.nextToken();
 
         ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
-                emailAttachmentParser, Collections.emptyMap())
+                emailAttachmentParser)
                 .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
 
         assertThat(executable, notNullValue());
@@ -382,7 +382,7 @@ public class EmailActionTests extends ESTestCase {
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
         ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer,
-                emailAttachmentParsers);
+                emailAttachmentParser.getParsers());
 
         boolean hideSecrets = randomBoolean();
         ToXContent.Params params = WatcherParams.builder().hideSecrets(hideSecrets).build();
@@ -394,8 +394,7 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, emailAttachmentParser,
-                emailAttachmentParsers)
+        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, emailAttachmentParser)
                 .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
 
         if (!hideSecrets) {
@@ -426,7 +425,7 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
-            new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentsParser, Collections.emptyMap())
+            new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentsParser)
                     .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("unexpected string field [unknown_field]"));
@@ -436,11 +435,6 @@ public class EmailActionTests extends ESTestCase {
     public void testRequestAttachmentGetsAppendedToEmailAttachments() throws Exception {
         String attachmentId = "my_attachment";
 
-        EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
-        TextTemplateEngine engine = mock(TextTemplateEngine.class);
-        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
-        HttpClient httpClient = mock(HttpClient.class);
-
         // setup mock response
         Map<String, String[]> headers = new HashMap<>(1);
         headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[]{"plain/text"});
@@ -448,15 +442,9 @@ public class EmailActionTests extends ESTestCase {
         HttpResponse mockResponse = new HttpResponse(200, content, headers);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(mockResponse);
 
-        // setup email attachment parsers
-        HttpRequestTemplate.Parser httpRequestTemplateParser = new HttpRequestTemplate.Parser(registry);
-        Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser,
-                engine));
-        EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
-
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("attachments")
+                // http attachment
                 .startObject(attachmentId)
                 .startObject("http")
                 .startObject("request")
@@ -473,33 +461,76 @@ public class EmailActionTests extends ESTestCase {
 
         parser.nextToken();
 
-        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
-                emailAttachmentsParser, attachmentParsers)
-                .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+        EmailActionFactory emailActionFactory = createEmailActionFactory();
+        ExecutableEmailAction executableEmailAction =
+                emailActionFactory.parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
-        WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
-                .wid(wid)
-                .payload(new Payload.Simple())
-                .time("watch1", now)
-                .metadata(metadata)
-                .buildMock();
-
-        Action.Result result = executableEmailAction.execute("test", ctx, new Payload.Simple());
+        Action.Result result = executableEmailAction.execute("test", createWatchExecutionContext(), new Payload.Simple());
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
 
         EmailAction.Result.Success successResult = (EmailAction.Result.Success) result;
         Map<String, Attachment> attachments = successResult.email().attachments();
         assertThat(attachments.keySet(), hasSize(1));
         assertThat(attachments, hasKey(attachmentId));
-        Attachment externalAttachment = attachments.get(attachmentId);
 
+        Attachment externalAttachment = attachments.get(attachmentId);
         assertThat(externalAttachment.bodyPart(), is(notNullValue()));
         InputStream is = externalAttachment.bodyPart().getInputStream();
         String data = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
         assertThat(data, is(content));
+    }
+
+    public void testThatDataAttachmentGetsAttachedWithId() throws Exception {
+        String attachmentId = "my_attachment";
+
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("attachments")
+                .startObject(attachmentId)
+                .startObject("data")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        logger.info("JSON: {}", builder.string());
+
+        parser.nextToken();
+
+        EmailActionFactory emailActionFactory = createEmailActionFactory();
+        ExecutableEmailAction executableEmailAction =
+                emailActionFactory.parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
+
+        Action.Result result = executableEmailAction.execute("test", createWatchExecutionContext(), new Payload.Simple());
+        assertThat(result, instanceOf(EmailAction.Result.Success.class));
+
+        EmailAction.Result.Success successResult = (EmailAction.Result.Success) result;
+        Map<String, Attachment> attachments = successResult.email().attachments();
+
+        assertThat(attachments, hasKey("my_attachment"));
+        Attachment dataAttachment = attachments.get("my_attachment");
+        assertThat(dataAttachment.name(), is("data.yml"));
+        assertThat(dataAttachment.type(), is("yaml"));
+        assertThat(dataAttachment.contentType(), is("application/yaml"));
+    }
+
+    private EmailActionFactory createEmailActionFactory() {
+        EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
+        TextTemplateEngine engine = mock(TextTemplateEngine.class);
+        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
+
+        return new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentParser);
+    }
+
+    private WatchExecutionContext createWatchExecutionContext() {
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
+        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        return mockExecutionContextBuilder("watch1")
+                .wid(wid)
+                .payload(new Payload.Simple())
+                .time("watch1", now)
+                .metadata(metadata)
+                .buildMock();
     }
 
     static DataAttachment randomDataAttachment() {

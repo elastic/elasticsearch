@@ -45,7 +45,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         Map<String, Attachment> attachments = new HashMap<>();
         DataAttachment dataAttachment = action.getDataAttachment();
         if (dataAttachment != null) {
-            Attachment attachment = dataAttachment.create(model);
+            Attachment attachment = dataAttachment.create("data", model);
             attachments.put(attachment.id(), attachment);
         }
 

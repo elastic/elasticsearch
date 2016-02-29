@@ -352,7 +352,7 @@ public class WatchTests extends ESTestCase {
             case SearchInput.TYPE:
             IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
                     singletonMap("match_all", new MatchAllQueryParser()));
-            parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null));
+            parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
             return new InputRegistry(parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
@@ -423,7 +423,7 @@ public class WatchTests extends ESTestCase {
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null));
         TransformRegistry registry = new TransformRegistry(unmodifiableMap(factories));
         parser.init(registry);
         return registry;

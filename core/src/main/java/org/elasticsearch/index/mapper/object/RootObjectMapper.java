@@ -235,10 +235,30 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicDateTimeFormatters;
     }
 
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
-        return findTemplateBuilder(context, name, dynamicType, dynamicType);
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String matchType) {
+        final String dynamicType;
+        switch (matchType) {
+        case "string":
+            // string is a corner case since a json string can either map to a
+            // text or keyword field in elasticsearch. For now we use text when
+            // unspecified. For other types, the mapping type matches the json
+            // type so we are fine
+            dynamicType = "text";
+            break;
+        default:
+            dynamicType = matchType;
+            break;
+        }
+        return findTemplateBuilder(context, name, dynamicType, matchType);
     }
 
+    /**
+     * Find a template. Returns {@code null} if no template could be found.
+     * @param name        the field name
+     * @param dynamicType the field type to give the field if the template does not define one
+     * @param matchType   the type of the field in the json document or null if unknown
+     * @return a mapper builder, or null if there is no template for such a field
+     */
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, String matchType) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {

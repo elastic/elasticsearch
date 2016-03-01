@@ -751,7 +751,7 @@ public class GetActionIT extends ESIntegTestCase {
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                                 .startObject("field3").field("type", "object").startObject("properties")
-                                    .startObject("field4").field("type", "string").field("store", true)
+                                    .startObject("field4").field("type", "text").field("store", true)
                                 .endObject().endObject()
                             .endObject().endObject()
                         .endObject().endObject()

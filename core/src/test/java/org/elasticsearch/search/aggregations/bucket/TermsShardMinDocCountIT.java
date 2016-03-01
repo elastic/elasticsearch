@@ -51,7 +51,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
     // see https://github.com/elasticsearch/elasticsearch/issues/5998
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
-        String termtype = "string";
+        String termtype = "text";
         if (randomBoolean()) {
             termtype = "long";
         }
@@ -109,7 +109,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
     // see https://github.com/elasticsearch/elasticsearch/issues/5998
     public void testShardMinDocCountTermsTest() throws Exception {
-        final String [] termTypes = {"string", "long", "integer", "float", "double"};
+        final String [] termTypes = {"text", "long", "integer", "float", "double"};
         String termtype = termTypes[randomInt(termTypes.length - 1)];
 
         assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));

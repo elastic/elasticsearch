@@ -129,6 +129,8 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
                         .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
                         .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.INVALID.label()))
                         .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
+                        .should(QueryBuilders.matchQuery(ClusterInfoRenderer.Fields.CLUSTER_NAME.underscore().toString(),
+                                cluster().getClusterName()))
                         .minimumNumberShouldMatch(1)
                 ).get(), 0L);
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -35,6 +36,9 @@ import static org.hamcrest.core.Is.is;
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = Scope.TEST)
 public class ClusterStateTests extends MarvelIntegTestCase {
+
+    private int randomInt = randomInt();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -42,6 +46,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL.getKey(), "-1")
                 .put(MarvelSettings.COLLECTORS.getKey(), ClusterStateCollector.NAME)
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
+                .put("node.custom", randomInt)
                 .build();
     }
 
@@ -113,6 +118,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         String[] filters = {
                 AbstractRenderer.Fields.CLUSTER_UUID.underscore().toString(),
                 AbstractRenderer.Fields.TIMESTAMP.underscore().toString(),
+                AbstractRenderer.Fields.SOURCE_NODE.underscore().toString(),
                 ClusterStateNodeRenderer.Fields.STATE_UUID.underscore().toString(),
                 ClusterStateNodeRenderer.Fields.NODE.underscore().toString(),
                 ClusterStateNodeRenderer.Fields.NODE.underscore().toString() + "." +
@@ -127,11 +133,22 @@ public class ClusterStateTests extends MarvelIntegTestCase {
             }
         }
 
+        logger.debug("--> check that node attributes are indexed");
+        assertThat(client().prepareSearch().setSize(0)
+                .setIndices(MONITORING_INDICES_PREFIX + TEMPLATE_VERSION + "-*")
+                .setTypes(ClusterStateCollector.NODE_TYPE)
+                .setQuery(QueryBuilders.matchQuery(AbstractRenderer.Fields.SOURCE_NODE.underscore().toString() + ".attributes.custom",
+                        randomInt)
+                ).get().getHits().getTotalHits(), greaterThan(0L));
+
         logger.debug("--> cluster state nodes successfully collected");
     }
 
     public void testDiscoveryNodes() throws Exception {
         final long nbNodes = internalCluster().size();
+
+        String dataIndex = ".monitoring-es-data-" + MarvelTemplateUtils.TEMPLATE_VERSION;
+        awaitIndexExists(dataIndex);
 
         logger.debug("--> waiting for documents to be collected");
         awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODE_TYPE);
@@ -164,7 +181,6 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         for (final String nodeName : internalCluster().getNodeNames()) {
             final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
-            final String dataIndex = ".monitoring-es-data-" + TEMPLATE_VERSION;
 
             logger.debug("--> getting monitoring document for node id [{}]", nodeId);
             assertThat(client().prepareGet(dataIndex, ClusterStateCollector.NODE_TYPE, nodeId).get().isExists(), is(true));
@@ -177,6 +193,17 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                             .should(matchQuery("node.id", nodeId))
                             .should(matchQuery("node.name", nodeName))).get(), 0);
         }
+
+        logger.debug("--> check that node documents are not indexed");
+        securedFlush();
+        securedRefresh();
+
+        assertHitCount(client().prepareSearch().setSize(0)
+                .setIndices(dataIndex)
+                .setTypes(ClusterStateCollector.NODE_TYPE)
+                .setQuery(QueryBuilders.matchQuery(ClusterInfoRenderer.Fields.CLUSTER_NAME.underscore().toString(),
+                        cluster().getClusterName())
+                ).get(), 0L);
 
         logger.debug("--> cluster state nodes successfully collected");
     }

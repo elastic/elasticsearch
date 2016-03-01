@@ -45,7 +45,7 @@
               "index": "not_analyzed"
             },
             "attributes": {
-              "dynamic": false,
+              "dynamic": true,
               "properties": {
                 "data": {
                   "type": "boolean"

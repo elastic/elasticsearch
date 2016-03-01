@@ -48,6 +48,12 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("conf/path", clientSettings.get("path.conf"));
         assertEquals("plugins/path", clientSettings.get("path.plugins"));
         assertEquals("logs/path", clientSettings.get("path.logs"));
+
+        // TODO: this should be an error, not just ignored!
+        Settings tribeSettings = Settings.builder()
+            .put("path.home", "alternate/path").build();
+        clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+        assertEquals("some/path", clientSettings.get("path.home"));
     }
 
     public void testPassthroughSettings() {

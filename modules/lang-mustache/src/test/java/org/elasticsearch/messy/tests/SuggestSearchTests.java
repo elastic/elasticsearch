@@ -20,38 +20,6 @@
 package org.elasticsearch.messy.tests;
 
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
-import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -81,6 +49,38 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
+
 /**
  * Integration tests for term and phrase suggestions.  Many of these tests many requests that vary only slightly from one another.  Where
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
@@ -104,10 +104,9 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test", "type1", "4", "text", "abcc");
         refresh();
 
-        TermSuggestionBuilder termSuggest = termSuggestion()
+        TermSuggestionBuilder termSuggest = termSuggestion("text")
                 .suggestMode(TermSuggestionBuilder.SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
-                .text("abcd")
-                .field("text");
+                .text("abcd");
         logger.info("--> run suggestions with one index");
         searchSuggest("test", termSuggest);
         createIndex("test_1");
@@ -118,11 +117,10 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test_1", "type1", "3", "text", "ab bd");
         index("test_1", "type1", "4", "text", "ab cc");
         refresh();
-        termSuggest = termSuggestion()
+        termSuggest = termSuggestion("text")
                 .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("ab cd")
-                .minWordLength(1)
-                .field("text");
+                .minWordLength(1);
         logger.info("--> run suggestions with two indices");
         searchSuggest("test", termSuggest);
 
@@ -145,11 +143,10 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test_2", "type1", "4", "text", "abcc");
         refresh();
 
-        termSuggest = termSuggestion()
+        termSuggest = termSuggestion("text")
                 .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("ab cd")
-                .minWordLength(1)
-                .field("text");
+                .minWordLength(1);
         logger.info("--> run suggestions with three indices");
         try {
             searchSuggest("test", termSuggest);
@@ -165,11 +162,10 @@ public class SuggestSearchTests extends ESIntegTestCase {
         }
 
 
-        termSuggest = termSuggestion()
+        termSuggest = termSuggestion("text")
                 .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("ABCD")
-                .minWordLength(1)
-                .field("text");
+                .minWordLength(1);
         logger.info("--> run suggestions with four indices");
         try {
             searchSuggest("test", termSuggest);
@@ -219,7 +215,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         DirectCandidateGeneratorBuilder generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2);
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion().field("name.shingled")
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("name.shingled")
                 .addCandidateGenerator(generator)
                 .gramSize(3);
         Suggest searchSuggest = searchSuggest("ice tea", "did_you_mean", phraseSuggestion);
@@ -255,10 +251,9 @@ public class SuggestSearchTests extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellchecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
 
-        TermSuggestionBuilder termSuggestion = termSuggestion()
+        TermSuggestionBuilder termSuggestion = termSuggestion("text")
                 .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("abcd")
-                .field("text")
                 .size(10);
         Suggest suggest = searchSuggest("test", termSuggestion);
         assertSuggestion(suggest, 0, "test", 10, "abc0");
@@ -298,13 +293,15 @@ public class SuggestSearchTests extends ESIntegTestCase {
         client().prepareIndex("test", "type1").setSource("name", "I like ice cream."));
         refresh();
 
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion().field("name.shingled")
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("name.shingled")
                 .addCandidateGenerator(candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
                 .gramSize(3);
         Suggest searchSuggest = searchSuggest("ice tea", "did_you_mean", phraseSuggestion);
         assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
 
-        phraseSuggestion.field("nosuchField");
+        phraseSuggestion = phraseSuggestion("nosuchField")
+                .addCandidateGenerator(candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                .gramSize(3);
         {
             SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
             searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean", phraseSuggestion));
@@ -330,10 +327,9 @@ public class SuggestSearchTests extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellcecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
 
-        TermSuggestionBuilder termSuggest = termSuggestion()
+        TermSuggestionBuilder termSuggest = termSuggestion("text")
                 .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
-                .text("abcd")
-                .field("text");
+                .text("abcd");
         Suggest suggest = searchSuggest("test", termSuggest);
         assertSuggestion(suggest, 0, "test", "aacd", "abbd", "abcc");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
@@ -350,10 +346,9 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test", "type1", "1", "foo", "bar");
         refresh();
 
-        TermSuggestionBuilder termSuggest = termSuggestion()
+        TermSuggestionBuilder termSuggest = termSuggestion("text")
                 .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
-                .text("abcd")
-                .field("text");
+                .text("abcd");
         Suggest suggest = searchSuggest("test", termSuggest);
         assertSuggestionSize(suggest, 0, 0, "test");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
@@ -374,14 +369,14 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         Map<String, SuggestionBuilder<?>> suggestions = new HashMap<>();
-        suggestions.put("size1", termSuggestion()
+        suggestions.put("size1", termSuggestion("field1")
                 .size(1).text("prefix_abcd").maxTermFreq(10).prefixLength(1).minDocFreq(0)
-                .field("field1").suggestMode(SuggestMode.ALWAYS));
-        suggestions.put("field2", termSuggestion()
-                .field("field2").text("prefix_eeeh prefix_efgh")
+                .suggestMode(SuggestMode.ALWAYS));
+        suggestions.put("field2", termSuggestion("field2")
+                .text("prefix_eeeh prefix_efgh")
                 .maxTermFreq(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
-        suggestions.put("accuracy", termSuggestion()
-                .field("field2").text("prefix_efgh").accuracy(1f)
+        suggestions.put("accuracy", termSuggestion("field2")
+                .text("prefix_efgh").accuracy(1f)
                 .maxTermFreq(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
         Suggest suggest = searchSuggest(null, 0, suggestions);
         assertSuggestion(suggest, 0, "size1", "prefix_aacd");
@@ -418,16 +413,16 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         Map<String, SuggestionBuilder<?>> suggestions = new HashMap<>();
-        suggestions.put("size3SortScoreFirst", termSuggestion()
-                .size(3).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS));
-        suggestions.put("size10SortScoreFirst", termSuggestion()
-                .size(10).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS).shardSize(50));
-        suggestions.put("size3SortScoreFirstMaxEdits1", termSuggestion()
+        suggestions.put("size3SortScoreFirst", termSuggestion("field1")
+                .size(3).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
+        suggestions.put("size10SortScoreFirst", termSuggestion("field1")
+                .size(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS).shardSize(50));
+        suggestions.put("size3SortScoreFirstMaxEdits1", termSuggestion("field1")
                 .maxEdits(1)
-                .size(10).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS));
-        suggestions.put("size10SortFrequencyFirst", termSuggestion()
+                .size(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
+        suggestions.put("size10SortFrequencyFirst", termSuggestion("field1")
                 .size(10).sort(SortBy.FREQUENCY).shardSize(1000)
-                .minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS));
+                .minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
         Suggest suggest = searchSuggest("prefix_abcd", 0, suggestions);
 
         // The commented out assertions fail sometimes because suggestions are based off of shard frequencies instead of index frequencies.
@@ -453,7 +448,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         Suggest searchSuggest = searchSuggest( "a an the", "simple_phrase",
-                phraseSuggestion().field("body").gramSize(1)
+                phraseSuggestion("body").gramSize(1)
                         .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
                         .size(1));
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
@@ -489,13 +484,13 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         Suggest searchSuggest = searchSuggest( "hello word", "simple_phrase",
-                phraseSuggestion().field("body")
+                phraseSuggestion("body")
                         .addCandidateGenerator(candidateGenerator("body").prefixLength(4).minWordLength(1).suggestMode("always"))
                         .size(1).confidence(1.0f));
         assertSuggestion(searchSuggest, 0, "simple_phrase", "hello words");
 
         searchSuggest = searchSuggest( "hello word", "simple_phrase",
-                phraseSuggestion().field("body")
+                phraseSuggestion("body")
                         .addCandidateGenerator(candidateGenerator("body").prefixLength(2).minWordLength(1).suggestMode("always"))
                         .size(1).confidence(1.0f));
         assertSuggestion(searchSuggest, 0, "simple_phrase", "hello world");
@@ -543,8 +538,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         }
         refresh();
 
-        PhraseSuggestionBuilder phraseSuggest = phraseSuggestion()
-                .field("bigram").gramSize(2).analyzer("body")
+        PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .size(1);
         Suggest searchSuggest = searchSuggest( "american ame", "simple_phrase", phraseSuggest);
@@ -680,9 +674,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test", "type1", "2", "body", line, "body_reverse", line, "bigram", line);
         refresh();
 
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion()
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("bigram")
                 .realWordErrorLikelihood(0.95f)
-                .field("bigram")
                 .gramSize(2)
                 .analyzer("body")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(1).accuracy(0.1f))
@@ -740,8 +733,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // Lets make sure some things throw exceptions
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion()
-                .field("bigram")
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("bigram")
                 .analyzer("body")
                 .addCandidateGenerator(candidateGenerator("does_not_exist").minWordLength(1).suggestMode("always"))
                 .realWordErrorLikelihood(0.95f)
@@ -773,10 +765,15 @@ public class SuggestSearchTests extends ESIntegTestCase {
         searchSuggest( "Xor the Got-Jewel", 0, suggestion);
 
         // Field doesn't produce unigrams but the analyzer does
-        phraseSuggestion.forceUnigrams(true).field("bigram").analyzer("ngram");
+        phraseSuggestion.forceUnigrams(true).analyzer("ngram");
         searchSuggest( "Xor the Got-Jewel", 0, suggestion);
 
-        phraseSuggestion.field("ngram").analyzer("myDefAnalyzer")
+        phraseSuggestion = phraseSuggestion("ngram")
+                .analyzer("myDefAnalyzer")
+                .forceUnigrams(true)
+                .realWordErrorLikelihood(0.95f)
+                .maxErrors(0.5f)
+                .size(1)
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"));
         Suggest suggest = searchSuggest( "Xor the Got-Jewel", 0, suggestion);
 
@@ -801,8 +798,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "3").setSource("field1", "foobar3").setRouting("3"));
 
         Suggest suggest = searchSuggest( "foobar", "simple",
-                termSuggestion()
-                        .size(10).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS));
+                termSuggestion("field1")
+                        .size(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
         ElasticsearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
     }
 
@@ -842,14 +839,14 @@ public class SuggestSearchTests extends ESIntegTestCase {
         SearchRequestBuilder request = client().prepareSearch().setSize(0)
                 .suggest(
                         new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean",
-                                phraseSuggestion().field("fielddoesnotexist").maxErrors(5.0f)));
+                                phraseSuggestion("fielddoesnotexist").maxErrors(5.0f)));
         assertThrows(request, SearchPhaseExecutionException.class);
 
         // When searching on a shard which does not hold yet any document of an existing type, we should not fail
         SearchResponse searchResponse = client().prepareSearch().setSize(0)
                 .suggest(
                         new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean",
-                                phraseSuggestion().field("name").maxErrors(5.0f)))
+                                phraseSuggestion("name").maxErrors(5.0f)))
             .get();
         ElasticsearchAssertions.assertNoFailures(searchResponse);
         ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
@@ -888,7 +885,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .setSize(0)
                 .suggest(
                         new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean",
-                                phraseSuggestion().field("name").maxErrors(5.0f)))
+                                phraseSuggestion("name").maxErrors(5.0f)))
                 .get();
 
         assertNoFailures(searchResponse);
@@ -945,16 +942,14 @@ public class SuggestSearchTests extends ESIntegTestCase {
         }
         refresh();
 
-        Suggest searchSuggest = searchSuggest("nobel prize", "simple_phrase", phraseSuggestion()
-                .field("body")
+        Suggest searchSuggest = searchSuggest("nobel prize", "simple_phrase", phraseSuggestion("body")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
                 .confidence(2f)
                 .maxErrors(5f)
                 .size(1));
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
-        searchSuggest = searchSuggest("noble prize", "simple_phrase", phraseSuggestion()
-                .field("body")
+        searchSuggest = searchSuggest("noble prize", "simple_phrase", phraseSuggestion("body")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
                 .confidence(2f)
                 .maxErrors(5f)
@@ -1084,8 +1079,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         }
         indexRandom(true, builders);
 
-        PhraseSuggestionBuilder suggest = phraseSuggestion()
-                .field("title")
+        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
                 .addCandidateGenerator(candidateGenerator("title")
                         .suggestMode("always")
                         .maxTermFreq(.99f)
@@ -1149,8 +1143,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         indexRandom(true, builders);
 
         // suggest without collate
-        PhraseSuggestionBuilder suggest = phraseSuggestion()
-                .field("title")
+        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
                 .addCandidateGenerator(candidateGenerator("title")
                         .suggestMode("always")
                         .maxTermFreq(.99f)

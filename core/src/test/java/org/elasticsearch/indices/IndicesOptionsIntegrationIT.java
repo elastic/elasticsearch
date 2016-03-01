@@ -749,7 +749,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     private static SuggestRequestBuilder suggest(String... indices) {
-        return client().prepareSuggest(indices).addSuggestion("name", SuggestBuilders.termSuggestion().field("a"));
+        return client().prepareSuggest(indices).addSuggestion("name", SuggestBuilders.termSuggestion("a"));
     }
 
     private static GetAliasesRequestBuilder getAliases(String... indices) {

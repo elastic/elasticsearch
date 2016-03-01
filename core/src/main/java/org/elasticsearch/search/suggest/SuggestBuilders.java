@@ -29,32 +29,32 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 public abstract class SuggestBuilders {
 
     /**
-     * Creates a term suggestion lookup query with the provided <code>name</code>
+     * Creates a term suggestion lookup query with the provided <code>fieldname</code>
      *
      * @return a {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder}
      * instance
      */
-    public static TermSuggestionBuilder termSuggestion() {
-        return new TermSuggestionBuilder();
+    public static TermSuggestionBuilder termSuggestion(String fieldname) {
+        return new TermSuggestionBuilder(fieldname);
     }
 
     /**
-     * Creates a phrase suggestion lookup query with the provided <code>name</code>
+     * Creates a phrase suggestion lookup query with the provided <code>fieldname</code>
      *
      * @return a {@link org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder}
      * instance
      */
-    public static PhraseSuggestionBuilder phraseSuggestion() {
-        return new PhraseSuggestionBuilder();
+    public static PhraseSuggestionBuilder phraseSuggestion(String fieldname) {
+        return new PhraseSuggestionBuilder(fieldname);
     }
 
     /**
-     * Creates a completion suggestion lookup query with the provided <code>name</code>
+     * Creates a completion suggestion lookup query with the provided <code>fieldname</code>
      *
      * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder}
      * instance
      */
-    public static CompletionSuggestionBuilder completionSuggestion() {
-        return new CompletionSuggestionBuilder();
+    public static CompletionSuggestionBuilder completionSuggestion(String fieldname) {
+        return new CompletionSuggestionBuilder(fieldname);
     }
 }

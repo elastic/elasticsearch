@@ -50,7 +50,7 @@ import java.util.Set;
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 
-    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder();
+    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder("_na_");
     static final String SUGGESTION_NAME = "completion";
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
@@ -59,6 +59,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private RegexOptions regexOptions;
     private final Map<String, List<QueryContext>> queryContexts = new HashMap<>();
     private final Set<String> payloadFields = new HashSet<>();
+
+    public CompletionSuggestionBuilder(String fieldname) {
+        super(fieldname);
+    }
 
     /**
      * Sets the prefix to provide completions for.
@@ -229,8 +233,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    public CompletionSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
-        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder();
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
+        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder(fieldname);
         if (in.readBoolean()) {
             int numPayloadField = in.readVInt();
             for (int i = 0; i < numPayloadField; i++) {

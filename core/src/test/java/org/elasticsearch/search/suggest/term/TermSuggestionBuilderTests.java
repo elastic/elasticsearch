@@ -28,7 +28,13 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_ACCURACY;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MAX_EDITS;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MAX_INSPECTIONS;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MAX_TERM_FREQ;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_DOC_FREQ;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_WORD_LENGTH;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_PREFIX_LENGTH;
 
 /**
  * Test the {@link TermSuggestionBuilder} class.
@@ -40,7 +46,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
      */
     @Override
     protected TermSuggestionBuilder randomSuggestionBuilder() {
-        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder();
+        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         maybeSet(testBuilder::suggestMode, randomSuggestMode());
         maybeSet(testBuilder::accuracy, randomFloat());
         maybeSet(testBuilder::sort, randomSort());
@@ -124,7 +130,23 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testInvalidParameters() throws IOException {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder();
+        // test missing field name
+        try {
+            new TermSuggestionBuilder(null);
+            fail("Should not allow null as field name");
+        } catch (NullPointerException e) {
+            assertEquals("suggestion requires a field name", e.getMessage());
+        }
+
+        // test emtpy field name
+        try {
+            new TermSuggestionBuilder("");
+            fail("Should not allow empty string as field name");
+        } catch (IllegalArgumentException e) {
+            assertEquals("suggestion field name is empty", e.getMessage());
+        }
+
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         // test invalid accuracy values
         try {
             builder.accuracy(-0.5f);
@@ -237,17 +259,17 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testDefaultValuesSet() {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder();
-        assertThat(builder.accuracy(), notNullValue());
-        assertThat(builder.maxEdits(), notNullValue());
-        assertThat(builder.maxInspections(), notNullValue());
-        assertThat(builder.maxTermFreq(), notNullValue());
-        assertThat(builder.minDocFreq(), notNullValue());
-        assertThat(builder.minWordLength(), notNullValue());
-        assertThat(builder.prefixLength(), notNullValue());
-        assertThat(builder.sort(), notNullValue());
-        assertThat(builder.stringDistance(), notNullValue());
-        assertThat(builder.suggestMode(), notNullValue());
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        assertEquals(DEFAULT_ACCURACY, builder.accuracy(), Float.MIN_VALUE);
+        assertEquals(DEFAULT_MAX_EDITS, builder.maxEdits());
+        assertEquals(DEFAULT_MAX_INSPECTIONS, builder.maxInspections());
+        assertEquals(DEFAULT_MAX_TERM_FREQ, builder.maxTermFreq(), Float.MIN_VALUE);
+        assertEquals(DEFAULT_MIN_DOC_FREQ, builder.minDocFreq(), Float.MIN_VALUE);
+        assertEquals(DEFAULT_MIN_WORD_LENGTH, builder.minWordLength());
+        assertEquals(DEFAULT_PREFIX_LENGTH, builder.prefixLength());
+        assertEquals(SortBy.SCORE, builder.sort());
+        assertEquals(StringDistanceImpl.INTERNAL, builder.stringDistance());
+        assertEquals(SuggestMode.MISSING, builder.suggestMode());
     }
 
     @Override

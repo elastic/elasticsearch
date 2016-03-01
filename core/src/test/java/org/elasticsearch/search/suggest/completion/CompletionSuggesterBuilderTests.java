@@ -42,7 +42,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
-        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder();
+        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         switch (randomIntBetween(0, 3)) {
             case 0:
                 testBuilder.prefix(randomAsciiOfLength(10));

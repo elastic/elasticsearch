@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -54,11 +55,11 @@ import java.util.Set;
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
  */
-public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
+public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
 
     private static final String SUGGESTION_NAME = "phrase";
 
-    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder();
+    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder("_na_");
 
     protected static final ParseField MAXERRORS_FIELD = new ParseField("max_errors");
     protected static final ParseField RWE_LIKELIHOOD_FIELD = new ParseField("real_word_error_likelihood");
@@ -92,6 +93,32 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private boolean collatePrune = PhraseSuggestionContext.DEFAULT_COLLATE_PRUNE;
     private SmoothingModel model;
     private final Map<String, List<CandidateGenerator>> generators = new HashMap<>();
+
+    public PhraseSuggestionBuilder(String fieldname) {
+        super(fieldname);
+    }
+
+    /**
+     * internal copy constructor that copies over all class fields except for the fieldname which is
+     * set to the one provided in the first argument
+     */
+    private PhraseSuggestionBuilder(String fieldname, PhraseSuggestionBuilder in) {
+        super(fieldname, in);
+        maxErrors = in.maxErrors;
+        separator = in.separator;
+        realWordErrorLikelihood = in.realWordErrorLikelihood;
+        confidence = in.confidence;
+        gramSize = in.gramSize;
+        forceUnigrams = in.forceUnigrams;
+        tokenLimit = in.tokenLimit;
+        preTag = in.preTag;
+        postTag = in.postTag;
+        collateQuery = in.collateQuery;
+        collateParams = in.collateParams;
+        collatePrune = in.collatePrune;
+        model = in.model;
+        generators.putAll(in.generators);
+    }
 
     /**
      * Sets the gram size for the n-gram model used for this suggester. The
@@ -395,102 +422,114 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     @Override
     protected PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        PhraseSuggestionBuilder suggestion = new PhraseSuggestionBuilder();
+        PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         XContentParser.Token token;
-        String fieldName = null;
+        String currentFieldName = null;
+        String fieldname = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
+                currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(fieldName, SuggestionBuilder.ANALYZER_FIELD)) {
-                    suggestion.analyzer(parser.text());
-                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
-                    suggestion.field(parser.text());
-                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.SIZE_FIELD)) {
-                    suggestion.size(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
-                    suggestion.shardSize(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.RWE_LIKELIHOOD_FIELD)) {
-                    suggestion.realWordErrorLikelihood(parser.floatValue());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.CONFIDENCE_FIELD)) {
-                    suggestion.confidence(parser.floatValue());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.SEPARATOR_FIELD)) {
-                    suggestion.separator(parser.text());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.MAXERRORS_FIELD)) {
-                    suggestion.maxErrors(parser.floatValue());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.GRAMSIZE_FIELD)) {
-                    suggestion.gramSize(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.FORCE_UNIGRAM_FIELD)) {
-                    suggestion.forceUnigrams(parser.booleanValue());
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD)) {
-                    suggestion.tokenLimit(parser.intValue());
+                if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                    tmpSuggestion.analyzer(parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                    fieldname = parser.text();
+                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                    tmpSuggestion.size(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                    tmpSuggestion.shardSize(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.RWE_LIKELIHOOD_FIELD)) {
+                    tmpSuggestion.realWordErrorLikelihood(parser.floatValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.CONFIDENCE_FIELD)) {
+                    tmpSuggestion.confidence(parser.floatValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.SEPARATOR_FIELD)) {
+                    tmpSuggestion.separator(parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.MAXERRORS_FIELD)) {
+                    tmpSuggestion.maxErrors(parser.floatValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.GRAMSIZE_FIELD)) {
+                    tmpSuggestion.gramSize(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.FORCE_UNIGRAM_FIELD)) {
+                    tmpSuggestion.forceUnigrams(parser.booleanValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD)) {
+                    tmpSuggestion.tokenLimit(parser.intValue());
                 } else {
-                    throw new IllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "suggester[phrase] doesn't support field [" + currentFieldName + "]");
                 }
             } else if (token == Token.START_ARRAY) {
-                if (parseFieldMatcher.match(fieldName, DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD)) {
+                if (parseFieldMatcher.match(currentFieldName, DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
-                        suggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(parseContext));
+                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(parseContext));
                     }
                 } else {
-                    throw new IllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "suggester[phrase]  doesn't support array field [" + currentFieldName + "]");
                 }
             } else if (token == Token.START_OBJECT) {
-                if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD)) {
-                    ensureNoSmoothing(suggestion);
-                    suggestion.smoothingModel(SmoothingModel.fromXContent(parseContext));
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.HIGHLIGHT_FIELD)) {
+                if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD)) {
+                    ensureNoSmoothing(tmpSuggestion);
+                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parseContext));
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.HIGHLIGHT_FIELD)) {
                     String preTag = null;
                     String postTag = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
-                            fieldName = parser.currentName();
+                            currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.PRE_TAG_FIELD)) {
+                            if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.PRE_TAG_FIELD)) {
                                 preTag = parser.text();
-                            } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.POST_TAG_FIELD)) {
+                            } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.POST_TAG_FIELD)) {
                                 postTag = parser.text();
                             } else {
-                                throw new IllegalArgumentException(
-                                    "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
+                                throw new ParsingException(parser.getTokenLocation(),
+                                    "suggester[phrase][highlight] doesn't support field [" + currentFieldName + "]");
                             }
                         }
                     }
-                    suggestion.highlight(preTag, postTag);
-                } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.COLLATE_FIELD)) {
+                    tmpSuggestion.highlight(preTag, postTag);
+                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
-                            fieldName = parser.currentName();
-                        } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.COLLATE_QUERY_FIELD)) {
-                            if (suggestion.collateQuery() != null) {
-                                throw new IllegalArgumentException(
-                                        "suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
+                            currentFieldName = parser.currentName();
+                        } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_FIELD)) {
+                            if (tmpSuggestion.collateQuery() != null) {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                        "suggester[phrase][collate] query already set, doesn't support additional ["
+                                        + currentFieldName + "]");
                             }
                             Template template = Template.parse(parser, parseFieldMatcher);
-                            suggestion.collateQuery(template);
-                        } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS)) {
-                            suggestion.collateParams(parser.map());
-                        } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PRUNE)) {
+                            tmpSuggestion.collateQuery(template);
+                        } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS)) {
+                            tmpSuggestion.collateParams(parser.map());
+                        } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PRUNE)) {
                             if (parser.isBooleanValue()) {
-                                suggestion.collatePrune(parser.booleanValue());
+                                tmpSuggestion.collatePrune(parser.booleanValue());
                             } else {
-                                throw new IllegalArgumentException("suggester[phrase][collate] prune must be either 'true' or 'false'");
+                                throw new ParsingException(parser.getTokenLocation(),
+                                        "suggester[phrase][collate] prune must be either 'true' or 'false'");
                             }
                         } else {
-                            throw new IllegalArgumentException(
-                                    "suggester[phrase][collate] doesn't support field [" + fieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "suggester[phrase][collate] doesn't support field [" + currentFieldName + "]");
                         }
                     }
                 } else {
-                    throw new IllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "suggester[phrase]  doesn't support array field [" + currentFieldName + "]");
                 }
             } else {
-                throw new IllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(),
+                        "suggester[phrase] doesn't support field [" + currentFieldName + "]");
             }
         }
-        return suggestion;
+
+        // now we should have field name, check and copy fields over to the suggestion builder we return
+        if (fieldname == null) {
+            throw new ParsingException(parser.getTokenLocation(), "the required field option is missing");
+        }
+        return new PhraseSuggestionBuilder(fieldname, tmpSuggestion);
     }
 
 
@@ -616,8 +655,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     @Override
-    public PhraseSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
-        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder();
+    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(fieldname);
         builder.maxErrors = in.readFloat();
         builder.realWordErrorLikelihood = in.readFloat();
         builder.confidence = in.readFloat();

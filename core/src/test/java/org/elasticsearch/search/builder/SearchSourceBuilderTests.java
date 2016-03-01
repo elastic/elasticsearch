@@ -412,7 +412,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             // NORELEASE need a random suggest builder method
             builder.suggest(new SuggestBuilder().setGlobalText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
                     randomAsciiOfLengthBetween(1, 5),
-                    SuggestBuilders.termSuggestion()));
+                    SuggestBuilders.termSuggestion(randomAsciiOfLengthBetween(1, 5))));
         }
         if (randomBoolean()) {
             // NORELEASE need a random inner hits builder method

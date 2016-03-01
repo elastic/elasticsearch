@@ -102,7 +102,7 @@ public class RestSearchAction extends BaseRestHandler {
      *            content is read from the request using
      *            RestAction.hasBodyContent.
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request, 
+    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request,
             ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers, BytesReference restContent) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
@@ -256,7 +256,7 @@ public class RestSearchAction extends BaseRestHandler {
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
             searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(suggestField,
-                    termSuggestion().field(suggestField)
+                    termSuggestion(suggestField)
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
         }

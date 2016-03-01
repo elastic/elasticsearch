@@ -26,6 +26,7 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -67,19 +68,40 @@ import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SUGGEST_MODE;
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 
-    public static final TermSuggestionBuilder PROTOTYPE = new TermSuggestionBuilder();
+    public static final TermSuggestionBuilder PROTOTYPE = new TermSuggestionBuilder("_na_");
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
-    private Float accuracy = DEFAULT_ACCURACY;
+    private float accuracy = DEFAULT_ACCURACY;
     private SortBy sort = SortBy.SCORE;
     private StringDistanceImpl stringDistance = StringDistanceImpl.INTERNAL;
-    private Integer maxEdits = DEFAULT_MAX_EDITS;
-    private Integer maxInspections = DEFAULT_MAX_INSPECTIONS;
-    private Float maxTermFreq = DEFAULT_MAX_TERM_FREQ;
-    private Integer prefixLength = DEFAULT_PREFIX_LENGTH;
-    private Integer minWordLength = DEFAULT_MIN_WORD_LENGTH;
-    private Float minDocFreq = DEFAULT_MIN_DOC_FREQ;
+    private int maxEdits = DEFAULT_MAX_EDITS;
+    private int maxInspections = DEFAULT_MAX_INSPECTIONS;
+    private float maxTermFreq = DEFAULT_MAX_TERM_FREQ;
+    private int prefixLength = DEFAULT_PREFIX_LENGTH;
+    private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
+    private float minDocFreq = DEFAULT_MIN_DOC_FREQ;
+
+    public TermSuggestionBuilder(String fieldname) {
+        super(fieldname);
+    }
+
+    /**
+     * internal copy constructor that copies over all class field except fieldname.
+     */
+    private TermSuggestionBuilder(String fieldname, TermSuggestionBuilder in) {
+        super(fieldname, in);
+        suggestMode = in.suggestMode;
+        accuracy = in.accuracy;
+        sort = in.sort;
+        stringDistance = in.stringDistance;
+        maxEdits = in.maxEdits;
+        maxInspections = in.maxInspections;
+        maxTermFreq = in.maxTermFreq;
+        prefixLength = in.prefixLength;
+        minWordLength = in.minWordLength;
+        minDocFreq = in.minDocFreq;
+    }
 
     /**
      * The global suggest mode controls what suggested terms are included or
@@ -126,7 +148,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Get the accuracy setting.
      */
-    public Float accuracy() {
+    public float accuracy() {
         return accuracy;
     }
 
@@ -202,7 +224,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Get the maximum edit distance setting.
      */
-    public Integer maxEdits() {
+    public int maxEdits() {
         return maxEdits;
     }
 
@@ -222,7 +244,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Get the factor for inspecting more candidate suggestions setting.
      */
-    public Integer maxInspections() {
+    public int maxInspections() {
         return maxInspections;
     }
 
@@ -251,7 +273,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Get the maximum term frequency threshold setting.
      */
-    public Float maxTermFreq() {
+    public float maxTermFreq() {
         return maxTermFreq;
     }
 
@@ -272,7 +294,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Get the minimum prefix length that must match setting.
      */
-    public Integer prefixLength() {
+    public int prefixLength() {
         return prefixLength;
     }
 
@@ -291,7 +313,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Get the minimum length of a text term to be corrected setting.
      */
-    public Integer minWordLength() {
+    public int minWordLength() {
         return minWordLength;
     }
 
@@ -317,7 +339,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * Get the minimal threshold for the frequency of a term appearing in the
      * document set setting.
      */
-    public Float minDocFreq() {
+    public float minDocFreq() {
         return minDocFreq;
     }
 
@@ -339,48 +361,54 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     @Override
     protected TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        TermSuggestionBuilder suggestion = new TermSuggestionBuilder();
+        TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         XContentParser.Token token;
-        String fieldName = null;
+        String currentFieldName = null;
+        String fieldname = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
+                currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(fieldName, SuggestionBuilder.ANALYZER_FIELD)) {
-                    suggestion.analyzer(parser.text());
-                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
-                    suggestion.field(parser.text());
-                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.SIZE_FIELD)) {
-                    suggestion.size(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
-                    suggestion.shardSize(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, SUGGEST_MODE)) {
-                    suggestion.suggestMode(SuggestMode.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(fieldName, ACCURACY)) {
-                    suggestion.accuracy(parser.floatValue());
-                } else if (parseFieldMatcher.match(fieldName, SORT)) {
-                    suggestion.sort(SortBy.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(fieldName, STRING_DISTANCE)) {
-                    suggestion.stringDistance(StringDistanceImpl.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(fieldName, MAX_EDITS)) {
-                    suggestion.maxEdits(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, MAX_INSPECTIONS)) {
-                    suggestion.maxInspections(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, MAX_TERM_FREQ)) {
-                    suggestion.maxTermFreq(parser.floatValue());
-                } else if (parseFieldMatcher.match(fieldName, PREFIX_LENGTH)) {
-                    suggestion.prefixLength(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, MIN_WORD_LENGTH)) {
-                    suggestion.minWordLength(parser.intValue());
-                } else if (parseFieldMatcher.match(fieldName, MIN_DOC_FREQ)) {
-                    suggestion.minDocFreq(parser.floatValue());
+                if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                    tmpSuggestion.analyzer(parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                    fieldname = parser.text();
+                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                    tmpSuggestion.size(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                    tmpSuggestion.shardSize(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, SUGGEST_MODE)) {
+                    tmpSuggestion.suggestMode(SuggestMode.resolve(parser.text()));
+                } else if (parseFieldMatcher.match(currentFieldName, ACCURACY)) {
+                    tmpSuggestion.accuracy(parser.floatValue());
+                } else if (parseFieldMatcher.match(currentFieldName, SORT)) {
+                    tmpSuggestion.sort(SortBy.resolve(parser.text()));
+                } else if (parseFieldMatcher.match(currentFieldName, STRING_DISTANCE)) {
+                    tmpSuggestion.stringDistance(StringDistanceImpl.resolve(parser.text()));
+                } else if (parseFieldMatcher.match(currentFieldName, MAX_EDITS)) {
+                    tmpSuggestion.maxEdits(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, MAX_INSPECTIONS)) {
+                    tmpSuggestion.maxInspections(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, MAX_TERM_FREQ)) {
+                    tmpSuggestion.maxTermFreq(parser.floatValue());
+                } else if (parseFieldMatcher.match(currentFieldName, PREFIX_LENGTH)) {
+                    tmpSuggestion.prefixLength(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, MIN_WORD_LENGTH)) {
+                    tmpSuggestion.minWordLength(parser.intValue());
+                } else if (parseFieldMatcher.match(currentFieldName, MIN_DOC_FREQ)) {
+                    tmpSuggestion.minDocFreq(parser.floatValue());
                 }
             } else {
-                throw new IllegalArgumentException("suggester[term] doesn't support field [" + fieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "suggester[term] doesn't support field [" + currentFieldName + "]");
             }
         }
-        return suggestion;
+
+        // now we should have field name, check and copy fields over to the suggestion builder we return
+        if (fieldname == null) {
+            throw new ParsingException(parser.getTokenLocation(), "the required field option is missing");
+        }
+        return new TermSuggestionBuilder(fieldname, tmpSuggestion);
     }
 
     @Override
@@ -423,8 +451,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public TermSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder();
+    public TermSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(fieldname);
         builder.suggestMode = SuggestMode.PROTOTYPE.readFrom(in);
         builder.accuracy = in.readFloat();
         builder.sort = SortBy.PROTOTYPE.readFrom(in);

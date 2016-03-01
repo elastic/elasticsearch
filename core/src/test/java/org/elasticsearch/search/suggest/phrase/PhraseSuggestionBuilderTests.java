@@ -47,7 +47,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     }
 
     public static PhraseSuggestionBuilder randomPhraseSuggestionBuilder() {
-        PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder();
+        PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         maybeSet(testBuilder::maxErrors, randomFloat());
         maybeSet(testBuilder::separator, randomAsciiOfLengthBetween(1, 10));
         maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
@@ -190,6 +190,85 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertEquals(oldPhraseSuggestion.getCollateScriptParams(), newPhraseSuggestion.getCollateScriptParams());
         if (oldPhraseSuggestion.model() != null) {
             assertNotNull(newPhraseSuggestion.model());
+        }
+    }
+
+    public void testInvalidParameters() throws IOException {
+        // test missing field name
+        try {
+            new PhraseSuggestionBuilder(null);
+            fail("Should not allow null as field name");
+        } catch (NullPointerException e) {
+            assertEquals("suggestion requires a field name", e.getMessage());
+        }
+
+        // test emtpy field name
+        try {
+            new PhraseSuggestionBuilder("");
+            fail("Should not allow empty string as field name");
+        } catch (IllegalArgumentException e) {
+            assertEquals("suggestion field name is empty", e.getMessage());
+        }
+
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        try {
+            builder.gramSize(0);
+            fail("Should not allow gramSize < 1");
+        } catch (IllegalArgumentException e) {
+            assertEquals("gramSize must be >= 1", e.getMessage());
+        }
+
+        try {
+            builder.gramSize(-1);
+            fail("Should not allow gramSize < 1");
+        } catch (IllegalArgumentException e) {
+            assertEquals("gramSize must be >= 1", e.getMessage());
+        }
+
+        try {
+            builder.maxErrors(-1);
+            fail("Should not allow maxErrors < 0");
+        } catch (IllegalArgumentException e) {
+            assertEquals("max_error must be > 0.0", e.getMessage());
+        }
+
+        try {
+            builder.separator(null);
+            fail("Should not allow null as separator");
+        } catch (NullPointerException e) {
+            assertEquals("separator cannot be set to null", e.getMessage());
+        }
+
+        try {
+            builder.realWordErrorLikelihood(-1);
+            fail("Should not allow real world error likelihood < 0");
+        } catch (IllegalArgumentException e) {
+            assertEquals("real_word_error_likelihood must be > 0.0", e.getMessage());
+        }
+
+        try {
+            builder.confidence(-1);
+            fail("Should not allow confidence < 0");
+        } catch (IllegalArgumentException e) {
+            assertEquals("confidence must be >= 0.0", e.getMessage());
+        }
+
+        try {
+            builder.tokenLimit(0);
+            fail("token_limit must be >= 1");
+        } catch (IllegalArgumentException e) {
+            assertEquals("token_limit must be >= 1", e.getMessage());
+        }
+
+        try {
+            if (randomBoolean()) {
+                builder.highlight(null, "</b>");
+            } else {
+                builder.highlight("<b>", null);
+            }
+            fail("Pre and post tag must both be null or both not be null.");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
         }
     }
 

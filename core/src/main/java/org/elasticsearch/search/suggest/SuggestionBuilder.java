@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,8 +44,7 @@ import java.util.Objects;
  */
 public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends ToXContentToBytes implements NamedWriteable<T> {
 
-    // TODO this seems mandatory and should be constructor arg
-    protected String fieldname;
+    protected final String fieldname;
     protected String text;
     protected String prefix;
     protected String regex;
@@ -59,6 +59,31 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     protected static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     protected static final ParseField SIZE_FIELD = new ParseField("size");
     protected static final ParseField SHARDSIZE_FIELD = new ParseField("shard_size");
+
+    /**
+     * Creates a new suggestion.
+     * @param fieldname field to fetch the candidate suggestions from
+     */
+    public SuggestionBuilder(String fieldname) {
+        Objects.requireNonNull(fieldname, "suggestion requires a field name");
+        if (fieldname.isEmpty()) {
+            throw new IllegalArgumentException("suggestion field name is empty");
+        }
+        this.fieldname = fieldname;
+    }
+
+    /**
+     * internal copy constructor that copies over all class fields from second SuggestionBuilder except field name.
+     */
+    protected SuggestionBuilder(String fieldname, SuggestionBuilder<?> in) {
+        this(fieldname);
+        text = in.text;
+        prefix = in.prefix;
+        regex = in.regex;
+        analyzer = in.analyzer;
+        size = in.size;
+        shardSize = in.shardSize;
+    }
 
     /**
      * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
@@ -117,9 +142,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         if (analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        if (fieldname != null) {
-            builder.field(FIELDNAME_FIELD.getPreferredName(), fieldname);
-        }
+        builder.field(FIELDNAME_FIELD.getPreferredName(), fieldname);
         if (size != null) {
             builder.field(SIZE_FIELD.getPreferredName(), size);
         }
@@ -139,7 +162,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         XContentParser parser = parseContext.parser();
         ParseFieldMatcher parsefieldMatcher = parseContext.parseFieldMatcher();
         XContentParser.Token token;
-        String fieldName = null;
+        String currentFieldName = null;
         String suggestText = null;
         String prefix = null;
         String regex = null;
@@ -147,21 +170,21 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
+                currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parsefieldMatcher.match(fieldName, TEXT_FIELD)) {
+                if (parsefieldMatcher.match(currentFieldName, TEXT_FIELD)) {
                     suggestText = parser.text();
-                } else if (parsefieldMatcher.match(fieldName, PREFIX_FIELD)) {
+                } else if (parsefieldMatcher.match(currentFieldName, PREFIX_FIELD)) {
                     prefix = parser.text();
-                } else if (parsefieldMatcher.match(fieldName, REGEX_FIELD)) {
+                } else if (parsefieldMatcher.match(currentFieldName, REGEX_FIELD)) {
                     regex = parser.text();
                 } else {
-                    throw new IllegalArgumentException("[suggestion] does not support [" + fieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(fieldName);
+                SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(currentFieldName);
                 if (suggestParser == null) {
-                    throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
+                    throw new ParsingException(parser.getTokenLocation(), "suggestion [" + currentFieldName + "] not supported");
                 }
                 suggestionBuilder = suggestParser.innerFromXContent(parseContext);
             }
@@ -182,10 +205,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     public SuggestionContext build(QueryShardContext context) throws IOException {
         SuggestionContext suggestionContext = innerBuild(context);
-        // TODO make field mandatory in the builder, then remove this
-        if (suggestionContext.getField() == null) {
-            throw new IllegalArgumentException("The required field option is missing");
-        }
         return suggestionContext;
     }
 
@@ -254,20 +273,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         return getWriteableName();
     }
 
-
-    /**
-     * Sets from what field to fetch the candidate suggestions from. This is an
-     * required option and needs to be set via this setter or
-     * {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder#field(String)}
-     * method
-     */
-    @SuppressWarnings("unchecked")
-    public T field(String field) {
-        Objects.requireNonNull(field, "fieldname must not be null");
-        this.fieldname = field;
-        return (T)this;
-    }
-
     /**
      * get the {@link #field()} parameter
      */
@@ -298,7 +303,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     @SuppressWarnings("unchecked")
     public T size(int size) {
         if (size <= 0) {
-            throw new IllegalArgumentException("Size must be positive");
+            throw new IllegalArgumentException("size must be positive");
         }
         this.size = size;
         return (T)this;
@@ -339,8 +344,8 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     @Override
     public final T readFrom(StreamInput in) throws IOException {
-        T suggestionBuilder = doReadFrom(in);
-        suggestionBuilder.fieldname = in.readOptionalString();
+        String fieldname = in.readString();
+        T suggestionBuilder = doReadFrom(in, fieldname);
         suggestionBuilder.text = in.readOptionalString();
         suggestionBuilder.prefix = in.readOptionalString();
         suggestionBuilder.regex = in.readOptionalString();
@@ -353,13 +358,14 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     /**
      * Subclass should return a new instance, reading itself from the input string
      * @param in the input string to read from
+     * @param fieldname the fieldname needed for ctor or concrete suggestion
      */
-    protected abstract T doReadFrom(StreamInput in) throws IOException;
+    protected abstract T doReadFrom(StreamInput in, String fieldname) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fieldname);
         doWriteTo(out);
-        out.writeOptionalString(fieldname);
         out.writeOptionalString(text);
         out.writeOptionalString(prefix);
         out.writeOptionalString(regex);

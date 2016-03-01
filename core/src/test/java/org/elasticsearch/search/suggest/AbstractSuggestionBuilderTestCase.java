@@ -135,7 +135,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected SB randomTestBuilder() {
         SB randomSuggestion = randomSuggestionBuilder();
-        randomSuggestion.field(randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::text, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::prefix, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::regex, randomAsciiOfLengthBetween(2, 20));
@@ -309,9 +308,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     private SB mutate(SB firstBuilder) throws IOException {
         SB mutation = serializedCopy(firstBuilder);
         assertNotSame(mutation, firstBuilder);
+        // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
-            // change one of the common SuggestionBuilder parameters
-            switch (randomIntBetween(0, 6)) {
+            switch (randomIntBetween(0, 5)) {
             case 0:
                 mutation.text(randomValueOtherThan(mutation.text(), () -> randomAsciiOfLengthBetween(2, 20)));
                 break;
@@ -322,15 +321,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAsciiOfLengthBetween(2, 20)));
                 break;
             case 3:
-                mutation.field(randomValueOtherThan(mutation.field(), () -> randomAsciiOfLengthBetween(2, 20)));
-                break;
-            case 4:
                 mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAsciiOfLengthBetween(2, 20)));
                 break;
-            case 5:
+            case 4:
                 mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
                 break;
-            case 6:
+            case 5:
                 mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
                 break;
             }

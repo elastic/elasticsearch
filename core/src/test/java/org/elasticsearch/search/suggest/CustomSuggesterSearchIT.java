@@ -86,17 +86,15 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
 
-        private String randomField;
         private String randomSuffix;
 
         public CustomSuggestionBuilder(String randomField, String randomSuffix) {
-            this.randomField = randomField;
+            super(randomField);
             this.randomSuffix = randomSuffix;
         }
 
         @Override
         protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("field", randomField);
             builder.field("suffix", randomSuffix);
             return builder;
         }
@@ -108,39 +106,39 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         @Override
         public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(randomField);
             out.writeString(randomSuffix);
         }
 
         @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
-            return new CustomSuggestionBuilder(in.readString(), in.readString());
+        public CustomSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
+            return new CustomSuggestionBuilder(fieldname, in.readString());
         }
 
         @Override
         protected boolean doEquals(CustomSuggestionBuilder other) {
-            return Objects.equals(randomField, other.randomField) &&
-                    Objects.equals(randomSuffix, other.randomSuffix);
+            return Objects.equals(randomSuffix, other.randomSuffix);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(randomField, randomSuffix);
+            return Objects.hash(randomSuffix);
         }
 
         @Override
         protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext)
                 throws IOException {
             // TODO some parsing
-            return new CustomSuggestionBuilder(randomField, randomSuffix);
+            return new CustomSuggestionBuilder(field(), randomSuffix);
         }
 
         @Override
         protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
             Map<String, Object> options = new HashMap<>();
-            options.put("field", randomField);
+            options.put("field", field());
             options.put("suffix", randomSuffix);
-            return new CustomSuggester.CustomSuggestionsContext(context, options);
+            CustomSuggester.CustomSuggestionsContext customSuggestionsContext = new CustomSuggester.CustomSuggestionsContext(context, options);
+            customSuggestionsContext.setField(field());
+            return customSuggestionsContext;
         }
 
     }

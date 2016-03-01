@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
@@ -35,6 +37,10 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
 
     @Override
     protected RestStatus getStatus(R response) {
+        /*
+         * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
+         * interesting to the user.
+         */
         RestStatus status = RestStatus.OK;
         if (response.isTimedOut()) {
             status = RestStatus.REQUEST_TIMEOUT;
@@ -42,6 +48,12 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
         for (Failure failure : response.getIndexingFailures()) {
             if (failure.getStatus().getStatus() > status.getStatus()) {
                 status = failure.getStatus();
+            }
+        }
+        for (ShardSearchFailure failure: response.getSearchFailures()) {
+            RestStatus failureStatus = ExceptionsHelper.status(failure.getCause());
+            if (failureStatus.getStatus() > status.getStatus()) {
+                status = failureStatus;
             }
         }
         return status;

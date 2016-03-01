@@ -73,5 +73,5 @@ The commands supported are:
 
 WARNING: The `allow_primary` parameter will force a new _empty_ primary shard
 to be allocated *without any data*. If a node which has a copy of the original
-primary shard (including data) rejoins the cluster later on, that data will be
+shard (including data) rejoins the cluster later on, that data will be
 deleted: the old shard copy will be replaced by the new live shard copy.

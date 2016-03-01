@@ -25,11 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;

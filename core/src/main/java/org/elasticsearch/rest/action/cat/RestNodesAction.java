@@ -249,7 +249,7 @@ public class RestNodesAction extends AbstractCatAction {
             } else {
                 table.addCell("-");
             }
-            final Map<String, String> serviceAttributes = info.getServiceAttributes();
+            final Map<String, String> serviceAttributes = info == null ? null : info.getServiceAttributes();
             if (serviceAttributes != null) {
                 table.addCell(serviceAttributes.getOrDefault("http_address", "-"));
             } else {

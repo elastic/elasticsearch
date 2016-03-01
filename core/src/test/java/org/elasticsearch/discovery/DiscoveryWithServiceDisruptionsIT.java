@@ -1075,6 +1075,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * Tests that indices are properly deleted even if there is a master transition in between.
      * Test for https://github.com/elastic/elasticsearch/issues/11665
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16890")
     public void testIndicesDeleted() throws Exception {
         configureUnicastCluster(3, null, 2);
         InternalTestCluster.Async<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(2);

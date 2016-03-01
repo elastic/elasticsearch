@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -45,17 +45,17 @@ import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     private final ClusterService clusterService;
-    private final SearchServiceTransportAction searchService;
+    private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
 
     @Inject
     public TransportSearchAction(Settings settings, ThreadPool threadPool, SearchPhaseController searchPhaseController,
-                                 TransportService transportService, SearchServiceTransportAction searchService,
+                                 TransportService transportService, SearchTransportService searchTransportService,
                                  ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
                                              indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
         this.searchPhaseController = searchPhaseController;
-        this.searchService = searchService;
+        this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
     }
 
@@ -81,19 +81,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AbstractSearchAsyncAction searchAsyncAction;
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
-                searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchService, clusterService,
+                searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, clusterService,
                         indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
                 break;
             case QUERY_THEN_FETCH:
-                searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchService, clusterService,
+                searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, clusterService,
                         indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
                 break;
             case DFS_QUERY_AND_FETCH:
-                searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchService, clusterService,
+                searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, clusterService,
                         indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
                 break;
             case QUERY_AND_FETCH:
-                searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchService, clusterService,
+                searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, clusterService,
                         indexNameExpressionResolver, searchPhaseController, threadPool, searchRequest, listener);
                 break;
             default:

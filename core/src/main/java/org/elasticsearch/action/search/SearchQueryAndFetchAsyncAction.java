@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -36,11 +36,12 @@ import java.io.IOException;
 
 class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
 
-    SearchQueryAndFetchAsyncAction(ESLogger logger, SearchServiceTransportAction searchService,
+    SearchQueryAndFetchAsyncAction(ESLogger logger, SearchTransportService searchTransportService,
                                            ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                            SearchPhaseController searchPhaseController, ThreadPool threadPool,
                                            SearchRequest request, ActionListener<SearchResponse> listener) {
-        super(logger, searchService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool, request, listener);
+        super(logger, searchTransportService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool,
+                request, listener);
     }
 
     @Override
@@ -51,7 +52,7 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<QueryFetchSearchResult> listener) {
-        searchService.sendExecuteFetch(node, request, listener);
+        searchTransportService.sendExecuteFetch(node, request, listener);
     }
 
     @Override

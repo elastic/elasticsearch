@@ -92,7 +92,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -580,8 +580,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     public void testSearchQueryThenFetch() throws Exception {
-        interceptTransportActions(SearchServiceTransportAction.QUERY_ACTION_NAME,
-                SearchServiceTransportAction.FETCH_ID_ACTION_NAME, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        interceptTransportActions(SearchTransportService.QUERY_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -595,14 +595,14 @@ public class IndicesRequestTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_ACTION_NAME, SearchServiceTransportAction.FETCH_ID_ACTION_NAME);
+        assertSameIndices(searchRequest, SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
-        interceptTransportActions(SearchServiceTransportAction.DFS_ACTION_NAME, SearchServiceTransportAction.QUERY_ID_ACTION_NAME,
-                SearchServiceTransportAction.FETCH_ID_ACTION_NAME, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        interceptTransportActions(SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -616,15 +616,15 @@ public class IndicesRequestTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchServiceTransportAction.DFS_ACTION_NAME, SearchServiceTransportAction.QUERY_ID_ACTION_NAME,
-                SearchServiceTransportAction.FETCH_ID_ACTION_NAME);
+        assertSameIndices(searchRequest, SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchQueryAndFetch() throws Exception {
-        interceptTransportActions(SearchServiceTransportAction.QUERY_FETCH_ACTION_NAME,
-                SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        interceptTransportActions(SearchTransportService.QUERY_FETCH_ACTION_NAME,
+                SearchTransportService.FREE_CONTEXT_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -638,14 +638,14 @@ public class IndicesRequestTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_FETCH_ACTION_NAME);
+        assertSameIndices(searchRequest, SearchTransportService.QUERY_FETCH_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryAndFetch() throws Exception {
-        interceptTransportActions(SearchServiceTransportAction.QUERY_QUERY_FETCH_ACTION_NAME,
-                SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        interceptTransportActions(SearchTransportService.QUERY_QUERY_FETCH_ACTION_NAME,
+                SearchTransportService.FREE_CONTEXT_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -659,9 +659,9 @@ public class IndicesRequestTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_QUERY_FETCH_ACTION_NAME);
+        assertSameIndices(searchRequest, SearchTransportService.QUERY_QUERY_FETCH_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
+        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

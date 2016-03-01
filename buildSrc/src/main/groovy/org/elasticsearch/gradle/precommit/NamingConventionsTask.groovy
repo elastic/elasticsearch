@@ -51,11 +51,10 @@ public class NamingConventionsTask extends LoggedExec {
     FileCollection classpath = project.sourceSets.test.runtimeClasspath
 
     /**
-     * Should we skip the integ tests in disguise tests? Defaults to true because only core names its
-     * integ tests correctly.
+     * Can subclasses of ESIntegTestCase be Tests or IT (true) or must they always be IT (false). Defaults to false.
      */
     @Input
-    boolean skipIntegTestInDisguise = false
+    boolean esIntegTestsCanBeTests = false
 
     public NamingConventionsTask() {
         dependsOn(classpath)
@@ -69,8 +68,8 @@ public class NamingConventionsTask extends LoggedExec {
         project.afterEvaluate {
             doFirst {
                 args('-cp', classpath.asPath, 'org.elasticsearch.test.NamingConventionsCheck')
-                if (skipIntegTestInDisguise) {
-                    args('--skip-integ-tests-in-disguise')
+                if (esIntegTestsCanBeTests) {
+                    args('--es-integ-tests-can-be-tests')
                 }
                 /*
                  * The test framework has classes that fail the checks to validate that the checks fail properly.

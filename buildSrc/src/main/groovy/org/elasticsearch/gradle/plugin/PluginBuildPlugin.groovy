@@ -53,8 +53,8 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
 
             project.namingConventions {
-                // Plugins decalare extensions of ESIntegTestCase as "Tests" instead of IT.
-                skipIntegTestInDisguise = true
+                // Plugins can decalare extensions of ESIntegTestCase as "Tests" instead of "IT".
+                esIntegTestsCanBeTests = true
             }
         }
         createIntegTestTask(project)

@@ -30,8 +30,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.test.rest.ESRestTestCase;
+
+import junit.framework.TestCase;
 
 /**
  * Checks that all tests in a directory are named according to our naming conventions. This is important because tests that do not follow
@@ -47,14 +49,13 @@ import org.elasticsearch.common.io.PathUtils;
  */
 public class NamingConventionsCheck {
     public static void main(String[] args) throws IOException, ClassNotFoundException {
-        NamingConventionsCheck check = new NamingConventionsCheck();
-        boolean skipIntegTestsInDisguise = false;
+        boolean esIntegTestsCanBeUnitTests = false;
         boolean selfTest = false;
         int i = 0;
         while (true) {
             switch (args[i]) {
-            case "--skip-integ-tests-in-disguise":
-                skipIntegTestsInDisguise = true;
+            case "--es-integ-tests-can-be-tests":
+                esIntegTestsCanBeUnitTests = true;
                 i++;
                 continue;
             case "--self-test":
@@ -65,43 +66,62 @@ public class NamingConventionsCheck {
                 i++;
                 break;
             default:
-                fail("Expected -- before a path.");
+                throw new RuntimeException("Expected -- before a path.");
             }
             break;
         }
+        NamingConventionsCheck check = new NamingConventionsCheck(esIntegTestsCanBeUnitTests);
         check.check(PathUtils.get(args[i]));
 
+        // If we're in self test mode we need to have some violations to prove that it worked
         if (selfTest) {
-            assertViolation("WrongName", check.missingSuffix);
-            assertViolation("WrongNameTheSecond", check.missingSuffix);
-            assertViolation("DummyAbstractTests", check.notRunnable);
-            assertViolation("DummyInterfaceTests", check.notRunnable);
+            assertViolation("NonRunnableTests", check.notRunnable);
+            assertViolation("NonRunnableIT", check.notRunnable);
+            assertViolation("InterfaceTests", check.notRunnable);
+            assertViolation("InterfaceIT", check.notRunnable);
             assertViolation("InnerTests", check.innerClasses);
-            assertViolation("NotImplementingTests", check.notImplementing);
-            assertViolation("PlainUnit", check.pureUnitTest);
+            assertViolation("InnerIT", check.innerClasses);
+            assertViolation("NothingNamedLikeTests", check.namedLikeUnitButNotUnit);
+            assertViolation("NothingNamedLikeIT", check.namedLikeIntegButNotInteg);
+            assertViolation("PlainUnit", check.plainUnit);
+            assertViolation("PlainUnitTests", check.plainUnit);
+            assertViolation("PlainUnitIT", check.plainUnit);
+            assertViolation("MissingUnitTestSuffix", check.missingUnitTestSuffix);
+            assertViolation("NamedLikeIntegButUnitIT", check.namedLikeIntegButNotInteg);
+            assertViolation("MissingIntegTestSuffix", check.missingIntegTestSuffix);
+            assertViolation("NamedLikeUnitButIntegTests", check.namedLikeUnitButNotUnit);
+            assertViolation("MissingRestTestSuffix", check.missingIntegTestSuffix);
+            assertViolation("MissingClientTestSuffix", check.missingIntegTestSuffix);
+            assertViolation("NamedLikeUnitButRestTests", check.namedLikeUnitButNotUnit);
+            assertViolation("NamedLikeUnitButClientTests", check.namedLikeUnitButNotUnit);
         }
 
         // Now we should have no violations
-        assertNoViolations("Not all subclasses of " + ESTestCase.class.getSimpleName()
-                + " match the naming convention. Concrete classes must end with [Tests]", check.missingSuffix);
-        assertNoViolations("Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
+        assertNoViolations("Classes ending with [Tests] or [IT] are abstract or interfaces", check.notRunnable);
         assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
-        String classesToSubclass = String.join(",", ESTestCase.class.getSimpleName(), ESTestCase.class.getSimpleName(),
-                ESTokenStreamTestCase.class.getSimpleName(), LuceneTestCase.class.getSimpleName());
-        assertNoViolations("Pure Unit-Test found must subclass one of [" + classesToSubclass + "]", check.pureUnitTest);
-        assertNoViolations("Classes ending with [Tests] must subclass [" + classesToSubclass + "]", check.notImplementing);
-        if (!skipIntegTestsInDisguise) {
-            assertNoViolations("Subclasses of ESIntegTestCase should end with IT as they are integration tests",
-                    check.integTestsInDisguise);
-        }
+        assertNoViolations("Classes ending with [Tests] that aren't unit tests", check.namedLikeUnitButNotUnit);
+        assertNoViolations("Classes ending with [IT] that aren't integration tests", check.namedLikeIntegButNotInteg);
+        assertNoViolations("Unit tests that don't ends with [Tests]", check.missingUnitTestSuffix);
+        assertNoViolations("Integration tests that don't ends with [IT]", check.missingIntegTestSuffix);
+
+        String classesToSubclass = String.join(",", ESTestCase.class.getSimpleName(), ESIntegTestCase.class.getSimpleName(),
+                ESRestTestCase.class.getSimpleName(), ESTokenStreamTestCase.class.getSimpleName(), LuceneTestCase.class.getSimpleName());
+        assertNoViolations("Plain Unit-Test found must subclass one of [" + classesToSubclass + "]", check.plainUnit);
     }
 
-    private final Set<Class<?>> notImplementing = new HashSet<>();
-    private final Set<Class<?>> pureUnitTest = new HashSet<>();
-    private final Set<Class<?>> missingSuffix = new HashSet<>();
-    private final Set<Class<?>> integTestsInDisguise = new HashSet<>();
-    private final Set<Class<?>> notRunnable = new HashSet<>();
-    private final Set<Class<?>> innerClasses = new HashSet<>();
+    final Set<Class<?>> notRunnable = new HashSet<>();
+    final Set<Class<?>> innerClasses = new HashSet<>();
+    final Set<Class<?>> plainUnit = new HashSet<>();
+    final Set<Class<?>> missingUnitTestSuffix = new HashSet<>();
+    final Set<Class<?>> missingIntegTestSuffix = new HashSet<>();
+    final Set<Class<?>> namedLikeUnitButNotUnit = new HashSet<>();
+    final Set<Class<?>> namedLikeIntegButNotInteg = new HashSet<>();
+
+    private final boolean esIntegTestsCanBeUnitTests;
+    
+    public NamingConventionsCheck(boolean esIntegTestsCanBeUnitTests) {
+        this.esIntegTestsCanBeUnitTests = esIntegTestsCanBeUnitTests;
+    }
 
     public void check(Path rootPath) throws IOException {
         Files.walkFileTree(rootPath, new FileVisitor<Path>() {
@@ -136,35 +156,9 @@ public class NamingConventionsCheck {
                 String filename = file.getFileName().toString();
                 if (filename.endsWith(".class")) {
                     String className = filename.substring(0, filename.length() - ".class".length());
-                    Class<?> clazz = loadClass(className);
-                    if (clazz.getName().endsWith("Tests")) {
-                        if (ESIntegTestCase.class.isAssignableFrom(clazz)) {
-                            integTestsInDisguise.add(clazz);
-                        }
-                        if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
-                            notRunnable.add(clazz);
-                        } else if (isTestCase(clazz) == false) {
-                            notImplementing.add(clazz);
-                        } else if (Modifier.isStatic(clazz.getModifiers())) {
-                            innerClasses.add(clazz);
-                        }
-                    } else if (clazz.getName().endsWith("IT")) {
-                        if (isTestCase(clazz) == false) {
-                            notImplementing.add(clazz);
-                        }
-                    } else if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
-                        if (isTestCase(clazz)) {
-                            missingSuffix.add(clazz);
-                        } else if (junit.framework.Test.class.isAssignableFrom(clazz)) {
-                            pureUnitTest.add(clazz);
-                        }
-                    }
+                    check(loadClass(className));
                 }
                 return FileVisitResult.CONTINUE;
-            }
-
-            private boolean isTestCase(Class<?> clazz) {
-                return LuceneTestCase.class.isAssignableFrom(clazz);
             }
 
             private Class<?> loadClass(String className) {
@@ -182,18 +176,84 @@ public class NamingConventionsCheck {
         });
     }
 
+    void check(Class<?> clazz) {
+        TestNameType nameType = TestNameType.fromName(clazz.getName());
+
+        if (false == isRunnable(clazz)) {
+            if (nameType == TestNameType.NOT_A_TEST) {
+                // Non-runnable stuff that isn't named like a test can extend whatever it likes
+                return;
+            } else {
+                // All things named like a test must be runnable, non-inner classes
+                notRunnable.add(clazz);
+                return;
+            }
+        }
+
+        TestClassType classType = TestClassType.fromClass(clazz);
+        Set<Class<?>> failureGroup = failureGroup(nameType, classType);
+        if (failureGroup != null) {
+            failureGroup.add(clazz);
+            return;
+        }
+        if (classType != TestClassType.NOT_A_TEST && Modifier.isStatic(clazz.getModifiers())) {
+            // Tests that are inner classes won't be picked upl
+            innerClasses.add(clazz);
+            return;
+        }
+    }
+
+    private boolean isRunnable(Class<?> clazz) {
+        return Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false;
+    }
+
+    private Set<Class<?>> failureGroup(TestNameType nameType, TestClassType classType) {
+        switch (classType) {
+        case NOT_A_TEST:
+            switch (nameType) {
+            case NOT_A_TEST: return null;
+            case UNIT:       return namedLikeUnitButNotUnit;
+            case INTEG:      return namedLikeIntegButNotInteg;
+            }
+            throw new IllegalArgumentException("Unknown nameType for test:  [" + nameType + "]");
+        case PLAIN_UNIT:
+            return plainUnit;
+        case UNIT:
+            switch (nameType) {
+            case NOT_A_TEST: return missingUnitTestSuffix;
+            case UNIT:       return null;
+            case INTEG:      return namedLikeIntegButNotInteg;
+            }
+            throw new IllegalArgumentException("Unknown nameType for test:  [" + nameType + "]");
+        case ES_INTEG:
+            switch (nameType) {
+            case NOT_A_TEST: return missingIntegTestSuffix;
+            case UNIT:       return esIntegTestsCanBeUnitTests ? null : namedLikeUnitButNotUnit; 
+            case INTEG:      return null;
+            }
+            throw new IllegalArgumentException("Unknown nameType for test:  [" + nameType + "]");
+        case INTEG:
+            switch (nameType) {
+            case NOT_A_TEST: return missingIntegTestSuffix;
+            case UNIT:       return namedLikeUnitButNotUnit;
+            case INTEG:      return null;
+            }
+            throw new IllegalArgumentException("Unknown nameType for test:  [" + nameType + "]");
+        }
+        throw new IllegalArgumentException("Unknown classType for test:  [" + classType + "]");
+    }
+
     /**
      * Fail the process if there are any violations in the set. Named to look like a junit assertion even though it isn't because it is
      * similar enough.
      */
-    @SuppressForbidden(reason = "System.err/System.exit")
     private static void assertNoViolations(String message, Set<Class<?>> set) {
         if (false == set.isEmpty()) {
-            System.err.println(message + ":");
+            StringBuilder messageBuilder = new StringBuilder().append(message).append(':');
             for (Class<?> bad : set) {
-                System.err.println(" * " + bad.getName());
+                messageBuilder.append('\n').append(" * ").append(bad.getName());
             }
-            System.exit(1);
+            throw new RuntimeException(messageBuilder.toString());
         }
     }
 
@@ -201,21 +261,47 @@ public class NamingConventionsCheck {
      * Fail the process if we didn't detect a particular violation. Named to look like a junit assertion even though it isn't because it is
      * similar enough.
      */
-    @SuppressForbidden(reason = "System.err/System.exit")
     private static void assertViolation(String className, Set<Class<?>> set) throws ClassNotFoundException {
-        className = "org.elasticsearch.test.test.NamingConventionsCheckBadClasses$" + className;
+        className = "org.elasticsearch.test.NamingConventionsCheckTests$" + className;
         if (false == set.remove(Class.forName(className))) {
-            System.err.println("Error in NamingConventionsCheck! Expected [" + className + "] to be a violation but wasn't.");
-            System.exit(1);
+            throw new RuntimeException("Error in NamingConventionsCheck! Expected [" + className + "] to be a violation but wasn't.");
         }
     }
 
-    /**
-     * Fail the process with the provided message.
-     */
-    @SuppressForbidden(reason = "System.err/System.exit")
-    private static void fail(String reason) {
-        System.err.println(reason);
-        System.exit(1);
+    private enum TestClassType {
+        NOT_A_TEST, UNIT, ES_INTEG, INTEG, PLAIN_UNIT;
+
+        public static TestClassType fromClass(Class<?> clazz) {
+            if (ESRestTestCase.class.isAssignableFrom(clazz)) {
+                return INTEG;
+            }
+            if (ESClientTestCase.class.isAssignableFrom(clazz)) {
+                return INTEG;
+            }
+            if (ESIntegTestCase.class.isAssignableFrom(clazz)) {
+                return ES_INTEG;
+            }
+            if (LuceneTestCase.class.isAssignableFrom(clazz)) {
+                return UNIT;
+            }
+            if (TestCase.class.isAssignableFrom(clazz)) {
+                return PLAIN_UNIT;
+            }
+            return NOT_A_TEST;
+        }
+    }
+    
+    private enum TestNameType {
+        NOT_A_TEST, UNIT, INTEG;
+
+        public static TestNameType fromName(String name) {
+            if (name.endsWith("Tests")) {
+                return UNIT;
+            }
+            if (name.endsWith("IT")) {
+                return INTEG;
+            }
+            return NOT_A_TEST;
+        }
     }
 }

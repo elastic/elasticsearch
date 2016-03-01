@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class ValueSourceMustacheIT extends AbstractMustacheTestCase {
+public class ValueSourceMustacheTests extends AbstractMustacheTestCase {
 
     public void testValueSourceWithTemplates() {
         Map<String, Object> model = new HashMap<>();

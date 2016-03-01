@@ -43,6 +43,6 @@ task exampleFixture(type: org.elasticsearch.gradle.test.Fixture) {
 
 integTest {
   dependsOn exampleFixture
-  systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
+  systemProperty 'fixture.address', "${ -> exampleFixture.addressAndPort }"
 }
 

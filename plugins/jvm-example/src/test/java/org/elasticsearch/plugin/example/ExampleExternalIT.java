@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.example;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
@@ -29,14 +27,32 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ExampleExternalIT extends ESTestCase {
-    public void testExample() throws Exception {
-        String stringAddress = Objects.requireNonNull(System.getProperty("external.address"));
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.test.ESClientTestCase;
+
+import static org.hamcrest.Matchers.greaterThan;
+
+/**
+ * Example integration test against an external client.
+ */
+public class ExampleExternalIT extends ESClientTestCase {
+    public void testExampleFixture() throws Exception {
+        String stringAddress = Objects.requireNonNull(System.getProperty("fixture.address"));
         URL url = new URL("http://" + stringAddress);
         InetAddress address = InetAddress.getByName(url.getHost());
         try (Socket socket = new Socket(address, url.getPort());
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
            assertEquals("TEST", reader.readLine());
         }
+    }
+
+    public void testSimpleClient() {
+        Client client = getClient();
+
+        ClusterHealthResponse health = client.admin().cluster().prepareHealth().setWaitForYellowStatus().get();
+        String clusterName = health.getClusterName();
+        int numberOfNodes = health.getNumberOfNodes();
+        assertThat("cluster [" + clusterName + "] should have at least 1 node", numberOfNodes, greaterThan(0));
     }
 }

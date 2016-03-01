@@ -44,7 +44,7 @@ import java.net.InetSocketAddress;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UnicastZenPingIT extends ESTestCase {
+public class UnicastZenPingTests extends ESTestCase {
     public void testSimplePings() throws InterruptedException {
         Settings settings = Settings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);
@@ -56,14 +56,16 @@ public class UnicastZenPingIT extends ESTestCase {
         NetworkService networkService = new NetworkService(settings);
         ElectMasterService electMasterService = new ElectMasterService(settings, Version.CURRENT);
 
-        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
+        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
+                Version.CURRENT, new NamedWriteableRegistry());
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
         transportServiceA.acceptIncomingRequests();
         final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
-        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
+        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
+                Version.CURRENT, new NamedWriteableRegistry());
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
         transportServiceB.acceptIncomingRequests();
         final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
@@ -75,7 +77,8 @@ public class UnicastZenPingIT extends ESTestCase {
                 NetworkAddress.formatAddress(new InetSocketAddress(addressB.address().getAddress(), addressB.address().getPort())))
                 .build();
 
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT,
+                electMasterService, null);
         zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -94,7 +97,8 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT,
+                electMasterService, null);
         zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {

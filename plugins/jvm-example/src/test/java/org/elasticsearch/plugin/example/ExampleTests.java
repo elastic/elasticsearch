@@ -17,34 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.test.test;
+package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.test.ESTestCase;
 
-import junit.framework.TestCase;
+import static org.hamcrest.Matchers.is;
 
 /**
- * These inner classes all fail the NamingConventionsCheck. They have to live in the tests or else they won't be scanned.
+ * Example unit test.
  */
-public class NamingConventionsCheckBadClasses {
-    public static final class NotImplementingTests {
-    }
-
-    public static final class WrongName extends ESTestCase {
-    }
-
-    public static abstract class DummyAbstractTests extends ESTestCase {
-    }
-
-    public interface DummyInterfaceTests {
-    }
-
-    public static final class InnerTests extends ESTestCase {
-    }
-
-    public static final class WrongNameTheSecond extends ESTestCase {
-    }
-
-    public static final class PlainUnit extends TestCase {
+public class ExampleTests extends ESTestCase {
+    public void testExample() throws Exception {
+        assertThat(true, is(true));
     }
 }

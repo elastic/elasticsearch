@@ -1125,7 +1125,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]NodeJoinControllerTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]ZenDiscoveryIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]ZenDiscoveryUnitTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]ping[/\\]unicast[/\\]UnicastZenPingIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]publish[/\\]PendingClusterStatesQueueTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]publish[/\\]PublishClusterStateActionTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]document[/\\]DocumentActionsIT.java" checks="LineLength" />
@@ -1604,10 +1603,7 @@
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]EvilSecurityTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]cli[/\\]CheckFileCommandTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]tribe[/\\]TribeUnitTests.java" checks="LineLength" />
-  <suppress files="qa[/\\]smoke-test-client[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]ESSmokeClientTestCase.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-ingest-with-all-dependencies[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]CombineProcessorsTests.java" checks="LineLength" />
-  <suppress files="qa[/\\]smoke-test-ingest-with-all-dependencies[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestDocumentMustacheIT.java" checks="LineLength" />
-  <suppress files="qa[/\\]smoke-test-ingest-with-all-dependencies[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestMustacheSetProcessorIT.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]BootstrapForTesting.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cluster[/\\]MockInternalClusterInfoService.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cluster[/\\]routing[/\\]TestShardRouting.java" checks="LineLength" />

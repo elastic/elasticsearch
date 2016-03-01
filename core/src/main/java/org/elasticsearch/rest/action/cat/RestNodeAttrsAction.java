@@ -43,9 +43,6 @@ import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodeAttrsAction extends AbstractCatAction {
@@ -115,32 +112,22 @@ public class RestNodeAttrsAction extends AbstractCatAction {
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             for(ObjectObjectCursor<String, String> att : node.attributes()) {
-                buildRow(fullId, table, node, info, att.key, att.value);
-            }
-            if (info.getServiceAttributes() != null) {
-                for (Map.Entry<String, String> entry : info.getServiceAttributes().entrySet()) {
-                    buildRow(fullId, table, node, info, entry.getKey(), entry.getValue());
+                table.startRow();
+                table.addCell(node.name());
+                table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
+                table.addCell(info == null ? null : info.getProcess().getId());
+                table.addCell(node.getHostName());
+                table.addCell(node.getHostAddress());
+                if (node.address() instanceof InetSocketTransportAddress) {
+                    table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+                } else {
+                    table.addCell("-");
                 }
+                table.addCell(att.key);
+                table.addCell(att.value);
+                table.endRow();
             }
         }
-
         return table;
-    }
-
-    private final void buildRow(boolean fullId, Table table, DiscoveryNode node, NodeInfo info, String key, String value) {
-        table.startRow();
-        table.addCell(node.name());
-        table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
-        table.addCell(info == null ? null : info.getProcess().getId());
-        table.addCell(node.getHostName());
-        table.addCell(node.getHostAddress());
-        if (node.address() instanceof InetSocketTransportAddress) {
-            table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
-        } else {
-            table.addCell("-");
-        }
-        table.addCell(key);
-        table.addCell(value);
-        table.endRow();
     }
 }

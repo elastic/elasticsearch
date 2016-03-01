@@ -25,6 +25,7 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
@@ -70,8 +71,15 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     // Forcing Google Token API URL as set in GCE SDK to
     //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
     // See https://developers.google.com/compute/docs/metadata#metadataserver
-    public static final String GCE_METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance";
-    public static final String TOKEN_SERVER_ENCODED_URL = GCE_METADATA_URL + "/service-accounts/default/token";
+    // all settings just used for testing - not registered by default
+    private static final String DEFAULT_GCE_HOST = "http://metadata.google.internal";
+    private static final String DEFAULT_GCE_ROOT_URL = "https://www.googleapis.com";
+
+    private final String gceHost;
+    private final String metaDataUrl;
+    private final String tokenServerEncodedUrl;
+    private final String gceRootUrl;
+    private final Boolean validateCerts;
 
     @Override
     public Collection<Instance> instances() {
@@ -120,7 +128,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
     @Override
     public String metadata(String metadataPath) throws IOException {
-        String urlMetadataNetwork = GCE_METADATA_URL + "/" + metadataPath;
+        String urlMetadataNetwork = this.metaDataUrl + "/" + metadataPath;
         logger.debug("get metadata from [{}]", urlMetadataNetwork);
         URL url = new URL(urlMetadataNetwork);
         HttpHeaders headers;
@@ -166,11 +174,22 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
         String[] zoneList = settings.getAsArray(Fields.ZONE);
         this.zones = Arrays.asList(zoneList);
         networkService.addCustomNameResolver(new GceNameResolver(settings, this));
+
+        this.gceHost = settings.get("cloud.gce.host", DEFAULT_GCE_HOST);
+        this.metaDataUrl =  gceHost + "/computeMetadata/v1/instance";
+        this.gceRootUrl = settings.get("cloud.gce.root_url", DEFAULT_GCE_ROOT_URL);
+        this.tokenServerEncodedUrl = metaDataUrl + "/service-accounts/default/token";
+        this.validateCerts = settings.getAsBoolean("cloud.gce.validate_certificates", true);
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
-            gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+            if (validateCerts) {
+                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+            } else {
+                // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
+                gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();
+            }
         }
         return gceHttpTransport;
     }
@@ -190,7 +209,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             logger.info("starting GCE discovery service");
             final ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                        .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
+                        .setTokenServerEncodedUrl(this.tokenServerEncodedUrl)
                     .build();
 
             // hack around code messiness in GCE code
@@ -212,9 +231,9 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                 refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds()-1);
             }
 
-            boolean ifRetry = settings.getAsBoolean(Fields.RETRY, true);
-            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
-                    .setApplicationName(Fields.VERSION);
+            final boolean ifRetry = settings.getAsBoolean(Fields.RETRY, true);
+            final Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
+                    .setApplicationName(Fields.VERSION).setRootUrl(gceRootUrl);;
 
             if (ifRetry) {
                 int maxWait = settings.getAsInt(Fields.MAXWAIT, -1);

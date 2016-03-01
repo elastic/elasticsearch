@@ -31,6 +31,8 @@ governing permissions and limitations under the License. -->
         <!-- currently has no unit tests -->
         <tests.rest.suite>cloud_gce</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <ssl.antfile>${project.basedir}/ssl-setup.xml</ssl.antfile>
+        <keystore>${project.build.testOutputDirectory}/test-node.jks</keystore>
     </properties>
 
     <dependencies>
@@ -60,6 +62,30 @@ governing permissions and limitations under the License. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+            <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+            <!-- generate certificates/keys -->
+                <execution>
+                    <id>certificate-setup</id>
+                    <phase>generate-test-resources</phase>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                    <configuration>
+                        <target>
+                            <delete file="${keystore}" quiet="true"/> <!-- must clean it up first -->
+                            <mkdir dir="${project.build.testOutputDirectory}"/> <!-- the directory must exist first -->
+                            <exec executable="keytool" failonerror="true">
+                                <arg line="-genkey -keyalg RSA -alias selfsigned -keystore ${keystore} -storepass keypass -keypass keypass -validity 712 -keysize 2048 -dname CN=127.0.0.1"/>
+                            </exec>
+                        </target>
+                        <skip>${skip.integ.tests}</skip>
+                    </configuration>
+                </execution>
+            </executions>
             </plugin>
         </plugins>
     </build>

@@ -39,7 +39,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -58,7 +58,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalSear
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 
     protected final ESLogger logger;
-    protected final SearchServiceTransportAction searchService;
+    protected final SearchTransportService searchTransportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final SearchPhaseController searchPhaseController;
     protected final ThreadPool threadPool;
@@ -76,12 +76,12 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private final Object shardFailuresMutex = new Object();
     protected volatile ScoreDoc[] sortedShardList;
 
-    protected AbstractSearchAsyncAction(ESLogger logger, SearchServiceTransportAction searchService, ClusterService clusterService,
+    protected AbstractSearchAsyncAction(ESLogger logger, SearchTransportService searchTransportService, ClusterService clusterService,
                                         IndexNameExpressionResolver indexNameExpressionResolver,
                                         SearchPhaseController searchPhaseController, ThreadPool threadPool, SearchRequest request,
                                         ActionListener<SearchResponse> listener) {
         this.logger = logger;
-        this.searchService = searchService;
+        this.searchTransportService = searchTransportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.searchPhaseController = searchPhaseController;
         this.threadPool = threadPool;
@@ -332,7 +332,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
     protected void sendReleaseSearchContext(long contextId, DiscoveryNode node) {
         if (node != null) {
-            searchService.sendFreeContext(node, contextId, request);
+            searchTransportService.sendFreeContext(node, contextId, request);
         }
     }
 

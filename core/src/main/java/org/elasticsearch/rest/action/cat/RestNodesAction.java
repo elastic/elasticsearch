@@ -118,7 +118,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
-        table.addCell("http_address", "default:false;alias:http;desc:bound http adress");
+        table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
@@ -249,7 +249,7 @@ public class RestNodesAction extends AbstractCatAction {
             } else {
                 table.addCell("-");
             }
-            final Map<String, String> serviceAttributes = info.getServiceAttributes();
+            final Map<String, String> serviceAttributes = info == null ? null : info.getServiceAttributes();
             if (serviceAttributes != null) {
                 table.addCell(serviceAttributes.getOrDefault("http_address", "-"));
             } else {

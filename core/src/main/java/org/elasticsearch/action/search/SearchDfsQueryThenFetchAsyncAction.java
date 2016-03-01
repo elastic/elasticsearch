@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -50,11 +50,12 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     final AtomicArray<FetchSearchResult> fetchResults;
     final AtomicArray<IntArrayList> docIdsToLoad;
 
-    SearchDfsQueryThenFetchAsyncAction(ESLogger logger, SearchServiceTransportAction searchService,
+    SearchDfsQueryThenFetchAsyncAction(ESLogger logger, SearchTransportService searchTransportService,
                                                ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                SearchPhaseController searchPhaseController, ThreadPool threadPool,
                                                SearchRequest request, ActionListener<SearchResponse> listener) {
-        super(logger, searchService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool, request, listener);
+        super(logger, searchTransportService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool,
+                request, listener);
         queryResults = new AtomicArray<>(firstResults.length());
         fetchResults = new AtomicArray<>(firstResults.length());
         docIdsToLoad = new AtomicArray<>(firstResults.length());
@@ -68,7 +69,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<DfsSearchResult> listener) {
-        searchService.sendExecuteDfs(node, request, listener);
+        searchTransportService.sendExecuteDfs(node, request, listener);
     }
 
     @Override
@@ -85,7 +86,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
 
     void executeQuery(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter,
                       final QuerySearchRequest querySearchRequest, final DiscoveryNode node) {
-        searchService.sendExecuteQuery(node, querySearchRequest, new ActionListener<QuerySearchResult>() {
+        searchTransportService.sendExecuteQuery(node, querySearchRequest, new ActionListener<QuerySearchResult>() {
             @Override
             public void onResponse(QuerySearchResult result) {
                 result.shardTarget(dfsResult.shardTarget());
@@ -157,7 +158,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
 
     void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final AtomicInteger counter,
                       final ShardFetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
-        searchService.sendExecuteFetch(node, fetchSearchRequest, new ActionListener<FetchSearchResult>() {
+        searchTransportService.sendExecuteFetch(node, fetchSearchRequest, new ActionListener<FetchSearchResult>() {
             @Override
             public void onResponse(FetchSearchResult result) {
                 result.shardTarget(shardTarget);

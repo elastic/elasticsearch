@@ -176,13 +176,17 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     private void configureUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        configureUnicastCluster(DEFAULT_SETTINGS, numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
+    }
+
+    private void configureUnicastCluster(Settings settings, int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
         logger.info("---> configured unicast");
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = Settings.builder()
-                .put(DEFAULT_SETTINGS)
+                .put(settings)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
 
@@ -194,7 +198,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
         }
     }
-
 
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
@@ -1021,11 +1024,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @Test
     public void testIndicesDeleted() throws Exception {
-        configureUnicastCluster(3, null, 2);
+        final Settings settings = Settings.builder()
+                                      .put(DEFAULT_SETTINGS)
+                                      .put(DiscoverySettings.PUBLISH_TIMEOUT, "0s") // don't wait on isolated data node
+                                      .build();
+        final String idxName = "test";
+        configureUnicastCluster(settings, 3, null, 2);
         Future<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(2);
         Future<String> dataNode = internalCluster().startDataOnlyNodeAsync();
-        masterNodes.get();
         dataNode.get();
+        final List<String> allMasterEligibleNodes = masterNodes.get();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
         ensureYellow();
@@ -1034,32 +1042,23 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), getRandom());
         internalCluster().setDisruptionScheme(networkPartition);
         networkPartition.startDisrupting();
-        internalCluster().client(masterNode1).admin().indices().prepareDelete("test").setTimeout("1s").get();
-        // Don't restart the master node until we know the index deletion has taken effect on master.
-        // This overcomes a current known issue where a delete can return before cluster state changes
-        // (in this case, index deletion) takes effect.  We want to ensure that the cluster state changes
-        // are applied to the master node before it is restarted.
-        int numTries = 0;
-        final int maxNumTries = 20; // enforces that we don't end up in an infinite loop should something go wrong
-        final long sleepTime = 200L;
-        while (numTries < maxNumTries) {
-            final ClusterState currState = internalCluster().clusterService(masterNode1).state();
-            if (currState.metaData().hasIndex("test") == false && currState.status() == ClusterState.ClusterStateStatus.APPLIED) {
-                break;
+        // We know this will time out due to the partition, we check manually below to not proceed until
+        // the delete has been applied to the master node and the master eligible node.
+        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
+        // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                for (String masterNode : allMasterEligibleNodes) {
+                    final ClusterState masterState = internalCluster().clusterService(masterNode).state();
+                    assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false &&
+                                                                     masterState.status() == ClusterState.ClusterStateStatus.APPLIED);
+                }
             }
-            try {
-                Thread.sleep(sleepTime);
-            } catch (InterruptedException e) {
-                throw new Exception("Failed waiting for master's cluster state to change", e);
-            }
-            numTries++;
-        }
-        if (numTries == maxNumTries) {
-            fail("Waited unsuccessfully for " + (numTries * sleepTime) + " ms for cluster state on master to change");
-        }
+        });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
-        assertFalse(client().admin().indices().prepareExists("test").get().isExists());
+        assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
     }
 
     protected NetworkPartition addRandomPartition() {

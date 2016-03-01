@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cli;
+package org.elasticsearch.cli;
 
 /**
- * An exception representing a user fixable problem in {@link CliTool} usage.
+ * An exception representing a user fixable problem in {@link Command} usage.
  */
 public class UserError extends Exception {
 
     /** The exist status the cli should use when catching this user error. */
-    public final CliTool.ExitStatus exitStatus;
+    public final int exitCode;
 
     /** Constructs a UserError with an exit status and message to show the user. */
-    public UserError(CliTool.ExitStatus exitStatus, String msg) {
+    public UserError(int exitCode, String msg) {
         super(msg);
-        this.exitStatus = exitStatus;
+        this.exitCode = exitCode;
     }
 }

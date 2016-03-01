@@ -36,6 +36,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -44,10 +45,11 @@ import java.util.zip.ZipOutputStream;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -118,8 +120,7 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     static CliToolTestCase.CaptureOutputTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
-        CliTool.ExitStatus status = new InstallPluginCommand(terminal, pluginUrl, true).execute(env.settings(), env);
-        assertEquals(CliTool.ExitStatus.OK, status);
+        new InstallPluginCommand(env).execute(terminal, pluginUrl, true);
         return terminal;
     }
 

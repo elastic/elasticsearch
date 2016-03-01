@@ -28,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,6 +73,11 @@ public abstract class CliToolTestCase extends ESTestCase {
         @Override
         public char[] readSecret(String prompt) {
             return new char[0];
+        }
+
+        @Override
+        public PrintWriter getWriter() {
+            return null;
         }
     }
 

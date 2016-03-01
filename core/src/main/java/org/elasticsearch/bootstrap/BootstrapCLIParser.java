@@ -27,7 +27,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -37,7 +37,6 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.optionBuilder;
@@ -138,11 +137,11 @@ final class BootstrapCLIParser extends CliTool {
                 String arg = iterator.next();
                 if (!arg.startsWith("--")) {
                     if (arg.startsWith("-D") || arg.startsWith("-d") || arg.startsWith("-p")) {
-                        throw new UserError(ExitStatus.USAGE,
+                        throw new UserError(ExitStatus.USAGE.status(),
                                 "Parameter [" + arg + "] starting with \"-D\", \"-d\" or \"-p\" must be before any parameters starting with --"
                         );
                     } else {
-                        throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "]does not start with --");
+                        throw new UserError(ExitStatus.USAGE.status(), "Parameter [" + arg + "]does not start with --");
                     }
                 }
                 // if there is no = sign, we have to get the next argu
@@ -156,11 +155,11 @@ final class BootstrapCLIParser extends CliTool {
                     if (iterator.hasNext()) {
                         String value = iterator.next();
                         if (value.startsWith("--")) {
-                            throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "] needs value");
+                            throw new UserError(ExitStatus.USAGE.status(), "Parameter [" + arg + "] needs value");
                         }
                         properties.put("es." + arg, value);
                     } else {
-                        throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "] needs value");
+                        throw new UserError(ExitStatus.USAGE.status(), "Parameter [" + arg + "] needs value");
                     }
                 }
             }

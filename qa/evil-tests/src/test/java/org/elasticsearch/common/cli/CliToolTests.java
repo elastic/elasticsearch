@@ -20,7 +20,7 @@
 package org.elasticsearch.common.cli;
 
 import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +70,7 @@ public class CliToolTests extends CliToolTestCase {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws UserError {
                 executed.set(true);
-                throw new UserError(CliTool.ExitStatus.USAGE, "bad usage");
+                throw new UserError(CliTool.ExitStatus.USAGE.status(), "bad usage");
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);

@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
@@ -47,8 +48,9 @@ public class ListPluginsCommandTests extends ESTestCase {
 
     static CliToolTestCase.CaptureOutputTerminal listPlugins(Environment env) throws Exception {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
-        CliTool.ExitStatus status = new ListPluginsCommand(terminal).execute(env.settings(), env);
-        assertEquals(CliTool.ExitStatus.OK, status);
+        String[] args = {};
+        int status = new ListPluginsCommand(env).main(args, terminal);
+        assertEquals(ExitCodes.OK, status);
         return terminal;
     }
 

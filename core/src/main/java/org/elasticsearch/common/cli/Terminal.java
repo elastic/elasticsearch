@@ -23,12 +23,14 @@ import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.Charset;
 
 import org.elasticsearch.common.SuppressForbidden;
 
 /**
- * A Terminal wraps access to reading input and writing output for a {@link CliTool}.
+ * A Terminal wraps access to reading input and writing output for a cli.
  *
  * The available methods are similar to those of {@link Console}, with the ability
  * to read either normal text or a password, and the ability to print a line
@@ -53,7 +55,7 @@ public abstract class Terminal {
     private Verbosity verbosity = Verbosity.NORMAL;
 
     /** Sets the verbosity of the terminal. */
-    void setVerbosity(Verbosity verbosity) {
+    public void setVerbosity(Verbosity verbosity) {
         this.verbosity = verbosity;
     }
 
@@ -62,6 +64,9 @@ public abstract class Terminal {
 
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public abstract char[] readSecret(String prompt);
+
+    /** Returns a Writer which can be used to write to the terminal directly. */
+    public abstract PrintWriter getWriter();
 
     /** Print a message directly to the terminal. */
     protected abstract void doPrint(String msg);
@@ -87,6 +92,11 @@ public abstract class Terminal {
         }
 
         @Override
+        public PrintWriter getWriter() {
+            return console.writer();
+        }
+
+        @Override
         public void doPrint(String msg) {
             console.printf("%s", msg);
             console.flush();
@@ -105,11 +115,18 @@ public abstract class Terminal {
 
     private static class SystemTerminal extends Terminal {
 
+        private static final PrintWriter writer = new PrintWriter(System.out);
+
         @Override
         @SuppressForbidden(reason = "System#out")
         public void doPrint(String msg) {
             System.out.print(msg);
             System.out.flush();
+        }
+
+        @Override
+        public PrintWriter getWriter() {
+            return writer;
         }
 
         @Override

@@ -24,22 +24,27 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import joptsimple.OptionSet;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.
  */
-class ListPluginsCommand extends CliTool.Command {
+class ListPluginsCommand extends Command {
 
-    ListPluginsCommand(Terminal terminal) {
-        super(terminal);
+    private final Environment env;
+
+    ListPluginsCommand(Environment env) {
+        super("Lists installed elasticsearch plugins");
+        this.env = env;
     }
 
     @Override
-    public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
+    public int execute(Terminal terminal, OptionSet options) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
@@ -51,6 +56,6 @@ class ListPluginsCommand extends CliTool.Command {
             }
         }
 
-        return CliTool.ExitStatus.OK;
+        return ExitCodes.OK;
     }
 }

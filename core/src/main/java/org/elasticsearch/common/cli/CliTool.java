@@ -26,6 +26,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.MissingArgumentException;
 import org.apache.commons.cli.MissingOptionException;
 import org.apache.commons.cli.UnrecognizedOptionException;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -143,7 +144,8 @@ public abstract class CliTool {
             return parse(cmd, args).execute(settings, env);
         } catch (UserError error) {
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + error.getMessage());
-            return error.exitStatus;
+            return ExitStatus.USAGE;
+            //return error.exitCode;
         }
     }
 
@@ -163,7 +165,7 @@ public abstract class CliTool {
         } catch (AlreadySelectedException|MissingArgumentException|MissingOptionException|UnrecognizedOptionException e) {
             // intentionally drop the stack trace here as these are really user errors,
             // the stack trace into cli parsing lib is not important
-            throw new UserError(ExitStatus.USAGE, e.toString());
+            throw new UserError(ExitStatus.USAGE.status(), e.toString());
         }
 
         if (cli.hasOption("v")) {

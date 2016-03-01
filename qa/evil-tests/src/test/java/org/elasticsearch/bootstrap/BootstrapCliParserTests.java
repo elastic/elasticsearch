@@ -24,7 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;

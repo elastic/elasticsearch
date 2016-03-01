@@ -49,10 +49,10 @@ The new release candidate for %(version)s is now available, including the x-plug
 
 The packages may be downloaded from the following URLs:
 
- * ZIP    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
- * tar.gz - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
- * RPM    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
- * deb    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
+ * ZIP    - https://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
+ * tar.gz - https://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
+ * RPM    - https://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
+ * deb    - https://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
 
 Plugins can be installed as follows:
 
@@ -69,7 +69,7 @@ To install the deb from an APT repo:
 
 APT line sources.list line:
 
-deb http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/debian/ stable main
+deb https://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/debian/ stable main
 
 To install the RPM, create a YUM file like:
 
@@ -79,9 +79,9 @@ containing:
 
 [elasticsearch-2.x]
 name=Elasticsearch repository for packages
-baseurl=http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/centos
+baseurl=https://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/centos
 gpgcheck=1
-gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 
 To smoke-test the release please run:

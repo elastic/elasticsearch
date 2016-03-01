@@ -27,34 +27,36 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class BootstrapCheckTests extends ESTestCase {
 
     public void testNonProductionMode() {
-        runTest(this::runNonProductionModeTest);
-    }
-
-    private void runNonProductionModeTest(boolean snapshot) {
         // nothing should happen since we are in non-production mode
-        BootstrapCheck.check(Settings.EMPTY, snapshot);
+        BootstrapCheck.check(Settings.EMPTY);
     }
 
     public void testFileDescriptorLimits() {
-        runTest(this::runFileDescriptorLimitsTest);
-    }
-
-    private void runFileDescriptorLimitsTest(boolean snapshot) {
-        long limit = snapshot ? 1 << 10: 1 << 16;
+        boolean osX = randomBoolean(); // simulates OS X versus non-OS X
+        long limit = osX ? 10240 : 1 << 16;
         AtomicLong maxFileDescriptorCount = new AtomicLong(limit - 1);
-        BootstrapCheck.FileDescriptorCheck check = new BootstrapCheck.FileDescriptorCheck(snapshot) {
-            @Override
-            long getMaxFileDescriptorCount() {
-                return maxFileDescriptorCount.get();
-            }
-        };
+        BootstrapCheck.FileDescriptorCheck check;
+        if (osX) {
+            check = new BootstrapCheck.OsXFileDescriptorCheck() {
+                @Override
+                long getMaxFileDescriptorCount() {
+                    return maxFileDescriptorCount.get();
+                }
+            };
+        } else {
+            check = new BootstrapCheck.FileDescriptorCheck() {
+                @Override
+                long getMaxFileDescriptorCount() {
+                    return maxFileDescriptorCount.get();
+                }
+            };
+        }
 
         try {
             BootstrapCheck.check(true, Collections.singletonList(check));
@@ -68,16 +70,19 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, Collections.singletonList(check));
     }
 
+    public void testFileDescriptorLimitsThrowsOnInvalidLimit() {
+        IllegalArgumentException e =
+                expectThrows(
+                        IllegalArgumentException.class,
+                        () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
+        assertThat(e.getMessage(), containsString("limit must be positive but was"));
+    }
+
     public void testEnforceLimits() {
         Set<Setting> enforceSettings = BootstrapCheck.enforceSettings();
         Setting setting = randomFrom(Arrays.asList(enforceSettings.toArray(new Setting[enforceSettings.size()])));
         Settings settings = Settings.builder().put(setting.getKey(), randomAsciiOfLength(8)).build();
         assertTrue(BootstrapCheck.enforceLimits(settings));
-    }
-
-    private void runTest(Consumer<Boolean> test) {
-        test.accept(true);
-        test.accept(false);
     }
 
 }

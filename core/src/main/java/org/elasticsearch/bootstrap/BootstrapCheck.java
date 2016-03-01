@@ -19,7 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.Build;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
@@ -56,20 +56,7 @@ final class BootstrapCheck {
      * @param settings the current node settings
      */
     public static void check(final Settings settings) {
-        check(settings, Build.CURRENT.isSnapshot());
-    }
-
-    /**
-     * checks the current limits against the snapshot checks if
-     * snapshot is true, otherwise against the release checks
-     *
-     * @param settings the current node settings
-     * @param snapshot true if the check should be executed against the
-     *                 snapshot checks, false otherwise
-     */
-    // visible for testing
-    static void check(final Settings settings, final boolean snapshot) {
-        check(enforceLimits(settings), checks(snapshot));
+        check(enforceLimits(settings), checks());
     }
 
     /**
@@ -126,8 +113,10 @@ final class BootstrapCheck {
     }
 
     // the list of checks to execute
-    private static List<Check> checks(final boolean snapshot) {
-        return Collections.singletonList(new FileDescriptorCheck(snapshot));
+    private static List<Check> checks() {
+        FileDescriptorCheck fileDescriptorCheck
+                = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
+        return Collections.singletonList(fileDescriptorCheck);
     }
 
     /**
@@ -151,13 +140,32 @@ final class BootstrapCheck {
 
     }
 
+    static class OsXFileDescriptorCheck extends FileDescriptorCheck {
+
+        public OsXFileDescriptorCheck() {
+            // see constant OPEN_MAX defined in
+            // /usr/include/sys/syslimits.h on OS X and its use in JVM
+            // initialization in int os:init_2(void) defined in the JVM
+            // code for BSD (contains OS X)
+            super(10240);
+        }
+
+    }
+
     // visible for testing
     static class FileDescriptorCheck implements Check {
 
         private final int limit;
 
-        FileDescriptorCheck(final boolean snapshot) {
-            limit = snapshot ? 1 << 10 : 1 << 16;
+        FileDescriptorCheck() {
+            this(1 << 16);
+        }
+
+        protected FileDescriptorCheck(int limit) {
+            if (limit <= 0) {
+                throw new IllegalArgumentException("limit must be positive but was [" + limit + "]");
+            }
+            this.limit = limit;
         }
 
         public final boolean check() {

@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;

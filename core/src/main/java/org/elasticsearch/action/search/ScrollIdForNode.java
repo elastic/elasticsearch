@@ -17,9 +17,22 @@
  * under the License.
  */
 
-grant {
-  // needed because of problems in gce
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.RuntimePermission "setFactory";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
+package org.elasticsearch.action.search;
+
+class ScrollIdForNode {
+    private final String node;
+    private final long scrollId;
+
+    public ScrollIdForNode(String node, long scrollId) {
+        this.node = node;
+        this.scrollId = scrollId;
+    }
+
+    public String getNode() {
+        return node;
+    }
+
+    public long getScrollId() {
+        return scrollId;
+    }
+}

@@ -39,10 +39,6 @@ public interface Discovery extends LifecycleComponent<Discovery> {
 
     DiscoveryNode localNode();
 
-    void addListener(InitialStateDiscoveryListener listener);
-
-    void removeListener(InitialStateDiscoveryListener listener);
-
     String nodeDescription();
 
     /**
@@ -93,12 +89,12 @@ public interface Discovery extends LifecycleComponent<Discovery> {
      */
     DiscoveryStats stats();
 
+    DiscoverySettings getDiscoverySettings();
 
     /**
      * Triggers the first join cycle
      */
     void startInitialJoin();
-
 
     /***
      * @return the current value of minimum master nodes, or -1 for not set

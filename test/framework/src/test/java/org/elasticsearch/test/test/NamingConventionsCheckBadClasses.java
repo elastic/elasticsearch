@@ -17,22 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
+package org.elasticsearch.test.test;
 
-public class ScrollIdForNode {
-    private final String node;
-    private final long scrollId;
+import org.elasticsearch.test.ESTestCase;
 
-    public ScrollIdForNode(String node, long scrollId) {
-        this.node = node;
-        this.scrollId = scrollId;
+import junit.framework.TestCase;
+
+/**
+ * These inner classes all fail the NamingConventionsCheck. They have to live in the tests or else they won't be scanned.
+ */
+public class NamingConventionsCheckBadClasses {
+    public static final class NotImplementingTests {
     }
 
-    public String getNode() {
-        return node;
+    public static final class WrongName extends ESTestCase {
     }
 
-    public long getScrollId() {
-        return scrollId;
+    public static abstract class DummyAbstractTests extends ESTestCase {
+    }
+
+    public interface DummyInterfaceTests {
+    }
+
+    public static final class InnerTests extends ESTestCase {
+    }
+
+    public static final class WrongNameTheSecond extends ESTestCase {
+    }
+
+    public static final class PlainUnit extends TestCase {
     }
 }

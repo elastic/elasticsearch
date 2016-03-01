@@ -4,6 +4,16 @@
 A char filter of type `mapping` replacing characters of an analyzed text
 with given mapping.
 
+[horizontal]
+`mappings`::
+
+    A list of mappings to use.
+
+`mappings_path`::
+
+    A path, relative to the `config` directory, to a mappings file
+    configuration.
+
 Here is a sample configuration:
 
 [source,js]
@@ -14,7 +24,10 @@ Here is a sample configuration:
             "char_filter" : {
                 "my_mapping" : {
                     "type" : "mapping",
-                    "mappings" : ["ph=>f", "qu=>k"]
+                    "mappings" : [
+                      "ph => f",
+                      "qu => k"
+                    ]
                 }
             },
             "analyzer" : {
@@ -26,13 +39,4 @@ Here is a sample configuration:
         }
     }
 }
---------------------------------------------------
-
-Otherwise the setting `mappings_path` can specify a file where you can
-put the list of char mapping :
-
-[source,js]
---------------------------------------------------
-ph => f
-qu => k
 --------------------------------------------------

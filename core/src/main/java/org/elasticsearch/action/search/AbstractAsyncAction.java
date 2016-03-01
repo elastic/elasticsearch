@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
+package org.elasticsearch.action.search;
 
 /**
  * Base implementation for an async action.
  */
-public class AbstractAsyncAction {
+abstract class AbstractAsyncAction {
 
     private final long startTime;
 
@@ -46,4 +46,5 @@ public class AbstractAsyncAction {
         return Math.max(1, System.currentTimeMillis() - startTime);
     }
 
+    abstract void start();
 }

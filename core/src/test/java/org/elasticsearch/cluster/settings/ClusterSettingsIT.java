@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -57,7 +58,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testDeleteIsAppliedFirst() {
-        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = getDiscoverySettings();
 
         assertEquals(discoverySettings.getPublishTimeout(), DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY));
         assertTrue(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY));
@@ -83,7 +84,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testResetClusterSetting() {
-        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = getDiscoverySettings();
 
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
@@ -243,7 +244,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     public void testUpdateDiscoveryPublishTimeout() {
 
-        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = getDiscoverySettings();
 
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
 
@@ -280,6 +281,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
+
+    private DiscoverySettings getDiscoverySettings() {return internalCluster().getInstance(Discovery.class).getDiscoverySettings();}
 
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";

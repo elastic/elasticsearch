@@ -51,12 +51,12 @@ public final class ShadowIndexShard extends IndexShard {
 
     /**
      * In addition to the regular accounting done in
-     * {@link IndexShard#updateRoutingEntry(org.elasticsearch.cluster.routing.ShardRouting, boolean)},
+     * {@link IndexShard#updateRoutingEntry(ShardRouting, boolean)},
      * if this shadow replica needs to be promoted to a primary, the shard is
      * failed in order to allow a new primary to be re-allocated.
      */
     @Override
-    public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) {
+    public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) throws IOException {
         if (newRouting.primary() == true) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }

@@ -1,28 +1,28 @@
-[[breaking-changes-3.0]]
-== Breaking changes in 3.0
+[[breaking-changes-5.0]]
+== Breaking changes in 5.0
 
 This section discusses the changes that you need to be aware of when migrating
-your application to Elasticsearch 3.0.
+your application to Elasticsearch 5.0.
 
-* <<breaking_30_search_changes>>
-* <<breaking_30_rest_api_changes>>
-* <<breaking_30_cat_api>>
-* <<breaking_30_parent_child_changes>>
-* <<breaking_30_settings_changes>>
-* <<breaking_30_mapping_changes>>
-* <<breaking_30_plugins>>
-* <<breaking_30_java_api_changes>>
-* <<breaking_30_cache_concurrency>>
-* <<breaking_30_non_loopback>>
-* <<breaking_30_thread_pool>>
-* <<breaking_30_allocation>>
-* <<breaking_30_percolator>>
-* <<breaking_30_packaging>>
-* <<breaking_30_scripting>>
-* <<breaking_30_term_vectors>>
-* <<breaking_30_security>>
+* <<breaking_50_search_changes>>
+* <<breaking_50_rest_api_changes>>
+* <<breaking_50_cat_api>>
+* <<breaking_50_parent_child_changes>>
+* <<breaking_50_settings_changes>>
+* <<breaking_50_mapping_changes>>
+* <<breaking_50_plugins>>
+* <<breaking_50_java_api_changes>>
+* <<breaking_50_cache_concurrency>>
+* <<breaking_50_non_loopback>>
+* <<breaking_50_thread_pool>>
+* <<breaking_50_allocation>>
+* <<breaking_50_percolator>>
+* <<breaking_50_packaging>>
+* <<breaking_50_scripting>>
+* <<breaking_50_term_vectors>>
+* <<breaking_50_security>>
 
-[[breaking_30_search_changes]]
+[[breaking_50_search_changes]]
 === Warmers
 
 Thanks to several changes like doc values by default or disk-based norms,
@@ -31,7 +31,7 @@ API have been removed: it is not possible anymore to register queries that
 will run before a new IndexSearcher is published.
 
 Don't worry if you have warmers defined on your indices, they will simply be
-ignored when upgrading to 3.0.
+ignored when upgrading to 5.0.
 
 === Search changes
 
@@ -94,7 +94,7 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
-[[breaking_30_rest_api_changes]]
+[[breaking_50_rest_api_changes]]
 === REST API changes
 
 ==== id values longer than 512 bytes are rejected
@@ -166,7 +166,7 @@ Removed support for the undocumented `query_binary` and `filter_binary` sections
 
 Payloads are now loaded when needed.
 
-[[breaking_30_cat_api]]
+[[breaking_50_cat_api]]
 === CAT API changes
 
 ==== Use Accept header for specifying response media type
@@ -184,14 +184,14 @@ The `host` field has been removed from the cat nodes API as its value
 is always equal to the `ip` field. The `name` field is available in the
 cat nodes API and should be used instead of the `host` field.
 
-[[breaking_30_parent_child_changes]]
+[[breaking_50_parent_child_changes]]
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
 with `_parent` field mapping created before version `2.0.0`. The data of these indices need to be re-indexed into a new index.
 
 The format of the join between parent and child documents have changed with the `2.0.0` release. The old
-format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
+format can't read from version `5.0.0` and onwards. The new format allows for a much more efficient and
 scalable join between parent and child documents and the join data structures are stored on disk
 data structures as opposed as before the join data structures were stored in the jvm heap space.
 
@@ -213,15 +213,15 @@ is needed then the `max_children` option shouldn't be defined at all on the `has
 
 ==== `_parent` field no longer indexed
 
-The join between parent and child documents no longer relies on indexed fields and therefor from `3.0.0` onwards
+The join between parent and child documents no longer relies on indexed fields and therefor from `5.0.0` onwards
 the `_parent` indexed field won't be indexed. In order to find documents that referrer to a specific parent id
 the new `parent_id` query can be used. The get response and hits inside the search response remain to include
 the parent id under the `_parent` key.
 
-[[breaking_30_settings_changes]]
+[[breaking_50_settings_changes]]
 === Settings changes
 
-From Elasticsearch 3.0 on all settings are validated before they are applied. Node level and default index
+From Elasticsearch 5.0 on all settings are validated before they are applied. Node level and default index
 level settings are validated on node startup, dynamic cluster and index setting are validated before they are updated/added
 to the cluster state. Every setting must be a _known_ setting or in other words all settings must be registered with the
 node or transport client they are used with. This implies that plugins that define custom settings must register all of their
@@ -330,7 +330,7 @@ control the queue implementation used in the cluster service and the
 handling of ping responses during discovery. This was an undocumented
 setting and has been removed.
 
-[[breaking_30_mapping_changes]]
+[[breaking_50_mapping_changes]]
 === Mapping changes
 
 ==== Default doc values settings
@@ -358,8 +358,8 @@ instead of `not_analyzed`/`no`. The `string` field still accepts
 ==== ++_source++'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option
-will still be accepted for indices created before the upgrade to 3.0 for backward
-compatibility, but it will have no effect. Indices created on or after 3.0 will
+will still be accepted for indices created before the upgrade to 5.0 for backward
+compatibility, but it will have no effect. Indices created on or after 5.0 will
 reject this option.
 
 ==== Object notation
@@ -368,12 +368,12 @@ Core types don't support the object notation anymore, which allowed to provide
 values as follows:
 
 [source,json]
------
+---------------
 {
   "value": "field_value",
   "boost": 42
 }
-----
+---------------
 
 ==== `fielddata.format`
 
@@ -382,7 +382,7 @@ enable doc values on a field. This no longer works: the only way to enable or
 disable doc values is by using the `doc_values` property of mappings.
 
 
-[[breaking_30_plugins]]
+[[breaking_50_plugins]]
 === Plugin changes
 
 The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
@@ -479,7 +479,7 @@ Mapper attachments has been deprecated. Users should use now the {plugins}/inges
 plugin.
 
 
-[[breaking_30_java_api_changes]]
+[[breaking_50_java_api_changes]]
 === Java API changes
 
 ==== Count api has been removed
@@ -671,21 +671,28 @@ The inner DirectCandidateGenerator class has been moved out to its own class cal
 
 The `setText` method has been changed to `setGlobalText` to make the intent more clear, and a `getGlobalText` method has been added.
 
-[[breaking_30_cache_concurrency]]
+==== Elasticsearch will no longer detect logging implementations
+
+Elasticsearch now logs only to log4j 1.2. Previously if log4j wasn't on the classpath it made some effort to degrade to
+slf4j or java.util.logging. Now it'll fail to work without the log4j 1.2 api. The log4j-over-slf4j bridge ought to work
+when using the java client. As should log4j 2's log4j-1.2-api. The Elasticsearch server now only supports log4j as
+configured by logging.yml and it no longer makes any effort to work if log4j isn't present.
+
+[[breaking_50_cache_concurrency]]
 === Cache concurrency level settings removed
 
 Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
 `indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
 request cache and the field data cache.
 
-[[breaking_30_non_loopback]]
+[[breaking_50_non_loopback]]
 === Remove bind option of `non_loopback`
 
 This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
 scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
 hostnames, or addresses.
 
-[[breaking_30_thread_pool]]
+[[breaking_50_thread_pool]]
 === Forbid changing of thread pool types
 
 Previously, <<modules-threadpool,thread pool types>> could be dynamically adjusted. The thread pool type effectively
@@ -694,7 +701,7 @@ and high risk of being misused. The ability to change the thread pool type for a
 that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
 the thread pool type, `keep_alive`, `queue_size`, etc.).
 
-[[breaking_30_cpu_stats]]
+[[breaking_50_cpu_stats]]
 === System CPU stats
 
 The recent CPU usage (as a percent) has been added to the OS stats
@@ -725,7 +732,7 @@ CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 Only stored fields are retrievable with this option.
 The fields option won't be able to load non stored fields from _source anymore.
 
-[[breaking_30_allocation]]
+[[breaking_50_allocation]]
 === Primary shard allocation
 
 Previously, primary shards were only assigned if a quorum of shard copies were found (configurable using
@@ -762,7 +769,7 @@ in the case where shard copies can be found. Previously, a node not holding the 
 holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
 even if none of the nodes holding a shard copy satisfy the allocation deciders.
 
-[[breaking_30_percolator]]
+[[breaking_50_percolator]]
 === Percolator
 
 Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
@@ -785,7 +792,7 @@ unmapped fields are not persisted in the mapping.
 
 Percolator documents are no longer excluded from the search response.
 
-[[breaking_30_packaging]]
+[[breaking_50_packaging]]
 === Packaging
 
 ==== Default logging using systemd (since Elasticsearch 2.2.0)
@@ -799,7 +806,7 @@ changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
 
-[[breaking_30_scripting]]
+[[breaking_50_scripting]]
 === Scripting
 
 ==== Script mode settings
@@ -811,7 +818,18 @@ values `off`, `false`, `0`, and `no` for disabling a scripting mode.
 The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
 and `no` for disabling are no longer supported.
 
-[[breaking_30_term_vectors]]
+==== Groovy dependencies
+
+In previous versions of Elasticsearch, the Groovy scripting capabilities
+depended on the `org.codehaus.groovy:groovy-all` artifact.  In addition
+to pulling in the Groovy language, this pulls in a very large set of
+functionality, none of which is needed for scripting within
+Elasticsearch. Aside from the inherent difficulties in managing such a
+large set of dependencies, this also increases the surface area for
+security issues. This dependency has been reduced to the core Groovy
+language `org.codehaus.groovy:groovy` artifact.
+
+[[breaking_50_term_vectors]]
 === Term vectors
 
 The term vectors APIs no longer persist unmapped fields in the mappings.
@@ -819,9 +837,8 @@ The term vectors APIs no longer persist unmapped fields in the mappings.
 The `dfs` parameter has been removed completely, term vectors don't support
 distributed document frequencies anymore.
 
-[[breaking_30_security]]
+[[breaking_50_security]]
 === Security
 
 The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
 permissions to elasticsearch users must tweak the local Java Security Policy.
-

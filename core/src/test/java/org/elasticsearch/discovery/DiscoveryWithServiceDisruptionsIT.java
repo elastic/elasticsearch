@@ -958,7 +958,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
                 Settings.builder()
-                        .put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
                         .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 

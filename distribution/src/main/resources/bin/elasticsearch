@@ -118,14 +118,6 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
     unset JAVA_TOOL_OPTIONS
 fi
 
-# Special-case path variables.
-case `uname` in
-    CYGWIN*)
-        ES_CLASSPATH=`cygpath -p -w "$ES_CLASSPATH"`
-        ES_HOME=`cygpath -p -w "$ES_HOME"`
-    ;;
-esac
-
 # full hostname passed through cut for portability on systems that do not support hostname -s
 # export on separate line for shells that do not support combining definition and export
 HOSTNAME=`hostname | cut -d. -f1`

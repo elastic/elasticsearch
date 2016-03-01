@@ -32,7 +32,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-public abstract class AbstractMustacheTests extends ESTestCase {
+public abstract class AbstractMustacheTestCase extends ESTestCase {
 
     protected TemplateService templateService;
 
@@ -43,12 +43,12 @@ public abstract class AbstractMustacheTests extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(
+                new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService =
-            new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null,
+                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         templateService = new InternalTemplateService(scriptService);
     }
 

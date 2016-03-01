@@ -41,7 +41,7 @@ public interface AzureStorageService {
 
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
-        public static final Setting<TimeValue> TIMEOUT_SETTING = Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(5), false, Setting.Scope.CLUSTER);
+        public static final Setting<TimeValue> TIMEOUT_SETTING = Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueSeconds(-1), false, Setting.Scope.CLUSTER);
         public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("repositories.azure.account", false, Setting.Scope.CLUSTER);
         public static final Setting<String> CONTAINER_SETTING = Setting.simpleString("repositories.azure.container", false, Setting.Scope.CLUSTER);
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.azure.base_path", false, Setting.Scope.CLUSTER);

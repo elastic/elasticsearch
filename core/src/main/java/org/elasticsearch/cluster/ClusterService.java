@@ -57,6 +57,11 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException;
 
     /**
+     * Remove an initial block to be set on the first cluster state created.
+     */
+    void removeInitialStateBlock(int blockId) throws IllegalStateException;
+
+    /**
      * The operation routing.
      */
     OperationRouting operationRouting();

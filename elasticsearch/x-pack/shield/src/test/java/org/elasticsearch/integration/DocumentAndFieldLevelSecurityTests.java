@@ -8,6 +8,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -111,6 +112,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
+                .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "2");
@@ -163,6 +165,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
             response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .prepareSearch("test")
+                    .addSort("_uid", SortOrder.ASC)
                     .get();
             assertHitCount(response, 2);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));

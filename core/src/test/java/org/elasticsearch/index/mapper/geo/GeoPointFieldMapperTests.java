@@ -43,6 +43,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.lang.NumberFormatException;
 
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonHash;
 import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
@@ -281,6 +282,39 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             fail();
         } catch (MapperParsingException e) {
 
+        }
+
+        try {
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("point").field("lat", "-").field("lon", 1.3).endObject()
+                    .endObject()
+                    .bytes());
+            fail();
+        } catch (MapperParsingException e) {
+            assertTrue(e.getRootCause() instanceof NumberFormatException);
+        }
+
+        try {
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("point").field("lat", 1.2).field("lon", "-").endObject()
+                    .endObject()
+                    .bytes());
+            fail();
+        } catch (MapperParsingException e) {
+            assertTrue(e.getRootCause() instanceof NumberFormatException);
+        }
+
+        try {
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("point").field("lat", "-").field("lon", "-").endObject()
+                    .endObject()
+                    .bytes());
+            fail();
+        } catch (MapperParsingException e) {
+            assertTrue(e.getRootCause() instanceof NumberFormatException);
         }
     }
 

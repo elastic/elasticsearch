@@ -22,10 +22,8 @@ package org.elasticsearch.cloud.gce;
 import com.google.api.services.compute.model.Instance;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.Arrays;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;

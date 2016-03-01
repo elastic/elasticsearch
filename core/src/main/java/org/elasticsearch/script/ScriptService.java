@@ -356,22 +356,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 + scriptLang + "/" + id + "]");
     }
 
-    Tuple<String, String> getScriptNameExt(Path file) {
-        Path scriptPath = scriptsDirectory.relativize(file);
-        int extIndex = scriptPath.toString().lastIndexOf('.');
-        if (extIndex <= 0) {
-            return null;
-        }
-
-        String ext = scriptPath.toString().substring(extIndex + 1);
-        if (ext.isEmpty()) {
-            return null;
-        }
-
-        String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
-        return new Tuple<>(scriptName, ext);
-    }
-
     private void validate(BytesReference scriptBytes, String scriptLang) {
         try {
             XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
@@ -533,6 +517,22 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private class ScriptChangesListener extends FileChangesListener {
 
+        private Tuple<String, String> getScriptNameExt(Path file) {
+            Path scriptPath = scriptsDirectory.relativize(file);
+            int extIndex = scriptPath.toString().lastIndexOf('.');
+            if (extIndex <= 0) {
+                return null;
+            }
+
+            String ext = scriptPath.toString().substring(extIndex + 1);
+            if (ext.isEmpty()) {
+                return null;
+            }
+
+            String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
+            return new Tuple<>(scriptName, ext);
+        }
+
         @Override
         public void onFileInit(Path file) {
             Tuple<String, String> scriptNameExt = getScriptNameExt(file);
@@ -553,7 +553,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.
                     if (isAnyScriptContextEnabled(engineService.getTypes().get(0), engineService, ScriptType.FILE)) {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
-                        try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
+                        try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
                             CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
                             staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getTypes().get(0), engineService.compile(script, Collections.emptyMap())));

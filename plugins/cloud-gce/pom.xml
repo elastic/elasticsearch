@@ -82,7 +82,7 @@ governing permissions and limitations under the License. -->
                                 <arg line="-genkey -keyalg RSA -alias selfsigned -keystore ${keystore} -storepass keypass -keypass keypass -validity 712 -keysize 2048 -dname CN=127.0.0.1"/>
                             </exec>
                         </target>
-                        <skip>${skip.integ.tests}</skip>
+                        <skip>${skip.unit.tests}</skip> <!-- the GceDiscoverTests run as a unittest but are really integ tests that's why we skip this task if unittests don't run -->
                     </configuration>
                 </execution>
             </executions>

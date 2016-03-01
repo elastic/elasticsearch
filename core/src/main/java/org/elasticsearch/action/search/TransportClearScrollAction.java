@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -47,15 +47,15 @@ import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollI
 public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
 
     private final ClusterService clusterService;
-    private final SearchServiceTransportAction searchServiceTransportAction;
+    private final SearchTransportService searchTransportService;
 
     @Inject
     public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                      ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction,
+                                      ClusterService clusterService, SearchTransportService searchTransportService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, ClearScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchServiceTransportAction = searchServiceTransportAction;
+        this.searchTransportService = searchTransportService;
     }
 
     @Override
@@ -64,10 +64,8 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
     }
 
     private class Async {
-
         final DiscoveryNodes nodes;
         final CountDown expectedOps;
-        final ClearScrollRequest request;
         final List<ScrollIdForNode[]> contexts = new ArrayList<>();
         final ActionListener<ClearScrollResponse> listener;
         final AtomicReference<Throwable> expHolder;
@@ -85,8 +83,6 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                     this.contexts.add(context);
                 }
             }
-
-            this.request = request;
             this.listener = listener;
             this.expHolder = new AtomicReference<>();
             this.expectedOps = new CountDown(expectedOps);
@@ -100,7 +96,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
 
             if (contexts.isEmpty()) {
                 for (final DiscoveryNode node : nodes) {
-                    searchServiceTransportAction.sendClearAllScrollContexts(node, request, new ActionListener<TransportResponse>() {
+                    searchTransportService.sendClearAllScrollContexts(node, new ActionListener<TransportResponse>() {
                         @Override
                         public void onResponse(TransportResponse response) {
                             onFreedContext(true);
@@ -121,9 +117,9 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                             continue;
                         }
 
-                        searchServiceTransportAction.sendFreeContext(node, target.getScrollId(), request, new ActionListener<SearchServiceTransportAction.SearchFreeContextResponse>() {
+                        searchTransportService.sendFreeContext(node, target.getScrollId(), new ActionListener<SearchTransportService.SearchFreeContextResponse>() {
                             @Override
-                            public void onResponse(SearchServiceTransportAction.SearchFreeContextResponse freed) {
+                            public void onResponse(SearchTransportService.SearchFreeContextResponse freed) {
                                 onFreedContext(freed.isFreed());
                             }
 

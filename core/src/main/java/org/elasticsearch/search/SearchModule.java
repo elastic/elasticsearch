@@ -96,7 +96,7 @@ import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionPar
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
 import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -445,7 +445,7 @@ public class SearchModule extends AbstractModule {
         bind(QueryPhase.class).asEagerSingleton();
         bind(SearchPhaseController.class).asEagerSingleton();
         bind(FetchPhase.class).asEagerSingleton();
-        bind(SearchServiceTransportAction.class).asEagerSingleton();
+        bind(SearchTransportService.class).asEagerSingleton();
         if (searchServiceImpl == SearchService.class) {
             bind(SearchService.class).asEagerSingleton();
         } else {

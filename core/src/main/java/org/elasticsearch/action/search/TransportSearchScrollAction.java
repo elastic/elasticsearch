@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,18 +41,18 @@ import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollI
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
     private final ClusterService clusterService;
-    private final SearchServiceTransportAction searchService;
+    private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
 
     @Inject
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       ClusterService clusterService, SearchServiceTransportAction searchService,
+                                       ClusterService clusterService, SearchTransportService searchTransportService,
                                        SearchPhaseController searchPhaseController,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 SearchScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchService = searchService;
+        this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
     }
 
@@ -63,11 +63,11 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             AbstractAsyncAction action;
             switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE:
-                    action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchService,
+                    action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
                             searchPhaseController, request, scrollId, listener);
                     break;
                 case QUERY_AND_FETCH_TYPE:
-                    action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchService,
+                    action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
                             searchPhaseController, request, scrollId, listener);
                     break;
                 default:

@@ -61,5 +61,15 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("0.0.0.0", clientSettings.get("network.host"));
         assertEquals("1.1.1.1", clientSettings.get("network.bind_host"));
         assertEquals("2.2.2.2", clientSettings.get("network.publish_host"));
+
+        // per tribe client overrides still work
+        Settings tribeSettings = Settings.builder()
+            .put("network.host", "3.3.3.3")
+            .put("network.bind_host", "4.4.4.4")
+            .put("network.publish_host", "5.5.5.5").build();
+        clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+        assertEquals("3.3.3.3", clientSettings.get("network.host"));
+        assertEquals("4.4.4.4", clientSettings.get("network.bind_host"));
+        assertEquals("5.5.5.5", clientSettings.get("network.publish_host"));
     }
 }

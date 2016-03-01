@@ -46,11 +46,8 @@ public abstract class AbstractLifecycleRunnable extends AbstractRunnable {
      * @throws NullPointerException if any parameter is {@code null}
      */
     public AbstractLifecycleRunnable(Lifecycle lifecycle, ESLogger logger) {
-        Objects.requireNonNull(lifecycle, "lifecycle must not be null");
-        Objects.requireNonNull(logger, "logger must not be null");
-
-        this.lifecycle = lifecycle;
-        this.logger = logger;
+        this.lifecycle = Objects.requireNonNull(lifecycle, "lifecycle must not be null");
+        this.logger = Objects.requireNonNull(logger, "logger must not be null");
     }
 
     /**
@@ -63,7 +60,7 @@ public abstract class AbstractLifecycleRunnable extends AbstractRunnable {
     protected final void doRun() throws Exception {
         // prevent execution if the service is stopped
         if (lifecycle.stoppedOrClosed()) {
-            logger.trace("service is stopping. exiting");
+            logger.trace("lifecycle is stopping. exiting");
             return;
         }
 

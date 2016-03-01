@@ -27,7 +27,6 @@ import java.io.IOException;
  * It can be used in {@link StreamInput#readList(StreamInputReader)} for reading
  * lists of immutable objects that implement StreamInput accepting constructors.
  */
-@FunctionalInterface
 public interface StreamInputReader<T> {
     T read(StreamInput t) throws IOException;
 }

@@ -64,8 +64,12 @@
                     <include>api/indices.analyze.json</include>
                     <include>api/indices.create.json</include>
                     <include>api/indices.refresh.json</include>
+                    <include>api/indices.put_mapping.json</include>
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
+                    <!-- Reindex's REST spec lives in the core because that seems to be how modules are done -->
+                    <include>api/update-by-query.json</include>
+                    <include>api/reindex.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->
@@ -114,6 +118,7 @@
         <module>smoke-test-multinode</module>
         <module>smoke-test-client</module>
         <module>smoke-test-command-line-params</module>
+        <module>smoke-test-reindex-with-groovy</module>
         <module>backwards</module>
     </modules>
 

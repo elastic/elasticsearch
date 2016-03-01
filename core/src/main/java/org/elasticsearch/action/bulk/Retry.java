@@ -37,7 +37,7 @@ import java.util.concurrent.*;
 /**
  * Encapsulates synchronous and asynchronous retry logic.
  */
-class Retry {
+public class Retry {
     private final Class<? extends Throwable> retryOnThrowable;
 
     private BackoffPolicy backoffPolicy;

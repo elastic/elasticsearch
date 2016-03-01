@@ -29,7 +29,6 @@ import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * MockTaskManagerListener that records all task registration/unregistration events

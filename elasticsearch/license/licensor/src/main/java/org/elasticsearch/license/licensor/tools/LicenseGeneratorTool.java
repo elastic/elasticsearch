@@ -5,54 +5,46 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.commons.cli.CommandLine;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-import static org.elasticsearch.common.cli.CliToolConfig.config;
-
 public class LicenseGeneratorTool extends Command {
 
-    private final OptionSpec<File> publicKeyPathOption;
-    private final OptionSpec<File> privateKeyPathOption;
+    private final OptionSpec<String> publicKeyPathOption;
+    private final OptionSpec<String> privateKeyPathOption;
     private final OptionSpec<String> licenseOption;
-    private final OptionSpec<File> licenseFileOption;
+    private final OptionSpec<String> licenseFileOption;
 
     public LicenseGeneratorTool() {
         super("Generates signed elasticsearch license(s) for a given license spec(s)");
         publicKeyPathOption = parser.accepts("publicKeyPath", "path to public key file")
-            .withRequiredArg().ofType(File.class).required();
+            .withRequiredArg().required();
         privateKeyPathOption = parser.accepts("privateKeyPath", "path to private key file")
-            .withRequiredArg().ofType(File.class).required();
+            .withRequiredArg().required();
         // TODO: with jopt-simple 5.0, we can make these requiredUnless each other
         // which is effectively "one must be present"
         licenseOption = parser.accepts("license", "license json spec")
             .withRequiredArg();
         licenseFileOption = parser.accepts("licenseFile", "license json spec file")
-            .withRequiredArg().ofType(File.class);
+            .withRequiredArg();
+    }
+
+    public static void main(String[] args) throws Exception {
+        exit(new LicenseGeneratorTool().main(args, Terminal.DEFAULT));
     }
 
     @Override
@@ -66,15 +58,15 @@ public class LicenseGeneratorTool extends Command {
 
     @Override
     protected int execute(Terminal terminal, OptionSet options) throws Exception {
-        Path publicKeyPath = publicKeyPathOption.value(options).toPath();
-        Path privateKeyPath = privateKeyPathOption.value(options).toPath();
+        Path publicKeyPath = PathUtils.get(publicKeyPathOption.value(options));
+        Path privateKeyPath = PathUtils.get(privateKeyPathOption.value(options));
         String licenseSpecString = null;
         if (options.has(licenseOption)) {
             licenseSpecString = licenseOption.value(options);
         }
         Path licenseSpecPath = null;
         if (options.has(licenseFileOption)) {
-            licenseSpecPath = licenseFileOption.value(options).toPath();
+            licenseSpecPath = PathUtils.get(licenseFileOption.value(options));
         }
         execute(terminal, publicKeyPath, privateKeyPath, licenseSpecString, licenseSpecPath);
         return ExitCodes.OK;

@@ -31,18 +31,18 @@ public class LicenseGenerationToolTests extends ESTestCase {
     public void testMissingKeyPaths() throws Exception {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Path pub = createTempDir().resolve("pub");
-        Path priv = createTempDir().resolve("pri");
+        Path pri = createTempDir().resolve("pri");
         UserError e = expectThrows(UserError.class, () -> {
-            licenseGeneratorTool.execute(Terminal.DEFAULT, pub, priv, null, null);
-        });
-        assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
-        assertEquals(ExitCodes.USAGE, e.exitCode);
-
-        Files.createFile(pub);
-        e = expectThrows(UserError.class, () -> {
-            licenseGeneratorTool.execute(Terminal.DEFAULT, pub, priv, null, null);
+            licenseGeneratorTool.execute(Terminal.DEFAULT, pub, pri, null, null);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pri does not exist"));
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+
+        Files.createFile(pri);
+        e = expectThrows(UserError.class, () -> {
+            licenseGeneratorTool.execute(Terminal.DEFAULT, pub, pri, null, null);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 

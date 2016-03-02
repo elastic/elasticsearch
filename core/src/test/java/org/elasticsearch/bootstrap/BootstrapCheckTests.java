@@ -19,15 +19,14 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -87,24 +86,35 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testMlockallCheck() {
-        final Map<Tuple<Boolean, Boolean>, Boolean> cases = new HashMap<>();
-        cases.put(Tuple.tuple(true, true), true);
-        cases.put(Tuple.tuple(true, false), false);
-        cases.put(Tuple.tuple(false, true), true);
-        cases.put(Tuple.tuple(false, false), true);
+        class MlockallCheckTestCase {
 
-        for (final Map.Entry<Tuple<Boolean, Boolean>, Boolean> entry : cases.entrySet()) {
-            final BootstrapCheck.MlockallCheck check = new BootstrapCheck.MlockallCheck(entry.getKey().v1()) {
+            private final boolean mlockallSet;
+            private final boolean isMemoryLocked;
+            private final boolean shouldFail;
+
+            public MlockallCheckTestCase(boolean mlockallSet, boolean isMemoryLocked, boolean shouldFail) {
+                this.mlockallSet = mlockallSet;
+                this.isMemoryLocked = isMemoryLocked;
+                this.shouldFail = shouldFail;
+            }
+
+        }
+
+        final List<MlockallCheckTestCase> testCases = new ArrayList<>();
+        testCases.add(new MlockallCheckTestCase(true, true, false));
+        testCases.add(new MlockallCheckTestCase(true, false, true));
+        testCases.add(new MlockallCheckTestCase(false, true, false));
+        testCases.add(new MlockallCheckTestCase(false, false, false));
+
+        for (final MlockallCheckTestCase testCase : testCases) {
+            final BootstrapCheck.MlockallCheck check = new BootstrapCheck.MlockallCheck(testCase.mlockallSet) {
                 @Override
                 boolean isMemoryLocked() {
-                    return entry.getKey().v2();
+                    return testCase.isMemoryLocked;
                 }
             };
 
-            if (entry.getValue()) {
-                // nothing should happen
-                BootstrapCheck.check(true, Collections.singletonList(check));
-            } else {
+            if (testCase.shouldFail) {
                 try {
                     BootstrapCheck.check(true, Collections.singletonList(check));
                     fail("should have failed due to memory not being locked");
@@ -113,6 +123,9 @@ public class BootstrapCheckTests extends ESTestCase {
                             e.getMessage(),
                             containsString("Memory locking requested for elasticsearch process but memory is not locked"));
                 }
+            } else {
+                // nothing should happen
+                BootstrapCheck.check(true, Collections.singletonList(check));
             }
         }
     }

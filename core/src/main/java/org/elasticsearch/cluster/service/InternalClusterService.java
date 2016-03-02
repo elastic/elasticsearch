@@ -106,7 +106,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     public static final Setting<Long> NODE_ID_SEED_SETTING =
             // don't use node.id.seed so it won't be seen as an attribute
-            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, false, Setting.Scope.CLUSTER);
+            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, SettingsProperty.ClusterScope);
     private final ThreadPool threadPool;
 
     private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;

@@ -38,6 +38,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
@@ -61,11 +62,11 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
-        Setting.boolSetting("cloud.gce.validate_certificates", true, false, Setting.Scope.CLUSTER);
+        Setting.boolSetting("cloud.gce.validate_certificates", true, SettingsProperty.ClusterScope);
     public static final Setting<String> GCE_HOST =
-        new Setting<>("cloud.gce.host", "http://metadata.google.internal", Function.identity(), false, Setting.Scope.CLUSTER);
+        new Setting<>("cloud.gce.host", "http://metadata.google.internal", Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<String> GCE_ROOT_URL =
-        new Setting<>("cloud.gce.root_url", "https://www.googleapis.com", Function.identity(), false, Setting.Scope.CLUSTER);
+        new Setting<>("cloud.gce.root_url", "https://www.googleapis.com", Function.identity(), SettingsProperty.ClusterScope);
 
     private final String project;
     private final List<String> zones;

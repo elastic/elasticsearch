@@ -310,9 +310,9 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testOverlappingComplexMatchSettings() {
         Set<Setting<?>> settings = new LinkedHashSet<>(2);
         final boolean groupFirst = randomBoolean();
-        final Setting<?> groupSetting = Setting.groupSetting("foo.", false, Setting.Scope.CLUSTER);
-        final Setting<?> listSetting = Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), false,
-            Setting.Scope.CLUSTER);
+        final Setting<?> groupSetting = Setting.groupSetting("foo.", SettingsProperty.ClusterScope);
+        final Setting<?> listSetting =
+            Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
         settings.add(groupFirst ? groupSetting : listSetting);
         settings.add(groupFirst ? listSetting : groupSetting);
 

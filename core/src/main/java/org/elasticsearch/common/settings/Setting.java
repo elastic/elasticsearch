@@ -25,6 +25,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -82,6 +83,11 @@ public class Setting<T> extends ToXContentToBytes {
         Dynamic,
 
         /**
+         * mark this setting as deprecated
+         */
+        Deprecated,
+
+        /**
          * Cluster scope.
          * @See IndexScope
          * @See NodeScope
@@ -103,6 +109,7 @@ public class Setting<T> extends ToXContentToBytes {
         IndexScope;
     }
 
+    private static final ESLogger logger = Loggers.getLogger(Setting.class);
     private final String key;
     protected final Function<Settings, String> defaultValue;
     private final Function<String, T> parser;
@@ -216,6 +223,13 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
+     */
+    public boolean isDeprecated() {
+        return properties.contains(SettingsProperty.Deprecated);
+    }
+
+    /**
      * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings
      * rather than a single value. The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt>
      * that matches all settings with this prefix.
@@ -275,6 +289,12 @@ public class Setting<T> extends ToXContentToBytes {
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
     public String getRaw(Settings settings) {
+        // They're using the setting, so we need to tell them to stop
+        if (this.isDeprecated() && this.exists(settings)) {
+            // It would be convenient to show its replacement key, but replacement is often not so simple
+            logger.warn("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
+                    "See the breaking changes lists in the documentation for details", getKey());
+        }
         return settings.get(key, defaultValue.apply(settings));
     }
 
@@ -678,7 +698,7 @@ public class Setting<T> extends ToXContentToBytes {
 
     /**
      * This setting type allows to validate settings that have the same type and a common prefix. For instance feature.${type}=[true|false]
-     * can easily be added with this setting. Yet, dynamic key settings don't support updaters our of the box unless {@link #getConcreteSetting(String)}
+     * can easily be added with this setting. Yet, dynamic key settings don't support updaters out of the box unless {@link #getConcreteSetting(String)}
      * is used to pull the updater.
      */
     public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser,

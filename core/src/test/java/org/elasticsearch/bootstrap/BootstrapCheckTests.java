@@ -19,12 +19,15 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -81,6 +84,37 @@ public class BootstrapCheckTests extends ESTestCase {
                         IllegalArgumentException.class,
                         () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
         assertThat(e.getMessage(), containsString("limit must be positive but was"));
+    }
+
+    public void testMlockallCheck() {
+        final Map<Tuple<Boolean, Boolean>, Boolean> cases = new HashMap<>();
+        cases.put(Tuple.tuple(true, true), true);
+        cases.put(Tuple.tuple(true, false), false);
+        cases.put(Tuple.tuple(false, true), true);
+        cases.put(Tuple.tuple(false, false), true);
+
+        for (final Map.Entry<Tuple<Boolean, Boolean>, Boolean> entry : cases.entrySet()) {
+            final BootstrapCheck.MlockallCheck check = new BootstrapCheck.MlockallCheck(entry.getKey().v1()) {
+                @Override
+                boolean isMemoryLocked() {
+                    return entry.getKey().v2();
+                }
+            };
+
+            if (entry.getValue()) {
+                // nothing should happen
+                BootstrapCheck.check(true, Collections.singletonList(check));
+            } else {
+                try {
+                    BootstrapCheck.check(true, Collections.singletonList(check));
+                    fail("should have failed due to memory not being locked");
+                } catch (RuntimeException e) {
+                    assertThat(
+                            e.getMessage(),
+                            containsString("Memory locking requested for elasticsearch process but memory is not locked"));
+                }
+            }
+        }
     }
 
     public void testEnforceLimits() {

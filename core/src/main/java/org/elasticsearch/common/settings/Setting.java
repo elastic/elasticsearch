@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -110,6 +111,8 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     private static final ESLogger logger = Loggers.getLogger(Setting.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     private final String key;
     protected final Function<Settings, String> defaultValue;
     private final Function<String, T> parser;
@@ -292,7 +295,7 @@ public class Setting<T> extends ToXContentToBytes {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
-            logger.warn("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
+            deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
                     "See the breaking changes lists in the documentation for details", getKey());
         }
         return settings.get(key, defaultValue.apply(settings));

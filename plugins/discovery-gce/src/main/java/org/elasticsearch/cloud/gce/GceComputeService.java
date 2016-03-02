@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public interface GceComputeService extends LifecycleComponent<GceComputeService> {
 
@@ -48,7 +49,7 @@ public interface GceComputeService extends LifecycleComponent<GceComputeService>
      * cloud.gce.zone: Google Compute Engine zones
      */
     Setting<List<String>> ZONE_SETTING =
-        Setting.listSetting("cloud.gce.zone", Collections.emptyList(), s -> s, SettingsProperty.ClusterScope);
+        Setting.listSetting("cloud.gce.zone", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
 
     /**
      * cloud.gce.refresh_interval: How long the list of hosts is cached to prevent further requests to the AWS API. 0 disables caching.

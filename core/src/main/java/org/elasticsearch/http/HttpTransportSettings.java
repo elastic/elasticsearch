@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.listSetting;
@@ -53,11 +54,11 @@ public final class HttpTransportSettings {
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL =
         Setting.intSetting("http.compression_level", 6, SettingsProperty.ClusterScope);
     public static final Setting<List<String>> SETTING_HTTP_HOST =
-        listSetting("http.host", emptyList(), s -> s, SettingsProperty.ClusterScope);
+        listSetting("http.host", emptyList(), Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST =
-        listSetting("http.publish_host", SETTING_HTTP_HOST, s -> s, SettingsProperty.ClusterScope);
+        listSetting("http.publish_host", SETTING_HTTP_HOST, Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> SETTING_HTTP_BIND_HOST =
-        listSetting("http.bind_host", SETTING_HTTP_HOST, s -> s, SettingsProperty.ClusterScope);
+        listSetting("http.bind_host", SETTING_HTTP_HOST, Function.identity(), SettingsProperty.ClusterScope);
 
     public static final Setting<PortsRange> SETTING_HTTP_PORT =
         new Setting<PortsRange>("http.port", "9200-9300", PortsRange::new, SettingsProperty.ClusterScope);

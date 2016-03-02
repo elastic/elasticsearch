@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  *
@@ -45,11 +46,11 @@ public class NetworkService extends AbstractComponent {
     public static final String DEFAULT_NETWORK_HOST = "_local_";
 
     public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
-        Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), s -> s, SettingsProperty.ClusterScope);
+        Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING =
-        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, s -> s, SettingsProperty.ClusterScope);
+        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING =
-        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, s -> s, SettingsProperty.ClusterScope);
+        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, SettingsProperty.ClusterScope);
 
     public static final class TcpSettings {

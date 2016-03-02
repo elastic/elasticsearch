@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.groupSetting;
@@ -36,13 +37,13 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
 final public class TransportSettings {
 
     public static final Setting<List<String>> HOST =
-        listSetting("transport.host", emptyList(), s -> s, SettingsProperty.ClusterScope);
+        listSetting("transport.host", emptyList(), Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> PUBLISH_HOST =
-        listSetting("transport.publish_host", HOST, s -> s, SettingsProperty.ClusterScope);
+        listSetting("transport.publish_host", HOST, Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<List<String>> BIND_HOST =
-        listSetting("transport.bind_host", HOST, s -> s, SettingsProperty.ClusterScope);
+        listSetting("transport.bind_host", HOST, Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<String> PORT =
-        new Setting<>("transport.tcp.port", "9300-9400", s -> s, SettingsProperty.ClusterScope);
+        new Setting<>("transport.tcp.port", "9300-9400", Function.identity(), SettingsProperty.ClusterScope);
     public static final Setting<Integer> PUBLISH_PORT =
         intSetting("transport.publish_port", -1, -1, SettingsProperty.ClusterScope);
     public static final String DEFAULT_PROFILE = "default";

@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -122,11 +123,11 @@ public class SettingTests extends ESTestCase {
         assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
 
         Setting<String> secondaryDefault =
-            new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, SettingsProperty.ClusterScope);
+            new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), Function.identity(), SettingsProperty.ClusterScope);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
         Setting<String> secondaryDefaultViaSettings =
-            new Setting<>("foo.bar", secondaryDefault, (s) -> s, SettingsProperty.ClusterScope);
+            new Setting<>("foo.bar", secondaryDefault, Function.identity(), SettingsProperty.ClusterScope);
         assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
         assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
     }
@@ -324,7 +325,7 @@ public class SettingTests extends ESTestCase {
             assertEquals(i, intValues.get(i).intValue());
         }
 
-        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, s -> s,
+        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, Function.identity(),
             SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
         value = settingWithFallback.get(Settings.EMPTY);
         assertEquals(1, value.size());

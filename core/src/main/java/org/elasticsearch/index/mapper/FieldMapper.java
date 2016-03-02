@@ -230,7 +230,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.V_3_0_0)) {
+            if (indexCreated.onOrAfter(Version.V_5_0_0)) {
                 // add doc values by default to keyword (boolean, numerics, etc.) fields
                 return fieldType.tokenized() == false;
             } else {

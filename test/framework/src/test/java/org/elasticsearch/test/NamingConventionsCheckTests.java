@@ -78,7 +78,7 @@ public class NamingConventionsCheckTests extends ESTestCase {
         assertTrue(check(InnerIT.class).innerClasses.contains(InnerIT.class));
     }
 
-    public static final class InnerIT extends ESClientTestCase {
+    public static final class InnerIT extends ESExternalDepsTestCase {
     }
 
     public void testNothingNamedLikeTestsNamedLikeUnitButNotUnit() {
@@ -153,7 +153,7 @@ public class NamingConventionsCheckTests extends ESTestCase {
         assertTrue(check(MissingClientTestSuffix.class).missingIntegTestSuffix.contains(MissingClientTestSuffix.class));
     }
 
-    public static final class MissingClientTestSuffix extends ESClientTestCase {
+    public static final class MissingClientTestSuffix extends ESExternalDepsTestCase {
     }
 
     public void testNamedLikeUnitButRestTestsIsNamedLikeUnitButNotUnit() {
@@ -167,9 +167,10 @@ public class NamingConventionsCheckTests extends ESTestCase {
     }
 
     public void testNamedLikeUnitButClientTestsIsNamedLikeUnitButNotUnit() {
-        assertTrue(check(NamedLikeUnitButClientTests.class).namedLikeUnitButNotUnit.contains(NamedLikeUnitButClientTests.class));
+        assertTrue(
+                check(NamedLikeUnitButExternalDepsTests.class).namedLikeUnitButNotUnit.contains(NamedLikeUnitButExternalDepsTests.class));
     }
 
-    public static final class NamedLikeUnitButClientTests extends ESClientTestCase {
+    public static final class NamedLikeUnitButExternalDepsTests extends ESExternalDepsTestCase {
     }
 }

@@ -27,16 +27,12 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.test.ESClientTestCase;
-
-import static org.hamcrest.Matchers.greaterThan;
+import org.elasticsearch.test.ESExternalDepsTestCase;
 
 /**
  * Example integration test against an external client.
  */
-public class ExampleExternalIT extends ESClientTestCase {
+public class ExampleExternalIT extends ESExternalDepsTestCase {
     public void testExampleFixture() throws Exception {
         String stringAddress = Objects.requireNonNull(System.getProperty("fixture.address"));
         URL url = new URL("http://" + stringAddress);
@@ -45,14 +41,5 @@ public class ExampleExternalIT extends ESClientTestCase {
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
            assertEquals("TEST", reader.readLine());
         }
-    }
-
-    public void testSimpleClient() {
-        Client client = getClient();
-
-        ClusterHealthResponse health = client.admin().cluster().prepareHealth().setWaitForYellowStatus().get();
-        String clusterName = health.getClusterName();
-        int numberOfNodes = health.getNumberOfNodes();
-        assertThat("cluster [" + clusterName + "] should have at least 1 node", numberOfNodes, greaterThan(0));
     }
 }

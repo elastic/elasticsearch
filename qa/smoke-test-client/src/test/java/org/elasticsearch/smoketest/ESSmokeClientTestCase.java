@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.elasticsearch.smoketest;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -38,10 +38,15 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.test.ESExternalDepsTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.hamcrest.Matchers.notNullValue;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 
 /**
  * An abstract base class to run integration tests against an Elasticsearch cluster running outside of the test process.
@@ -53,23 +58,23 @@ import static org.hamcrest.Matchers.notNullValue;
  * If you want to debug this module from your IDE, then start an external cluster by yourself, maybe with `gradle run`,
  * then run JUnit. If you changed the default port, set "-Dtests.cluster=localhost:PORT" when running your test.
  */
-@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public abstract class ESClientTestCase extends LuceneTestCase {
+public abstract class ESSmokeClientTestCase extends ESExternalDepsTestCase {
 
     /**
      * Key used to eventually switch to using an external cluster and provide its transport addresses
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
 
-    protected static final ESLogger logger = ESLoggerFactory.getLogger(ESClientTestCase.class.getName());
+    protected static final ESLogger logger = ESLoggerFactory.getLogger(ESSmokeClientTestCase.class.getName());
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;
     private static String clusterAddresses;
+    protected String index;
 
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
         Settings clientSettings = Settings.settingsBuilder()
-                .put("node.name", "client_test_case_client_" + counter.getAndIncrement())
+                .put("node.name", "qa_smoke_client_" + counter.getAndIncrement())
                 // prevents any settings to be replaced by system properties.
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put("client.transport.ignore_cluster_name", true)
@@ -107,13 +112,6 @@ public abstract class ESClientTestCase extends LuceneTestCase {
         return startClient(createTempDir(), transportAddresses);
     }
 
-    /**
-     * Fetches the client without building it if it doesn't already exist.
-     */
-    protected Client getClientNoCreate() {
-        return client;
-    }
-
     public static Client getClient() {
         if (client == null) {
             try {
@@ -139,6 +137,27 @@ public abstract class ESClientTestCase extends LuceneTestCase {
         if (client != null) {
             client.close();
             client = null;
+        }
+    }
+
+    @Before
+    public void defineIndexName() {
+        doClean();
+        index = "qa-smoke-test-client-" + randomAsciiOfLength(10).toLowerCase(Locale.getDefault());
+    }
+
+    @After
+    public void cleanIndex() {
+        doClean();
+    }
+
+    private void doClean() {
+        if (client != null) {
+            try {
+                client.admin().indices().prepareDelete(index).get();
+            } catch (Exception e) {
+                // We ignore this cleanup exception
+            }
         }
     }
 }

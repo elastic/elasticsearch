@@ -93,7 +93,7 @@ public class NamingConventionsCheck {
             assertViolation("MissingRestTestSuffix", check.missingIntegTestSuffix);
             assertViolation("MissingClientTestSuffix", check.missingIntegTestSuffix);
             assertViolation("NamedLikeUnitButRestTests", check.namedLikeUnitButNotUnit);
-            assertViolation("NamedLikeUnitButClientTests", check.namedLikeUnitButNotUnit);
+            assertViolation("NamedLikeUnitButExternalDepsTests", check.namedLikeUnitButNotUnit);
         }
 
         // Now we should have no violations
@@ -118,7 +118,7 @@ public class NamingConventionsCheck {
     final Set<Class<?>> namedLikeIntegButNotInteg = new HashSet<>();
 
     private final boolean esIntegTestsCanBeUnitTests;
-    
+
     public NamingConventionsCheck(boolean esIntegTestsCanBeUnitTests) {
         this.esIntegTestsCanBeUnitTests = esIntegTestsCanBeUnitTests;
     }
@@ -272,10 +272,7 @@ public class NamingConventionsCheck {
         NOT_A_TEST, UNIT, ES_INTEG, INTEG, PLAIN_UNIT;
 
         public static TestClassType fromClass(Class<?> clazz) {
-            if (ESRestTestCase.class.isAssignableFrom(clazz)) {
-                return INTEG;
-            }
-            if (ESClientTestCase.class.isAssignableFrom(clazz)) {
+            if (ESExternalDepsTestCase.class.isAssignableFrom(clazz)) {
                 return INTEG;
             }
             if (ESIntegTestCase.class.isAssignableFrom(clazz)) {

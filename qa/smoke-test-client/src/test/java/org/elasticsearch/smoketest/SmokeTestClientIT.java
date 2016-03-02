@@ -19,44 +19,14 @@
 
 package org.elasticsearch.smoketest;
 
-import java.util.Locale;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.test.ESClientTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThan;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
-
-public class SmokeTestClientIT extends ESClientTestCase {
-    protected String index;
-
-    @Before
-    public void defineIndexName() {
-        doClean();
-        index = "qa-smoke-test-client-" + randomAsciiOfLength(10).toLowerCase(Locale.getDefault());
-    }
-
-    @After
-    public void cleanIndex() {
-        doClean();
-    }
-
-    private void doClean() {
-        if (getClientNoCreate() != null) {
-            try {
-                getClientNoCreate().admin().indices().prepareDelete(index).get();
-            } catch (Exception e) {
-                // We ignore this cleanup exception
-            }
-        }
-    }
-
+public class SmokeTestClientIT extends ESSmokeClientTestCase {
     /**
      * Check that we are connected to a cluster.
      */

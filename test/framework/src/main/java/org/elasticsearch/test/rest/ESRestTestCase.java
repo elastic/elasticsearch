@@ -19,32 +19,8 @@
 
 package org.elasticsearch.test.rest;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.client.RestException;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
-import org.elasticsearch.test.rest.section.DoSection;
-import org.elasticsearch.test.rest.section.ExecutableSection;
-import org.elasticsearch.test.rest.section.RestTestSuite;
-import org.elasticsearch.test.rest.section.SkipSection;
-import org.elasticsearch.test.rest.section.TestSection;
-import org.elasticsearch.test.rest.spec.RestApi;
-import org.elasticsearch.test.rest.spec.RestSpec;
-import org.elasticsearch.test.rest.support.FileUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -61,10 +37,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESExternalDepsTestCase;
+import org.elasticsearch.test.rest.client.RestException;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
+import org.elasticsearch.test.rest.section.DoSection;
+import org.elasticsearch.test.rest.section.ExecutableSection;
+import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.SkipSection;
+import org.elasticsearch.test.rest.section.TestSection;
+import org.elasticsearch.test.rest.spec.RestApi;
+import org.elasticsearch.test.rest.spec.RestSpec;
+import org.elasticsearch.test.rest.support.FileUtils;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 /**
  * Runs the clients test suite against an elasticsearch cluster.
  */
-public abstract class ESRestTestCase extends ESTestCase {
+public abstract class ESRestTestCase extends ESExternalDepsTestCase {
 
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests

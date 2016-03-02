@@ -325,6 +325,7 @@ public class Shield {
             return;
         }
 
+        final Map<String, String> settingsMap = settings.getAsMap();
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
             String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
 
@@ -351,6 +352,14 @@ public class Shield {
             } else {
                 //shield must be enabled on every tribe if it's enabled on the tribe node
                 settingsBuilder.put(tribeEnabledSetting, true);
+            }
+
+            // we passed all the checks now we need to copy in all of the shield settings
+            for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith("shield.")) {
+                    settingsBuilder.put(tribePrefix + key, entry.getValue());
+                }
             }
         }
     }

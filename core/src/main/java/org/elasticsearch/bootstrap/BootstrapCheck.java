@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -41,7 +42,6 @@ import java.util.Set;
  * - discovery.zen.minimum_master_nodes
  * - discovery.zen.ping.unicast.hosts is set if we use zen disco
  * - ensure we can write in all data directories
- * - fail if mlockall failed and was configured
  * - fail if vm.max_map_count is under a certain limit (not sure if this works cross platform)
  * - fail if the default cluster.name is used, if this is setup on network a real clustername should be used?
  */
@@ -57,7 +57,7 @@ final class BootstrapCheck {
      * @param settings the current node settings
      */
     public static void check(final Settings settings) {
-        check(enforceLimits(settings), checks());
+        check(enforceLimits(settings), checks(settings));
     }
 
     /**
@@ -114,10 +114,13 @@ final class BootstrapCheck {
     }
 
     // the list of checks to execute
-    private static List<Check> checks() {
+    private static List<Check> checks(Settings settings) {
+        List<Check> checks = new ArrayList<>();
         FileDescriptorCheck fileDescriptorCheck
                 = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
-        return Collections.singletonList(fileDescriptorCheck);
+        checks.add(fileDescriptorCheck);
+        checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
+        return Collections.unmodifiableList(checks);
     }
 
     /**
@@ -187,6 +190,32 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxFileDescriptorCount() {
             return ProcessProbe.getInstance().getMaxFileDescriptorCount();
+        }
+
+    }
+
+    // visible for testing
+    static class MlockallCheck implements Check {
+
+        private final boolean mlockallSet;
+
+        public MlockallCheck(boolean mlockAllSet) {
+            this.mlockallSet = mlockAllSet;
+        }
+
+        @Override
+        public boolean check() {
+            return mlockallSet && !isMemoryLocked();
+        }
+
+        @Override
+        public String errorMessage() {
+            return "Memory locking requested for elasticsearch process but memory is not locked";
+        }
+
+        // visible for testing
+        boolean isMemoryLocked() {
+            return Natives.isMemoryLocked();
         }
 
     }

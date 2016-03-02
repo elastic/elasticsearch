@@ -23,8 +23,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -81,6 +83,51 @@ public class BootstrapCheckTests extends ESTestCase {
                         IllegalArgumentException.class,
                         () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
         assertThat(e.getMessage(), containsString("limit must be positive but was"));
+    }
+
+    public void testMlockallCheck() {
+        class MlockallCheckTestCase {
+
+            private final boolean mlockallSet;
+            private final boolean isMemoryLocked;
+            private final boolean shouldFail;
+
+            public MlockallCheckTestCase(boolean mlockallSet, boolean isMemoryLocked, boolean shouldFail) {
+                this.mlockallSet = mlockallSet;
+                this.isMemoryLocked = isMemoryLocked;
+                this.shouldFail = shouldFail;
+            }
+
+        }
+
+        final List<MlockallCheckTestCase> testCases = new ArrayList<>();
+        testCases.add(new MlockallCheckTestCase(true, true, false));
+        testCases.add(new MlockallCheckTestCase(true, false, true));
+        testCases.add(new MlockallCheckTestCase(false, true, false));
+        testCases.add(new MlockallCheckTestCase(false, false, false));
+
+        for (final MlockallCheckTestCase testCase : testCases) {
+            final BootstrapCheck.MlockallCheck check = new BootstrapCheck.MlockallCheck(testCase.mlockallSet) {
+                @Override
+                boolean isMemoryLocked() {
+                    return testCase.isMemoryLocked;
+                }
+            };
+
+            if (testCase.shouldFail) {
+                try {
+                    BootstrapCheck.check(true, Collections.singletonList(check));
+                    fail("should have failed due to memory not being locked");
+                } catch (RuntimeException e) {
+                    assertThat(
+                            e.getMessage(),
+                            containsString("Memory locking requested for elasticsearch process but memory is not locked"));
+                }
+            } else {
+                // nothing should happen
+                BootstrapCheck.check(true, Collections.singletonList(check));
+            }
+        }
     }
 
     public void testEnforceLimits() {

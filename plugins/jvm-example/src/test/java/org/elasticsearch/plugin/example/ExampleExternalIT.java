@@ -30,7 +30,7 @@ import java.util.Objects;
 import org.elasticsearch.test.ESExternalDepsTestCase;
 
 /**
- * Example integration test against an external client.
+ * Example integration test against a fixture.
  */
 public class ExampleExternalIT extends ESExternalDepsTestCase {
     public void testExampleFixture() throws Exception {

@@ -22,14 +22,12 @@ package org.elasticsearch.index.reindex;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16906")
 public class ReindexRestIT extends ESRestTestCase {
     public ReindexRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

@@ -244,6 +244,7 @@
                     <include>api/delete_script.json</include>
                     <include>api/update.json</include>
                     <include>api/search.json</include>
+                    <include>api/tasks.list.json</include>
                     <include>api/indices.analyze.json</include>
                     <include>api/indices.create.json</include>
                     <include>api/indices.refresh.json</include>

@@ -96,21 +96,21 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
-        if (request.taskId().isSet() == false) {
+        if (request.getTaskId().isSet() == false) {
             // we are only checking one task, we can optimize it
-            CancellableTask task = taskManager.getCancellableTask(request.taskId().getId());
+            CancellableTask task = taskManager.getCancellableTask(request.getTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept(task);
                 } else {
-                    throw new IllegalArgumentException("task [" + request.taskId() + "] doesn't support this operation");
+                    throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support this operation");
                 }
             } else {
-                if (taskManager.getTask(request.taskId().getId()) != null) {
+                if (taskManager.getTask(request.getTaskId().getId()) != null) {
                     // The task exists, but doesn't support cancellation
-                    throw new IllegalArgumentException("task [" + request.taskId() + "] doesn't support cancellation");
+                    throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support cancellation");
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support cancellation", request.taskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support cancellation", request.getTaskId());
                 }
             }
         } else {
@@ -130,7 +130,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 removeBanOnNodes(cancellableTask, nodes);
             }
         });
-        Set<String> childNodes = taskManager.cancel(cancellableTask, request.reason(), new Consumer<Set<String>>() {
+        Set<String> childNodes = taskManager.cancel(cancellableTask, request.getReason(), new Consumer<Set<String>>() {
             @Override
             public void accept(Set<String> nodes) {
                 banLock.onTaskFinished(nodes);
@@ -142,7 +142,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 return cancellableTask.taskInfo(clusterService.localNode(), false);
             } else {
                 logger.trace("cancelling task {} with children on nodes [{}]", cancellableTask.getId(), childNodes);
-                setBanOnNodes(request.reason(), cancellableTask, childNodes, banLock);
+                setBanOnNodes(request.getReason(), cancellableTask, childNodes, banLock);
                 return cancellableTask.taskInfo(clusterService.localNode(), false);
             }
         } else {

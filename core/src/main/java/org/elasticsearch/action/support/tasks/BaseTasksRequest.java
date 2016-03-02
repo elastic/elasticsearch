@@ -71,7 +71,7 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
      * Sets the list of action masks for the actions that should be returned
      */
     @SuppressWarnings("unchecked")
-    public final T actions(String... actions) {
+    public final T setActions(String... actions) {
         this.actions = actions;
         return (T) this;
     }
@@ -79,16 +79,16 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     /**
      * Return the list of action masks for the actions that should be returned
      */
-    public String[] actions() {
+    public String[] getActions() {
         return actions;
     }
 
-    public final String[] nodesIds() {
+    public final String[] getNodesIds() {
         return nodesIds;
     }
 
     @SuppressWarnings("unchecked")
-    public final T nodesIds(String... nodesIds) {
+    public final T setNodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
         return (T) this;
     }
@@ -98,12 +98,12 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
      *
      * By default tasks with any ids are returned.
      */
-    public TaskId taskId() {
+    public TaskId getTaskId() {
         return taskId;
     }
 
     @SuppressWarnings("unchecked")
-    public final T taskId(TaskId taskId) {
+    public final T setTaskId(TaskId taskId) {
         this.taskId = taskId;
         return (T) this;
     }
@@ -112,29 +112,29 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     /**
      * Returns the parent task id that tasks should be filtered by
      */
-    public TaskId parentTaskId() {
+    public TaskId getParentTaskId() {
         return parentTaskId;
     }
 
     @SuppressWarnings("unchecked")
-    public T parentTaskId(TaskId parentTaskId) {
+    public T setParentTaskId(TaskId parentTaskId) {
         this.parentTaskId = parentTaskId;
         return (T) this;
     }
 
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return this.timeout;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final T setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return (T) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final T setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (T) this;
     }
@@ -162,11 +162,11 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     public boolean match(Task task) {
-        if (actions() != null && actions().length > 0 && Regex.simpleMatch(actions(), task.getAction()) == false) {
+        if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
-        if (taskId().isSet() == false) {
-            if(taskId().getId() != task.getId()) {
+        if (getTaskId().isSet() == false) {
+            if(getTaskId().getId() != task.getId()) {
                 return false;
             }
         }

@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -53,10 +52,10 @@ public class RestCancelTasksAction extends BaseRestHandler {
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-        cancelTasksRequest.taskId(taskId);
-        cancelTasksRequest.nodesIds(nodesIds);
-        cancelTasksRequest.actions(actions);
-        cancelTasksRequest.parentTaskId(parentTaskId);
+        cancelTasksRequest.setTaskId(taskId);
+        cancelTasksRequest.setNodesIds(nodesIds);
+        cancelTasksRequest.setActions(actions);
+        cancelTasksRequest.setParentTaskId(parentTaskId);
         client.admin().cluster().cancelTasks(cancelTasksRequest, new RestToXContentListener<CancelTasksResponse>(channel));
     }
 }

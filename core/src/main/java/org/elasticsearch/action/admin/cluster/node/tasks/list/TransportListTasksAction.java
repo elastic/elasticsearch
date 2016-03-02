@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,19 +31,25 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Consumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
+
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  *
  */
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
+    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
+    private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
     @Inject
     public TransportListTasksAction(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -66,7 +74,38 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     @Override
     protected TaskInfo taskOperation(ListTasksRequest request, Task task) {
-        return task.taskInfo(clusterService.localNode(), request.detailed());
+        return task.taskInfo(clusterService.localNode(), request.getDetailed());
+    }
+
+    @Override
+    protected void processTasks(ListTasksRequest request, final Consumer<Task> operation) {
+        if (false == request.getWaitForCompletion()) {
+            super.processTasks(request, operation);
+            return;
+        }
+        // If we should wait for completion then we have to intercept every found task and wait for it to leave the manager.
+        TimeValue timeout = request.getTimeout();
+        if (timeout == null) {
+            timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
+        }
+        final long timeoutTime = System.nanoTime() + timeout.nanos();
+        super.processTasks(request, new Consumer<Task>() {
+            @Override
+            public void accept(Task t) {
+                operation.accept(t);
+                while (System.nanoTime() - timeoutTime < 0) {
+                    if (taskManager.getTask(t.getId()) == null) {
+                        return;
+                    }
+                    try {
+                        Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
+                    } catch (InterruptedException e) {
+                        throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, t);
+                    }
+                }
+                throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", t);
+            }
+        });
     }
 
     @Override

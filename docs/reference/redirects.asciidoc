@@ -449,3 +449,8 @@ The docs for the `nested` field datatype have moved to <<nested>>.
 
 Warmers have been removed. There have been significant improvements to the
 index that make warmers not necessary anymore.
+
+[role="exclude",id="index-boost"]
+=== Index time boosting
+
+The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).

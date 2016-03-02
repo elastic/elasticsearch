@@ -322,16 +322,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public float docBoost() {
-            return in.docBoost();
-        }
-
-        @Override
-        public void docBoost(float docBoost) {
-            in.docBoost(docBoost);
-        }
-
-        @Override
         public StringBuilder stringBuilder() {
             return in.stringBuilder();
         }
@@ -375,8 +365,6 @@ public abstract class ParseContext {
 
         private AllEntries allEntries = new AllEntries();
 
-        private float docBoost = 1.0f;
-
         private Mapper dynamicMappingsUpdate = null;
 
         public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
@@ -402,7 +390,6 @@ public abstract class ParseContext {
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
             this.allEntries = new AllEntries();
-            this.docBoost = 1.0f;
             this.dynamicMappingsUpdate = null;
         }
 
@@ -532,16 +519,6 @@ public abstract class ParseContext {
         @Override
         public AllEntries allEntries() {
             return this.allEntries;
-        }
-
-        @Override
-        public float docBoost() {
-            return this.docBoost;
-        }
-
-        @Override
-        public void docBoost(float docBoost) {
-            this.docBoost = docBoost;
         }
 
         /**
@@ -758,10 +735,6 @@ public abstract class ParseContext {
         }
         return clazz.cast(externalValue());
     }
-
-    public abstract float docBoost();
-
-    public abstract void docBoost(float docBoost);
 
     /**
      * A string builder that can be used to construct complex names for example.

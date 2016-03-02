@@ -69,7 +69,7 @@ final class BootstrapCheck {
      * @param checks        the checks to execute
      */
     // visible for testing
-    static void check(boolean enforceLimits, List<Check> checks) {
+    static void check(final boolean enforceLimits, final List<Check> checks) {
         final ESLogger logger = Loggers.getLogger(BootstrapCheck.class);
 
         for (Check check : checks) {
@@ -114,7 +114,7 @@ final class BootstrapCheck {
     }
 
     // the list of checks to execute
-    private static List<Check> checks(Settings settings) {
+    private static List<Check> checks(final Settings settings) {
         List<Check> checks = new ArrayList<>();
         FileDescriptorCheck fileDescriptorCheck
                 = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
@@ -165,7 +165,7 @@ final class BootstrapCheck {
             this(1 << 16);
         }
 
-        protected FileDescriptorCheck(int limit) {
+        protected FileDescriptorCheck(final int limit) {
             if (limit <= 0) {
                 throw new IllegalArgumentException("limit must be positive but was [" + limit + "]");
             }
@@ -199,7 +199,7 @@ final class BootstrapCheck {
 
         private final boolean mlockallSet;
 
-        public MlockallCheck(boolean mlockAllSet) {
+        public MlockallCheck(final boolean mlockAllSet) {
             this.mlockallSet = mlockAllSet;
         }
 

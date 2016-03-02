@@ -63,7 +63,7 @@ public class BootstrapCheckTests extends ESTestCase {
         try {
             BootstrapCheck.check(true, Collections.singletonList(check));
             fail("should have failed due to max file descriptors too low");
-        } catch (RuntimeException e) {
+        } catch (final RuntimeException e) {
             assertThat(e.getMessage(), containsString("max file descriptors"));
         }
 
@@ -92,7 +92,7 @@ public class BootstrapCheckTests extends ESTestCase {
             private final boolean isMemoryLocked;
             private final boolean shouldFail;
 
-            public MlockallCheckTestCase(boolean mlockallSet, boolean isMemoryLocked, boolean shouldFail) {
+            public MlockallCheckTestCase(final boolean mlockallSet, final boolean isMemoryLocked, final boolean shouldFail) {
                 this.mlockallSet = mlockallSet;
                 this.isMemoryLocked = isMemoryLocked;
                 this.shouldFail = shouldFail;
@@ -118,7 +118,7 @@ public class BootstrapCheckTests extends ESTestCase {
                 try {
                     BootstrapCheck.check(true, Collections.singletonList(check));
                     fail("should have failed due to memory not being locked");
-                } catch (RuntimeException e) {
+                } catch (final RuntimeException e) {
                     assertThat(
                             e.getMessage(),
                             containsString("Memory locking requested for elasticsearch process but memory is not locked"));

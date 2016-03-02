@@ -72,7 +72,7 @@ final class BootstrapCheck {
     static void check(final boolean enforceLimits, final List<Check> checks) {
         final ESLogger logger = Loggers.getLogger(BootstrapCheck.class);
 
-        for (Check check : checks) {
+        for (final Check check : checks) {
             final boolean fail = check.check();
             if (fail) {
                 if (enforceLimits) {
@@ -115,8 +115,8 @@ final class BootstrapCheck {
 
     // the list of checks to execute
     private static List<Check> checks(final Settings settings) {
-        List<Check> checks = new ArrayList<>();
-        FileDescriptorCheck fileDescriptorCheck
+        final List<Check> checks = new ArrayList<>();
+        final FileDescriptorCheck fileDescriptorCheck
                 = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
         checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));

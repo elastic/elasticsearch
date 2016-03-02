@@ -21,13 +21,16 @@ package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.endsWith;
 
 /**
  * Example unit test.
  */
 public class ExampleTests extends ESTestCase {
     public void testExample() throws Exception {
-        assertThat(true, is(true));
+        // Normal junit assertions work.
+        assertTrue(true);
+        // Elasticsearch tests tend to use hamcrest assertions though. They give nice error messages.
+        assertThat("stuff", endsWith("ff"));
     }
 }

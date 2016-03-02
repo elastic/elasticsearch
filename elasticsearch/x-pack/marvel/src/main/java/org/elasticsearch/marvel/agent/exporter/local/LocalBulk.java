@@ -39,7 +39,8 @@ public class LocalBulk extends ExportBulk {
 
     AtomicReference<State> state = new AtomicReference<>();
 
-    public LocalBulk(String name, ESLogger logger, Client client, MonitoringIndexNameResolver indexNameResolver, RendererRegistry renderers) {
+    public LocalBulk(String name, ESLogger logger, Client client, MonitoringIndexNameResolver indexNameResolver,
+                     RendererRegistry renderers) {
         super(name);
         this.logger = logger;
         this.client = client;

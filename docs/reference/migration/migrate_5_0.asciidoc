@@ -94,6 +94,12 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+==== Boost accuracy for queries on `_all`
+
+Per-field boosts on the `_all` are now compressed on a single byte instead of
+4 bytes previously. While this will make the index more space-efficient, this
+also means that the boosts will be less accurately encoded.
+
 [[breaking_50_rest_api_changes]]
 === REST API changes
 

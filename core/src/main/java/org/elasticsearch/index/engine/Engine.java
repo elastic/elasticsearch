@@ -22,11 +22,13 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
@@ -36,12 +38,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -64,8 +69,11 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -406,7 +414,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public final SegmentsStats segmentsStats() {
+    public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
         try (final Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
@@ -418,10 +426,79 @@ public abstract class Engine implements Closeable {
                 stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
                 stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
                 stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+
+                if (includeSegmentFileSizes) {
+                    // TODO: consider moving this to StoreStats
+                    stats.addFileSizes(getSegmentFileSizes(segmentReader));
+                }
             }
             writerSegmentStats(stats);
             return stats;
         }
+    }
+
+    private ImmutableOpenMap<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
+        Directory directory = null;
+        SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
+        boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
+        if (useCompoundFile) {
+            try {
+                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
+            } catch (IOException e) {
+                logger.warn("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", e,
+                            segmentReader.directory(), segmentCommitInfo);
+
+                return ImmutableOpenMap.of();
+            }
+        } else {
+            directory = segmentReader.directory();
+        }
+
+        assert directory != null;
+
+        String[] files;
+        if (useCompoundFile) {
+            try {
+                files = directory.listAll();
+            } catch (IOException e) {
+                logger.warn("Couldn't list Compound Reader Directory [{}]", e, directory);
+                return ImmutableOpenMap.of();
+            }
+        } else {
+            try {
+                files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
+            } catch (IOException e) {
+                logger.warn("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", e, segmentReader, segmentReader.getSegmentInfo());
+                return ImmutableOpenMap.of();
+            }
+        }
+
+        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder();
+        for (String file : files) {
+            String extension = IndexFileNames.getExtension(file);
+            long length = 0L;
+            try {
+                length = directory.fileLength(file);
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                logger.warn("Tried to query fileLength but file is gone [{}] [{}]", e, directory, file);
+            } catch (IOException e) {
+                logger.warn("Error when trying to query fileLength [{}] [{}]", e, directory, file);
+            }
+            if (length == 0L) {
+                continue;
+            }
+            map.put(extension, length);
+        }
+
+        if (useCompoundFile && directory != null) {
+            try {
+                directory.close();
+            } catch (IOException e) {
+                logger.warn("Error when closing compound reader on Directory [{}]", e, directory);
+            }
+        }
+
+        return map.build();
     }
 
     protected void writerSegmentStats(SegmentsStats stats) {

@@ -33,7 +33,7 @@ public class CreateIndexResponse extends AcknowledgedResponse {
     CreateIndexResponse() {
     }
 
-    CreateIndexResponse(boolean acknowledged) {
+    public CreateIndexResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

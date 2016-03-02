@@ -169,7 +169,7 @@ final class BootstrapCheck {
         }
 
         public final boolean check() {
-            long maxFileDescriptorCount = getMaxFileDescriptorCount();
+            final long maxFileDescriptorCount = getMaxFileDescriptorCount();
             return maxFileDescriptorCount != -1 && maxFileDescriptorCount < limit;
         }
 

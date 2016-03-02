@@ -38,10 +38,10 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testFileDescriptorLimits() {
-        boolean osX = randomBoolean(); // simulates OS X versus non-OS X
-        long limit = osX ? 10240 : 1 << 16;
-        AtomicLong maxFileDescriptorCount = new AtomicLong(limit - 1);
-        BootstrapCheck.FileDescriptorCheck check;
+        final boolean osX = randomBoolean(); // simulates OS X versus non-OS X
+        final long limit = osX ? 10240 : 1 << 16;
+        final AtomicLong maxFileDescriptorCount = new AtomicLong(limit - 1);
+        final BootstrapCheck.FileDescriptorCheck check;
         if (osX) {
             check = new BootstrapCheck.OsXFileDescriptorCheck() {
                 @Override
@@ -71,7 +71,7 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testFileDescriptorLimitsThrowsOnInvalidLimit() {
-        IllegalArgumentException e =
+        final IllegalArgumentException e =
                 expectThrows(
                         IllegalArgumentException.class,
                         () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
@@ -79,9 +79,9 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testEnforceLimits() {
-        Set<Setting> enforceSettings = BootstrapCheck.enforceSettings();
-        Setting setting = randomFrom(Arrays.asList(enforceSettings.toArray(new Setting[enforceSettings.size()])));
-        Settings settings = Settings.builder().put(setting.getKey(), randomAsciiOfLength(8)).build();
+        final Set<Setting> enforceSettings = BootstrapCheck.enforceSettings();
+        final Setting setting = randomFrom(Arrays.asList(enforceSettings.toArray(new Setting[enforceSettings.size()])));
+        final Settings settings = Settings.builder().put(setting.getKey(), randomAsciiOfLength(8)).build();
         assertTrue(BootstrapCheck.enforceLimits(settings));
     }
 

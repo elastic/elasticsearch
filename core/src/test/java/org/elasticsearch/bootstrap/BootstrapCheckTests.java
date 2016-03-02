@@ -68,6 +68,11 @@ public class BootstrapCheckTests extends ESTestCase {
         maxFileDescriptorCount.set(limit + 1);
 
         BootstrapCheck.check(true, Collections.singletonList(check));
+
+        // nothing should happen if current file descriptor count is
+        // not available
+        maxFileDescriptorCount.set(-1);
+        BootstrapCheck.check(true, Collections.singletonList(check));
     }
 
     public void testFileDescriptorLimitsThrowsOnInvalidLimit() {

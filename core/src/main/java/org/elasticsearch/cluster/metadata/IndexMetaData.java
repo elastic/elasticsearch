@@ -258,7 +258,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexUpgradedVersion = indexUpgradedVersion;
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
-        this.hidden = INDEX_HIDDEN_SETTING.get(settings);
+        // by default we treat indices that start with '.' as hidden
+        this.hidden = INDEX_HIDDEN_SETTING.exists(settings) ? INDEX_HIDDEN_SETTING.get(settings) : index.getName().startsWith(".");
     }
 
     public Index getIndex() {
@@ -309,7 +310,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     /**
-     * Retruns <code>true</code> if the index is a hidden index
+     * Returns <code>true</code> if the index is a hidden index
      */
     public boolean isHidden() {
         return hidden;

@@ -273,9 +273,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             indexSettingsBuilder.put(request.settings());
                             if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
                                 indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                                if (IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) == false) {
-                                    indexSettingsBuilder.put(IndexMetaData.INDEX_HIDDEN_SETTING.getKey(), "true");
-                                }
                             } else {
                                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
                                     indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));

@@ -147,4 +147,36 @@ public class MetaDataTests extends ESTestCase {
             assertEquals("Unexpected field [random]", e.getMessage());
         }
     }
+
+    public void testHiddenIndex() {
+        IndexMetaData.Builder builder = IndexMetaData.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.INDEX_HIDDEN_SETTING.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        assertTrue(builder.build().isHidden());
+
+        builder = IndexMetaData.builder(".foo")
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        assertTrue(builder.build().isHidden());
+
+        builder = IndexMetaData.builder("foo")
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        assertFalse(builder.build().isHidden());
+
+        builder = IndexMetaData.builder(".foo")
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.INDEX_HIDDEN_SETTING.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        assertFalse(builder.build().isHidden());
+    }
 }

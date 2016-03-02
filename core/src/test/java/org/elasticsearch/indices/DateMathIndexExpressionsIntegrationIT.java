@@ -19,10 +19,14 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -30,6 +34,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -50,7 +55,8 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         client().prepareIndex(dateMathExp1, "type", "1").setSource("{}").get();
         client().prepareIndex(dateMathExp2, "type", "2").setSource("{}").get();
         client().prepareIndex(dateMathExp3, "type", "3").setSource("{}").get();
-        refresh();
+        assertNoFailures(client().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.fromParameters(null,
+            null, null, true, IndicesOptions.strictExpandOpenAndForbidClosed())).get());
 
         SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();
         assertHitCount(searchResponse, 3);
@@ -68,7 +74,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("3"));
 
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3).get();
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(dateMathExp1, dateMathExp2,
+            dateMathExp3).setIndicesOptions(IndicesOptions.fromParameters(null,null,null,true, SearchRequest.DEFAULT_INDICES_OPTIONS))
+            .get();
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
@@ -98,13 +106,16 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         client().prepareIndex(dateMathExp1, "type", "1").setSource("{}").get();
         client().prepareIndex(dateMathExp2, "type", "2").setSource("{}").get();
         client().prepareIndex(dateMathExp3, "type", "3").setSource("{}").get();
-        refresh();
+        assertNoFailures(client().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.fromParameters(null,
+            null, null, true, IndicesOptions.strictExpandOpenAndForbidClosed())).get());
 
-        SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();
+        SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3)
+            .setIndicesOptions(IndicesOptions.fromParameters(null,null,null,true, SearchRequest.DEFAULT_INDICES_OPTIONS)).get();
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3).get();
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(dateMathExp1, dateMathExp2,
+            dateMathExp3).get();
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
@@ -126,5 +137,4 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(clusterState.metaData().index(index2), notNullValue());
         assertThat(clusterState.metaData().index(index3), notNullValue());
     }
-
 }

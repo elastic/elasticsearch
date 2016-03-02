@@ -120,9 +120,7 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        //if we read from a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
-        //we just receive the old corresponding value with the new flag set to true (default)
-        int id = in.readInt();
+        final int id = in.readInt();
         return new IndicesOptions(id);
     }
 
@@ -162,12 +160,8 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
-        return fromParameters(
-                map.containsKey("expand_wildcards") ? map.get("expand_wildcards") : map.get("expandWildcards"),
-                map.containsKey("ignore_unavailable") ? map.get("ignore_unavailable") : map.get("ignoreUnavailable"),
-                map.containsKey("allow_no_indices") ? map.get("allow_no_indices") : map.get("allowNoIndices"),
-                map.getOrDefault("include_hidden", map.getOrDefault("includeHidden", "false")),
-                defaultSettings);
+        return fromParameters(map.get("expand_wildcards"), map.get("ignore_unavailable"),
+            map.get("allow_no_indices"), map.get("include_hidden"), defaultSettings);
     }
 
     /**
@@ -177,11 +171,8 @@ public class IndicesOptions {
     public static boolean isIndicesOptions(String name) {
         switch (name) {
             case "expand_wildcards":
-            case "expandWildcards":
             case "ignore_unavailable":
-            case "ignoreUnavailable":
             case "allow_no_indices":
-            case "allowNoIndices":
             case "include_hidden":
                 return true;
             default:
@@ -309,7 +300,7 @@ public class IndicesOptions {
                 ", allow_no_indices=" + allowNoIndices() +
                 ", expand_wildcards_open=" + expandWildcardsOpen() +
                 ", expand_wildcards_closed=" + expandWildcardsClosed() +
-                ", allow_alisases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
+                ", allow_aliases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
                 ", forbid_closed_indices=" + forbidClosedIndices() +
                 ", include_hidden=" + includeHidden() +
                 ']';

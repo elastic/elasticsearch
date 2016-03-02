@@ -21,6 +21,8 @@ your application to Elasticsearch 5.0.
 * <<breaking_50_scripting>>
 * <<breaking_50_term_vectors>>
 * <<breaking_50_security>>
+* <<breaking_50_indices_options>>
+* <<breaking_50_hidden_indices>>
 
 [[breaking_50_search_changes]]
 === Warmers
@@ -838,3 +840,18 @@ distributed document frequencies anymore.
 
 The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
 permissions to elasticsearch users must tweak the local Java Security Policy.
+
+[[breaking_50_indices_options]]
+=== Indices Options
+CamelCase indices options like `expandWildcards` are not supported anymore. The corresponding underscore variant should be used
+instead. 
+
+[[breaking_50_hidden_indices]]
+=== Hidden Indices
+All indices that name starts with a `.` are considered hidden and won't be resolved in expressions by default.  
+For instance the `.marvel-` indices won't be searchable unless the index option `include_hidden` is provided on the request.
+
+[source,js]
+--------------------
+GET .marvel-*/_count?include_hidden
+--------------------

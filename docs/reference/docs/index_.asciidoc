@@ -399,14 +399,32 @@ $ curl -XPUT 'http://localhost:9200/twitter/tweet/1?timeout=5m' -d '{
 }'
 --------------------------------------------------
 
-[float]
-[[hidden]]
+float]
+[[hidden-indices]]
 === Hidden Indices
 
-An index can be hidden by setting `index.hidden` to `true` when then index is created.
-A hidden index will not be resolved from expression ie. the index `.scripts` is hidden
-by default from `5.0` on and won't be deleted if `_all` indices are deleted unless the indices
-option `include_hidden` is specified. Yet, if the index is specified explitily or via an alias
-the index is not treated as hidden. This is useful for indices that should not be included if for instance
-`_all` is searched or if indices are currently re-indexed and follow some kind of index name pattern. This
-setting can be updated.
+added[5.0.0]
+
+An index can be hidden by setting `index.hidden` to `true`. This setting
+defaults to `false` unless the index name starts with `.`, such as `.kibana`.
+This is a dynamic setting which can be updated on an existing index.
+
+A hidden index will not be returned by multi-index expressions like `_all`, `*`,
+or `.marvel-*`. For instance, deleting `_all` indices will not delete hidden
+indices. Hidden indices can be referenced directly by name (eg `.kibana`) or
+by an alias that points to the index (eg `marvel-current`).
+
+Hidden indices can be revealed by including the `include_hidden` query string
+parameter, such as:
+
+[source,js]
+--------------------
+DELETE /_all?include_hidden
+--------------------
+
+or:
+
+[source,js]
+--------------------
+GET .marvel-*/_count?include_hidden
+--------------------

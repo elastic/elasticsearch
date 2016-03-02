@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -70,8 +71,8 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
 
         String numberOfShards = settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.number_of_shards");
         String numberOfReplicas = settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.auto_expand_replicas");
-        boolean hidden = Boolean.parseBoolean(settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.hidden"));
-        assertTrue(".script index must be hidden", hidden);
+        IndexMetaData imd = client().admin().cluster().prepareState().get().getState().metaData().index(ScriptService.SCRIPT_INDEX);
+        assertTrue(".script index must be hidden", imd.isHidden());
         assertEquals("Number of shards should be 1", "1", numberOfShards);
         assertEquals("Auto expand replicas should be 0-all", "0-all", numberOfReplicas);
     }

@@ -223,7 +223,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
     }
 
-    class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
+    class NodeTransportHandler extends TransportRequestHandler<NodeRequest> {
 
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {

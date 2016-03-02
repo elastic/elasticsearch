@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -63,7 +64,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         public CancellableNodeRequest(CancellableNodesRequest request, String nodeId) {
-            super(nodeId);
+            super(request, nodeId);
             requestName = request.requestName;
             this.nodeId = nodeId;
         }
@@ -96,7 +97,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
         private String requestName;
 
-        private CancellableNodesRequest() {
+        public CancellableNodesRequest() {
             super();
         }
 
@@ -141,8 +142,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CancellableTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, boolean shouldBlock, CountDownLatch
                                        actionStartedLatch) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService, CancellableNodesRequest::new,
-                CancellableNodeRequest::new);
+            super(settings, actionName, clusterName, threadPool, clusterService, transportService, CancellableNodesRequest.class,
+                CancellableNodeRequest.class);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }
@@ -153,7 +154,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeResponse nodeOperation(CancellableNodeRequest request, Task task) {
+        protected NodeResponse nodeOperation(CancellableNodeRequest request, final Task task) {
             assert task instanceof CancellableTask;
             debugDelay(request.nodeId, "op1");
             if (actionStartedLatch != null) {
@@ -165,11 +166,14 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
                 try {
-                    awaitBusy(() -> {
-                        if (((CancellableTask) task).isCancelled()) {
-                            throw new RuntimeException("Cancelled");
+                    awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(Object input) {
+                            if (((CancellableTask) task).isCancelled()) {
+                                throw new RuntimeException("Cancelled");
+                            }
+                            return false;
                         }
-                        return false;
                     });
                     fail("It should have thrown an exception");
                 } catch (InterruptedException ex) {
@@ -215,7 +219,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public void testBasicTaskCancellation() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
-        CountDownLatch responseLatch = new CountDownLatch(1);
+        final CountDownLatch responseLatch = new CountDownLatch(1);
         boolean waitForActionToStart = randomBoolean();
         logger.info("waitForActionToStart is set to {}", waitForActionToStart);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -276,9 +280,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         // Make sure that there are no leftover bans, the ban removal is async, so we might return from the cancellation
         // while the ban is still there, but it should disappear shortly
-        assertBusy(() -> {
-            for (int i = 0; i < testNodes.length; i++) {
-                assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < testNodes.length; i++) {
+                    assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
+                }
             }
         });
     }
@@ -286,7 +293,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public void testTaskCancellationOnCoordinatingNodeLeavingTheCluster() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
-        CountDownLatch responseLatch = new CountDownLatch(1);
+        final CountDownLatch responseLatch = new CountDownLatch(1);
         boolean simulateBanBeforeLeaving = randomBoolean();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
@@ -294,7 +301,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         // We shouldn't block on the first node since it's leaving the cluster anyway so it doesn't matter
         List<TestNode> blockOnNodes = randomSubsetOf(blockedNodesCount, Arrays.copyOfRange(testNodes, 1, nodesCount));
-        Task mainTask = startCancellableTestNodesAction(true, blockOnNodes, new CancellableNodesRequest("Test Request"), new
+        final Task mainTask = startCancellableTestNodesAction(true, blockOnNodes, new CancellableNodesRequest("Test Request"), new
             ActionListener<NodesResponse>() {
             @Override
             public void onResponse(NodesResponse listTasksResponse) {
@@ -309,7 +316,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
         });
 
-        String mainNode = testNodes[0].discoveryNode.getId();
+        final String mainNode = testNodes[0].discoveryNode.getId();
 
         // Make sure that tasks are running
         ListTasksResponse listTasksResponse = testNodes[randomIntBetween(0, testNodes.length - 1)]
@@ -352,16 +359,20 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Close the first node
         testNodes[0].close();
 
-        assertBusy(() -> {
-            // Make sure that tasks are no longer running
-            try {
-                ListTasksResponse listTasksResponse1 = testNodes[randomIntBetween(1, testNodes.length - 1)]
-                    .transportListTasksAction.execute(new ListTasksRequest().taskId(new TaskId(mainNode, mainTask.getId()))).get();
-                assertEquals(0, listTasksResponse1.getTasks().size());
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException ex2) {
-                fail("shouldn't be here");
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                // Make sure that tasks are no longer running
+                try {
+                    ListTasksResponse listTasksResponse1 = testNodes[randomIntBetween(1, testNodes.length - 1)]
+                        .transportListTasksAction.execute(new ListTasksRequest().taskId(new TaskId(mainNode, mainTask.getId()))).get();
+                    assertEquals(0, listTasksResponse1.getTasks().size());
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException ex2) {
+                    fail("shouldn't be here");
+                }
+
             }
         });
 

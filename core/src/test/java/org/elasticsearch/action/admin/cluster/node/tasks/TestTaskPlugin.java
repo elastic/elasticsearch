@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -56,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
@@ -148,7 +151,7 @@ public class TestTaskPlugin extends Plugin {
         }
 
         public NodeRequest(NodesRequest request, String nodeId) {
-            super(nodeId);
+            super(request, nodeId);
             requestName = request.requestName;
             this.nodeId = nodeId;
         }
@@ -181,7 +184,7 @@ public class TestTaskPlugin extends Plugin {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
 
-        NodesRequest() {
+        public NodesRequest() {
             super();
         }
 
@@ -219,8 +222,8 @@ public class TestTaskPlugin extends Plugin {
         public TransportTestTaskAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService) {
             super(settings, TestTaskAction.NAME, clusterName, threadPool, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC);
+                new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                NodesRequest.class, NodeRequest.class, ThreadPool.Names.GENERIC);
         }
 
         @Override
@@ -267,14 +270,17 @@ public class TestTaskPlugin extends Plugin {
         }
 
         @Override
-        protected NodeResponse nodeOperation(NodeRequest request, Task task) {
+        protected NodeResponse nodeOperation(NodeRequest request, final Task task) {
             logger.info("Test task started on the node {}", clusterService.localNode());
             try {
-                awaitBusy(() -> {
-                    if (((CancellableTask) task).isCancelled()) {
-                        throw new RuntimeException("Cancelled!");
+                awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object obj) {
+                        if (((CancellableTask) task).isCancelled()) {
+                            throw new RuntimeException("Cancelled!");
+                        }
+                        return ((TestTask) task).isBlocked() == false;
                     }
-                    return ((TestTask) task).isBlocked() == false;
                 });
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
@@ -359,7 +365,11 @@ public class TestTaskPlugin extends Plugin {
         public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
             FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            if (tasks == null) {
+                this.tasks = Collections.emptyList();
+            } else {
+                this.tasks = Collections.unmodifiableList(new ArrayList<>(tasks));
+            }
         }
 
         @Override
@@ -394,8 +404,13 @@ public class TestTaskPlugin extends Plugin {
             clusterService,
                                                TransportService transportService) {
             super(settings, UnblockTestTasksAction.NAME, clusterName, threadPool, clusterService, transportService, new ActionFilters(new
-                HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+                HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                new Callable<UnblockTestTasksRequest>() {
+                    @Override
+                    public UnblockTestTasksRequest call() throws Exception {
+                        return new UnblockTestTasksRequest();
+                    }
+                }, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override

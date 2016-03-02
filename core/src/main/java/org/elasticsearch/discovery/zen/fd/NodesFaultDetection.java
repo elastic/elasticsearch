@@ -242,7 +242,7 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    class PingRequestHandler implements TransportRequestHandler<PingRequest> {
+    class PingRequestHandler extends TransportRequestHandler<PingRequest> {
         @Override
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception

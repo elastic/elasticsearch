@@ -680,7 +680,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    private final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreShardSyncedFlushRequest> {
+    private final class PreSyncedFlushTransportHandler extends TransportRequestHandler<PreShardSyncedFlushRequest> {
 
         @Override
         public void messageReceived(PreShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
@@ -688,7 +688,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    private final class SyncedFlushTransportHandler implements TransportRequestHandler<ShardSyncedFlushRequest> {
+    private final class SyncedFlushTransportHandler extends TransportRequestHandler<ShardSyncedFlushRequest> {
 
         @Override
         public void messageReceived(ShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
@@ -696,7 +696,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    private final class InFlightOpCountTransportHandler implements TransportRequestHandler<InFlightOpsRequest> {
+    private final class InFlightOpCountTransportHandler extends TransportRequestHandler<InFlightOpsRequest> {
 
         @Override
         public void messageReceived(InFlightOpsRequest request, TransportChannel channel) throws Exception {

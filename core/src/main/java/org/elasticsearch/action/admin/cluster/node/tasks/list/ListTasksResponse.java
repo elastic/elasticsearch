@@ -26,6 +26,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamInputReader;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,13 +55,22 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
         super(taskFailures, nodeFailures);
-        this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+        if (tasks == null) {
+            this.tasks = Collections.emptyList();
+        } else {
+            this.tasks = Collections.unmodifiableList(new ArrayList<>(tasks));
+        }
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        tasks = Collections.unmodifiableList(in.readList(TaskInfo::new));
+        tasks = Collections.unmodifiableList(in.readList(new StreamInputReader<TaskInfo>() {
+            @Override
+            public TaskInfo read(StreamInput t) throws IOException {
+                return new TaskInfo(t);
+            }
+        }));
     }
 
     @Override
@@ -133,8 +143,8 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
             if (!node.attributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (ObjectObjectCursor<String, String> attr : node.attributes()) {
-                    builder.field(attr.key, attr.value, XContentBuilder.FieldCaseConversion.NONE);
+                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 builder.endObject();
             }

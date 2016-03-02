@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.tasks;
 
+import com.google.common.base.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -52,10 +53,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import org.elasticsearch.common.util.Consumer;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
@@ -70,25 +71,27 @@ public abstract class TransportTasksAction<
     protected final ClusterName clusterName;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Supplier<TasksRequest> requestSupplier;
-    protected final Supplier<TasksResponse> responseSupplier;
+    protected final Callable<TasksRequest> requestFactory;
 
     protected final String transportNodeAction;
 
     protected TransportTasksAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<TasksRequest> requestSupplier,
-                                   Supplier<TasksResponse> responseSupplier,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Callable<TasksRequest> requestFactory,
                                    String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier);
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestFactory);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
-        this.requestSupplier = requestSupplier;
-        this.responseSupplier = responseSupplier;
+        this.requestFactory = requestFactory;
 
-        transportService.registerRequestHandler(transportNodeAction, NodeTaskRequest::new, nodeExecutor, new NodeTransportHandler());
+        transportService.registerRequestHandler(transportNodeAction, new Callable<NodeTaskRequest>() {
+            @Override
+            public NodeTaskRequest call() throws Exception {
+                return new NodeTaskRequest();
+            }
+        }, nodeExecutor, new NodeTransportHandler());
     }
 
     @Override
@@ -103,19 +106,22 @@ public abstract class TransportTasksAction<
     }
 
     private NodeTasksResponse nodeOperation(NodeTaskRequest nodeTaskRequest) {
-        TasksRequest request = nodeTaskRequest.tasksRequest;
-        List<TaskResponse> results = new ArrayList<>();
-        List<TaskOperationFailure> exceptions = new ArrayList<>();
-        processTasks(request, task -> {
-            try {
-                TaskResponse response = taskOperation(request, task);
-                if (response != null) {
-                    results.add(response);
+        final TasksRequest request = nodeTaskRequest.tasksRequest;
+        final List<TaskResponse> results = new ArrayList<>();
+        final List<TaskOperationFailure> exceptions = new ArrayList<>();
+        processTasks(request, new Consumer<OperationTask>() {
+                @Override
+                public void accept(OperationTask task) {
+                    try {
+                        TaskResponse response = taskOperation(request, task);
+                        if (response != null) {
+                            results.add(response);
+                        }
+                    } catch (Exception ex) {
+                        exceptions.add(new TaskOperationFailure(clusterService.localNode().id(), task.getId(), ex));
+                    }
                 }
-            } catch (Exception ex) {
-                exceptions.add(new TaskOperationFailure(clusterService.localNode().id(), task.getId(), ex));
-            }
-        });
+            });
         return new NodeTasksResponse(clusterService.localNode().id(), results, exceptions);
     }
 
@@ -307,7 +313,7 @@ public abstract class TransportTasksAction<
         }
     }
 
-    class NodeTransportHandler implements TransportRequestHandler<NodeTaskRequest> {
+    class NodeTransportHandler extends TransportRequestHandler<NodeTaskRequest> {
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel) throws Exception {
@@ -331,7 +337,12 @@ public abstract class TransportTasksAction<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            tasksRequest = requestSupplier.get();
+            try {
+                tasksRequest = requestFactory.call();
+            } catch (Exception ex) {
+                throw new IOException("cannot create task request", ex);
+            }
+
             tasksRequest.readFrom(in);
         }
 

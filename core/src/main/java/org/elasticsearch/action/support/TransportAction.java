@@ -67,8 +67,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      *
      * This is a typical behavior.
      */
-    public final Task execute(Request request, ActionListener<Response> listener) {
-        Task task = taskManager.register("transport", actionName, request);
+    public final Task execute(Request request, final ActionListener<Response> listener) {
+        final Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
             execute(null, request, listener);
         } else {

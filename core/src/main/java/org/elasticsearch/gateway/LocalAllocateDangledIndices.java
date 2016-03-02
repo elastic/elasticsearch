@@ -105,7 +105,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         void onFailure(Throwable e);
     }
 
-    class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
+    class AllocateDangledRequestHandler extends TransportRequestHandler<AllocateDangledRequest> {
         @Override
         public void messageReceived(final AllocateDangledRequest request, final TransportChannel channel) throws Exception {
             String[] indexNames = new String[request.indices.length];

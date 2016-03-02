@@ -16,22 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.transport;
-
-import org.elasticsearch.tasks.Task;
+package org.elasticsearch.common.util;
 
 /**
- *
+ * Used to simplify backporting Elasticsearch 5.0 code to 2.0
  */
-public abstract class TransportRequestHandler<T extends TransportRequest> {
+public interface Consumer<T> {
 
-    /**
-     * Override this method if access to the Task parameter is needed
-     */
-    public void messageReceived(final T request, final TransportChannel channel, Task task) throws Exception {
-        messageReceived(request, channel);
-    }
+    void accept(T t);
 
-    public abstract void messageReceived(T request, TransportChannel channel) throws Exception;
 }

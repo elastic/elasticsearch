@@ -29,6 +29,8 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Callable;
+
 /**
  * A TransportAction that self registers a handler into the transport service
  */
@@ -39,7 +41,14 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
     }
 
-    class TransportHandler implements TransportRequestHandler<Request> {
+    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                     Callable<Request> request) {
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
+    }
+
+    class TransportHandler extends TransportRequestHandler<Request> {
 
         @Override
         public final void messageReceived(Request request, TransportChannel channel) throws Exception {

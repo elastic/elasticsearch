@@ -36,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  *
@@ -44,7 +45,13 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     @Inject
     public TransportListTasksAction(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ListTasksAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        super(settings, ListTasksAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+            indexNameExpressionResolver, new Callable<ListTasksRequest>() {
+                @Override
+                public ListTasksRequest call() throws Exception {
+                    return new ListTasksRequest();
+                }
+            }, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override

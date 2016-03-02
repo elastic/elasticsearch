@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -57,6 +58,6 @@ public class RestListTasksAction extends BaseRestHandler {
         listTasksRequest.detailed(detailed);
         listTasksRequest.actions(actions);
         listTasksRequest.parentTaskId(parentTaskId);
-        client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<>(channel));
+        client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<ListTasksResponse>(channel));
     }
 }

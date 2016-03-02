@@ -132,7 +132,7 @@ public class MembershipAction extends AbstractComponent {
     }
 
 
-    private class JoinRequestRequestHandler implements TransportRequestHandler<JoinRequest> {
+    private class JoinRequestRequestHandler extends TransportRequestHandler<JoinRequest> {
 
         @Override
         public void messageReceived(final JoinRequest request, final TransportChannel channel) throws Exception {
@@ -185,7 +185,7 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
+    class ValidateJoinRequestRequestHandler extends TransportRequestHandler<ValidateJoinRequest> {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
@@ -218,7 +218,7 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    private class LeaveRequestRequestHandler implements TransportRequestHandler<LeaveRequest> {
+    private class LeaveRequestRequestHandler extends TransportRequestHandler<LeaveRequest> {
 
         @Override
         public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {

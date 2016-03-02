@@ -1079,7 +1079,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     /**
      * Internal class that is used to send notifications about finished shard restore operations to master node
      */
-    class UpdateRestoreStateRequestHandler implements TransportRequestHandler<UpdateIndexShardRestoreStatusRequest> {
+    class UpdateRestoreStateRequestHandler extends TransportRequestHandler<UpdateIndexShardRestoreStatusRequest> {
         @Override
         public void messageReceived(UpdateIndexShardRestoreStatusRequest request, final TransportChannel channel) throws Exception {
             updateRestoreStateOnMaster(request);

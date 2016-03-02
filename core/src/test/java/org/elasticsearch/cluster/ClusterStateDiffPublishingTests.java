@@ -173,7 +173,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
     }
 
     protected MockTransportService buildTransportService(Settings settings, Version version) {
-        MockTransportService transportService = new MockTransportService(settings, new LocalTransport(settings, threadPool, version, new NamedWriteableRegistry()), threadPool);
+        MockTransportService transportService = MockTransportService.local(settings, version, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;

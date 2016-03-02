@@ -73,7 +73,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         List<ShardId> shards = shards(request, clusterState);
         final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList();

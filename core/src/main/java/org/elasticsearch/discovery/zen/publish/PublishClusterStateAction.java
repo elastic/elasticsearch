@@ -245,7 +245,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         return bStream.bytes();
     }
 
-    private class PublishClusterStateRequestHandler implements TransportRequestHandler<BytesTransportRequest> {
+    private class PublishClusterStateRequestHandler extends TransportRequestHandler<BytesTransportRequest> {
         private ClusterState lastSeenClusterState;
 
         @Override

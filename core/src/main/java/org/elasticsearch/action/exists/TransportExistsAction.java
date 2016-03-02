@@ -51,6 +51,7 @@ import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -84,9 +85,9 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
     }
 
     @Override
-    protected void doExecute(ExistsRequest request, ActionListener<ExistsResponse> listener) {
+    protected void doExecute(Task task, ExistsRequest request, ActionListener<ExistsResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        new ExistsAsyncBroadcastAction(request, listener).start();
+        new ExistsAsyncBroadcastAction(task, request, listener).start();
     }
 
     @Override
@@ -199,8 +200,8 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
 
         final AtomicBoolean processed = new AtomicBoolean(false);
 
-        ExistsAsyncBroadcastAction(ExistsRequest request, ActionListener<ExistsResponse> listener) {
-            super(request, listener);
+        ExistsAsyncBroadcastAction(Task task, ExistsRequest request, ActionListener<ExistsResponse> listener) {
+            super(task, request, listener);
         }
 
         @Override

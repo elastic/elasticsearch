@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRespo
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -55,6 +56,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -115,7 +117,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         private String requestName;
         private boolean enableTaskManager;
 
-        NodesRequest() {
+        public NodesRequest() {
             super();
         }
 
@@ -165,7 +167,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         TestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                         ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+            super(settings, actionName, clusterName, threadPool, clusterService, transportService, NodesRequest.class, NodeRequest.class);
         }
 
         @Override
@@ -221,7 +223,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            if (tasks == null) {
+                this.tasks = Collections.emptyList();
+            } else {
+                this.tasks = Collections.unmodifiableList(new ArrayList<>(tasks));
+            }
         }
 
         @Override
@@ -252,8 +258,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         protected TestTasksAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+            super(settings, actionName, clusterName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<ActionFilter>()),
+                new IndexNameExpressionResolver(Settings.EMPTY),
+                new Callable<TestTasksRequest>() {
+                    @Override
+                    public TestTasksRequest call() throws Exception {
+                        return new TestTasksRequest();
+                    }
+                }, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
@@ -286,8 +298,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"), listener);
     }
 
-    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request,  ActionListener<NodesResponse> listener) throws InterruptedException {
-        CountDownLatch actionLatch = new CountDownLatch(nodesCount);
+    private Task startBlockingTestNodesAction(final CountDownLatch checkLatch, NodesRequest request,  ActionListener<NodesResponse>
+        listener) throws InterruptedException {
+        final CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
@@ -321,7 +334,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
-        CountDownLatch responseLatch = new CountDownLatch(1);
+        final CountDownLatch responseLatch = new CountDownLatch(1);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         Task mainTask = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
             @Override
@@ -502,7 +515,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
-        CountDownLatch responseLatch = new CountDownLatch(1);
+        final CountDownLatch responseLatch = new CountDownLatch(1);
         Task task = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
             @Override
             public void onResponse(NodesResponse nodeResponses) {

@@ -886,7 +886,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
             super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
         }
 
-        private class InterceptingRequestHandler implements TransportRequestHandler {
+        private class InterceptingRequestHandler extends TransportRequestHandler {
 
             private final TransportRequestHandler requestHandler;
             private final String action;

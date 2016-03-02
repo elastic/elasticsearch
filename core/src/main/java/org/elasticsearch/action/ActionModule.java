@@ -341,6 +341,10 @@ public class ActionModule extends AbstractModule {
 
         registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
 
+        // Tasks Actions
+        registerAction(ListTasksAction.INSTANCE, TransportListTasksAction.class);
+        registerAction(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
+
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder
                 = MapBinder.newMapBinder(binder(), String.class, GenericAction.class);

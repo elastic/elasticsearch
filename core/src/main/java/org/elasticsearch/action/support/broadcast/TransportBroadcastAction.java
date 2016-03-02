@@ -275,7 +275,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
         }
     }
 
-    class ShardTransportHandler implements TransportRequestHandler<ShardRequest> {
+    class ShardTransportHandler extends TransportRequestHandler<ShardRequest> {
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {

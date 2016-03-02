@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -140,10 +141,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         AbstractTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
-                                ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
-                                Supplier<NodeRequest> nodeRequest) {
+                                ClusterService clusterService, TransportService transportService, Class<NodesRequest> request,
+                                Class<NodeRequest> nodeRequest) {
             super(settings, actionName, clusterName, threadPool, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 request, nodeRequest, ThreadPool.Names.GENERIC);
         }
 
@@ -186,7 +187,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 threadPool, new NamedWriteableRegistry()) {
                 @Override
                 protected TaskManager createTaskManager() {
-                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
+                    if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
                         return new MockTaskManager(settings);
                     } else {
                         return super.createTaskManager();
@@ -197,8 +198,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = new TestClusterService(threadPool, transportService);
             clusterService.add(transportService.getTaskManager());
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(), Version.CURRENT);
+            transportService.setLocalNode(discoveryNode);
+            transportService.acceptIncomingRequests();
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-            ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+            ActionFilters actionFilters = new ActionFilters(Collections.<ActionFilter>emptySet());
             transportListTasksAction = new TransportListTasksAction(settings, clusterName, threadPool, clusterService, transportService,
                 actionFilters, indexNameExpressionResolver);
             transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterName, threadPool, clusterService, transportService,

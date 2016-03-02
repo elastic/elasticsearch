@@ -420,7 +420,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     /**
      * Registers a new request handler
-     * <<<<<<< HEAD
      *
      * @param action   The action the request handler is associated with
      * @param request  The request class that will be used to constrcut new instances for streaming
@@ -437,7 +436,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param action         The action the request handler is associated with
      *                       =======
      * @param action         The action the request handler is associated with
-     *                       >>>>>>> 5a91ad1... Only accept transport requests after node is fully initialized #16746
      * @param requestFactory a callable to be used construct new instances for streaming
      * @param executor       The executor the request handling will be executed on
      * @param handler        The handler itself that implements the request handling

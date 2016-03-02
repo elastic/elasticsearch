@@ -65,12 +65,22 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     }
 
     public synchronized List<TaskInfo> getRegistrationEvents() {
-        List<TaskInfo> events = this.events.stream().filter(Tuple::v1).map(Tuple::v2).collect(Collectors.toList());
+        List<TaskInfo> events = new ArrayList<>();
+        for (Tuple<Boolean, TaskInfo> event : this.events) {
+            if(event.v1()) {
+                events.add(event.v2());
+            }
+        }
         return Collections.unmodifiableList(events);
     }
 
     public synchronized List<TaskInfo> getUnregistrationEvents() {
-        List<TaskInfo> events = this.events.stream().filter(event -> event.v1() == false).map(Tuple::v2).collect(Collectors.toList());
+        List<TaskInfo> events = new ArrayList<>();
+        for (Tuple<Boolean, TaskInfo> event : this.events) {
+            if(event.v1() == false) {
+                events.add(event.v2());
+            }
+        }
         return Collections.unmodifiableList(events);
     }
 

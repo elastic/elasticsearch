@@ -383,7 +383,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
     }
 
-    class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {
+    class BroadcastByNodeTransportRequestHandler extends TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
             List<ShardRouting> shards = request.getShards();

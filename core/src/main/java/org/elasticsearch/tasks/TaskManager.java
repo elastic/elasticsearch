@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import org.elasticsearch.common.util.Consumer;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes

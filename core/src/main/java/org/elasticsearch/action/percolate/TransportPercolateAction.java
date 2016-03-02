@@ -69,7 +69,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
     }
 
     @Override
-    protected void doExecute(Task task, final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+    protected void doExecute(final Task task, final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
         request.startTime = System.currentTimeMillis();
         if (request.getRequest() != null) {
             //create a new get request to make sure it has the same headers and context as the original percolate request

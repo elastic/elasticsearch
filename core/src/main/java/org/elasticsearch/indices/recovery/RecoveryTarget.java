@@ -265,7 +265,7 @@ public class RecoveryTarget extends AbstractComponent {
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
-    class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
+    class PrepareForTranslogOperationsRequestHandler extends TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
 
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
@@ -278,7 +278,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class FinalizeRecoveryRequestHandler implements TransportRequestHandler<RecoveryFinalizeRecoveryRequest> {
+    class FinalizeRecoveryRequestHandler extends TransportRequestHandler<RecoveryFinalizeRecoveryRequest> {
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
@@ -290,7 +290,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class TranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryTranslogOperationsRequest> {
+    class TranslogOperationsRequestHandler extends TransportRequestHandler<RecoveryTranslogOperationsRequest> {
 
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel) throws Exception {
@@ -348,7 +348,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class FilesInfoRequestHandler implements TransportRequestHandler<RecoveryFilesInfoRequest> {
+    class FilesInfoRequestHandler extends TransportRequestHandler<RecoveryFilesInfoRequest> {
 
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
@@ -369,7 +369,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class CleanFilesRequestHandler implements TransportRequestHandler<RecoveryCleanFilesRequest> {
+    class CleanFilesRequestHandler extends TransportRequestHandler<RecoveryCleanFilesRequest> {
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
@@ -416,7 +416,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class FileChunkTransportRequestHandler implements TransportRequestHandler<RecoveryFileChunkRequest> {
+    class FileChunkTransportRequestHandler extends TransportRequestHandler<RecoveryFileChunkRequest> {
 
         // How many bytes we've copied since we last called RateLimiter.pause
         final AtomicLong bytesSinceLastPause = new AtomicLong();

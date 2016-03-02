@@ -52,7 +52,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
+
+import com.google.common.base.Function;
 
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -98,16 +99,41 @@ public class TasksIT extends ESIntegTestCase {
 
         // First run the health on the master node - should produce only one task on the master node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
-        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        })); // counting only registration events
+        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> event) {
+                return event.v1() == false;
+            }
+        })); // counting only unregistration events
 
         resetTaskManageListeners(ClusterHealthAction.NAME);
 
         // Now run the health on a non-master node - should produce one task on master and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
-        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
-        List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, Tuple::v1);
+        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        })); // counting only registration events
+        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> event) {
+                return event.v1() == false;
+            }
+        })); // counting only unregistration events
+        List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        });
 
         // Verify that one of these tasks is a parent of another task
         if (tasks.get(0).getParentTaskId().isSet()) {
@@ -126,12 +152,33 @@ public class TasksIT extends ESIntegTestCase {
 
         // the percolate operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
-        assertEquals(1, numberOfEvents(PercolateAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(PercolateAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
         // and then one operation per shard
-        assertEquals(numberOfShards.totalNumShards, numberOfEvents(PercolateAction.NAME + "[s]", Tuple::v1));
+        assertEquals(numberOfShards.numPrimaries, numberOfEvents(PercolateAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>,
+            Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
 
         // the shard level tasks should have the main task as a parent
-        assertParentTask(findEvents(PercolateAction.NAME + "[s]", Tuple::v1), findEvents(PercolateAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(PercolateAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }), findEvents(PercolateAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }).get(0));
     }
 
     public void testTransportBroadcastByNodeTasks() {
@@ -142,12 +189,33 @@ public class TasksIT extends ESIntegTestCase {
         client().admin().indices().prepareUpgrade("test").get();
 
         // the percolate operation should produce one main task
-        assertEquals(1, numberOfEvents(UpgradeAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(UpgradeAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
         // and then one operation per each node where shards are located
-        assertEquals(internalCluster().nodesInclude("test").size(), numberOfEvents(UpgradeAction.NAME + "[n]", Tuple::v1));
+        assertEquals(internalCluster().nodesInclude("test").size(), numberOfEvents(UpgradeAction.NAME + "[n]", new
+            Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
 
         // all node level tasks should have the main task as a parent
-        assertParentTask(findEvents(UpgradeAction.NAME + "[n]", Tuple::v1), findEvents(UpgradeAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(UpgradeAction.NAME + "[n]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }), findEvents(UpgradeAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }).get(0));
     }
 
     public void testTransportReplicationSingleShardTasks() {
@@ -158,11 +226,31 @@ public class TasksIT extends ESIntegTestCase {
         client().admin().indices().prepareValidateQuery("test").get();
 
         // the validate operation should produce one main task
-        assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
         // and then one operation
-        assertEquals(1, numberOfEvents(ValidateQueryAction.NAME + "[s]", Tuple::v1));
+        assertEquals(1, numberOfEvents(ValidateQueryAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
         // the shard level operation should have the main task as its parent
-        assertParentTask(findEvents(ValidateQueryAction.NAME + "[s]", Tuple::v1), findEvents(ValidateQueryAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(ValidateQueryAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }), findEvents(ValidateQueryAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }).get(0));
     }
 
 
@@ -178,35 +266,85 @@ public class TasksIT extends ESIntegTestCase {
         NumShards numberOfShards = getNumShards("test");
 
         logger.debug("number of shards, total: [{}], primaries: [{}] ", numberOfShards.totalNumShards, numberOfShards.numPrimaries);
-        logger.debug("main events {}", numberOfEvents(RefreshAction.NAME, Tuple::v1));
-        logger.debug("main event node {}", findEvents(RefreshAction.NAME, Tuple::v1).get(0).getNode().name());
-        logger.debug("[s] events {}", numberOfEvents(RefreshAction.NAME + "[s]", Tuple::v1));
-        logger.debug("[s][*] events {}", numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
+        logger.debug("main events {}", numberOfEvents(RefreshAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
+        logger.debug("main event node {}", findEvents(RefreshAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }).get(0).getNode().name());
+        logger.debug("[s] events {}", numberOfEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
+        logger.debug("[s][*] events {}", numberOfEvents(RefreshAction.NAME + "[s][*]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
         logger.debug("nodes with the index {}", internalCluster().nodesInclude("test"));
 
-        assertEquals(1, numberOfEvents(RefreshAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(RefreshAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
         // Because it's broadcast replication action we will have as many [s] level requests
         // as we have primary shards on the coordinating node plus we will have one task per primary outside of the
         // coordinating node due to replication.
         // If all primaries are on the coordinating node, the number of tasks should be equal to the number of primaries
         // If all primaries are not on the coordinating node, the number of tasks should be equal to the number of primaries times 2
-        assertThat(numberOfEvents(RefreshAction.NAME + "[s]", Tuple::v1), greaterThanOrEqualTo(numberOfShards.numPrimaries));
-        assertThat(numberOfEvents(RefreshAction.NAME + "[s]", Tuple::v1), lessThanOrEqualTo(numberOfShards.numPrimaries * 2));
+        assertThat(numberOfEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }), greaterThanOrEqualTo(numberOfShards.numPrimaries));
+        assertThat(numberOfEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }), lessThanOrEqualTo(numberOfShards.numPrimaries * 2));
 
         // Verify that all [s] events have the proper parent
         // This is complicated because if the shard task runs on the same node it has main task as a parent
         // but if it runs on non-coordinating node it would have another intermediate [s] task on the coordinating node as a parent
-        TaskInfo mainTask = findEvents(RefreshAction.NAME, Tuple::v1).get(0);
-        List<TaskInfo> sTasks = findEvents(RefreshAction.NAME + "[s]", Tuple::v1);
+        final TaskInfo mainTask = findEvents(RefreshAction.NAME, new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }).get(0);
+        List<TaskInfo> sTasks = findEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        });
         for (TaskInfo taskInfo : sTasks) {
             if (mainTask.getNode().equals(taskInfo.getNode())) {
                 // This shard level task runs on the same node as a parent task - it should have the main task as a direct parent
                 assertParentTask(Collections.singletonList(taskInfo), mainTask);
             } else {
-                String description = taskInfo.getDescription();
+                final String description = taskInfo.getDescription();
                 // This shard level task runs on another node - it should have a corresponding shard level task on the node where main task is running
-                List<TaskInfo> sTasksOnRequestingNode = findEvents(RefreshAction.NAME + "[s]",
-                    event -> event.v1() && mainTask.getNode().equals(event.v2().getNode()) && description.equals(event.v2().getDescription()));
+                List<TaskInfo> sTasksOnRequestingNode = findEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+                        @Override
+                        public Boolean apply(Tuple<Boolean, TaskInfo> event) {
+                            return event.v1() && mainTask.getNode().equals(event.v2().getNode()) && description.equals(event.v2()
+                                .getDescription());
+                        }
+                    });
                 // There should be only one parent task
                 assertEquals(1, sTasksOnRequestingNode.size());
                 assertParentTask(Collections.singletonList(taskInfo), sTasksOnRequestingNode.get(0));
@@ -214,22 +352,41 @@ public class TasksIT extends ESIntegTestCase {
         }
 
         // we will have as many [s][p] and [s][r] tasks as we have primary and replica shards
-        assertEquals(numberOfShards.totalNumShards, numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
+        assertEquals(numberOfShards.totalNumShards, numberOfEvents(RefreshAction.NAME + "[s][*]", new Function<Tuple<Boolean, TaskInfo>,
+            Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        }));
 
         // we the [s][p] and [s][r] tasks should have a corresponding [s] task on the same node as a parent
-        List<TaskInfo> spEvents = findEvents(RefreshAction.NAME + "[s][*]", Tuple::v1);
-        for (TaskInfo taskInfo : spEvents) {
+        List<TaskInfo> spEvents = findEvents(RefreshAction.NAME + "[s][*]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+            @Override
+            public Boolean apply(Tuple<Boolean, TaskInfo> input) {
+                return input.v1();
+            }
+        });
+        for (final TaskInfo taskInfo : spEvents) {
             List<TaskInfo> sTask;
             if (taskInfo.getAction().endsWith("[s][p]")) {
                 // A [s][p] level task should have a corresponding [s] level task on the same node
-                sTask = findEvents(RefreshAction.NAME + "[s]",
-                    event -> event.v1() && taskInfo.getNode().equals(event.v2().getNode()) && taskInfo.getDescription().equals(event.v2().getDescription()));
+                sTask = findEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+                        @Override
+                        public Boolean apply(Tuple<Boolean, TaskInfo> event) {
+                            return event.v1() && taskInfo.getNode().equals(event.v2().getNode()) && taskInfo.getDescription().equals(event.v2().getDescription());
+                        }
+                    });
             } else {
                 // A [s][r] level task should have a corresponding [s] level task on the a different node (where primary is located)
-                sTask = findEvents(RefreshAction.NAME + "[s]",
-                    event -> event.v1() && taskInfo.getParentTaskId().getNodeId().equals(event.v2().getNode().getId()) && taskInfo
-                        .getDescription()
-                        .equals(event.v2().getDescription()));
+                sTask = findEvents(RefreshAction.NAME + "[s]", new Function<Tuple<Boolean, TaskInfo>, Boolean>() {
+                        @Override
+                        public Boolean apply(Tuple<Boolean, TaskInfo> event) {
+                            return event.v1() && taskInfo.getParentTaskId().getNodeId().equals(event.v2().getNode().getId()) && taskInfo
+                                .getDescription()
+                                .equals(event.v2().getDescription());
+                        }
+                    });
             }
             // There should be only one parent task
             assertEquals(1, sTask.size());
@@ -254,9 +411,9 @@ public class TasksIT extends ESIntegTestCase {
          * can fetch them. This will gum up the server if we leave it enabled
          * but we'll be quick so it'll be OK (TM).
          */
-        ReentrantLock taskFinishLock = new ReentrantLock();
+        final ReentrantLock taskFinishLock = new ReentrantLock();
         taskFinishLock.lock();
-        CountDownLatch taskRegistered = new CountDownLatch(1);
+        final CountDownLatch taskRegistered = new CountDownLatch(1);
         for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
             ((MockTaskManager)clusterService.getTaskManager()).addListener(new MockTaskManagerListener() {
                 @Override
@@ -300,8 +457,14 @@ public class TasksIT extends ESIntegTestCase {
         logger.info("--> started test tasks");
 
         // Wait for the task to start on all nodes
-        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertEquals(internalCluster().numDataAndMasterNodes(),
+                    client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
+                        .get().getTasks().size());
+            }
+        });
 
         logger.info("--> cancelling the main test task");
         CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get();
@@ -318,8 +481,14 @@ public class TasksIT extends ESIntegTestCase {
         // Start blocking test task
         ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
         // Wait for the task to start on all nodes
-        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertEquals(internalCluster().numDataAndMasterNodes(),
+                    client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
+                        .get().getTasks().size());
+            }
+        });
 
         TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
 

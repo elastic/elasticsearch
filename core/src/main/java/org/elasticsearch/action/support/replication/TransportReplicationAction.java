@@ -238,7 +238,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     }
 
-    class OperationTransportHandler implements TransportRequestHandler<Request> {
+    class OperationTransportHandler extends TransportRequestHandler<Request> {
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             execute(task, request, new ActionListener<Response>() {
@@ -268,7 +268,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    class PrimaryOperationTransportHandler implements TransportRequestHandler<Request> {
+    class PrimaryOperationTransportHandler extends TransportRequestHandler<Request> {
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");
@@ -280,7 +280,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    class ReplicaOperationTransportHandler implements TransportRequestHandler<ReplicaRequest> {
+    class ReplicaOperationTransportHandler extends TransportRequestHandler<ReplicaRequest> {
         @Override
         public void messageReceived(final ReplicaRequest request, final TransportChannel channel) throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");

@@ -48,9 +48,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import org.elasticsearch.common.util.Consumer;
 
 /**
  * Transport action that can be used to cancel currently running cancellable tasks.
@@ -67,8 +68,18 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                                       TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver
                                           indexNameExpressionResolver) {
         super(settings, CancelTasksAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
-        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
+            indexNameExpressionResolver, new Callable<CancelTasksRequest>() {
+                @Override
+                public CancelTasksRequest call() throws Exception {
+                    return new CancelTasksRequest();
+                }
+            }, ThreadPool.Names.MANAGEMENT);
+        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, new Callable<BanParentTaskRequest>() {
+            @Override
+            public BanParentTaskRequest call() throws Exception {
+                return new BanParentTaskRequest();
+            }
+        }, ThreadPool.Names.SAME, new
             BanParentRequestHandler());
     }
 
@@ -111,9 +122,19 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     @Override
-    protected synchronized TaskInfo taskOperation(CancelTasksRequest request, CancellableTask cancellableTask) {
-        final BanLock banLock = new BanLock(nodes -> removeBanOnNodes(cancellableTask, nodes));
-        Set<String> childNodes = taskManager.cancel(cancellableTask, request.reason(), banLock::onTaskFinished);
+    protected synchronized TaskInfo taskOperation(CancelTasksRequest request, final CancellableTask cancellableTask) {
+        final BanLock banLock = new BanLock(new Consumer<Set<String>>() {
+            @Override
+            public void accept(Set<String> nodes) {
+                removeBanOnNodes(cancellableTask, nodes);
+            }
+        });
+        Set<String> childNodes = taskManager.cancel(cancellableTask, request.reason(), new Consumer<Set<String>>() {
+            @Override
+            public void accept(Set<String> nodes) {
+                banLock.onTaskFinished(nodes);
+            }
+        });
         if (childNodes != null) {
             if (childNodes.isEmpty()) {
                 logger.trace("cancelling task {} with no children", cancellableTask.getId());
@@ -145,7 +166,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId())));
     }
 
-    private void sendSetBanRequest(Set<String> nodes, BanParentTaskRequest request, BanLock banLock) {
+    private void sendSetBanRequest(Set<String> nodes, BanParentTaskRequest request, final BanLock banLock) {
         ClusterState clusterState = clusterService.state();
         for (String node : nodes) {
             DiscoveryNode discoveryNode = clusterState.getNodes().get(node);
@@ -269,7 +290,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         }
     }
 
-    class BanParentRequestHandler implements TransportRequestHandler<BanParentTaskRequest> {
+    class BanParentRequestHandler extends TransportRequestHandler<BanParentTaskRequest> {
         @Override
         public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel) throws Exception {
             if (request.ban) {

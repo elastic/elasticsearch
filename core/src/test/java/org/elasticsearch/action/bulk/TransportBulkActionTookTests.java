@@ -21,8 +21,7 @@ import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -33,20 +32,22 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
-    private static ThreadPool THREAD_POOL;
+    private ThreadPool threadPool;
 
-    @BeforeClass
-    public static void startThreadPool() {
-        THREAD_POOL = new ThreadPool(TransportBulkActionTookTests.class.getSimpleName());
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = mock(ThreadPool.class);
     }
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        ClusterService clusterService = new TestClusterService(THREAD_POOL);
-        TransportService transportService = new TransportService(capturingTransport, THREAD_POOL);
+        ClusterService clusterService = new TestClusterService(threadPool);
+        TransportService transportService = new TransportService(capturingTransport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
@@ -56,7 +57,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 Settings.EMPTY,
                 transportService,
                 clusterService,
-                THREAD_POOL,
+                threadPool,
                 null,
                 actionFilters,
                 resolver);
@@ -65,7 +66,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
             return new TestTransportBulkAction(
                     Settings.EMPTY,
-                    THREAD_POOL,
+                    threadPool,
                     transportService,
                     clusterService,
                     null,
@@ -93,7 +94,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         } else {
             return new TestTransportBulkAction(
                     Settings.EMPTY,
-                    THREAD_POOL,
+                    threadPool,
                     transportService,
                     clusterService,
                     null,
@@ -121,13 +122,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 }
             };
         }
-    }
-
-    @AfterClass
-    public static void destroyThreadPool() {
-        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
-        // since static must set to null to be eligible for collection
-        THREAD_POOL = null;
     }
 
     // test unit conversion with a controlled clock

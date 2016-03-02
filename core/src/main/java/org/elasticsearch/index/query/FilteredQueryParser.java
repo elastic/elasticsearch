@@ -22,6 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,9 +37,12 @@ import java.io.IOException;
 public class FilteredQueryParser implements QueryParser {
 
     public static final String NAME = "filtered";
+    private final DeprecationLogger deprecationLogger;
 
     @Inject
     public FilteredQueryParser() {
+        ESLogger logger = Loggers.getLogger(getClass());
+        deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override
@@ -46,6 +52,9 @@ public class FilteredQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        deprecationLogger.deprecated("The [filtered] query is deprecated, please use a [bool] query instead with a [must] "
+                + "clause for the query part and a [filter] clause for the filter part.");
+
         XContentParser parser = parseContext.parser();
 
         Query query = Queries.newMatchAllQuery();

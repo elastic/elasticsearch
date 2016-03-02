@@ -23,6 +23,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,9 +38,12 @@ import java.util.ArrayList;
 public class AndQueryParser implements QueryParser {
 
     public static final String NAME = "and";
+    private final DeprecationLogger deprecationLogger;
 
     @Inject
     public AndQueryParser() {
+        ESLogger logger = Loggers.getLogger(getClass());
+        deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override
@@ -47,6 +53,8 @@ public class AndQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        deprecationLogger.deprecated("The [and] query is deprecated, please use a [bool] query instead with [must] clauses.");
+
         XContentParser parser = parseContext.parser();
 
         ArrayList<Query> queries = new ArrayList<>();

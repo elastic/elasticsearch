@@ -25,6 +25,9 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,9 +45,12 @@ public class MissingQueryParser implements QueryParser {
     public static final String NAME = "missing";
     public static final boolean DEFAULT_NULL_VALUE = false;
     public static final boolean DEFAULT_EXISTENCE_VALUE = true;
+    private final DeprecationLogger deprecationLogger;
 
     @Inject
     public MissingQueryParser() {
+        ESLogger logger = Loggers.getLogger(getClass());
+        deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override
@@ -54,6 +60,8 @@ public class MissingQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        deprecationLogger.deprecated("The [missing] query is deprecated, please use an [exist] query in a [must_not] clause instead.");
+
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;

@@ -21,6 +21,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -30,9 +33,12 @@ import java.io.IOException;
 public class LimitQueryParser implements QueryParser {
 
     public static final String NAME = "limit";
+    private final DeprecationLogger deprecationLogger;
 
     @Inject
     public LimitQueryParser() {
+        ESLogger logger = Loggers.getLogger(getClass());
+        deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override
@@ -42,6 +48,8 @@ public class LimitQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        deprecationLogger.deprecated("The [limit] query is deprecated, please use the [terminate_after] parameter of the search API instead.");
+
         XContentParser parser = parseContext.parser();
 
         int limit = -1;

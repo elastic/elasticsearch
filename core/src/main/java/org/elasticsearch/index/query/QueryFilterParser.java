@@ -22,6 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 
@@ -29,9 +32,12 @@ import java.io.IOException;
 public class QueryFilterParser implements QueryParser {
 
     public static final String NAME = "query";
+    private final DeprecationLogger deprecationLogger;
 
     @Inject
     public QueryFilterParser() {
+        ESLogger logger = Loggers.getLogger(getClass());
+        deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override
@@ -41,6 +47,7 @@ public class QueryFilterParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        deprecationLogger.deprecated("The [query] filter is deprecated, you can now use queries as filters directly.");
         return new ConstantScoreQuery(parseContext.parseInnerQuery());
     }
 }

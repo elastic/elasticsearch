@@ -21,3 +21,8 @@ esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }
+
+integTest {
+  // Since there is only a single integTest and we're disabling it we need to disable the whole phase
+  enabled = false
+}

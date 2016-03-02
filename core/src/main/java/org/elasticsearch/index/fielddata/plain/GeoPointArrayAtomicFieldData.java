@@ -24,7 +24,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -59,7 +58,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_INT + indexedPoints.ramBytesUsed();
+            return Integer.BYTES + indexedPoints.ramBytesUsed();
         }
 
         @Override
@@ -117,7 +116,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_INT + indexedPoint.ramBytesUsed()
+            return Integer.BYTES + indexedPoint.ramBytesUsed()
                     + (set == null ? 0 : set.ramBytesUsed());
         }
 

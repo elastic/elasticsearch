@@ -23,3 +23,8 @@ in the cluster:
 
     If the `index_buffer_size` is specified as a percentage, then this
     setting can be used to specify an absolute maximum.  Defaults to unbounded.
+
+`indices.memory.min_index_buffer_size` and 
+`indices.memory.max_index_buffer_size` are only taken into account when
+`index_buffer_size` is a percentage. In that case the min and max may override
+`index_buffer_size` dependent on how much heap is available.

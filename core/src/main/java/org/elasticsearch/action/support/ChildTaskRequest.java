@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
@@ -49,13 +50,17 @@ public class ChildTaskRequest extends TransportRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        parentTaskId = new TaskId(in);
+        if (in.getVersion().onOrAfter(Version.V_2_3_0)) {
+            parentTaskId = new TaskId(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        parentTaskId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
+            parentTaskId.writeTo(out);
+        }
     }
 
     @Override

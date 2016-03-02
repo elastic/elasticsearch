@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
@@ -170,7 +171,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         ClusterState clusterState = clusterService.state();
         for (String node : nodes) {
             DiscoveryNode discoveryNode = clusterState.getNodes().get(node);
-            if (discoveryNode != null) {
+            if (discoveryNode != null && discoveryNode.version().onOrAfter(Version.V_2_3_0)) {
                 // Check if node still in the cluster
                 logger.debug("Sending ban for tasks with the parent [{}] to the node [{}], ban [{}]", request.parentTaskId, node,
                     request.ban);
@@ -188,7 +189,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                     });
             } else {
                 banLock.onBanSet();
-                logger.debug("Cannot send ban for tasks with the parent [{}] to the node [{}] - the node no longer in the cluster",
+                logger.debug("Cannot send ban for tasks with the parent [{}] to the node [{}] - the node no longer in the cluster or has an old version",
                     request.parentTaskId, node);
             }
         }
@@ -198,14 +199,14 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         ClusterState clusterState = clusterService.state();
         for (String node : nodes) {
             DiscoveryNode discoveryNode = clusterState.getNodes().get(node);
-            if (discoveryNode != null) {
+            if (discoveryNode != null && discoveryNode.version().onOrAfter(Version.V_2_3_0)) {
                 // Check if node still in the cluster
                 logger.debug("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node);
                 transportService.sendRequest(discoveryNode, BAN_PARENT_ACTION_NAME, request, EmptyTransportResponseHandler
                     .INSTANCE_SAME);
             } else {
                 logger.debug("Cannot send remove ban request for tasks with the parent [{}] to the node [{}] - the node no longer in " +
-                    "the cluster", request.parentTaskId, node);
+                    "the cluster or has an old version", request.parentTaskId, node);
             }
         }
     }

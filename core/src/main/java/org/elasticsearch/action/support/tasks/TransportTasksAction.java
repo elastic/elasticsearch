@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.tasks;
 
 import com.google.common.base.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
@@ -126,7 +127,15 @@ public abstract class TransportTasksAction<
     }
 
     protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-        return nodesIds;
+        // Filter out all old nodes that don't support task management API
+        List<String> supportedNodes = new ArrayList<>(nodesIds.length);
+        for (String nodeId : nodesIds) {
+            DiscoveryNode node = nodes.get(nodeId);
+            if(node != null && node.version().onOrAfter(Version.V_2_3_0)) {
+                supportedNodes.add(nodeId);
+            }
+        }
+        return supportedNodes.toArray(new String[supportedNodes.size()]);
     }
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {

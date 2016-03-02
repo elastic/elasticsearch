@@ -419,23 +419,11 @@ public class Requests {
     /**
      * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
      *
-     * @param nodesIds The nodes ids to get the tasks for
-     * @return The nodes tasks request
-     * @see org.elasticsearch.client.ClusterAdminClient#listTasks(ListTasksRequest)
-     */
-    public static ListTasksRequest listTasksRequest(String... nodesIds) {
-        return new ListTasksRequest(nodesIds);
-    }
-
-    /**
-     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
-     *
-     * @param nodesIds The nodes ids to cancel the tasks on
      * @return The nodes tasks request
      * @see org.elasticsearch.client.ClusterAdminClient#cancelTasks(CancelTasksRequest)
      */
-    public static CancelTasksRequest cancelTasksRequest(String... nodesIds) {
-        return new CancelTasksRequest(nodesIds);
+    public static CancelTasksRequest cancelTasksRequest() {
+        return new CancelTasksRequest();
     }
 
     /**

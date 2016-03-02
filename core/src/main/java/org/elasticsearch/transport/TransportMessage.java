@@ -25,11 +25,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
-public abstract class TransportMessage<TM extends TransportMessage<TM>> implements Streamable {
+public abstract class TransportMessage implements Streamable {
 
     private TransportAddress remoteAddress;
 

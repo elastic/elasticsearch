@@ -62,7 +62,7 @@ public final class HttpTransportSettings {
     public static final Setting<PortsRange> SETTING_HTTP_PORT =
         new Setting<PortsRange>("http.port", "9200-9300", PortsRange::new, SettingsProperty.ClusterScope);
     public static final Setting<Integer> SETTING_HTTP_PUBLISH_PORT =
-        Setting.intSetting("http.publish_port", 0, 0, SettingsProperty.ClusterScope);
+        Setting.intSetting("http.publish_port", -1, -1, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED =
         Setting.boolSetting("http.detailed_errors.enabled", true, SettingsProperty.ClusterScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =

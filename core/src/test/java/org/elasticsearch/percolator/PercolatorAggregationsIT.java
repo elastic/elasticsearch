@@ -53,7 +53,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -118,7 +118,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregationsAndPipelineAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -165,7 +165,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
                 percolateRequestBuilder.setOnlyCount(countOnly);
             }
 
-            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_a").setBucketsPaths("a>_count"));
+            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_a", "a>_count"));
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
             assertMatchCount(response, expectedCount[i % numUniqueQueries]);
@@ -203,7 +203,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     public void testSingleShardAggregations() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
-                .addMapping("type", "field1", "type=string", "field2", "type=string"));
+                .addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -245,7 +245,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
                 percolateRequestBuilder.setOnlyCount(countOnly);
             }
 
-            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_terms").setBucketsPaths("terms>_count"));
+            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_terms", "terms>_count"));
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
             assertMatchCount(response, numQueries);

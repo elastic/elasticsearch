@@ -602,33 +602,33 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testPutMapping() throws Exception {
-        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=string"), true);
-        verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=string"), true);
+        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), true);
+        verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=text"), true);
 
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
-        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=string"), false);
+        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type1"), notNullValue());
-        verify(client().admin().indices().preparePutMapping("b*").setType("type1").setSource("field", "type=string"), false);
+        verify(client().admin().indices().preparePutMapping("b*").setType("type1").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type1"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type1"), notNullValue());
-        verify(client().admin().indices().preparePutMapping("_all").setType("type2").setSource("field", "type=string"), false);
+        verify(client().admin().indices().preparePutMapping("_all").setType("type2").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type2"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type2"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type2"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type2"), notNullValue());
-        verify(client().admin().indices().preparePutMapping().setType("type3").setSource("field", "type=string"), false);
+        verify(client().admin().indices().preparePutMapping().setType("type3").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type3"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type3"), notNullValue());
 
 
-        verify(client().admin().indices().preparePutMapping("c*").setType("type1").setSource("field", "type=string"), true);
+        verify(client().admin().indices().preparePutMapping("c*").setType("type1").setSource("field", "type=text"), true);
 
         assertAcked(client().admin().indices().prepareClose("barbaz").get());
-        verify(client().admin().indices().preparePutMapping("barbaz").setType("type4").setSource("field", "type=string"), false);
+        verify(client().admin().indices().preparePutMapping("barbaz").setType("type4").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type4"), notNullValue());
     }
 

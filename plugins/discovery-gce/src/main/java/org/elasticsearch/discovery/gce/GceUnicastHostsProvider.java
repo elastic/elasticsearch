@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,16 +40,20 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.cloud.gce.GceComputeService.Fields;
 
 /**
  *
  */
 public class GceUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+
+    /**
+     * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
+     */
+    public static final Setting<List<String>> TAGS_SETTING =
+            Setting.listSetting("discovery.gce.tags", Collections.emptyList(), s -> s, false, Setting.Scope.CLUSTER);
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";
@@ -60,8 +65,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
     private final Version version;
     private final String project;
-    private final String[] zones;
-    private final String[] tags;
+    private final List<String> zones;
+    private final List<String> tags;
 
     private final TimeValue refreshInterval;
     private long lastRefresh;
@@ -78,24 +83,29 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = settings.getAsTime(Fields.REFRESH, TimeValue.timeValueSeconds(0));
-        this.project = settings.get(Fields.PROJECT);
-        this.zones = settings.getAsArray(Fields.ZONE);
+        this.refreshInterval = GceComputeService.REFRESH_SETTING.get(settings);
+        this.project = GceComputeService.PROJECT_SETTING.get(settings);
+        this.zones = GceComputeService.ZONE_SETTING.get(settings);
 
-        this.tags = settings.getAsArray(Fields.TAGS);
+        this.tags = TAGS_SETTING.get(settings);
         if (logger.isDebugEnabled()) {
-            logger.debug("using tags {}", Arrays.asList(this.tags));
+            logger.debug("using tags {}", this.tags);
         }
     }
 
     /**
      * We build the list of Nodes from GCE Management API
-     * Information can be cached using `plugins.refresh_interval` property if needed.
-     * Setting `plugins.refresh_interval` to `-1` will cause infinite caching.
-     * Setting `plugins.refresh_interval` to `0` will disable caching (default).
+     * Information can be cached using `cloud.gce.refresh_interval` property if needed.
      */
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
+        // We check that needed properties have been set
+        if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
+            throw new IllegalArgumentException("one or more gce discovery settings are missing. " +
+                "Check elasticsearch.yml file. Should have [" + GceComputeService.PROJECT_SETTING.getKey() +
+                "] and [" + GceComputeService.ZONE_SETTING.getKey() + "].");
+        }
+
         if (refreshInterval.millis() != 0) {
             if (cachedDiscoNodes != null &&
                     (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
@@ -142,7 +152,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
                 // see if we need to filter by tag
                 boolean filterByTag = false;
-                if (tags.length > 0) {
+                if (tags.isEmpty() == false) {
                     logger.trace("start filtering instance {} with tags {}.", name, tags);
                     if (instance.getTags() == null || instance.getTags().isEmpty()
                             || instance.getTags().getItems() == null || instance.getTags().getItems().isEmpty()) {

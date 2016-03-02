@@ -401,27 +401,16 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     // in the index,bulk,update and delete apis.
     public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
-            if (routing ==  null) {
-                return parent;
-            }
-            return routing;
+            return routingOrParent(parent, routing);
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
-            if (routing == null) {
-                return parent;
-            }
-            return routing;
+            return routingOrParent(parent, routing);
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
         if (result.getIndices().size() > 1) {
-            String[] indexNames = new String[result.getIndices().size()];
-            int i = 0;
-            for (IndexMetaData indexMetaData : result.getIndices()) {
-                indexNames[i++] = indexMetaData.getIndex().getName();
-            }
-            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+            rejectSingleIndexOperation(aliasOrIndex, result);
         }
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
@@ -436,6 +425,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // Alias routing overrides the parent routing (if any).
             return aliasMd.indexRouting();
         }
+        return routingOrParent(parent, routing);
+    }
+
+    private void rejectSingleIndexOperation(String aliasOrIndex, AliasOrIndex result) {
+        String[] indexNames = new String[result.getIndices().size()];
+        int i = 0;
+        for (IndexMetaData indexMetaData : result.getIndices()) {
+            indexNames[i++] = indexMetaData.getIndex().getName();
+        }
+        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+    }
+
+    private String routingOrParent(@Nullable String parent, @Nullable String routing) {
         if (routing == null) {
             return parent;
         }

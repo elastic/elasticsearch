@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -68,17 +69,20 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     private final BigArrays bigArrays;
 
+    private final FetchPhase fetchPhase;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                  BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+            TransportService transportService, IndicesService indicesService, ScriptService scriptService,
+            PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver, FetchPhase fetchPhase) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 ExplainRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
+        this.fetchPhase = fetchPhase;
     }
 
     @Override
@@ -111,13 +115,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
         }
 
-        SearchContext context = new DefaultSearchContext(
-                0, new ShardSearchLocalRequest(new String[]{request.type()}, request.nowInMillis, request.filteringAlias()),
-                null, result.searcher(), indexService, indexShard,
-                scriptService, pageCacheRecycler,
-                bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
-                SearchService.NO_TIMEOUT
-        );
+        SearchContext context = new DefaultSearchContext(0,
+                new ShardSearchLocalRequest(new String[] { request.type() }, request.nowInMillis, request.filteringAlias()), null,
+                result.searcher(), indexService, indexShard, scriptService, pageCacheRecycler, bigArrays,
+                threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
         SearchContext.setCurrent(context);
 
         try {

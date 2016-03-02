@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
-import org.elasticsearch.discovery.ec2.Ec2Discovery;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
@@ -44,6 +44,8 @@ import java.util.Collection;
  *
  */
 public class Ec2DiscoveryPlugin extends Plugin {
+
+    public static final String EC2 = "ec2";
 
     // ClientConfiguration clinit has some classloader problems
     // TODO: fix that
@@ -98,10 +100,8 @@ public class Ec2DiscoveryPlugin extends Plugin {
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        if (Ec2Module.isEc2DiscoveryActive(settings, logger)) {
-            discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
-            discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
-        }
+        discoveryModule.addDiscoveryType(EC2, ZenDiscovery.class);
+        discoveryModule.addUnicastHostProvider(EC2, AwsEc2UnicastHostsProvider.class);
     }
 
     public void onModule(SettingsModule settingsModule) {

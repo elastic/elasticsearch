@@ -41,15 +41,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
-    public void testMavenVersion() {
-        // maven sets this property to ensure that the latest version
-        // we use here is the version that is actually set to the project.version
-        // in maven
-        String property = System.getProperty("tests.version", null);
-        assumeTrue("tests.version is set", property != null);
-        assertEquals(property, Version.CURRENT.toString());
-    }
-
     public void testVersionComparison() throws Exception {
         assertThat(V_0_20_0.before(V_0_90_0), is(true));
         assertThat(V_0_20_0.before(V_0_20_0), is(false));
@@ -93,12 +84,7 @@ public class VersionTests extends ESTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            if (version.snapshot()) { // number doesn't include SNAPSHOT but the parser checks for that
-                assertEquals(Version.fromString(version.number()), version);
-            } else {
-                assertThat(Version.fromString(version.number()), sameInstance(version));
-            }
-            assertFalse(Version.fromString(version.number()).snapshot());
+            assertThat(Version.fromString(version.toString()), sameInstance(version));
         }
     }
 
@@ -155,9 +141,9 @@ public class VersionTests extends ESTestCase {
 
     public void testToString() {
         // with 2.0.beta we lowercase
-        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.number());
-        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.number());
-        assertEquals("1.4.0", Version.V_1_4_0.number());
+        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.toString());
+        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.toString());
+        assertEquals("1.4.0", Version.V_1_4_0.toString());
     }
 
     public void testIsBeta() {
@@ -170,12 +156,11 @@ public class VersionTests extends ESTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            if (version.snapshot() == false && random().nextBoolean()) {
-                version = new Version(version.id, true, version.luceneVersion);
+            if (random().nextBoolean()) {
+                version = new Version(version.id, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
-            assertEquals(version.snapshot(), parsedVersion.snapshot());
         }
     }
 
@@ -207,7 +192,7 @@ public class VersionTests extends ESTestCase {
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {
-                    String number = v.number();
+                    String number = v.toString();
                     if (v.isBeta()) {
                         number = number.replace("-beta", "_beta");
                     } else if (v.isRC()) {
@@ -215,7 +200,7 @@ public class VersionTests extends ESTestCase {
                     }
                     assertEquals("V_" + number.replace('.', '_'), constantName);
                 } else {
-                    assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                    assertEquals("V_" + v.toString().replace('.', '_'), constantName);
                 }
 
                 // only the latest version for a branch should be a snapshot (ie unreleased)
@@ -225,7 +210,7 @@ public class VersionTests extends ESTestCase {
                     maxBranchVersions.put(branchName, v);
                 } else if (v.after(maxBranchVersion)) {
 
-                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", maxBranchVersion.snapshot());
+                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", VersionUtils.isSnapshot(maxBranchVersion));
                     maxBranchVersions.put(branchName, v);
                 }
             }

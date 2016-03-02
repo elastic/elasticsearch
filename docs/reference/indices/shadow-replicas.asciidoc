@@ -51,7 +51,7 @@ curl -XPUT 'localhost:9200/my_index' -d '
         "number_of_replicas" : 4,
         "data_path": "/opt/data/my_index",
         "shadow_replicas": true
-    } 
+    }
 }'
 --------------------------------------------------
 
@@ -62,6 +62,9 @@ must be available on every node in the Elasticsearch cluster. You must also
 ensure that the Elasticsearch process has the correct permissions to read from
 and write to the directory used in the `index.data_path` setting.
 ========================
+
+The `data_path` does not have to contain the index name, in this case,
+"my_index" was used but it could easily also have been "/opt/data/"
 
 An index that has been created with the `index.shadow_replicas` setting set to
 "true" will not replicate document operations to any of the replica shards,

@@ -52,7 +52,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
@@ -77,7 +76,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -146,12 +144,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final boolean masterElectionFilterDataNodes;
     private final TimeValue masterElectionWaitForJoinsTimeout;
 
-
-    private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
-
     private final JoinThreadControl joinThreadControl;
-
-    private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
@@ -166,13 +159,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
-                        ZenPingService pingService, ElectMasterService electMasterService,
-                        DiscoverySettings discoverySettings) {
+                        ZenPingService pingService, ElectMasterService electMasterService) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.discoverySettings = discoverySettings;
+        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
         this.electMaster = electMasterService;
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
@@ -228,7 +220,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         joinThreadControl.start();
         pingService.start();
         this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
+    }
 
+    @Override
+    public void startInitialJoin() {
         // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.
         clusterService.submitStateUpdateTask("initial_join", new ClusterStateUpdateTask() {
 
@@ -257,7 +252,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         pingService.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
-        initialStateSent.set(false);
         DiscoveryNodes nodes = nodes();
         if (sendLeaveRequest) {
             if (nodes.masterNode() == null) {
@@ -297,16 +291,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public DiscoveryNode localNode() {
         return clusterService.localNode();
-    }
-
-    @Override
-    public void addListener(InitialStateDiscoveryListener listener) {
-        this.initialStateListeners.add(listener);
-    }
-
-    @Override
-    public void removeListener(InitialStateDiscoveryListener listener) {
-        this.initialStateListeners.remove(listener);
     }
 
     @Override
@@ -367,6 +351,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
+    public DiscoverySettings getDiscoverySettings() {
+        return discoverySettings;
+    }
+
+    @Override
     public int getMinimumMasterNodes() {
         return electMaster.minimumMasterNodes();
     }
@@ -412,7 +401,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             joinThreadControl.markThreadAsDone(currentThread);
                             // we only starts nodesFD if we are master (it may be that we received a cluster state while pinging)
                             nodesFD.updateNodesAndPing(state); // start the nodes FD
-                            sendInitialStateEventIfNeeded();
                             long count = clusterJoinsCounter.incrementAndGet();
                             logger.trace("cluster joins counter set to [{}] (elected as master)", count);
                         }
@@ -600,7 +588,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                sendInitialStateEventIfNeeded();
             }
         });
     }
@@ -639,7 +626,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                sendInitialStateEventIfNeeded();
             }
         });
     }
@@ -688,7 +674,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                sendInitialStateEventIfNeeded();
             }
 
         });
@@ -782,7 +767,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 try {
-                    sendInitialStateEventIfNeeded();
                     if (newClusterState != null) {
                         publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
                     }
@@ -1011,14 +995,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.warn("failed to send rejoin request to [{}]", e, otherMaster);
             }
             return localClusterState;
-        }
-    }
-
-    private void sendInitialStateEventIfNeeded() {
-        if (initialStateSent.compareAndSet(false, true)) {
-            for (InitialStateDiscoveryListener listener : initialStateListeners) {
-                listener.initialStateProcessed();
-            }
         }
     }
 

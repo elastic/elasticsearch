@@ -106,7 +106,7 @@ public class QueryParseContext {
         token = parser.nextToken();
         if (token == XContentParser.Token.END_OBJECT) {
             // empty query
-            return EmptyQueryBuilder.PROTOTYPE;
+            return new EmptyQueryBuilder();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");

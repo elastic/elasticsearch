@@ -22,7 +22,6 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.SettingsProperty;
@@ -61,6 +60,8 @@ public class DiscoverySettings extends AbstractComponent {
             SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
     public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING =
         Setting.boolSetting("discovery.zen.publish_diff.enable", true, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), SettingsProperty.ClusterScope);
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout;
@@ -68,7 +69,6 @@ public class DiscoverySettings extends AbstractComponent {
     private volatile TimeValue commitTimeout;
     private volatile boolean publishDiff;
 
-    @Inject
     public DiscoverySettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);

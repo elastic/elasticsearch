@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -68,16 +69,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     public ReplicationRequest(ShardId shardId) {
         this.index = shardId.getIndexName();
         this.shardId = shardId;
-    }
-
-    /**
-     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    protected ReplicationRequest(Request request) {
-        this.timeout = request.timeout();
-        this.index = request.index();
-        this.consistencyLevel = request.consistencyLevel();
     }
 
     /**
@@ -196,8 +187,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
-        return new ReplicationTask(id, type, action, getDescription(), parentTaskNode, parentTaskId);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new ReplicationTask(id, type, action, getDescription(), parentTaskId);
     }
 
     /**

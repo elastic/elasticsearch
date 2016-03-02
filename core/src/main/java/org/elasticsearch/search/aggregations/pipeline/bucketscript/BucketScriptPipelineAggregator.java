@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -153,27 +152,6 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         formatter = ValueFormatterStreams.readOptional(in);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private Script script;
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private Map<String, String> bucketsPathsMap;
-
-        public Factory(String name, Map<String, String> bucketsPathsMap, Script script, ValueFormatter formatter, GapPolicy gapPolicy) {
-            super(name, TYPE.name(), bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]));
-            this.bucketsPathsMap = bucketsPathsMap;
-            this.script = script;
-            this.formatter = formatter;
-            this.gapPolicy = gapPolicy;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter, gapPolicy, metaData);
-        }
     }
 
 }

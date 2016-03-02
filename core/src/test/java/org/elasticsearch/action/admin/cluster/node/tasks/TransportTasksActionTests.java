@@ -43,13 +43,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +63,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
@@ -103,9 +102,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
             if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskNode, parentTaskId);
+                return super.createTask(id, type, action, parentTaskId);
             } else {
                 return null;
             }
@@ -313,7 +312,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         Task task = actions[0].execute(request, listener);
         logger.info("Awaiting for all actions to start");
-        actionLatch.await();
+        assertTrue(actionLatch.await(10, TimeUnit.SECONDS));
         logger.info("Done waiting for all actions to start");
         return task;
     }
@@ -426,14 +425,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Find tasks with common parent
         listTasksRequest = new ListTasksRequest();
-        listTasksRequest.parentNode(parentNode);
-        listTasksRequest.parentTaskId(parentTaskId);
+        listTasksRequest.parentTaskId(new TaskId(parentNode, parentTaskId));
         response = testNode.transportListTasksAction.execute(listTasksRequest).get();
         assertEquals(testNodes.length, response.getTasks().size());
         for (TaskInfo task : response.getTasks()) {
             assertEquals("testAction[n]", task.getAction());
-            assertEquals(parentNode, task.getParentNode());
-            assertEquals(parentTaskId, task.getParentId());
+            assertEquals(parentNode, task.getParentTaskId().getNodeId());
+            assertEquals(parentTaskId, task.getParentTaskId().getId());
         }
 
         // Release all tasks and wait for response
@@ -464,10 +462,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     public void testTasksDescriptions() throws Exception {
+        long minimalStartTime = System.currentTimeMillis();
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        long maximumStartTimeNanos = System.nanoTime();
 
         // Check task counts using transport with filtering
         TestNode testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
@@ -481,12 +481,15 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         // Check task counts using transport with detailed description
+        long minimalDurationNanos = System.nanoTime() - maximumStartTimeNanos;
         listTasksRequest.detailed(true); // same request only with detailed description
         response = testNode.transportListTasksAction.execute(listTasksRequest).get();
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
             assertEquals("CancellableNodeRequest[Test Request, true]", entry.getValue().get(0).getDescription());
+            assertThat(entry.getValue().get(0).getStartTime(), greaterThanOrEqualTo(minimalStartTime));
+            assertThat(entry.getValue().get(0).getRunningTimeNanos(), greaterThanOrEqualTo(minimalDurationNanos));
         }
 
         // Release all tasks and wait for response
@@ -514,7 +517,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         String actionName = "testAction"; // only pick the main action
 
         // Try to cancel main task using action name
-        CancelTasksRequest request = new CancelTasksRequest(testNodes[0].discoveryNode.getId());
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.nodesIds(testNodes[0].discoveryNode.getId());
         request.reason("Testing Cancellation");
         request.actions(actionName);
         CancelTasksResponse response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request)
@@ -527,9 +531,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
 
         // Try to cancel main task using id
-        request = new CancelTasksRequest(testNodes[0].discoveryNode.getId());
+        request = new CancelTasksRequest();
         request.reason("Testing Cancellation");
-        request.taskId(task.getId());
+        request.taskId(new TaskId(testNodes[0].discoveryNode.getId(), task.getId()));
         response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request).get();
 
         // Shouldn't match any tasks since testAction doesn't support cancellation
@@ -601,7 +605,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
                     logger.info("Task action on node " + node);
-                    if (failTaskOnNode == node && task.getParentNode() != null) {
+                    if (failTaskOnNode == node && task.getParentTaskId().isSet() == false) {
                         logger.info("Failing on node " + node);
                         throw new RuntimeException("Task level failure");
                     }

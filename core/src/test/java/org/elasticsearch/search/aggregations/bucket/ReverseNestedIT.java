@@ -66,9 +66,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("properties")
-                                .startObject("field1").field("type", "string").endObject()
+                                .startObject("field1").field("type", "text").endObject()
                                 .startObject("nested1").field("type", "nested").startObject("properties")
-                                    .startObject("field2").field("type", "string").endObject()
+                                    .startObject("field2").field("type", "text").endObject()
                                 .endObject().endObject()
                                 .endObject().endObject()
                 )
@@ -76,9 +76,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
                         "type2",
                         jsonBuilder().startObject().startObject("properties")
                                 .startObject("nested1").field("type", "nested").startObject("properties")
-                                    .startObject("field1").field("type", "string").endObject()
+                                    .startObject("field1").field("type", "text").endObject()
                                         .startObject("nested2").field("type", "nested").startObject("properties")
-                                            .startObject("field2").field("type", "string").endObject()
+                                            .startObject("field2").field("type", "text").endObject()
                                         .endObject().endObject()
                                     .endObject().endObject()
                                 .endObject().endObject()
@@ -138,7 +138,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleReverseNestedToRoot() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type1")
-                .addAggregation(nested("nested1").path("nested1")
+                .addAggregation(nested("nested1", "nested1")
                         .subAggregation(
                                 terms("field2").field("nested1.field2")
                                         .subAggregation(
@@ -326,10 +326,10 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleNested1ToRootToNested2() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type2")
-                .addAggregation(nested("nested1").path("nested1")
+                .addAggregation(nested("nested1", "nested1")
                                 .subAggregation(
                                         reverseNested("nested1_to_root")
-                                                .subAggregation(nested("root_to_nested2").path("nested1.nested2"))
+                                                .subAggregation(nested("root_to_nested2", "nested1.nested2"))
                                         )
                                 )
                 .get();
@@ -348,7 +348,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleReverseNestedToNested1() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type2")
-                .addAggregation(nested("nested1").path("nested1.nested2")
+                .addAggregation(nested("nested1", "nested1.nested2")
                                 .subAggregation(
                                         terms("field2").field("nested1.nested2.field2").order(Terms.Order.term(true))
                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -470,7 +470,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
     public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(nested("nested2").path("nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
+                .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
                 .execute().actionGet();
 
         Nested nested = searchResponse.getAggregations().get("nested2");
@@ -487,17 +487,17 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 .startObject("category")
                     .field("type", "nested")
                     .startObject("properties")
-                        .startObject("name").field("type", "string").endObject()
+                        .startObject("name").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .startObject("sku")
                     .field("type", "nested")
                     .startObject("properties")
-                        .startObject("sku_type").field("type", "string").endObject()
+                        .startObject("sku_type").field("type", "text").endObject()
                             .startObject("colors")
                                 .field("type", "nested")
                                 .startObject("properties")
-                                    .startObject("name").field("type", "string").endObject()
+                                    .startObject("name").field("type", "text").endObject()
                                 .endObject()
                             .endObject()
                     .endObject()
@@ -558,11 +558,11 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("idx3")
                 .addAggregation(
-                        nested("nested_0").path("category").subAggregation(
+                        nested("nested_0", "category").subAggregation(
                                 terms("group_by_category").field("category.name").subAggregation(
                                         reverseNested("to_root").subAggregation(
-                                                nested("nested_1").path("sku").subAggregation(
-                                                        filter("filter_by_sku").filter(termQuery("sku.sku_type", "bar1")).subAggregation(
+                                                nested("nested_1", "sku").subAggregation(
+                                                        filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
                                                                 count("sku_count").field("sku.sku_type")
                                                         )
                                                 )
@@ -593,13 +593,13 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
         response = client().prepareSearch("idx3")
                 .addAggregation(
-                        nested("nested_0").path("category").subAggregation(
+                        nested("nested_0", "category").subAggregation(
                                 terms("group_by_category").field("category.name").subAggregation(
                                         reverseNested("to_root").subAggregation(
-                                                nested("nested_1").path("sku").subAggregation(
-                                                        filter("filter_by_sku").filter(termQuery("sku.sku_type", "bar1")).subAggregation(
-                                                                nested("nested_2").path("sku.colors").subAggregation(
-                                                                        filter("filter_sku_color").filter(termQuery("sku.colors.name", "red")).subAggregation(
+                                                nested("nested_1", "sku").subAggregation(
+                                                        filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
+                                                                nested("nested_2", "sku.colors").subAggregation(
+                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
                                                                                 reverseNested("reverse_to_sku").path("sku").subAggregation(
                                                                                         count("sku_count").field("sku.sku_type")
                                                                                 )

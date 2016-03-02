@@ -1,7 +1,7 @@
 [[query-dsl-parent-id-query]]
 === Parent Id Query
 
-added[3.0.0]
+added[5.0.0]
 
 The `parent_id` query can be used to find a child document pointing to a particular parent id.
 

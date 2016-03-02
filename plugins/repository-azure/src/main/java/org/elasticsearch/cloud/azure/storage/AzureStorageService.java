@@ -42,7 +42,7 @@ public interface AzureStorageService {
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
         public static final Setting<TimeValue> TIMEOUT_SETTING =
-            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(5), SettingsProperty.ClusterScope);
+            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), SettingsProperty.ClusterScope);
         public static final Setting<String> ACCOUNT_SETTING =
             Setting.simpleString("repositories.azure.account", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
         public static final Setting<String> CONTAINER_SETTING =

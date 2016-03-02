@@ -26,7 +26,6 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -39,6 +38,7 @@ import org.elasticsearch.action.support.single.instance.TransportInstanceSingleO
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -100,13 +100,16 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        request.routing((state.metaData().resolveIndexRouting(request.parent(), request.routing(), request.index())));
+    protected void resolveRequest(ClusterState state, UpdateRequest request) {
+        resolveAndValidateRouting(state.metaData(), request.concreteIndex(), request);
+    }
+
+    public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
+        request.routing((metaData.resolveIndexRouting(request.parent(), request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.type())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.type(), request.id());
+        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
+            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
         }
-        return true;
     }
 
     @Override
@@ -169,7 +172,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
         switch (result.operation()) {
             case UPSERT:
-                IndexRequest upsertRequest = new IndexRequest((IndexRequest)result.action());
+                IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -206,7 +209,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case INDEX:
-                IndexRequest indexRequest = new IndexRequest((IndexRequest)result.action());
+                IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -236,8 +239,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                DeleteRequest deleteRequest = new DeleteRequest(result.action(), request);
-                deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
+                deleteAction.execute(result.action(), new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);

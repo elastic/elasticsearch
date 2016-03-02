@@ -62,6 +62,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
             }
             if (setting.hasComplexMatcher()) {
+                Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
+                if (overlappingSetting != null) {
+                    throw new IllegalArgumentException("complex setting key: [" + setting.getKey() + "] overlaps existing setting key: [" +
+                        overlappingSetting.getKey() + "]");
+                }
                 complexMatchers.putIfAbsent(setting.getKey(), setting);
             } else {
                 keySettings.putIfAbsent(setting.getKey(), setting);
@@ -410,4 +415,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return changed;
     }
 
+    private static Setting<?> findOverlappingSetting(Setting<?> newSetting, Map<String, Setting<?>> complexMatchers) {
+        assert newSetting.hasComplexMatcher();
+        if (complexMatchers.containsKey(newSetting.getKey())) {
+            // we return null here because we use a putIfAbsent call when inserting into the map, so if it exists then we already checked
+            // the setting to make sure there are no overlapping settings.
+            return null;
+        }
+
+        for (Setting<?> existingSetting : complexMatchers.values()) {
+            if (newSetting.match(existingSetting.getKey()) || existingSetting.match(newSetting.getKey())) {
+                return existingSetting;
+            }
+        }
+        return null;
+    }
 }

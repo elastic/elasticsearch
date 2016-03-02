@@ -47,15 +47,15 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
     public void testTemplateFiltering() throws Exception {
         client().admin().indices().preparePutTemplate("template1")
                 .setTemplate("test*")
-                .addMapping("type1", "field1", "type=string").get();
+                .addMapping("type1", "field1", "type=text").get();
 
         client().admin().indices().preparePutTemplate("template2")
                 .setTemplate("test*")
-                .addMapping("type2", "field2", "type=string").get();
+                .addMapping("type2", "field2", "type=text").get();
 
         client().admin().indices().preparePutTemplate("template3")
                 .setTemplate("no_match")
-                .addMapping("type3", "field3", "type=string").get();
+                .addMapping("type3", "field3", "type=text").get();
 
         assertAcked(prepareCreate("test"));
 

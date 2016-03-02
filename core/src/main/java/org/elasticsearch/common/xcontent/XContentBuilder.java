@@ -43,9 +43,12 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -958,6 +961,23 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime, TimeUnit timeUnit) throws
+        IOException {
+        if (humanReadable) {
+            field(readableFieldName, new TimeValue(rawTime, timeUnit).toString());
+        }
+        field(rawFieldName, rawTime);
+        return this;
+    }
+
+    public XContentBuilder dateValueField(String rawFieldName, String readableFieldName, long rawTimestamp) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, defaultDatePrinter.print(rawTimestamp));
+        }
+        field(rawFieldName, rawTimestamp);
+        return this;
+    }
+
     public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
         if (humanReadable) {
             field(readableFieldName, byteSizeValue.toString());
@@ -1227,52 +1247,101 @@ public final class XContentBuilder implements BytesStream, Releasable {
         generator.writeEndObject();
     }
 
+    @FunctionalInterface
+    interface Writer {
+        void write(XContentGenerator g, Object v) throws IOException;
+    }
+
+    private final static Map<Class<?>, Writer> MAP;
+
+    static {
+        Map<Class<?>, Writer> map = new HashMap<>();
+        map.put(String.class, (g, v) -> g.writeString((String) v));
+        map.put(Integer.class, (g, v) -> g.writeNumber((Integer) v));
+        map.put(Long.class, (g, v) -> g.writeNumber((Long) v));
+        map.put(Float.class, (g, v) -> g.writeNumber((Float) v));
+        map.put(Double.class, (g, v) -> g.writeNumber((Double) v));
+        map.put(Byte.class, (g, v) -> g.writeNumber((Byte) v));
+        map.put(Short.class, (g, v) -> g.writeNumber((Short) v));
+        map.put(Boolean.class, (g, v) -> g.writeBoolean((Boolean) v));
+        map.put(GeoPoint.class, (g, v) -> {
+            g.writeStartObject();
+            g.writeNumberField("lat", ((GeoPoint) v).lat());
+            g.writeNumberField("lon", ((GeoPoint) v).lon());
+            g.writeEndObject();
+        });
+        map.put(int[].class, (g, v) -> {
+            g.writeStartArray();
+            for (int item : (int[]) v) {
+                g.writeNumber(item);
+            }
+            g.writeEndArray();
+        });
+        map.put(long[].class, (g, v) -> {
+            g.writeStartArray();
+            for (long item : (long[]) v) {
+                g.writeNumber(item);
+            }
+            g.writeEndArray();
+        });
+        map.put(float[].class, (g, v) -> {
+            g.writeStartArray();
+            for (float item : (float[]) v) {
+                g.writeNumber(item);
+            }
+            g.writeEndArray();
+        });
+        map.put(double[].class, (g, v) -> {
+            g.writeStartArray();
+            for (double item : (double[])v) {
+                g.writeNumber(item);
+            }
+            g.writeEndArray();
+        });
+        map.put(byte[].class, (g, v) -> g.writeBinary((byte[]) v));
+        map.put(short[].class, (g, v) -> {
+            g.writeStartArray();
+            for (short item : (short[])v) {
+                g.writeNumber(item);
+            }
+            g.writeEndArray();
+        });
+        map.put(BytesRef.class, (g, v) -> {
+            BytesRef bytes = (BytesRef) v;
+            g.writeBinary(bytes.bytes, bytes.offset, bytes.length);
+        });
+        map.put(Text.class, (g, v) -> {
+            Text text = (Text) v;
+            if (text.hasBytes() && text.bytes().hasArray()) {
+                g.writeUTF8String(text.bytes().array(), text.bytes().arrayOffset(), text.bytes().length());
+            } else if (text.hasString()) {
+                g.writeString(text.string());
+            } else {
+                BytesArray bytesArray = text.bytes().toBytesArray();
+                g.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+            }
+        });
+        MAP = Collections.unmodifiableMap(map);
+    }
+
     private void writeValue(Object value) throws IOException {
         if (value == null) {
             generator.writeNull();
             return;
         }
         Class<?> type = value.getClass();
-        if (type == String.class) {
-            generator.writeString((String) value);
-        } else if (type == Integer.class) {
-            generator.writeNumber(((Integer) value).intValue());
-        } else if (type == Long.class) {
-            generator.writeNumber(((Long) value).longValue());
-        } else if (type == Float.class) {
-            generator.writeNumber(((Float) value).floatValue());
-        } else if (type == Double.class) {
-            generator.writeNumber(((Double) value).doubleValue());
-        } else if (type == Byte.class) {
-            generator.writeNumber(((Byte)value).byteValue());
-        } else if (type == Short.class) {
-            generator.writeNumber(((Short) value).shortValue());
-        } else if (type == Boolean.class) {
-            generator.writeBoolean(((Boolean) value).booleanValue());
-        } else if (type == GeoPoint.class) {
-            generator.writeStartObject();
-            generator.writeNumberField("lat", ((GeoPoint) value).lat());
-            generator.writeNumberField("lon", ((GeoPoint) value).lon());
-            generator.writeEndObject();
+        Writer writer = MAP.get(type);
+        if (writer != null) {
+            writer.write(generator, value);
         } else if (value instanceof Map) {
             writeMap((Map) value);
         } else if (value instanceof Path) {
             //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
             generator.writeString(value.toString());
         } else if (value instanceof Iterable) {
-            generator.writeStartArray();
-            for (Object v : (Iterable<?>) value) {
-                writeValue(v);
-            }
-            generator.writeEndArray();
+            writeIterable((Iterable<?>) value);
         } else if (value instanceof Object[]) {
-            generator.writeStartArray();
-            for (Object v : (Object[]) value) {
-                writeValue(v);
-            }
-            generator.writeEndArray();
-        } else if (type == byte[].class) {
-            generator.writeBinary((byte[]) value);
+            writeObjectArray((Object[]) value);
         } else if (value instanceof Date) {
             generator.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
         } else if (value instanceof Calendar) {
@@ -1280,56 +1349,9 @@ public final class XContentBuilder implements BytesStream, Releasable {
         } else if (value instanceof ReadableInstant) {
             generator.writeString(XContentBuilder.defaultDatePrinter.print((((ReadableInstant) value)).getMillis()));
         } else if (value instanceof BytesReference) {
-            BytesReference bytes = (BytesReference) value;
-            if (!bytes.hasArray()) {
-                bytes = bytes.toBytesArray();
-            }
-            generator.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
-        } else if (value instanceof BytesRef) {
-            BytesRef bytes = (BytesRef) value;
-            generator.writeBinary(bytes.bytes, bytes.offset, bytes.length);
-        } else if (value instanceof Text) {
-            Text text = (Text) value;
-            if (text.hasBytes() && text.bytes().hasArray()) {
-                generator.writeUTF8String(text.bytes().array(), text.bytes().arrayOffset(), text.bytes().length());
-            } else if (text.hasString()) {
-                generator.writeString(text.string());
-            } else {
-                BytesArray bytesArray = text.bytes().toBytesArray();
-                generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
-            }
+            writeBytesReference((BytesReference) value);
         } else if (value instanceof ToXContent) {
             ((ToXContent) value).toXContent(this, ToXContent.EMPTY_PARAMS);
-        } else if (value instanceof double[]) {
-            generator.writeStartArray();
-            for (double v : (double[]) value) {
-                generator.writeNumber(v);
-            }
-            generator.writeEndArray();
-        } else if (value instanceof long[]) {
-            generator.writeStartArray();
-            for (long v : (long[]) value) {
-                generator.writeNumber(v);
-            }
-            generator.writeEndArray();
-        } else if (value instanceof int[]) {
-            generator.writeStartArray();
-            for (int v : (int[]) value) {
-                generator.writeNumber(v);
-            }
-            generator.writeEndArray();
-        } else if (value instanceof float[]) {
-            generator.writeStartArray();
-            for (float v : (float[]) value) {
-                generator.writeNumber(v);
-            }
-            generator.writeEndArray();
-        } else if (value instanceof short[]) {
-            generator.writeStartArray();
-            for (short v : (short[]) value) {
-                generator.writeNumber(v);
-            }
-            generator.writeEndArray();
         } else {
             // if this is a "value" object, like enum, DistanceUnit, ..., just toString it
             // yea, it can be misleading when toString a Java class, but really, jackson should be used in that case
@@ -1337,4 +1359,29 @@ public final class XContentBuilder implements BytesStream, Releasable {
             //throw new ElasticsearchIllegalArgumentException("type not supported for generic value conversion: " + type);
         }
     }
+
+    private void writeBytesReference(BytesReference value) throws IOException {
+        BytesReference bytes = value;
+        if (!bytes.hasArray()) {
+            bytes = bytes.toBytesArray();
+        }
+        generator.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
+    }
+
+    private void writeIterable(Iterable<?> value) throws IOException {
+        generator.writeStartArray();
+        for (Object v : value) {
+            writeValue(v);
+        }
+        generator.writeEndArray();
+    }
+
+    private void writeObjectArray(Object[] value) throws IOException {
+        generator.writeStartArray();
+        for (Object v : value) {
+            writeValue(v);
+        }
+        generator.writeEndArray();
+    }
+
 }

@@ -32,7 +32,7 @@ If upgrading from 0.90.x to 1.x, then use these settings instead:
 PUT /_cluster/settings
 {
   "persistent": {
-    "cluster.routing.allocation.disable_allocation": false,
+    "cluster.routing.allocation.disable_allocation": true,
     "cluster.routing.allocation.enable": "none"
   }
 }
@@ -119,7 +119,7 @@ If upgrading from 0.90.x to 1.x, then use these settings instead:
 PUT /_cluster/settings
 {
   "persistent": {
-    "cluster.routing.allocation.disable_allocation": true,
+    "cluster.routing.allocation.disable_allocation": false,
     "cluster.routing.allocation.enable": "all"
   }
 }

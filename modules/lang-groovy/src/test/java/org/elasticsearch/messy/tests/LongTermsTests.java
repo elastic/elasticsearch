@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
@@ -289,8 +290,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
-                        .include(includes)
-                        .exclude(excludes)
+                        .includeExclude(new IncludeExclude(includes, excludes))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
         assertSearchResponse(response);
@@ -416,34 +416,6 @@ public class LongTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    public void testSingleValuedFieldWithSubAggregationInherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .subAggregation(sum("sum")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(5));
-
-        for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getBucketByKey("" + i);
-            assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + i));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1L));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo((double) i));
-        }
-    }
-
     public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -566,43 +538,6 @@ public class LongTermsTests extends AbstractTermsTestCase {
 
     */
 
-    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                        .field(MULTI_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value + 1"))
-                        .subAggregation(sum("sum")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(6));
-
-        for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
-            assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
-            final long count = i == 0 || i == 5 ? 1 : 2;
-            double s = 0;
-            for (int j = 0; j < NUM_DOCS; ++j) {
-                if (i == j || i == j+1) {
-                    s += j + 1;
-                    s += j+1 + 1;
-                }
-            }
-            assertThat(bucket.getDocCount(), equalTo(count));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(s));
-        }
-    }
-
     public void testScriptSingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -625,34 +560,6 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
-        }
-    }
-
-    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .subAggregation(sum("sum")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(5));
-
-        for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getBucketByKey("" + i);
-            assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + i));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1L));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo((double) i));
         }
     }
 
@@ -682,59 +589,6 @@ public class LongTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
-        }
-    }
-
-    public void testScriptMultiValuedWithAggregatorInheritedNoExplicitType() throws Exception {
-        // since no type ie explicitly defined, es will assume all values returned by the script to be strings (bytes),
-        // so the aggregation should fail, since the "sum" aggregation can only operation on numeric values.
-        try {
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
-                            .subAggregation(sum("sum")))
-                    .execute().actionGet();
-            fail("expected to fail as sub-aggregation sum requires a numeric value source context, but there is none");
-        } catch (Exception e) {
-            // expected
-        }
-    }
-
-    public void testScriptMultiValuedWithAggregatorInheritedWithExplicitType() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
-                        .valueType(Terms.ValueType.LONG)
-                        .subAggregation(sum("sum")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(6));
-
-        for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getBucketByKey("" + i);
-            assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + i));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            final long count = i == 0 || i == 5 ? 1 : 2;
-            double s = 0;
-            for (int j = 0; j < NUM_DOCS; ++j) {
-                if (i == j || i == j+1) {
-                    s += j;
-                    s += j+1;
-                }
-            }
-            assertThat(bucket.getDocCount(), equalTo(count));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(s));
         }
     }
 
@@ -783,7 +637,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
-                        .subAggregation(terms("terms")))
+                        .subAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
@@ -876,7 +730,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter", asc))
-                        .subAggregation(filter("filter").filter(QueryBuilders.matchAllQuery()))
+.subAggregation(filter("filter", QueryBuilders.matchAllQuery()))
                 ).execute().actionGet();
 
 
@@ -913,8 +767,8 @@ public class LongTermsTests extends AbstractTermsTestCase {
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>filter2>max", asc))
-                        .subAggregation(filter("filter1").filter(QueryBuilders.matchAllQuery())
-                                .subAggregation(filter("filter2").filter(QueryBuilders.matchAllQuery())
+                .subAggregation(filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
+                        filter("filter2", QueryBuilders.matchAllQuery())
                                         .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
                 ).execute().actionGet();
 

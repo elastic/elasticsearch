@@ -83,6 +83,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -461,58 +462,88 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         protected void doRun() {
             setPhase(task, "routing");
             final ClusterState state = observer.observedState();
-            ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel());
-            if (blockException != null) {
-                handleBlockException(blockException);
-                return;
-            }
-            final String concreteIndex = resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request) : request.index();
-            blockException = state.blocks().indexBlockedException(indexBlockLevel(), concreteIndex);
-            if (blockException != null) {
-                handleBlockException(blockException);
+            if (handleBlockExceptions(state)) {
                 return;
             }
 
             // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
+            final String concreteIndex = concreteIndex(state);
             resolveRequest(state.metaData(), concreteIndex, request);
             assert request.shardId() != null : "request shardId must be set in resolveRequest";
 
-            IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId());
-            final ShardRouting primary = indexShard.primaryShard();
-            if (primary == null || primary.active() == false) {
-                logger.trace("primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], cluster state version [{}]", request.shardId(), actionName, request, state.version());
-                retryBecauseUnavailable(request.shardId(), "primary shard is not active");
-                return;
-            }
-            if (state.nodes().nodeExists(primary.currentNodeId()) == false) {
-                logger.trace("primary shard [{}] is assigned to an unknown node [{}], scheduling a retry: action [{}], request [{}], cluster state version [{}]", request.shardId(), primary.currentNodeId(), actionName, request, state.version());
-                retryBecauseUnavailable(request.shardId(), "primary shard isn't assigned to a known node.");
+            final ShardRouting primary = primary(state);
+            if (retryIfUnavailable(state, primary)) {
                 return;
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
             taskManager.registerChildTask(task, node.getId());
             if (primary.currentNodeId().equals(state.nodes().localNodeId())) {
-                setPhase(task, "waiting_on_primary");
-                if (logger.isTraceEnabled()) {
-                    logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}] ", transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
-                }
-                performAction(node, transportPrimaryAction, true);
+                performLocalAction(state, primary, node);
             } else {
-                if (state.version() < request.routedBasedOnClusterVersion()) {
-                    logger.trace("failed to find primary [{}] for request [{}] despite sender thinking it would be here. Local cluster state version [{}]] is older than on sending node (version [{}]), scheduling a retry...", request.shardId(), request, state.version(), request.routedBasedOnClusterVersion());
-                    retryBecauseUnavailable(request.shardId(), "failed to find primary as current cluster state with version [" + state.version() + "] is stale (expected at least [" + request.routedBasedOnClusterVersion() + "]");
-                    return;
-                } else {
-                    // chasing the node with the active primary for a second hop requires that we are at least up-to-date with the current cluster state version
-                    // this prevents redirect loops between two nodes when a primary was relocated and the relocation target is not aware that it is the active primary shard already.
-                    request.routedBasedOnClusterVersion(state.version());
-                }
-                if (logger.isTraceEnabled()) {
-                    logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]", actionName, request.shardId(), request, state.version(), primary.currentNodeId());
-                }
-                setPhase(task, "rerouted");
-                performAction(node, actionName, false);
+                performRemoteAction(state, primary, node);
             }
+        }
+
+        private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
+            setPhase(task, "waiting_on_primary");
+            if (logger.isTraceEnabled()) {
+                logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}] ", transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
+            }
+            performAction(node, transportPrimaryAction, true);
+        }
+
+        private void performRemoteAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
+            if (state.version() < request.routedBasedOnClusterVersion()) {
+                logger.trace("failed to find primary [{}] for request [{}] despite sender thinking it would be here. Local cluster state version [{}]] is older than on sending node (version [{}]), scheduling a retry...", request.shardId(), request, state.version(), request.routedBasedOnClusterVersion());
+                retryBecauseUnavailable(request.shardId(), "failed to find primary as current cluster state with version [" + state.version() + "] is stale (expected at least [" + request.routedBasedOnClusterVersion() + "]");
+                return;
+            } else {
+                // chasing the node with the active primary for a second hop requires that we are at least up-to-date with the current cluster state version
+                // this prevents redirect loops between two nodes when a primary was relocated and the relocation target is not aware that it is the active primary shard already.
+                request.routedBasedOnClusterVersion(state.version());
+            }
+            if (logger.isTraceEnabled()) {
+                logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]", actionName, request.shardId(), request, state.version(), primary.currentNodeId());
+            }
+            setPhase(task, "rerouted");
+            performAction(node, actionName, false);
+        }
+
+        private boolean retryIfUnavailable(ClusterState state, ShardRouting primary) {
+            if (primary == null || primary.active() == false) {
+                logger.trace("primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], cluster state version [{}]", request.shardId(), actionName, request, state.version());
+                retryBecauseUnavailable(request.shardId(), "primary shard is not active");
+                return true;
+            }
+            if (state.nodes().nodeExists(primary.currentNodeId()) == false) {
+                logger.trace("primary shard [{}] is assigned to an unknown node [{}], scheduling a retry: action [{}], request [{}], cluster state version [{}]", request.shardId(), primary.currentNodeId(), actionName, request, state.version());
+                retryBecauseUnavailable(request.shardId(), "primary shard isn't assigned to a known node.");
+                return true;
+            }
+            return false;
+        }
+
+        private String concreteIndex(ClusterState state) {
+            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request) : request.index();
+        }
+
+        private ShardRouting primary(ClusterState state) {
+            IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId());
+            return indexShard.primaryShard();
+        }
+
+        private boolean handleBlockExceptions(ClusterState state) {
+            ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel());
+            if (blockException != null) {
+                handleBlockException(blockException);
+                return true;
+            }
+            blockException = state.blocks().indexBlockedException(indexBlockLevel(), concreteIndex(state));
+            if (blockException != null) {
+                handleBlockException(blockException);
+                return true;
+            }
+            return false;
         }
 
         private void handleBlockException(ClusterBlockException blockException) {
@@ -677,25 +708,34 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             // closed in finishAsFailed(e) in the case of error
             indexShardReference = getIndexShardReferenceOnPrimary(shardId);
             if (indexShardReference.isRelocated() == false) {
-                // execute locally
-                Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(state.metaData(), request);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
-                }
-                ReplicationPhase replicationPhase = new ReplicationPhase(task, primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
-                finishAndMoveToReplication(replicationPhase);
+                executeLocally();
+
             } else {
-                // delegate primary phase to relocation target
-                // it is safe to execute primary phase on relocation target as there are no more in-flight operations where primary
-                // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
-                final ShardRouting primary = indexShardReference.routingEntry();
-                indexShardReference.close();
-                assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
-                DiscoveryNode relocatingNode = state.nodes().get(primary.relocatingNodeId());
-                transportService.sendRequest(relocatingNode, transportPrimaryAction, request, transportOptions,
-                        TransportChannelResponseHandler.responseHandler(logger, TransportReplicationAction.this::newResponseInstance, channel,
-                                "rerouting indexing to target primary " + primary));
+                executeRemotely();
             }
+        }
+
+        private void executeLocally() throws Exception {
+            // execute locally
+            Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(state.metaData(), request);
+            if (logger.isTraceEnabled()) {
+                logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
+            }
+            ReplicationPhase replicationPhase = new ReplicationPhase(task, primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
+            finishAndMoveToReplication(replicationPhase);
+        }
+
+        private void executeRemotely() {
+            // delegate primary phase to relocation target
+            // it is safe to execute primary phase on relocation target as there are no more in-flight operations where primary
+            // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
+            final ShardRouting primary = indexShardReference.routingEntry();
+            indexShardReference.close();
+            assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
+            DiscoveryNode relocatingNode = state.nodes().get(primary.relocatingNodeId());
+            transportService.sendRequest(relocatingNode, transportPrimaryAction, request, transportOptions,
+                    TransportChannelResponseHandler.responseHandler(logger, TransportReplicationAction.this::newResponseInstance, channel,
+                            "rerouting indexing to target primary " + primary));
         }
 
         /**
@@ -835,23 +875,48 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
             // If the index gets deleted after primary operation, we skip replication
             final ClusterState state = clusterService.state();
-            final IndexRoutingTable index = state.getRoutingTable().index(shardId.getIndex());
-            final IndexShardRoutingTable shardRoutingTable = (index != null) ? index.shard(shardId.id()) : null;
+            final IndexShardRoutingTable shardRoutingTable = state.getRoutingTable().shardRoutingTableOrNull(shardId);
             final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
-            this.shards = (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
-            this.executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
-            this.nodes = state.getNodes();
+            List<ShardRouting> shards = shards(shardRoutingTable);
+            boolean executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
+            DiscoveryNodes nodes = state.getNodes();
 
             if (shards.isEmpty()) {
                 logger.debug("replication phase for request [{}] on [{}] is skipped due to index deletion after primary operation", replicaRequest, shardId);
             }
 
             // we calculate number of target nodes to send replication operations, including nodes with relocating shards
+            AtomicInteger numberOfPendingShardInstances = new AtomicInteger();
+            this.totalShards = countTotalAndPending(shards, executeOnReplica, nodes, numberOfPendingShardInstances);
+            this.pending = numberOfPendingShardInstances;
+            this.shards = shards;
+            this.executeOnReplica = executeOnReplica;
+            this.nodes = nodes;
+            if (logger.isTraceEnabled()) {
+                logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}]", pending.get(),
+                        transportReplicaAction, replicaRequest, state.version());
+            }
+        }
+
+        private int countTotalAndPending(List<ShardRouting> shards, boolean executeOnReplica, DiscoveryNodes nodes, AtomicInteger pending) {
+            assert pending.get() == 0;
+            int numberOfIgnoredShardInstances = performOnShards(shards, executeOnReplica, nodes, shard -> pending.incrementAndGet(), shard -> pending.incrementAndGet());
+            // one for the local primary copy
+            return 1 + numberOfIgnoredShardInstances + pending.get();
+        }
+
+        private int performOnShards(List<ShardRouting> shards, boolean executeOnReplica, DiscoveryNodes nodes, Consumer<ShardRouting> onLocalShard, Consumer<ShardRouting> onRelocatingShard) {
             int numberOfIgnoredShardInstances = 0;
-            int numberOfPendingShardInstances = 0;
             for (ShardRouting shard : shards) {
-                // the following logic to select the shards to replicate to is mirrored and explained in the doRun method below
                 if (shard.primary() == false && executeOnReplica == false) {
+                    // If the replicas use shadow replicas, there is no reason to
+                    // perform the action on the replica, so skip it and
+                    // immediately return
+
+                    // this delays mapping updates on replicas because they have
+                    // to wait until they get the new mapping through the cluster
+                    // state, which is why we recommend pre-defined mappings for
+                    // indices using shadow replicas
                     numberOfIgnoredShardInstances++;
                     continue;
                 }
@@ -859,20 +924,26 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     numberOfIgnoredShardInstances++;
                     continue;
                 }
+                // we index on a replica that is initializing as well since we might not have got the event
+                // yet that it was started. We will get an exception IllegalShardState exception if its not started
+                // and that's fine, we will ignore it
+
+                // we never execute replication operation locally as primary operation has already completed locally
+                // hence, we ignore any local shard for replication
                 if (nodes.localNodeId().equals(shard.currentNodeId()) == false) {
-                    numberOfPendingShardInstances++;
+                    onLocalShard.accept(shard);
                 }
+                // send operation to relocating shard
+                // local shard can be a relocation target of a primary that is in relocated state
                 if (shard.relocating() && nodes.localNodeId().equals(shard.relocatingNodeId()) == false) {
-                    numberOfPendingShardInstances++;
+                    onRelocatingShard.accept(shard);
                 }
             }
-            // one for the local primary copy
-            this.totalShards = 1 + numberOfPendingShardInstances + numberOfIgnoredShardInstances;
-            this.pending = new AtomicInteger(numberOfPendingShardInstances);
-            if (logger.isTraceEnabled()) {
-                logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}]", pending.get(),
-                        transportReplicaAction, replicaRequest, state.version());
-            }
+            return numberOfIgnoredShardInstances;
+        }
+
+        private List<ShardRouting> shards(IndexShardRoutingTable shardRoutingTable) {
+            return (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
         }
 
         /**
@@ -912,36 +983,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 doFinish();
                 return;
             }
-            for (ShardRouting shard : shards) {
-                if (shard.primary() == false && executeOnReplica == false) {
-                    // If the replicas use shadow replicas, there is no reason to
-                    // perform the action on the replica, so skip it and
-                    // immediately return
-
-                    // this delays mapping updates on replicas because they have
-                    // to wait until they get the new mapping through the cluster
-                    // state, which is why we recommend pre-defined mappings for
-                    // indices using shadow replicas
-                    continue;
-                }
-                if (shard.unassigned()) {
-                    continue;
-                }
-                // we index on a replica that is initializing as well since we might not have got the event
-                // yet that it was started. We will get an exception IllegalShardState exception if its not started
-                // and that's fine, we will ignore it
-
-                // we never execute replication operation locally as primary operation has already completed locally
-                // hence, we ignore any local shard for replication
-                if (nodes.localNodeId().equals(shard.currentNodeId()) == false) {
-                    performOnReplica(shard);
-                }
-                // send operation to relocating shard
-                // local shard can be a relocation target of a primary that is in relocated state
-                if (shard.relocating() && nodes.localNodeId().equals(shard.relocatingNodeId()) == false) {
-                    performOnReplica(shard.buildTargetRelocatingShard());
-                }
-            }
+            performOnShards(shards, executeOnReplica, nodes, shard -> performOnReplica(shard), shard -> performOnReplica(shard.buildTargetRelocatingShard()));
         }
 
         /**

@@ -37,8 +37,8 @@ achieve the same result:
 
 [source,yaml]
 ---------------
-script.inline: on
-script.indexed: on
+script.inline: true
+script.indexed: true
 ---------------
 
 ==== Units required for time and byte-sized settings
@@ -190,6 +190,12 @@ init/service scripts will consult the `CONF_DIR` environment variable
 to check for a custom config location.  The value of the `CONF_DIR`
 variable can be set in the environment config file which is located either in
 `/etc/default/elasticsearch` or `/etc/sysconfig/elasticsearch`.
+
+==== Custom analysis file paths
+
+It is no longer possible to set custom file path outside `CONF_DIR` for `*_path` settings
+in <<analysis-charfilters,char>> or <<analysis-tokenfilters,token>> filters.
+You must specify either relative path to `CONF_DIR` location or absolute path inside `CONF_DIR` location.
 
 ==== `ES_CLASSPATH removed`
 

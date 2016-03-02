@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -44,14 +45,12 @@ import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.node.service.NodeService;
 
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.Builder;
@@ -73,19 +72,16 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
-    private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
-
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
     private volatile ClusterState lastProcessedClusterState;
 
     @Inject
-    public LocalDiscovery(Settings settings, ClusterName clusterName, ClusterService clusterService,
-                          DiscoverySettings discoverySettings) {
+    public LocalDiscovery(Settings settings, ClusterName clusterName, ClusterService clusterService, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
-        this.discoverySettings = discoverySettings;
+        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
     }
 
     @Override
@@ -100,6 +96,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Override
     protected void doStart() {
+
+    }
+
+    @Override
+    public void startInitialJoin() {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -145,11 +146,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     public void onFailure(String source, Throwable t) {
                         logger.error("unexpected failure during [{}]", t, source);
                     }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        sendInitialStateEventIfNeeded();
-                    }
                 });
             } else if (firstMaster != null) {
                 // tell the master to send the fact that we are here
@@ -177,7 +173,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        sendInitialStateEventIfNeeded();
                         // we reroute not in the same cluster state update since in certain areas we rely on
                         // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
                         // shard transitions need to better be handled in such cases
@@ -262,16 +257,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    public void addListener(InitialStateDiscoveryListener listener) {
-        this.initialStateListeners.add(listener);
-    }
-
-    @Override
-    public void removeListener(InitialStateDiscoveryListener listener) {
-        this.initialStateListeners.remove(listener);
-    }
-
-    @Override
     public String nodeDescription() {
         return clusterName.value() + "/" + localNode().id();
     }
@@ -297,6 +282,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats(null);
+    }
+
+    @Override
+    public DiscoverySettings getDiscoverySettings() {
+        return discoverySettings;
     }
 
     @Override
@@ -398,7 +388,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                         @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            sendInitialStateEventIfNeeded();
                             publishResponseHandler.onResponse(discovery.localNode());
                         }
                     });
@@ -428,14 +417,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         } catch (Exception e) {
             // failure to marshal or un-marshal
             throw new IllegalStateException("Cluster state failed to serialize", e);
-        }
-    }
-
-    private void sendInitialStateEventIfNeeded() {
-        if (initialStateSent.compareAndSet(false, true)) {
-            for (InitialStateDiscoveryListener listener : initialStateListeners) {
-                listener.initialStateProcessed();
-            }
         }
     }
 

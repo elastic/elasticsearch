@@ -27,6 +27,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -59,7 +60,6 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -377,7 +377,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 format.loadLatestState(logger, dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
-                assertThat(ex.getCause(), instanceOf(CorruptStateException.class));
+                assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
             }
         }
 

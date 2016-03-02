@@ -906,7 +906,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (!CACHEABLE_SEARCH_TYPES.contains(context.searchType())) {
             return false;
         }
-        IndexSettings settings = context.indexShard().getIndexSettings();
+        IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
             if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {

@@ -19,18 +19,12 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.common.logging.jdk.JdkESLoggerFactory;
-import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
-import org.elasticsearch.common.logging.slf4j.Slf4jESLoggerFactory;
-import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.apache.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.SettingsProperty;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.regex.Pattern;
 
 /**
  * Factory to get {@link ESLogger}s
@@ -43,42 +37,14 @@ public abstract class ESLoggerFactory {
         Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse,
             SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
-    private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
-
-    static {
-        try {
-            Class<?> loggerClazz = Class.forName("org.apache.log4j.Logger");
-            // below will throw a NoSuchMethod failure with using slf4j log4j bridge
-            loggerClazz.getMethod("setLevel", Class.forName("org.apache.log4j.Level"));
-            defaultFactory = new Log4jESLoggerFactory();
-        } catch (Throwable e) {
-            // no log4j
-            try {
-                Class.forName("org.slf4j.Logger");
-                defaultFactory = new Slf4jESLoggerFactory();
-            } catch (Throwable e1) {
-                // no slf4j
-            }
-        }
-    }
-
-    /**
-     * Changes the default factory.
-     */
-    public static void setDefaultFactory(ESLoggerFactory defaultFactory) {
-        if (defaultFactory == null) {
-            throw new NullPointerException("defaultFactory");
-        }
-        ESLoggerFactory.defaultFactory = defaultFactory;
-    }
-
-
     public static ESLogger getLogger(String prefix, String name) {
-        return defaultFactory.newInstance(prefix == null ? null : prefix.intern(), name.intern());
+        prefix = prefix == null ? null : prefix.intern();
+        name = name.intern();
+        return new ESLogger(prefix, Logger.getLogger(name));
     }
 
     public static ESLogger getLogger(String name) {
-        return defaultFactory.newInstance(name.intern());
+        return getLogger(null, name);
     }
 
     public static DeprecationLogger getDeprecationLogger(String name) {
@@ -90,16 +56,12 @@ public abstract class ESLoggerFactory {
     }
 
     public static ESLogger getRootLogger() {
-        return defaultFactory.rootLogger();
+        return new ESLogger(null, Logger.getRootLogger());
     }
 
-    public ESLogger newInstance(String name) {
-        return newInstance(null, name);
+    private ESLoggerFactory() {
+        // Utility class can't be built.
     }
-
-    protected abstract ESLogger rootLogger();
-
-    protected abstract ESLogger newInstance(String prefix, String name);
 
     public enum LogLevel {
         WARN, TRACE, INFO, DEBUG, ERROR;

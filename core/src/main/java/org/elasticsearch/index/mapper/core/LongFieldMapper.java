@@ -249,7 +249,7 @@ public class LongFieldMapper extends NumberFieldMapper {
                     context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Long objValue = fieldType().nullValue();

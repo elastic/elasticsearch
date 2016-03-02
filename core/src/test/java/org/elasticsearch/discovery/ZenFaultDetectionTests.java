@@ -108,6 +108,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         MockTransportService transportService = new MockTransportService(Settings.EMPTY,
                 new LocalTransport(settings, threadPool, version, namedWriteableRegistry), threadPool, namedWriteableRegistry);
         transportService.start();
+        transportService.acceptIncomingRequests();
         return transportService;
     }
 

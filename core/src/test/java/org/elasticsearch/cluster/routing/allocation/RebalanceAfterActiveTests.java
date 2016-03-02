@@ -181,7 +181,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         }
 
 
-        logger.info("complete relocation, thats it!");
+        logger.info("complete relocation, that's it!");
         routingNodes = clusterState.getRoutingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();

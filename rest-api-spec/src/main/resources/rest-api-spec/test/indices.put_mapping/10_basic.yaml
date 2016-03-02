@@ -12,19 +12,19 @@
           test_type:
             properties:
               text1:
-                type:     string
+                type:     text
                 analyzer: whitespace
               text2:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.mappings.test_type.properties.text1.type:     string}
+  - match: {test_index.mappings.test_type.properties.text1.type:     text}
   - match: {test_index.mappings.test_type.properties.text1.analyzer: whitespace}
-  - match: {test_index.mappings.test_type.properties.text2.type:     string}
+  - match: {test_index.mappings.test_type.properties.text2.type:     text}
   - match: {test_index.mappings.test_type.properties.text2.analyzer: whitespace}
 
   - do:
@@ -35,7 +35,7 @@
           test_type:
             properties:
               text1:
-                type:     string
+                type:     text
                 analyzer: whitespace
                 fields:
                   text_raw:
@@ -46,5 +46,5 @@
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.mappings.test_type.properties.text1.type:     string}
+  - match: {test_index.mappings.test_type.properties.text1.type:     text}
   - match: {test_index.mappings.test_type.properties.text1.fields.text_raw.type: keyword}

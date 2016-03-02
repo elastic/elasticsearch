@@ -64,7 +64,7 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
     private static boolean nodeBooleanValue(Object node, Mapper.TypeParser.ParserContext parserContext) {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
             return XContentMapValues.nodeBooleanValue(node);
         } else {
             return XContentMapValues.lenientNodeBooleanValue(node);
@@ -100,8 +100,9 @@ public class TypeParsers {
     }
 
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
-        NamedAnalyzer indexAnalyzer = builder.fieldType().indexAnalyzer();
-        NamedAnalyzer searchAnalyzer = builder.fieldType().searchAnalyzer();
+        NamedAnalyzer indexAnalyzer = null;
+        NamedAnalyzer searchAnalyzer = null;
+        NamedAnalyzer searchQuoteAnalyzer = null;
 
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -136,18 +137,41 @@ public class TypeParsers {
                 }
                 searchAnalyzer = analyzer;
                 iterator.remove();
+            } else if (propName.equals("search_quote_analyzer")) {
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                searchQuoteAnalyzer = analyzer;
+                iterator.remove();
             }
         }
 
-        if (indexAnalyzer == null) {
-            if (searchAnalyzer != null) {
-                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
-            }
-        } else if (searchAnalyzer == null) {
+        if (indexAnalyzer == null && searchAnalyzer != null) {
+            throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+        }
+
+        if (searchAnalyzer == null && searchQuoteAnalyzer != null) {
+            throw new MapperParsingException("analyzer and search_analyzer on field [" + name + "] must be set when search_quote_analyzer is set");
+        }
+
+        if (searchAnalyzer == null) {
             searchAnalyzer = indexAnalyzer;
         }
-        builder.indexAnalyzer(indexAnalyzer);
-        builder.searchAnalyzer(searchAnalyzer);
+
+        if (searchQuoteAnalyzer == null) {
+            searchQuoteAnalyzer = searchAnalyzer;
+        }
+
+        if (indexAnalyzer != null) {
+            builder.indexAnalyzer(indexAnalyzer);
+        }
+        if (searchAnalyzer != null) {
+            builder.searchAnalyzer(searchAnalyzer);
+        }
+        if (searchQuoteAnalyzer != null) {
+            builder.searchQuoteAnalyzer(searchQuoteAnalyzer);
+        }
     }
 
     /**
@@ -329,7 +353,7 @@ public class TypeParsers {
     }
 
     public static boolean parseIndex(String fieldName, String index, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
             switch (index) {
             case "true":
                 return true;
@@ -355,7 +379,7 @@ public class TypeParsers {
     }
 
     public static boolean parseStore(String fieldName, String store, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
             return XContentMapValues.nodeBooleanValue(store);
         } else {
             if ("no".equals(store)) {
@@ -382,7 +406,7 @@ public class TypeParsers {
     }
 
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        if (parserContext.indexVersionCreated().before(Version.V_3_0_0) && "default".equals(value)) {
+        if (parserContext.indexVersionCreated().before(Version.V_5_0_0) && "default".equals(value)) {
             // "default" similarity has been renamed into "classic" in 3.x.
             value = SimilarityService.DEFAULT_SIMILARITY;
         }

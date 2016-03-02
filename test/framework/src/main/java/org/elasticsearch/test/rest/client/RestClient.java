@@ -34,8 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -48,7 +46,6 @@ import javax.net.ssl.SSLContext;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -284,7 +281,7 @@ public class RestClient implements Closeable {
                 SSLContext sslcontext = SSLContexts.custom()
                         .loadTrustMaterial(keyStore, null)
                         .build();
-                sslsf = new SSLConnectionSocketFactory(sslcontext);
+                sslsf = new SSLConnectionSocketFactory(sslcontext, StrictHostnameVerifier.INSTANCE);
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }

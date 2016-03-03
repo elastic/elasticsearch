@@ -382,7 +382,7 @@ public class Lucene {
                     writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
                 } else {
                     writeSortType(out, sortField.getType());
-                    writeMissingValue(out, sortField.missingValue);
+                    writeMissingValue(out, sortField.getMissingValue());
                 }
                 out.writeBoolean(sortField.getReverse());
             }

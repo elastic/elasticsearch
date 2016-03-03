@@ -225,11 +225,11 @@ final class BootstrapCheck {
 
     static class MaxNumberOfThreadsCheck implements Check {
 
-        private static final long MAX_FILES_PER_THREADS_THRESHOLD = 1 << 15;
+        private static final long MAX_NUMBER_OF_THREADS_THRESHOLD = 1 << 15;
 
         @Override
         public boolean check() {
-            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_FILES_PER_THREADS_THRESHOLD;
+            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD;
         }
 
         @Override
@@ -239,7 +239,7 @@ final class BootstrapCheck {
                     "max number of threads [%d] for user [%s] likely too low, increase to at least [%d]",
                     getMaxNumberOfThreads(),
                     BootstrapInfo.getSystemProperties().get("user.name"),
-                    MAX_FILES_PER_THREADS_THRESHOLD);
+                    MAX_NUMBER_OF_THREADS_THRESHOLD);
         }
 
         // visible for testing

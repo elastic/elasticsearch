@@ -123,6 +123,9 @@ final class BootstrapCheck {
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }
+        if (Constants.LINUX || Constants.MAC_OS_X) {
+            checks.add(new MaxSizeVirtualMemoryCheck());
+        }
         return Collections.unmodifiableList(checks);
     }
 
@@ -245,6 +248,29 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxNumberOfThreads() {
             return JNANatives.MAX_NUMBER_OF_THREADS;
+        }
+
+    }
+
+    static class MaxSizeVirtualMemoryCheck implements Check {
+
+        @Override
+        public boolean check() {
+            return getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != JNACLibrary.RLIM_INFINITY;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "max size virtual memory [%d] for user [%s] likely too low, increase to [unlimited]",
+                getMaxSizeVirtualMemory(),
+                BootstrapInfo.getSystemProperties().get("user.name"));
+        }
+
+        // visible for testing
+        long getMaxSizeVirtualMemory() {
+            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
         }
 
     }

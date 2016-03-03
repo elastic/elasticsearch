@@ -27,26 +27,44 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EvilJNANativesTests extends ESTestCase {
 
     public void testSetMaximumNumberOfThreads() throws IOException {
         if (Constants.LINUX) {
-            final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
-            if (!lines.isEmpty()) {
-                for (String line : lines) {
-                    if (line != null && line.startsWith("Max processes")) {
-                        final String[] fields = line.split("\\s+");
-                        final long limit = Long.parseLong(fields[2]);
-                        assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(limit));
-                        return;
-                    }
-                }
-            }
-            fail("should have read max processes from /proc/self/limits");
+            final long limit = Long.parseLong(fieldFromProcSelfLimits("Max processes", 2));
+            assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(limit));
         } else {
             assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(-1L));
         }
     }
+
+    public void testSetMaxSizeVirtualMemory() throws IOException {
+        if (Constants.LINUX) {
+            final String limit = fieldFromProcSelfLimits("Max address space", 3);
+            assertEquals(JNANatives.rlimitToString(JNANatives.MAX_SIZE_VIRTUAL_MEMORY), limit);
+        } else if (Constants.MAC_OS_X) {
+            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+        } else {
+            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, equalTo(Long.MIN_VALUE));
+        }
+    }
+
+    private String fieldFromProcSelfLimits(String field, int column) throws IOException {
+        final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
+        if (!lines.isEmpty()) {
+            for (String line : lines) {
+                if (line != null && line.startsWith(field)) {
+                    return line.split("\\s+")[column];
+                }
+            }
+        }
+        fail("should have read [" + field + "] from /proc/self/limits");
+        // unreachable
+        return null;
+    }
+
 }

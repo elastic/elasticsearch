@@ -56,3 +56,7 @@ grant codeBase "${codebase.junit-4.11.jar}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
+
+grant {
+  permission java.io.FilePermission "/proc/self/limits", "read";
+};

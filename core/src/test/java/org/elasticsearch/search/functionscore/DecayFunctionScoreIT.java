@@ -638,7 +638,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
         int numDocs = 2;

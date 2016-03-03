@@ -140,7 +140,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
 
         DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
-                new StringFieldMapper.Builder("name").store(true)
+                new TextFieldMapper.Builder("name").store(true)
                         .addMultiField(new TextFieldMapper.Builder("indexed").index(true).tokenized(true))
                         .addMultiField(new TextFieldMapper.Builder("not_indexed").index(false).store(true))
         ), indexService.mapperService()).build(indexService.mapperService());

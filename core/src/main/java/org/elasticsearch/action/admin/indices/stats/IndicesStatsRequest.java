@@ -265,6 +265,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Recovery);
     }
 
+    public boolean includeSegmentFileSizes() {
+        return flags.includeSegmentFileSizes();
+    }
+
+    public IndicesStatsRequest includeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        flags.includeSegmentFileSizes(includeSegmentFileSizes);
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

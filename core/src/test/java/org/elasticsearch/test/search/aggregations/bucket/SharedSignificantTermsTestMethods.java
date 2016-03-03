@@ -48,7 +48,7 @@ public class SharedSignificantTermsTestMethods {
     public static final String CLASS_FIELD = "class";
 
     public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
-        String type = ESTestCase.randomBoolean() ? "string" : "long";
+        String type = ESTestCase.randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();

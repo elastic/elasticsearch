@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class SettingTests extends ESTestCase {
@@ -349,8 +348,8 @@ public class SettingTests extends ESTestCase {
         assertTrue(listSetting.match("foo.bar." + randomIntBetween(0,10000)));
     }
 
-    public void testDynamicKeySetting() {
-        Setting<Boolean> setting = Setting.dynamicKeySetting("foo.", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
+    public void testPrefixKeySetting() {
+        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar"));
         assertFalse(setting.match("foo"));
@@ -362,7 +361,28 @@ public class SettingTests extends ESTestCase {
             setting.getConcreteSetting("foo");
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("key must match setting but didn't [foo]", ex.getMessage());
+            assertEquals("key [foo] must match [foo.] but didn't.", ex.getMessage());
+        }
+    }
+
+    public void testAdfixKeySetting() {
+        Setting<Boolean> setting = Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
+        assertTrue(setting.hasComplexMatcher());
+        assertTrue(setting.match("foo.bar.enable"));
+        assertTrue(setting.match("foo.baz.enable"));
+        assertTrue(setting.match("foo.bar.baz.enable"));
+        assertFalse(setting.match("foo.bar"));
+        assertFalse(setting.match("foo.bar.baz.enabled"));
+        assertFalse(setting.match("foo"));
+        Setting<Boolean> concreteSetting = setting.getConcreteSetting("foo.bar.enable");
+        assertTrue(concreteSetting.get(Settings.builder().put("foo.bar.enable", "true").build()));
+        assertFalse(concreteSetting.get(Settings.builder().put("foo.baz.enable", "true").build()));
+
+        try {
+            setting.getConcreteSetting("foo");
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("key [foo] must match [foo*enable.] but didn't.", ex.getMessage());
         }
     }
 

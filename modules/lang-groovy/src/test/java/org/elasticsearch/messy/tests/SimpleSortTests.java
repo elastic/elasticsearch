@@ -138,7 +138,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("lvalue").field("type", "long").endObject()
                 .startObject("dvalue").field("type", "double").endObject()
-                .startObject("svalue").field("type", "string").endObject()
+                .startObject("svalue").field("type", "keyword").endObject()
                 .startObject("gvalue").field("type", "geo_point").endObject()
                 .endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
@@ -317,7 +317,7 @@ public class SimpleSortTests extends ESIntegTestCase {
     public void test2920() throws IOException {
         assertAcked(prepareCreate("test").addMapping(
                 "test",
-                jsonBuilder().startObject().startObject("test").startObject("properties").startObject("value").field("type", "string")
+                jsonBuilder().startObject().startObject("test").startObject("properties").startObject("value").field("type", "keyword")
                         .endObject().endObject().endObject().endObject()));
         ensureGreen();
         for (int i = 0; i < 10; i++) {

@@ -180,41 +180,6 @@ public class FieldSortIT extends ESIntegTestCase {
 
     }
 
-    public void testIssue6639() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("$index")
-                .addMapping(
-                        "$type",
-                        "{\"$type\": "
-                        + " {\"properties\": "
-                        + "     {\"grantee\": "
-                        + "         {   \"index\": \"not_analyzed\", "
-                        + "             \"term_vector\": \"with_positions_offsets\", "
-                        + "             \"type\": \"string\", "
-                        + "             \"analyzer\": \"snowball\", "
-                        + "             \"boost\": 1.0, "
-                        + "             \"store\": true}}}}"));
-        indexRandom(true,
-                client().prepareIndex(
-                        "$index",
-                        "$type",
-                        "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
-                client().prepareIndex(
-                        "$index",
-                        "$type",
-                        "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
-        ensureYellow();
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("grantee", SortOrder.ASC)
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "data.activity.5", "data.activity.6");
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("grantee", SortOrder.DESC)
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
-    }
-
     public void testTrackScores() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -928,7 +893,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(SortBuilders.fieldSort("kkk").unmappedType("string"))
+                .addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword"))
                 .execute().actionGet();
         assertNoFailures(searchResponse);
     }

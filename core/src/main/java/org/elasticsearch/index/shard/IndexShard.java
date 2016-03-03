@@ -630,8 +630,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats() {
-        SegmentsStats segmentsStats = getEngine().segmentsStats();
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }

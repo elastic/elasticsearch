@@ -58,6 +58,9 @@
 
 ---
 "wait_for_completion=false":
+  - skip:
+      version: "0.0.0 - "
+      reason:  breaks other tests by leaving a running reindex behind
   - do:
       index:
         index:   source

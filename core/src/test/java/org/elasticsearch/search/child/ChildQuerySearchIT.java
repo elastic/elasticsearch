@@ -1922,17 +1922,4 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 QueryBuilders.hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"))).get();
         assertSearchHits(searchResponse, "parent-id");
     }
-
-    public void testParentWithoutChildTypes() {
-        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        try {
-            client().prepareSearch("test").setQuery(hasParentQuery("child", matchAllQuery())).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.toString(), containsString("[has_parent] no child types found for type [child]"));
-        }
-    }
 }

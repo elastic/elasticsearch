@@ -249,7 +249,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
         @Override
         protected void doExecute(Task task, CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
-            listener.onResponse(new CreateIndexResponse(true));
+            listener.onResponse(newResponse());
         }
     }
 

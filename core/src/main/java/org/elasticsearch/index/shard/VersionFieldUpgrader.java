@@ -46,6 +46,7 @@ import java.util.Collections;
 /**
  * Converts 0.90.x _uid payloads to _version docvalues
  */
+// nocommit: why in the world is this still here?
 class VersionFieldUpgrader extends FilterCodecReader {
     final FieldInfos infos;
     
@@ -67,7 +68,9 @@ class VersionFieldUpgrader extends FilterCodecReader {
                                           IndexOptions.NONE,                     // index options
                                           DocValuesType.NUMERIC,                 // docvalues
                                           -1,                                    // docvalues generation
-                                          Collections.<String, String>emptyMap() // attributes
+                                          Collections.<String, String>emptyMap(), // attributes
+                                          0,                                     // dimension count
+                                          0                                      // dimension bytes
                                           );
         newInfo.checkConsistency(); // fail merge immediately if above code is wrong
         

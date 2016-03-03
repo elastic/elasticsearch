@@ -21,6 +21,7 @@ package org.elasticsearch.deps.lucene;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -53,7 +54,11 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
@@ -75,7 +80,11 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
@@ -112,7 +121,11 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_NOT_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
@@ -133,7 +146,7 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO));
+        document.add(new TextField("content", "the big bad dog", Field.Store.YES));
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);

@@ -684,7 +684,7 @@ public class Lucene {
             segmentsFileName = infos.getSegmentsFileName();
             this.dir = dir;
             userData = infos.getUserData();
-            files = Collections.unmodifiableCollection(infos.files(dir, true));
+            files = Collections.unmodifiableCollection(infos.files(true));
             generation = infos.getGeneration();
             segmentCount = infos.size();
         }

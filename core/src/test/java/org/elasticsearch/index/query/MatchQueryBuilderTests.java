@@ -196,7 +196,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertTrue(numericRangeQuery.includesMax());
 
             double value;
-            double width = 0;
+            double width = -1;
             try {
                 value = Double.parseDouble(queryBuilder.value().toString());
             } catch (NumberFormatException e) {
@@ -205,7 +205,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 width = queryBuilder.fuzziness().asTimeValue().getMillis();
             }
 
-            if (width == 0) {
+            if (width == -1) {
                 if (queryBuilder.fuzziness().equals(Fuzziness.AUTO)) {
                     width = 1;
                 } else {

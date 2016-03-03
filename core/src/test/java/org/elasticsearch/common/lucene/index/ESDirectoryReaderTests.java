@@ -55,7 +55,7 @@ public class ESDirectoryReaderTests extends ESTestCase {
         
         // open reader
         ShardId shardId = new ShardId("fake", "_na_", 1);
-        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw, true), shardId);
+        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), shardId);
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 

@@ -387,7 +387,7 @@ public class StoreTests extends ESTestCase {
             }
         }
         if (random().nextBoolean()) {
-            DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
+            DirectoryReader.open(writer).close(); // flush
         }
         Store.MetadataSnapshot metadata;
         // check before we committed
@@ -470,7 +470,7 @@ public class StoreTests extends ESTestCase {
             }
         }
         if (random().nextBoolean()) {
-            DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
+            DirectoryReader.open(writer).close(); // flush
         }
         Store.MetadataSnapshot metadata;
         // check before we committed
@@ -529,7 +529,7 @@ public class StoreTests extends ESTestCase {
             }
         }
         if (random().nextBoolean()) {
-            DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
+            DirectoryReader.open(writer).close(); // flush
         }
         Store.MetadataSnapshot metadata;
         // check before we committed
@@ -808,8 +808,6 @@ public class StoreTests extends ESTestCase {
             dir = StoreTests.newDirectory(random);
             if (dir instanceof MockDirectoryWrapper) {
                 ((MockDirectoryWrapper) dir).setPreventDoubleWrite(preventDoubleWrite);
-                // TODO: fix this test to handle virus checker
-                ((MockDirectoryWrapper) dir).setEnableVirusScanner(false);
             }
             this.random = random;
         }

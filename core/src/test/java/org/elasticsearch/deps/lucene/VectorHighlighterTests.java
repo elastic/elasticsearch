@@ -56,7 +56,7 @@ public class VectorHighlighterTests extends ESTestCase {
         document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -115,7 +115,7 @@ public class VectorHighlighterTests extends ESTestCase {
         document.add(new Field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 

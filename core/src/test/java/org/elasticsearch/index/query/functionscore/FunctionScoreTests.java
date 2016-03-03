@@ -276,7 +276,7 @@ public class FunctionScoreTests extends ESTestCase {
         d.add(new TextField("_uid", "1", Field.Store.YES));
         w.addDocument(d);
         w.commit();
-        reader = DirectoryReader.open(w, true);
+        reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
     }
 

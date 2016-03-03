@@ -108,7 +108,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
-        final IndexReader reader1 = DirectoryReader.open(writer, true);
+        final IndexReader reader1 = DirectoryReader.open(writer);
         IndexFieldData<?> ifd = ifdService.getForField(mapper1);
         assertThat(ifd, instanceOf(PagedBytesIndexFieldData.class));
         Set<LeafReader> oldSegments = Collections.newSetFromMap(new IdentityHashMap<LeafReader, Boolean>());
@@ -119,7 +119,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         }
         // write new segment
         writer.addDocument(doc);
-        final IndexReader reader2 = DirectoryReader.open(writer, true);
+        final IndexReader reader2 = DirectoryReader.open(writer);
         final MappedFieldType mapper2 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "doc_values").build()).build(ctx).fieldType();
         ifd = ifdService.getForField(mapper2);
         assertThat(ifd, instanceOf(SortedSetDVOrdinalsIndexFieldData.class));
@@ -142,7 +142,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
-        DirectoryReader open = DirectoryReader.open(writer, true);
+        DirectoryReader open = DirectoryReader.open(writer);
         final boolean wrap = randomBoolean();
         final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", "_na_", 1)) : open;
         final AtomicInteger onCacheCalled = new AtomicInteger();

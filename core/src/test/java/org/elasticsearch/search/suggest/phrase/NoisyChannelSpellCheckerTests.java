@@ -96,7 +96,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         WordScorer wordScorer = new LaplaceScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "), 0.5f);
 
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
@@ -238,7 +238,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         LaplaceScorer wordScorer = new LaplaceScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "), 0.5f);
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
         DirectSpellChecker spellchecker = new DirectSpellChecker();
@@ -321,7 +321,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         WordScorer wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
 
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();

@@ -151,7 +151,7 @@ public class SimpleAllTests extends ESTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         Query query = new AllTermQuery(new Term("_all", "else"));
@@ -197,7 +197,7 @@ public class SimpleAllTests extends ESTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // this one is boosted. so the second doc is more relevant
@@ -243,7 +243,7 @@ public class SimpleAllTests extends ESTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         assertEquals(2, reader.leaves().size());
         IndexSearcher searcher = new IndexSearcher(reader);
 
@@ -279,7 +279,7 @@ public class SimpleAllTests extends ESTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -329,7 +329,7 @@ public class SimpleAllTests extends ESTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -367,7 +367,7 @@ public class SimpleAllTests extends ESTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new MatchAllDocsQuery(), 10);

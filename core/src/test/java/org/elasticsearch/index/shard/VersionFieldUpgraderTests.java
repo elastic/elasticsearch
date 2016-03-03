@@ -54,7 +54,7 @@ public class VersionFieldUpgraderTests extends ESTestCase {
         iw.addDocument(doc);
         iw.commit();
         
-        CodecReader reader = getOnlySegmentReader(DirectoryReader.open(iw, true));
+        CodecReader reader = getOnlySegmentReader(DirectoryReader.open(iw));
         CodecReader upgraded = VersionFieldUpgrader.wrap(reader);
         // we need to be upgraded, should be a different instance
         assertNotSame(reader, upgraded);
@@ -89,7 +89,7 @@ public class VersionFieldUpgraderTests extends ESTestCase {
         iw.addDocument(doc);
         iw.commit();
         
-        CodecReader reader = getOnlySegmentReader(DirectoryReader.open(iw, true));
+        CodecReader reader = getOnlySegmentReader(DirectoryReader.open(iw));
         CodecReader upgraded = VersionFieldUpgrader.wrap(reader);
         // we already upgraded: should be same instance
         assertSame(reader, upgraded);
@@ -119,7 +119,7 @@ public class VersionFieldUpgraderTests extends ESTestCase {
 
         iw.commit();
         
-        CodecReader reader = getOnlySegmentReader(DirectoryReader.open(iw, true));
+        CodecReader reader = getOnlySegmentReader(DirectoryReader.open(iw));
         CodecReader upgraded = VersionFieldUpgrader.wrap(reader);
         // we need to be upgraded, should be a different instance
         assertNotSame(reader, upgraded);

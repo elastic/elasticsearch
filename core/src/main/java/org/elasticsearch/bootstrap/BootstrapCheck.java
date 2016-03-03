@@ -120,6 +120,9 @@ final class BootstrapCheck {
                 = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
         checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
+        if (Constants.LINUX) {
+            checks.add(new MaxNumberOfProcessesCheck());
+        }
         return Collections.unmodifiableList(checks);
     }
 
@@ -216,6 +219,32 @@ final class BootstrapCheck {
         // visible for testing
         boolean isMemoryLocked() {
             return Natives.isMemoryLocked();
+        }
+
+    }
+
+    static class MaxNumberOfProcessesCheck implements Check {
+
+        private static final long MAX_FILES_PER_PROCESS_THRESHOLD = 1 << 15;
+
+        @Override
+        public boolean check() {
+            return getMaxFilesPerProcess() != -1 && getMaxFilesPerProcess() < MAX_FILES_PER_PROCESS_THRESHOLD;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "max number of processes [%d] for user [%s] likely too low, increase to at least [%d]",
+                    getMaxFilesPerProcess(),
+                    BootstrapInfo.getSystemProperties().get("user.name"),
+                    MAX_FILES_PER_PROCESS_THRESHOLD);
+        }
+
+        // visible for testing
+        long getMaxFilesPerProcess() {
+            return JNANatives.MAX_NUMBER_OF_PROCESSES;
         }
 
     }

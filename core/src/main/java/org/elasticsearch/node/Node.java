@@ -130,14 +130,13 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class Node implements Closeable {
 
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NODE_CLIENT_SETTING = Setting.boolSetting("node.client", false, false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting("node.master", true, false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> NODE_LOCAL_SETTING = Setting.boolSetting("node.local", false, false, Setting.Scope.CLUSTER);
     public static final Setting<String> NODE_MODE_SETTING = new Setting<>("node.mode", "network", Function.identity(), false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", false, Setting.Scope.CLUSTER);
-    // this sucks that folks can mistype client etc and get away with it.
+    // this sucks that folks can mistype data, master or ingest and get away with it.
     // TODO: we should move this to node.attribute.${name} = ${value} instead.
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", false, Setting.Scope.CLUSTER);
 

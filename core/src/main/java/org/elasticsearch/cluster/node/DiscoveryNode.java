@@ -48,7 +48,6 @@ public class DiscoveryNode implements Streamable, ToXContent {
 
     public static final String DATA_ATTR = "data";
     public static final String MASTER_ATTR = "master";
-    public static final String CLIENT_ATTR = "client";
     public static final String INGEST_ATTR = "ingest";
 
     public static boolean localNode(Settings settings) {
@@ -69,25 +68,15 @@ public class DiscoveryNode implements Streamable, ToXContent {
     }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        return (Node.NODE_CLIENT_SETTING.get(settings) || (Node.NODE_DATA_SETTING.get(settings) == false && Node.NODE_MASTER_SETTING.get(settings) == false)) == false;
-    }
-
-    public static boolean clientNode(Settings settings) {
-        return Node.NODE_CLIENT_SETTING.get(settings);
+        return Node.NODE_DATA_SETTING.get(settings) || Node.NODE_MASTER_SETTING.get(settings);
     }
 
     public static boolean masterNode(Settings settings) {
-        if (Node.NODE_MASTER_SETTING.exists(settings)) {
-            return Node.NODE_MASTER_SETTING.get(settings);
-        }
-        return clientNode(settings) == false;
+        return Node.NODE_MASTER_SETTING.get(settings);
     }
 
     public static boolean dataNode(Settings settings) {
-        if (Node.NODE_DATA_SETTING.exists(settings)) {
-            return Node.NODE_DATA_SETTING.get(settings);
-        }
-        return clientNode(settings) == false;
+        return Node.NODE_DATA_SETTING.get(settings);
     }
 
     public static boolean ingestNode(Settings settings) {
@@ -270,10 +259,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      */
     public boolean dataNode() {
         String data = attributes.get(DATA_ATTR);
-        if (data == null) {
-            return !clientNode();
-        }
-        return Booleans.parseBooleanExact(data);
+        return data == null ? true : Booleans.parseBooleanExact(data);
     }
 
     /**
@@ -284,26 +270,11 @@ public class DiscoveryNode implements Streamable, ToXContent {
     }
 
     /**
-     * Is the node a client node or not.
-     */
-    public boolean clientNode() {
-        String client = attributes.get(CLIENT_ATTR);
-        return client != null && Booleans.parseBooleanExact(client);
-    }
-
-    public boolean isClientNode() {
-        return clientNode();
-    }
-
-    /**
      * Can this node become master or not.
      */
     public boolean masterNode() {
-        String master = attributes.get(MASTER_ATTR);
-        if (master == null) {
-            return !clientNode();
-        }
-        return Booleans.parseBooleanExact(master);
+            String master = attributes.get(MASTER_ATTR);
+        return master == null ? true : Booleans.parseBooleanExact(master);
     }
 
     /**

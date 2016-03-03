@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 
 import java.util.HashMap;
 import java.util.List;
@@ -45,16 +46,13 @@ public class DiscoveryNodeService extends AbstractComponent {
     }
 
     public Map<String, String> buildAttributes() {
-        Map<String, String> attributes = new HashMap<>(settings.getByPrefix("node.").getAsMap());
+        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(this.settings).getAsMap());
         attributes.remove("name"); // name is extracted in other places
         if (attributes.containsKey("client")) {
-            if (attributes.get("client").equals("false")) {
-                attributes.remove("client"); // this is the default
-            } else {
-                // if we are client node, don't store data ...
-                attributes.put("data", "false");
-            }
+            throw new IllegalArgumentException("node.client setting is no longer supported, use " + Node.NODE_MASTER_SETTING.getKey()
+                + ", " + Node.NODE_DATA_SETTING.getKey() + " and " + Node.NODE_INGEST_SETTING.getKey() + " explicitly instead");
         }
+        //nocommit why don't we remove master as well if it's true? and ingest?
         if (attributes.containsKey("data")) {
             if (attributes.get("data").equals("true")) {
                 attributes.remove("data");
@@ -79,7 +77,7 @@ public class DiscoveryNodeService extends AbstractComponent {
         return attributes;
     }
 
-    public static interface CustomAttributesProvider {
+    public interface CustomAttributesProvider {
 
         Map<String, String> buildAttributes();
     }

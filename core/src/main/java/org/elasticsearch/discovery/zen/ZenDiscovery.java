@@ -853,10 +853,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         List<ZenPing.PingResponse> pingResponses = new ArrayList<>();
         for (ZenPing.PingResponse pingResponse : fullPingResponses) {
             DiscoveryNode node = pingResponse.node();
-            if (masterElectionFilterClientNodes && (node.clientNode() || (!node.masterNode() && !node.dataNode()))) {
-                // filter out the client node, which is a client node, or also one that is not data and not master (effectively, client)
-            } else if (masterElectionFilterDataNodes && (!node.masterNode() && node.dataNode())) {
-                // filter out data node that is not also master
+            //nocommit we should rename this and its setting, also we ignore node.ingest, but maybe it's ok here
+            if (masterElectionFilterClientNodes && node.masterNode() == false && node.dataNode() == false) {
+                // filter out nodes that don't hold data and are not master eligible
+            } else if (masterElectionFilterDataNodes && node.masterNode() == false && node.dataNode()) {
+                // filter out dedicated data nodes
             } else {
                 pingResponses.add(pingResponse);
             }

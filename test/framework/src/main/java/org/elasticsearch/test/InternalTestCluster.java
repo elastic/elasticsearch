@@ -656,19 +656,20 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client clientNodeClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new ClientNodePredicate());
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NoDataNoMasterNodePredicate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client(random);
         }
         int nodeId = nextNodeId.getAndIncrement();
         Settings settings = getSettings(nodeId, random.nextLong(), Settings.EMPTY);
         startNodeClient(settings);
-        return getRandomNodeAndClient(new ClientNodePredicate()).client(random);
+        return getRandomNodeAndClient(new NoDataNoMasterNodePredicate()).client(random);
     }
 
     public synchronized Client startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put(Node.NODE_CLIENT_SETTING.getKey(), true);
+        Builder builder = settingsBuilder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .put(Node.NODE_DATA_SETTING.getKey(), false);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
             builder.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
@@ -952,7 +953,8 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Builder clientSettingsBuilder = Settings.builder().put(Node.NODE_CLIENT_SETTING.getKey(), true);
+                Builder clientSettingsBuilder = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
+                    .put(Node.NODE_DATA_SETTING.getKey(), false);
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
@@ -1677,10 +1679,11 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
+    private static final class NoDataNoMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.clientNode(nodeAndClient.node.settings());
+            return DiscoveryNode.masterNode(nodeAndClient.node.settings()) == false &&
+                DiscoveryNode.dataNode(nodeAndClient.node.settings()) == false;
         }
     }
 

@@ -350,7 +350,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     Node.WRITE_PORTS_FIELD_SETTING,
                     Node.NODE_NAME_SETTING,
-                    Node.NODE_CLIENT_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,
                     Node.NODE_LOCAL_SETTING,

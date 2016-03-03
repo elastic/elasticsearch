@@ -27,19 +27,15 @@ public class FileAttributesChecker {
     private final PosixFileAttributes[] attributes;
 
     /** Create a checker for the given paths, which will warn to the given terminal if changes are made. */
-    public FileAttributesChecker(Path... paths) {
+    public FileAttributesChecker(Path... paths) throws IOException {
         this.paths = paths;
         this.attributes = new PosixFileAttributes[paths.length];
 
         for (int i = 0; i < paths.length; ++i) {
-            if (Files.exists(paths[i]) == false) continue;
+            if (Files.exists(paths[i]) == false) continue; // missing file, so changes later don't matter
             PosixFileAttributeView view = Files.getFileAttributeView(paths[i], PosixFileAttributeView.class);
             if (view == null) continue; // not posix
-            try {
-                this.attributes[i] = view.readAttributes();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            this.attributes[i] = view.readAttributes();
         }
     }
 

@@ -5,123 +5,84 @@
  */
 package org.elasticsearch.shield.crypto.tool;
 
-import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CheckFileCommand;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.crypto.InternalCryptoService;
-
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.config;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.shield.support.FileAttributesChecker;
 
-/**
- *
- */
-public class SystemKeyTool extends CliTool {
+public class SystemKeyTool extends Command {
 
     public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Sets.newHashSet(PosixFilePermission.OWNER_READ,
             PosixFilePermission.OWNER_WRITE);
 
-
     public static void main(String[] args) throws Exception {
-        ExitStatus exitStatus = new SystemKeyTool().execute(args);
-        exit(exitStatus.status());
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
+        exit(new SystemKeyTool(env).main(args, Terminal.DEFAULT));
     }
 
-    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
-    private static void exit(int status) {
-        System.exit(status);
-    }
+    private final Environment env;
+    private final OptionSpec<String> arguments;
 
-    private static final CliToolConfig CONFIG = config("syskey", SystemKeyTool.class)
-            .cmds(Generate.CMD)
-            .build();
-
-    public SystemKeyTool() {
-        super(CONFIG);
+    public SystemKeyTool(Environment env) {
+        super("Generates the system key");
+        this.env = env;
+        this.arguments = parser.nonOptions("key path");
     }
 
     @Override
-    protected Command parse(String cmd, CommandLine commandLine) throws Exception {
-        return Generate.parse(terminal, commandLine, env);
+    protected int execute(Terminal terminal, OptionSet options) throws Exception {
+        Path keyPath = null;
+        List<String> args = arguments.values(options);
+        if (args.size() > 1) {
+            throw new UserError(ExitCodes.USAGE, "No more than one key path can be supplied");
+        } else if (args.size() == 1) {
+            keyPath = PathUtils.get(args.get(0));
+        }
+        execute(terminal, keyPath);
+        return ExitCodes.OK;
     }
 
-    static class Generate extends CheckFileCommand {
+    // pkg private for tests
+    void execute(Terminal terminal, Path keyPath) throws Exception {
+        if (keyPath == null) {
+            keyPath = InternalCryptoService.resolveSystemKey(env.settings(), env);
+        }
+        FileAttributesChecker attributesChecker = new FileAttributesChecker(keyPath);
 
-        private static final CliToolConfig.Cmd CMD = cmd("generate", Generate.class).build();
+        // write the key
+        terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
+        byte[] key = InternalCryptoService.generateKey();
+        terminal.println(String.format(Locale.ROOT, "Storing generated key in [%s]...", keyPath.toAbsolutePath()));
+        Files.write(keyPath, key, StandardOpenOption.CREATE_NEW);
 
-        final Path path;
-
-        Generate(Terminal terminal, Path path) {
-            super(terminal);
-            this.path = path;
+        // set permissions to 600
+        PosixFileAttributeView view = Files.getFileAttributeView(keyPath, PosixFileAttributeView.class);
+        if (view != null) {
+            view.setPermissions(PERMISSION_OWNER_READ_WRITE);
+            terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, "
+                + "permissions are set to owner read/write only");
         }
 
-        public static Command parse(Terminal terminal, CommandLine cl, Environment env) {
-            String[] args = cl.getArgs();
-            if (args.length > 1) {
-                return exitCmd(ExitStatus.USAGE, terminal, "Too many arguments");
-            }
-            Path path = args.length != 0 ? env.binFile().getParent().resolve(args[0]) : null;
-            return new Generate(terminal, path);
-        }
-
-        @Override
-        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
-            Path path = this.path;
-            if (path == null) {
-                path = InternalCryptoService.resolveSystemKey(settings, env);
-            }
-            return new Path[]{path};
-        }
-
-        @Override
-        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            Path path = this.path;
-            try {
-                if (path == null) {
-                    path = InternalCryptoService.resolveSystemKey(settings, env);
-                }
-                terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
-                byte[] key = InternalCryptoService.generateKey();
-                terminal.println(String.format(Locale.ROOT, "Storing generated key in [%s]...", path.toAbsolutePath()));
-                Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            } catch (IOException ioe) {
-                terminal.println(Terminal.Verbosity.SILENT,
-                        String.format(Locale.ROOT, "ERROR: Cannot generate and save system key file [%s]", path.toAbsolutePath()));
-                return ExitStatus.IO_ERROR;
-            }
-
-            boolean supportsPosixPermissions = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
-            if (supportsPosixPermissions) {
-                try {
-                    Files.setPosixFilePermissions(path, PERMISSION_OWNER_READ_WRITE);
-                } catch (IOException ioe) {
-                    terminal.println(Terminal.Verbosity.SILENT,
-                            String.format(Locale.ROOT, "ERROR: Cannot set owner read/write permissions to generated system key file [%s]",
-                                    path.toAbsolutePath()));
-                    return ExitStatus.IO_ERROR;
-                }
-                terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, permissions are set to " +
-                        "owner read/write only");
-            }
-
-            return ExitStatus.OK;
-        }
+        // check if attributes changed
+        attributesChecker.check(terminal);
     }
 
 }

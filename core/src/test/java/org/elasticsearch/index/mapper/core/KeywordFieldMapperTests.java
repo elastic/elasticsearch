@@ -35,6 +35,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
@@ -199,5 +200,38 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+    }
+
+    public void testAnalyzer() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "keyword").field("analyzer", "lowercase").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "aBc DE")
+                .endObject()
+                .bytes());
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals("abc de", fields[0].stringValue());
+        assertEquals(new BytesRef("abc de"), fields[1].binaryValue());
+    }
+
+    public void testIllegalAnalyzer() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "keyword").field("analyzer", "standard").endObject().endObject()
+                .endObject().endObject().string();
+
+        final IllegalArgumentException e =
+                expectThrows(
+                        IllegalArgumentException.class,
+                        () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("generates more than one token for field [field] and input [a b]"));
     }
 }

@@ -19,6 +19,8 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Analyzer.TokenStreamComponents;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -26,6 +28,8 @@ import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
 import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -95,6 +99,21 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             return new KeywordAnalyzer();
+        }
+    },
+
+    /** A lowercase analyzer, mostly useful for keyword fields. */
+    LOWERCASE(CachingStrategy.ONE) {
+        @Override
+        protected Analyzer create(Version version) {
+            return new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    KeywordTokenizer source = new KeywordTokenizer();
+                    LowerCaseFilter result = new LowerCaseFilter(source);
+                    return new TokenStreamComponents(source, result);
+                }
+            };
         }
     },
 

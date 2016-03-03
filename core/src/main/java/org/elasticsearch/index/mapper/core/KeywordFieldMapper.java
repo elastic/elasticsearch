@@ -19,16 +19,21 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -37,6 +42,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +56,10 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 public final class KeywordFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "keyword";
+    // Test inputs that we use to check whether the analyzer generates multiple tokens
+    private static final List<String> TEST_INPUTS = Arrays.asList(
+            "a b", "", "1 2"
+    );
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new KeywordFieldType();
@@ -58,6 +68,9 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchQuoteAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
         }
 
@@ -128,6 +141,15 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
+                } else if (propName.equals("analyzer")) {
+                    NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                    if (analyzer == null) {
+                        throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                    }
+                    builder.indexAnalyzer(analyzer);
+                    builder.searchAnalyzer(analyzer);
+                    builder.searchQuoteAnalyzer(analyzer);
+                    iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
@@ -178,6 +200,14 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
+        // make sure the analyzer generates a single token for all the test inputs
+        for (String testInput : TEST_INPUTS) {
+            try {
+                analyze(fieldType().indexAnalyzer(), fieldType().name(), testInput);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     @Override
@@ -218,9 +248,26 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         }
     }
 
+    private static String analyze(Analyzer analyzer, String field, String value) throws IOException {
+        try (TokenStream tk = analyzer.tokenStream(field, value)) {
+            tk.reset();
+            final CharTermAttribute termAtt = tk.addAttribute(CharTermAttribute.class);
+            if (tk.incrementToken() == false) {
+                throw new IllegalArgumentException("Analyzer [" + analyzer + "] generates no tokens for field ["
+                        + field + "] and input [" + value + "]");
+            }
+            final String analyzedValue = termAtt.toString();
+            if (tk.incrementToken()) {
+                throw new IllegalArgumentException("Analyzer [" + analyzer + "] generates more than one token for field ["
+                        + field + "] and input [" + value + "]");
+            }
+            return analyzedValue;
+        }
+    }
+
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        final String value;
+        String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
         } else {
@@ -232,7 +279,15 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             }
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (fieldType().indexAnalyzer() != Lucene.KEYWORD_ANALYZER) {
+            value = analyze(fieldType().indexAnalyzer(), fieldType().name(), value);
+        }
+
+        if (value.length() > ignoreAbove) {
             return;
         }
 
@@ -277,6 +332,12 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
 
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
+        }
+
+        if (fieldType().indexAnalyzer() != Lucene.KEYWORD_ANALYZER) {
+            builder.field("analyzer", fieldType().indexAnalyzer().name());
+        } else if (includeDefaults) {
+            builder.field("analyzer", "keyword");
         }
     }
 }

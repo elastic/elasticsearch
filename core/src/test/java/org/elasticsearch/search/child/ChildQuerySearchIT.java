@@ -758,11 +758,11 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).get();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("parent", matchQuery("text", "value"))).get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).score(true))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("parent", matchQuery("text", "value")).score(true))
                 .get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
@@ -1894,11 +1894,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             fail();
         } catch (SearchPhaseExecutionException e) {
         }
-
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
-                .get();
-        assertHitCount(response, 0);
     }
 
     static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {
@@ -1926,5 +1921,18 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("parent-type").setQuery(
                 QueryBuilders.hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"))).get();
         assertSearchHits(searchResponse, "parent-id");
+    }
+
+    public void testParentWithoutChildTypes() {
+        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        try {
+            client().prepareSearch("test").setQuery(hasParentQuery("child", matchAllQuery())).get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.toString(), containsString("[has_parent] no child types found for type [child]"));
+        }
     }
 }

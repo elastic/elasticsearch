@@ -134,9 +134,7 @@ final class Bootstrap {
             // we've already logged this.
         }
 
-        if (Constants.LINUX) {
-            JNANatives.maxNumberOfThreads();
-        }
+        JNANatives.trySetMaxNumberOfThreads();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();

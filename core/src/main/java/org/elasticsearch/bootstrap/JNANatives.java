@@ -106,11 +106,8 @@ class JNANatives {
         }
     }
 
-    static void maxNumberOfThreads() {
-        if (!Constants.LINUX) {
-            // no idea
-            return;
-        } else {
+    static void trySetMaxNumberOfThreads() {
+        if (Constants.LINUX) {
             // this is only valid on Linux and the value *is* different on OS X
             // see /usr/include/sys/resource.h on OS X
             // on Linux the resource RLIMIT_NPROC means *the number of threads*

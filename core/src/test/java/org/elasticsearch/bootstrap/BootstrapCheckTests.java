@@ -130,6 +130,33 @@ public class BootstrapCheckTests extends ESTestCase {
         }
     }
 
+    public void testMaxNumberOfThreadsCheck() {
+        final int limit = 1 << 15;
+        final AtomicLong maxNumberOfThreads = new AtomicLong(randomIntBetween(1, limit - 1));
+        final BootstrapCheck.MaxNumberOfThreadsCheck check = new BootstrapCheck.MaxNumberOfThreadsCheck() {
+            @Override
+            long getMaxNumberOfThreads() {
+                return maxNumberOfThreads.get();
+            }
+        };
+
+        try {
+            BootstrapCheck.check(true, Collections.singletonList(check));
+            fail("should have failed due to max number of threads too low");
+        } catch (final RuntimeException e) {
+            assertThat(e.getMessage(), containsString("max number of threads"));
+        }
+
+        maxNumberOfThreads.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
+
+        BootstrapCheck.check(true, Collections.singletonList(check));
+
+        // nothing should happen if current max number of threads is
+        // not available
+        maxNumberOfThreads.set(-1);
+        BootstrapCheck.check(true, Collections.singletonList(check));
+    }
+
     public void testEnforceLimits() {
         final Set<Setting> enforceSettings = BootstrapCheck.enforceSettings();
         final Setting setting = randomFrom(Arrays.asList(enforceSettings.toArray(new Setting[enforceSettings.size()])));

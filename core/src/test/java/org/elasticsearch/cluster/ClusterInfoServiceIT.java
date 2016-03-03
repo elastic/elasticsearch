@@ -172,7 +172,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         RoutingNodes routingNodes = state.getRoutingNodes();
         for (ShardRouting shard : routingNodes.getRoutingTable().allShards()) {
             String dataPath = info.getDataPath(shard);
-            assertNotNull(dataPath);
+            assertNotNull("data path for " + shard + " should not be null!", dataPath);
 
             String nodeId = shard.currentNodeId();
             DiscoveryNode discoveryNode = state.getNodes().get(nodeId);

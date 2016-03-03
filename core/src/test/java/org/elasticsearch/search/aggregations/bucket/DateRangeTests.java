@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
+import org.joda.time.DateTimeZone;
 
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorBuilder> {
 
@@ -55,6 +56,9 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorB
         }
         if (randomBoolean()) {
             factory.missing(randomIntBetween(0, 10));
+        }
+        if (randomBoolean()) {
+            factory.timeZone(DateTimeZone.forOffsetHours(randomIntBetween(-23, 23)));
         }
         return factory;
     }

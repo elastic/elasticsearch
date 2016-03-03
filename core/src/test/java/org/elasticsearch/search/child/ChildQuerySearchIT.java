@@ -771,11 +771,11 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).get();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("parent", matchQuery("text", "value"))).get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("parent", matchQuery("text", "value")).scoreType("score"))
                 .get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0l));
@@ -2028,11 +2028,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             fail();
         } catch (SearchPhaseExecutionException e) {
         }
-
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
-                .get();
-        assertHitCount(response, 0);
     }
 
     public void testHasParentInnerQueryType() {
@@ -2109,4 +2104,17 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         return hasChildQueryBuilder;
     }
 
+
+    public void testParentWithoutChildTypes() {
+        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        try {
+            client().prepareSearch("test").setQuery(hasParentQuery("child", matchAllQuery())).get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.toString(), containsString("[has_parent] no child types found for type [child]"));
+        }
+    }
 }

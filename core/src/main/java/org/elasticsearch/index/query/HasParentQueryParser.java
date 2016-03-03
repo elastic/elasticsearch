@@ -140,7 +140,7 @@ public class HasParentQueryParser implements QueryParser {
     static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, InnerHitsSubSearchContext innerHits) throws IOException {
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext, "[has_parent] query configured 'parent_type' [" + parentType
+            throw new QueryParsingException(parseContext, "[" + NAME + "] query configured 'parent_type' [" + parentType
                     + "] is not a valid type");
         }
 
@@ -151,56 +151,47 @@ public class HasParentQueryParser implements QueryParser {
             parseContext.addInnerHits(name, parentChildInnerHits);
         }
 
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentDocMapper.type());
+        Set<String> childTypes = new HashSet<>();
         ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
+            if (parentFieldMapper.active() && parentType.equals(parentFieldMapper.type())) {
+                childTypes.add(documentMapper.type());
                 parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
-                }
             }
-        }
-        if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext, "[has_parent] no _parent field configured");
         }
 
-        Query parentFilter = null;
-        if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
-            if (documentMapper != null) {
-                parentFilter = documentMapper.typeFilter();
-            }
+        if (childTypes.isEmpty()) {
+            throw new QueryParsingException(parseContext, "[" + NAME + "] no child types found for type [" + parentType + "]");
+        }
+
+        Query childrenQuery;
+        if (childTypes.size() == 1) {
+            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(childTypes.iterator().next());
+            childrenQuery = documentMapper.typeFilter();
         } else {
-            BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
-            for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
-                if (documentMapper != null) {
-                    parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
-                }
+            BooleanQuery.Builder childrenQueryBuilder = new BooleanQuery.Builder();
+            for (String childType : childTypes) {
+                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(childType);
+                childrenQueryBuilder.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
             }
-            parentFilter = parentsFilter.build();
+            childrenQuery = childrenQueryBuilder.build();
         }
 
-        if (parentFilter == null) {
+        if (childrenQuery == null) {
             return null;
         }
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
-        Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
             ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
-            return joinUtilHelper(parentType, parentChildIndexFieldData, parseContext.similarityService().similarity(), childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
+            return joinUtilHelper(parentType, parentChildIndexFieldData, parseContext.similarityService().similarity(), childrenQuery, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
         } else {
             if (score) {
-                return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
+                return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), new QueryWrapperFilter(childrenQuery));
             } else {
-                return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
+                return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), new QueryWrapperFilter(childrenQuery));
             }
         }
     }

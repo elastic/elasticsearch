@@ -132,7 +132,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
         DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
         if (parentDocMapper == null) {
-            throw new QueryShardException(context, "[has_parent] query configured 'parent_type' [" + type
+            throw new QueryShardException(context, "[" + NAME + "] query configured 'parent_type' [" + type
                     + "] is not a valid type");
         }
 
@@ -152,49 +152,36 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             }
         }
 
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentDocMapper.type());
+        Set<String> childTypes = new HashSet<>();
         ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = context.getMapperService().documentMapper(parentFieldMapper.type());
+            if (parentFieldMapper.active() && type.equals(parentFieldMapper.type())) {
+                childTypes.add(documentMapper.type());
                 parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
-                }
             }
-        }
-        if (parentChildIndexFieldData == null) {
-            throw new QueryShardException(context, "[has_parent] no _parent field configured");
         }
 
-        Query parentTypeQuery = null;
-        if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = context.getMapperService().documentMapper(parentTypes.iterator().next());
-            if (documentMapper != null) {
-                parentTypeQuery = documentMapper.typeFilter();
-            }
+        if (childTypes.isEmpty()) {
+            throw new QueryShardException(context, "[" + NAME + "] no child types found for type [" + type + "]");
+        }
+
+        Query childrenQuery;
+        if (childTypes.size() == 1) {
+            DocumentMapper documentMapper = context.getMapperService().documentMapper(childTypes.iterator().next());
+            childrenQuery = documentMapper.typeFilter();
         } else {
-            BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
-            for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = context.getMapperService().documentMapper(parentTypeStr);
-                if (documentMapper != null) {
-                    parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
-                }
+            BooleanQuery.Builder childrenFilter = new BooleanQuery.Builder();
+            for (String childrenTypeStr : childTypes) {
+                DocumentMapper documentMapper = context.getMapperService().documentMapper(childrenTypeStr);
+                childrenFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
             }
-            parentTypeQuery = parentsFilter.build();
-        }
-
-        if (parentTypeQuery == null) {
-            return null;
+            childrenQuery = childrenFilter.build();
         }
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
-        Query childrenFilter = Queries.not(parentTypeQuery);
-        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter,
+        return new HasChildQueryBuilder.LateParsingQuery(childrenQuery,
                                                          innerQuery,
                                                          HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
                                                          HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,

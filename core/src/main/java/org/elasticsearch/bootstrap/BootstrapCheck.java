@@ -210,7 +210,7 @@ final class BootstrapCheck {
 
         @Override
         public String errorMessage() {
-            return "Memory locking requested for elasticsearch process but memory is not locked";
+            return "memory locking requested for elasticsearch process but memory is not locked";
         }
 
         // visible for testing

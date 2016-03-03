@@ -30,7 +30,6 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -230,8 +229,6 @@ public class MultiPhrasePrefixQuery extends Query {
             buffer.append("~");
             buffer.append(slop);
         }
-
-        buffer.append(ToStringUtils.boost(getBoost()));
 
         return buffer.toString();
     }

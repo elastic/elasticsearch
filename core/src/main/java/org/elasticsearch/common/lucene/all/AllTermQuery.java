@@ -42,7 +42,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarities.Similarity.SimWeight;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.Set;
@@ -221,7 +220,7 @@ public final class AllTermQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return new TermQuery(term).toString(field) + ToStringUtils.boost(getBoost());
+        return new TermQuery(term).toString(field);
     }
 
 }

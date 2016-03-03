@@ -205,7 +205,6 @@ public class FunctionScoreQuery extends Query {
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
-        sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 

@@ -355,7 +355,6 @@ public class FiltersFunctionScoreQuery extends Query {
             sb.append("{filter(").append(filterFunction.filter).append("), function [").append(filterFunction.function).append("]}");
         }
         sb.append("])");
-        sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 

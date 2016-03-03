@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LegacyNumericUtils;
-import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -243,7 +242,6 @@ public class DateFieldMapper extends NumberFieldMapper {
                     .append(" TO ")
                     .append((upperTerm == null) ? "*" : upperTerm.toString())
                     .append(includeUpper ? ']' : '}')
-                    .append(ToStringUtils.boost(getBoost()))
                     .toString();
             }
         }

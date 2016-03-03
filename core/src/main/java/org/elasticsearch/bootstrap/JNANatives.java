@@ -48,7 +48,7 @@ class JNANatives {
     // Set to true, in case policy can be applied to all threads of the process (even existing ones)
     // otherwise they are only inherited for new threads (ES app threads)
     static boolean LOCAL_SECCOMP_ALL = false;
-    // set to the maximum number of processes that can be created for
+    // set to the maximum number of threads that can be created for
     // the user ID that owns the running Elasticsearch process
     static long MAX_NUMBER_OF_THREADS = -1;
 

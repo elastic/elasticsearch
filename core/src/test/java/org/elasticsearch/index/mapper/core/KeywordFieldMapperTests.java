@@ -204,7 +204,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testAnalyzer() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("analyzer", "lowercase").endObject().endObject()
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "keyword")
+                        .field("analyzer", "lowercase")
+                      .endObject()
+                    .endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -225,7 +230,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIllegalAnalyzer() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("analyzer", "standard").endObject().endObject()
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "keyword")
+                        .field("analyzer", "standard")
+                      .endObject()
+                    .endObject()
                 .endObject().endObject().string();
 
         final IllegalArgumentException e =

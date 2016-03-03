@@ -86,7 +86,7 @@ public class FieldSortIT extends ESIntegTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
@@ -1382,7 +1382,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     /**
-     * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
+     * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")

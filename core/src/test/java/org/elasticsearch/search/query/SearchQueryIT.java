@@ -156,7 +156,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(queryStringQuery("")).get(), 0L); // return no docs
     }
 
-    // see https://github.com/elasticsearch/elasticsearch/issues/3177
+    // see https://github.com/elastic/elasticsearch/issues/3177
     public void testIssue3177() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();

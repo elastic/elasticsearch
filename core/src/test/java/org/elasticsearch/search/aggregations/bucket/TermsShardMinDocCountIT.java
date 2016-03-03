@@ -49,7 +49,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
-    // see https://github.com/elasticsearch/elasticsearch/issues/5998
+    // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
         String termtype = "text";
         if (randomBoolean()) {
@@ -107,7 +107,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         }
     }
 
-    // see https://github.com/elasticsearch/elasticsearch/issues/5998
+    // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountTermsTest() throws Exception {
         final String [] termTypes = {"text", "long", "integer", "float", "double"};
         String termtype = termTypes[randomInt(termTypes.length - 1)];

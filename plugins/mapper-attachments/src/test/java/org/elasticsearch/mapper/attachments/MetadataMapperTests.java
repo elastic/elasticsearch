@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/38
+ * Test for https://github.com/elastic/elasticsearch-mapper-attachments/issues/38
  */
 public class MetadataMapperTests extends AttachmentUnitTestCase {
 

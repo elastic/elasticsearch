@@ -169,7 +169,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     /*
-    Second regression test for https://github.com/elasticsearch/elasticsearch/issues/3381
+    Second regression test for https://github.com/elastic/elasticsearch/issues/3381
      */
     public void testUpdateMappingNoChanges() throws Exception {
         client().admin().indices().prepareCreate("test")

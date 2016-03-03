@@ -117,7 +117,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
 
     /**
      * Test case for #5030: Upgrading analysis plugins fails
-     * See https://github.com/elasticsearch/elasticsearch/issues/5030
+     * See https://github.com/elastic/elasticsearch/issues/5030
      */
     public void testThatPluginAnalyzersCanBeUpdated() throws Exception {
         final XContentBuilder mapping = jsonBuilder().startObject()

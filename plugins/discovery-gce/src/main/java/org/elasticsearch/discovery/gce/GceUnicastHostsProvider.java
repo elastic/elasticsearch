@@ -144,7 +144,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 logger.trace("gce instance {} with status {} found.", name, status);
 
                 // We don't want to connect to TERMINATED status instances
-                // See https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/3
+                // See https://github.com/elastic/elasticsearch-cloud-gce/issues/3
                 if (Status.TERMINATED.equals(status)) {
                     logger.debug("node {} is TERMINATED. Ignoring", name);
                     continue;

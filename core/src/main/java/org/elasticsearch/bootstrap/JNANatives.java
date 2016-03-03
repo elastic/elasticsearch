@@ -50,7 +50,7 @@ class JNANatives {
     static boolean LOCAL_SECCOMP_ALL = false;
     // set to the maximum number of processes that can be created for
     // the user ID that owns the running Elasticsearch process
-    static long MAX_NUMBER_OF_PROCESSES = -1;
+    static long MAX_NUMBER_OF_THREADS = -1;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
@@ -106,12 +106,12 @@ class JNANatives {
         }
     }
 
-    static void maxNumberOfProcesses() {
+    static void maxNumberOfThreads() {
         final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
         if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_NPROC, rlimit) == 0) {
-            MAX_NUMBER_OF_PROCESSES = rlimit.rlim_cur.longValue();
+            MAX_NUMBER_OF_THREADS = rlimit.rlim_cur.longValue();
         } else {
-            logger.warn("unable to retrieve max number of processes [" + JNACLibrary.strerror(Native.getLastError()) + "]");
+            logger.warn("unable to retrieve max number of threads [" + JNACLibrary.strerror(Native.getLastError()) + "]");
         }
     }
 

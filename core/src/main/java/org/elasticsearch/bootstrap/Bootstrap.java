@@ -135,7 +135,7 @@ final class Bootstrap {
         }
 
         if (Constants.LINUX) {
-            JNANatives.maxNumberOfProcesses();
+            JNANatives.maxNumberOfThreads();
         }
 
         // init lucene random seed. it will use /dev/urandom where available:

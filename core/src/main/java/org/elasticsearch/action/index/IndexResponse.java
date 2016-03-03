@@ -43,8 +43,8 @@ public class IndexResponse extends DocWriteResponse {
 
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version);
+    public IndexResponse(ShardId shardId, String type, String id, long version, boolean created, long tookInNanos) {
+        super(shardId, type, id, version, tookInNanos);
         this.created = created;
     }
 

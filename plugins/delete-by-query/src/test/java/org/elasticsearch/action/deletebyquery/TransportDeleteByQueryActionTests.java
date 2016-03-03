@@ -227,7 +227,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
                 } else {
                     deleted++;
                 }
-                items[i] = new BulkItemResponse(i, "delete", new DeleteResponse(new ShardId("test", "_na_", 0), "type", String.valueOf(i), 1, delete));
+                items[i] = new BulkItemResponse(i, "delete", new DeleteResponse(new ShardId("test", "_na_", 0), "type", String.valueOf(i), 1, delete, 0L));
             } else {
                 items[i] = new BulkItemResponse(i, "delete", new BulkItemResponse.Failure("test", "type", String.valueOf(i), new Throwable("item failed")));
                 failed++;
@@ -283,7 +283,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
                     deleted[0] = deleted[0] + 1;
                     deleted[index] = deleted[index] + 1;
                 }
-                items[i] = new BulkItemResponse(i, "delete", new DeleteResponse(new ShardId("test-" + index, "_na_", 0), "type", String.valueOf(i), 1, delete));
+                items[i] = new BulkItemResponse(i, "delete", new DeleteResponse(new ShardId("test-" + index, "_na_", 0), "type", String.valueOf(i), 1, delete, 0L));
             } else {
                 items[i] = new BulkItemResponse(i, "delete", new BulkItemResponse.Failure("test-" + index, "type", String.valueOf(i), new Throwable("item failed")));
                 failed[0] = failed[0] + 1;

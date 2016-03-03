@@ -223,7 +223,9 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
 
         assert request.versionType().validateVersionForWrites(request.version());
 
-        return new WriteResult<>(new IndexResponse(shardId, request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
+        return new WriteResult<>(new IndexResponse(shardId, request.type(), request.id(), request.version(), created,
+                                                   operation.endTime() - operation.startTime()),
+                                 operation.getTranslogLocation());
     }
 
 }

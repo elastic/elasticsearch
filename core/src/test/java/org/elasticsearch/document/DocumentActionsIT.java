@@ -42,6 +42,7 @@ import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -66,6 +67,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         assertThat(indexResponse.getType(), equalTo("type1"));
+        assertThat(indexResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
@@ -118,6 +120,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         assertThat(deleteResponse.getType(), equalTo("type1"));
+        assertThat(deleteResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         logger.info("Refreshing");
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
 
@@ -192,17 +195,20 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[0].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].getResponse().getTookInMillis(), greaterThanOrEqualTo(0L));
 
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[1].getOpType(), equalTo("create"));
         assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[1].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
+        assertThat(bulkResponse.getItems()[1].getResponse().getTookInMillis(), greaterThanOrEqualTo(0L));
 
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[2].getResponse().getTookInMillis(), greaterThanOrEqualTo(0L));
         String generatedId3 = bulkResponse.getItems()[2].getId();
 
         assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
@@ -210,11 +216,13 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[3].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[3].getResponse().getTookInMillis(), greaterThanOrEqualTo(0L));
 
         assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
+        // failed no tiene response
 
         waitForRelocation(ClusterHealthStatus.GREEN);
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();

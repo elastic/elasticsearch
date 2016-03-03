@@ -54,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -96,10 +97,13 @@ public class BulkTests extends ESIntegTestCase {
         }
         assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getId(), equalTo("1"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(2L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getId(), equalTo("3"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
 
         GetResponse getResponse = client().prepareGet().setIndex("test").setType("type1").setId("1").setFields("field").execute()
                 .actionGet();
@@ -132,6 +136,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(bulkResponse.getItems().length, equalTo(3));
         assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getId(), equalTo("6"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[0].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(bulkResponse.getItems()[1].getResponse(), nullValue());
         assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("test"));
         assertThat(bulkResponse.getItems()[1].getFailure().getId(), equalTo("7"));
@@ -139,6 +144,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getIndex(), equalTo("test"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3L));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("6").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -232,6 +238,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2L));
         assertThat(((Integer) ((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()),
                 equalTo(2));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
 
         assertThat(bulkResponse.getItems()[2].getFailure().getId(), equalTo("3"));
@@ -270,6 +277,7 @@ public class BulkTests extends ESIntegTestCase {
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1L));
             assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()),
                     equalTo(1));
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
 
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute()
@@ -309,6 +317,7 @@ public class BulkTests extends ESIntegTestCase {
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(2L));
             assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()),
                     equalTo(2));
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getTookInMillis(), greaterThanOrEqualTo(0L));
         }
 
         builder = client().prepareBulk();

@@ -467,6 +467,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertTrue(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -479,6 +480,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -508,6 +510,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertTrue(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -522,6 +525,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -539,6 +543,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setFields("_source")
                 .execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
@@ -567,6 +572,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
@@ -579,6 +585,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
@@ -653,6 +660,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
@@ -678,6 +686,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getVersion(), equalTo(2L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -691,6 +700,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getVersion(), equalTo(3L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -703,6 +713,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getVersion(), equalTo(3L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -715,6 +726,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getVersion(), equalTo(4L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -755,6 +767,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).setFields("_source", "field")
                 .execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());

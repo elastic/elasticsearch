@@ -202,7 +202,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 default:
                     throw new RuntimeException("Bad scenario");
                 }
-                responses[i] = new BulkItemResponse(i, opType, new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse));
+                responses[i] = new BulkItemResponse(i, opType,
+                                                    new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse, 0L));
             }
             new DummyAbstractAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0));
             assertEquals(versionConflicts, task.getStatus().getVersionConflicts());
@@ -481,17 +482,17 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         IndexRequest index = (IndexRequest) item;
                         opType = index.opType().lowercase();
                         response = new IndexResponse(shardId, index.type(), index.id(), randomIntBetween(0, Integer.MAX_VALUE),
-                                true);
+                                true, 0L);
                     } else if (item instanceof UpdateRequest) {
                         UpdateRequest update = (UpdateRequest) item;
                         opType = "update";
                         response = new UpdateResponse(shardId, update.type(), update.id(),
-                                randomIntBetween(0, Integer.MAX_VALUE), true);
+                                randomIntBetween(0, Integer.MAX_VALUE), true, 0L);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
                         opType = "delete";
                         response = new DeleteResponse(shardId, delete.type(), delete.id(), randomIntBetween(0, Integer.MAX_VALUE),
-                                true);
+                                true, 0L);
                     } else {
                         throw new RuntimeException("Unknown request:  " + item);
                     }

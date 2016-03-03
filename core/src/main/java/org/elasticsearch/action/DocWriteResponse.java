@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -37,12 +38,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
     private String id;
     private String type;
     private long version;
+    private long tookInNanos;
 
-    public DocWriteResponse(ShardId shardId, String type, String id, long version) {
+    public DocWriteResponse(ShardId shardId, String type, String id, long version, long tookInNanos) {
         this.shardId = shardId;
         this.type = type;
         this.id = id;
         this.version = version;
+        this.tookInNanos = tookInNanos;
     }
 
     // needed for deserialization
@@ -85,6 +88,17 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         return this.version;
     }
 
+    /**
+     * Returns the time that took this operation
+     */
+    public long getTookInNanos() {
+        return this.tookInNanos;
+    }
+
+    public long getTookInMillis() {
+        return TimeUnit.MILLISECONDS.convert(getTookInNanos(), TimeUnit.NANOSECONDS);
+    }
+
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
     public RestStatus status() {
         return getShardInfo().status();
@@ -98,6 +112,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
+        tookInNanos = in.readVLong();
     }
 
     @Override
@@ -107,6 +122,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
+        out.writeVLong(tookInNanos);
     }
 
     static final class Fields {
@@ -114,12 +130,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString _TOOK = new XContentBuilderString("_took");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(Fields._INDEX, shardId.getIndexName())
+            .field(Fields._TOOK, getTookInMillis())
             .field(Fields._TYPE, type)
             .field(Fields._ID, id)
             .field(Fields._VERSION, version);

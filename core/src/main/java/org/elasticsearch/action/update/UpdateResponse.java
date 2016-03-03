@@ -44,12 +44,12 @@ public class UpdateResponse extends DocWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        this(new ShardInfo(0, 0), shardId, type, id, version, created);
+    public UpdateResponse(ShardId shardId, String type, String id, long version, boolean created, long tookInNanos) {
+        this(new ShardInfo(0, 0), shardId, type, id, version, created, tookInNanos);
     }
 
-    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version);
+    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id, long version, boolean created, long tookInNanos) {
+        super(shardId, type, id, version, tookInNanos);
         setShardInfo(shardInfo);
         this.created = created;
     }

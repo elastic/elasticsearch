@@ -43,8 +43,8 @@ public class DeleteResponse extends DocWriteResponse {
 
     }
 
-    public DeleteResponse(ShardId shardId, String type, String id, long version, boolean found) {
-        super(shardId, type, id, version);
+    public DeleteResponse(ShardId shardId, String type, String id, long version, boolean found, long tookInNanos) {
+        super(shardId, type, id, version, tookInNanos);
         this.found = found;
     }
 

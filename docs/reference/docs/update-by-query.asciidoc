@@ -138,6 +138,15 @@ POST /twitter/_update_by_query?scroll_size=1000
 --------------------------------------------------
 // AUTOSENSE
 
+`_update_by_query` can also use the link:ingest.html[Ingest] feature by
+specifying a `pipeline` like this:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?pipeline=some_ingest_pipeline
+--------------------------------------------------
+// AUTOSENSE
+
 [float]
 === URL Parameters
 

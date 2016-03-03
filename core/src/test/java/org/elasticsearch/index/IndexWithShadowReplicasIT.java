@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -79,7 +78,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
  */
-@AwaitsFix(bugUrl = "breaks after https://github.com/elastic/elasticsearch/pull/16930 , Simon to fix")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 

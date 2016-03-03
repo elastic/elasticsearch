@@ -121,7 +121,7 @@ public class BootstrapCheckTests extends ESTestCase {
                 } catch (final RuntimeException e) {
                     assertThat(
                             e.getMessage(),
-                            containsString("Memory locking requested for elasticsearch process but memory is not locked"));
+                            containsString("memory locking requested for elasticsearch process but memory is not locked"));
                 }
             } else {
                 // nothing should happen

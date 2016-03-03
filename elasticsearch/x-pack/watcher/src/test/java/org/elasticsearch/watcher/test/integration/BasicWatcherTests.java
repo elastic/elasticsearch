@@ -385,7 +385,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
 
         String watchName = "_name";
-        assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=string"));
+        assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=text"));
 
         watcherClient().preparePutWatch(watchName)
                 .setSource(watchBuilder()

@@ -67,7 +67,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Shield
 
     public void testResolveWildcardsRegexs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
                         .addAlias(new Alias("my_alias"))
                         .addAlias(new Alias("an_alias"))
         );

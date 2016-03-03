@@ -33,8 +33,9 @@
           "dynamic" : true
         },
         "throttle_period": {
-          "type": "string",
-          "index" : "no"
+          "type" : "keyword",
+          "index" : false,
+          "doc_values" : false
         },
         "transform": {
           "type" : "object",

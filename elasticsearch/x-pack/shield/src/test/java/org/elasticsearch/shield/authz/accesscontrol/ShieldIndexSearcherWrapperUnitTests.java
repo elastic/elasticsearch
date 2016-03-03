@@ -153,12 +153,12 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testWildcards() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("field1_a").field("type", "string").endObject()
-                    .startObject("field1_b").field("type", "string").endObject()
-                    .startObject("field1_c").field("type", "string").endObject()
-                    .startObject("field2_a").field("type", "string").endObject()
-                    .startObject("field2_b").field("type", "string").endObject()
-                    .startObject("field2_c").field("type", "string").endObject()
+                    .startObject("field1_a").field("type", "text").endObject()
+                    .startObject("field1_b").field("type", "text").endObject()
+                    .startObject("field1_c").field("type", "text").endObject()
+                    .startObject("field2_a").field("type", "text").endObject()
+                    .startObject("field2_b").field("type", "text").endObject()
+                    .startObject("field2_c").field("type", "text").endObject()
                 .endObject().endObject().endObject();
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
@@ -171,22 +171,22 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                 .startObject("foo")
                     .field("type", "object")
                     .startObject("properties")
-                        .startObject("bar").field("type", "string").endObject()
-                        .startObject("baz").field("type", "string").endObject()
+                        .startObject("bar").field("type", "text").endObject()
+                        .startObject("baz").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .startObject("bar")
                     .field("type", "object")
                     .startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
-                        .startObject("baz").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
+                        .startObject("baz").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .startObject("baz")
                     .field("type", "object")
                     .startObject("properties")
-                        .startObject("bar").field("type", "string").endObject()
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("bar").field("type", "text").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject();
@@ -201,13 +201,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testParentChild() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("parent1")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("parent1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child1")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
                     .field("type", "parent1")
@@ -216,7 +216,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("child1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child2")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
                     .field("type", "parent1")
@@ -225,13 +225,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("child2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("parent2")
                 .startObject("properties")
-                .startObject("field").field("type", "string").endObject()
+                .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("parent2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child3")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
                     .field("type", "parent2")

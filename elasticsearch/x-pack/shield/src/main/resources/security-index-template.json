@@ -35,24 +35,21 @@
       "dynamic" : "strict",
       "properties" : {
         "username" : {
-          "type" : "string",
-          "index" : "not_analyzed"
+          "type" : "keyword"
         },
         "roles" : {
-          "type" : "string",
-          "index" : "not_analyzed"
+          "type" : "keyword"
         },
         "password" : {
-          "type" : "string",
-          "index" : "no"
+          "type" : "keyword",
+          "index" : false,
+          "doc_values": false
         },
         "full_name" : {
-          "type" : "string",
-          "index" : "analyzed"
+          "type" : "text"
         },
         "email" : {
-          "type" : "string",
-          "index" : "analyzed",
+          "type" : "text",
           "analyzer" : "email"
         },
         "metadata" : {
@@ -65,37 +62,30 @@
       "dynamic" : "strict",
       "properties" : {
         "cluster" : {
-          "type" : "string",
-          "index" : "not_analyzed"
+          "type" : "keyword"
         },
         "indices" : {
           "type" : "object",
           "properties" : {
             "fields" : {
-              "type" : "string",
-              "index" : "not_analyzed"
+              "type" : "keyword"
             },
             "names" : {
-              "type" : "string",
-              "index" : "not_analyzed"
+              "type" : "keyword"
             },
             "privileges" : {
-              "type" : "string",
-              "index" : "not_analyzed"
+              "type" : "keyword"
             },
             "query" : {
-              "type" : "string",
-              "index" : "not_analyzed"
+              "type" : "keyword"
             }
           }
         },
         "name" : {
-          "type" : "string",
-          "index" : "not_analyzed"
+          "type" : "keyword"
         },
         "run_as" : {
-          "type" : "string",
-          "index" : "not_analyzed"
+          "type" : "keyword"
         }
       }
     }

@@ -84,7 +84,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testSimpleQuery() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setRefresh(true)
@@ -123,7 +123,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setRefresh(true)

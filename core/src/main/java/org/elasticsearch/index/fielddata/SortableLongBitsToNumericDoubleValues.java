@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 
 /**
  * {@link NumericDoubleValues} instance that wraps a {@link NumericDocValues}
@@ -37,7 +37,7 @@ final class SortableLongBitsToNumericDoubleValues extends NumericDoubleValues {
 
     @Override
     public double get(int docID) {
-        return NumericUtils.sortableLongToDouble(values.get(docID));
+        return LegacyNumericUtils.sortableLongToDouble(values.get(docID));
     }
 
     /** Return the wrapped values. */

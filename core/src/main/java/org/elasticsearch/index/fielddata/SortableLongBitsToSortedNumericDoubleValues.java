@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.NumericUtils;
 
 /**
  * {@link SortedNumericDoubleValues} instance that wraps a {@link SortedNumericDocValues}

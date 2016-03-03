@@ -29,7 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -69,15 +69,15 @@ public class GeoDistanceRangeQuery extends Query {
 
         if (lowerVal != null) {
             double f = lowerVal.doubleValue();
-            long i = NumericUtils.doubleToSortableLong(f);
-            inclusiveLowerPoint = NumericUtils.sortableLongToDouble(includeLower ? i : (i + 1L));
+            long i = LegacyNumericUtils.doubleToSortableLong(f);
+            inclusiveLowerPoint = LegacyNumericUtils.sortableLongToDouble(includeLower ? i : (i + 1L));
         } else {
             inclusiveLowerPoint = Double.NEGATIVE_INFINITY;
         }
         if (upperVal != null) {
             double f = upperVal.doubleValue();
-            long i = NumericUtils.doubleToSortableLong(f);
-            inclusiveUpperPoint = NumericUtils.sortableLongToDouble(includeUpper ? i : (i - 1L));
+            long i = LegacyNumericUtils.doubleToSortableLong(f);
+            inclusiveUpperPoint = LegacyNumericUtils.sortableLongToDouble(includeUpper ? i : (i - 1L));
         } else {
             inclusiveUpperPoint = Double.POSITIVE_INFINITY;
             // we disable bounding box in this case, since the upper point is all and we create bounding box up to the

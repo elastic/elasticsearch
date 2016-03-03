@@ -14,6 +14,9 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
+@defaultMessage do not use whatsoever until confusion with LegacyNumericUtils is sorted out.
+org.apache.lucene.util.NumericUtils
+
 @defaultMessage Convert to URI
 java.net.URL#getPath()
 java.net.URL#getFile()

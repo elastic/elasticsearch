@@ -7,7 +7,7 @@ setup:
               test:
                   properties:
                     foo:
-                      type: string
+                      type: text
                     number:
                       type: long
   - do:

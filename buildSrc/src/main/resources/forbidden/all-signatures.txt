@@ -14,7 +14,7 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-@defaultMessage do not use whatsoever until confusion with LegacyNumericUtils is sorted out.
+@defaultMessage do not use whatsoever until confusion with LegacyNumericUtils is sorted out (LUCENE-7063)
 org.apache.lucene.util.NumericUtils
 
 @defaultMessage Convert to URI

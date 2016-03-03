@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.spatial.util.GeoDistanceUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -145,7 +146,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
             double fromSlop = Math.abs(fromValue) / 1000;
             if (queryBuilder.includeLower() == false) {
-                fromSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(Math.abs(fromValue)) + 1L)) / 1000.0;
+                fromSlop = LegacyNumericUtils.sortableLongToDouble((LegacyNumericUtils.doubleToSortableLong(Math.abs(fromValue)) + 1L)) / 1000.0;
             }
             assertThat(geoQuery.minInclusiveDistance(), closeTo(fromValue, fromSlop));
         }
@@ -159,7 +160,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
             double toSlop = Math.abs(toValue) / 1000;
             if (queryBuilder.includeUpper() == false) {
-                toSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(Math.abs(toValue)) - 1L)) / 1000.0;
+                toSlop = LegacyNumericUtils.sortableLongToDouble((LegacyNumericUtils.doubleToSortableLong(Math.abs(toValue)) - 1L)) / 1000.0;
             }
             assertThat(geoQuery.maxInclusiveDistance(), closeTo(toValue, toSlop));
         }

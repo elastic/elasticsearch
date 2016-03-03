@@ -293,7 +293,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, floatToSortableInt(value));
+            addDocValue(context, fields, LegacyNumericUtils.floatToSortableInt(value));
         }
     }
 

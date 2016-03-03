@@ -28,6 +28,7 @@ import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -280,7 +281,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, doubleToSortableLong(value));
+            addDocValue(context, fields, LegacyNumericUtils.doubleToSortableLong(value));
         }
     }
 

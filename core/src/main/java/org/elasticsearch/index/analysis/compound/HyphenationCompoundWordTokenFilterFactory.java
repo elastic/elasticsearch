@@ -60,12 +60,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_4_4_0)) {
-            return new HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize,
-                                                          minSubwordSize, maxSubwordSize, onlyLongestMatch);
-        } else {
-            return new Lucene43HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize,
-                    minSubwordSize, maxSubwordSize, onlyLongestMatch);
-        }
+        return new HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize,
+                                                      minSubwordSize, maxSubwordSize, onlyLongestMatch);
     }
 }

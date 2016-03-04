@@ -118,8 +118,6 @@ import static java.util.Collections.unmodifiableMap;
  * </pre>
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
-    private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8_0;
-
     static final String CODEC = "store";
     static final int VERSION_WRITE_THROWABLE= 2; // we write throwable since 2.0
     static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
@@ -456,19 +454,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         IndexOutput output = directory().createOutput(fileName, context);
         boolean success = false;
         try {
-            if (metadata.hasLegacyChecksum()) {
-                logger.debug("create legacy adler32 output for {}", fileName);
-                output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
-            } else if (metadata.checksum() == null) {
-                // TODO: when the file is a segments_N, we can still CRC-32 + length for more safety
-                // its had that checksum forever.
-                logger.debug("create legacy length-only output for {}", fileName);
-                output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
-            } else {
-                assert metadata.writtenBy() != null;
-                assert metadata.writtenBy().onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION);
-                output = new LuceneVerifyingIndexOutput(metadata, output);
-            }
+            assert metadata.writtenBy() != null;
+            assert metadata.writtenBy().onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION);
+            output = new LuceneVerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
             if (success == false) {
@@ -485,12 +473,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetaData metadata) throws IOException {
-        if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
-            logger.debug("open legacy input for {}", filename);
-            return directory().openInput(filename, context);
-        }
         assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION);
+        assert metadata.writtenBy().onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION);
         return new VerifyingIndexInput(directory().openInput(filename, context));
     }
 
@@ -518,32 +502,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (input.length() != md.length()) { // first check the length no matter how old this file is
                 throw new CorruptIndexException("expected length=" + md.length() + " != actual length: " + input.length() + " : file truncated?", input);
             }
-            if (md.writtenBy() != null && md.writtenBy().onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
-                // throw exception if the file is corrupt
-                String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
-                // throw exception if metadata is inconsistent
-                if (!checksum.equals(md.checksum())) {
-                    throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
-                            ", metadata checksum=" + md.checksum(), input);
-                }
-            } else if (md.hasLegacyChecksum()) {
-                // legacy checksum verification - no footer that we need to omit in the checksum!
-                final Checksum checksum = new Adler32();
-                final byte[] buffer = new byte[md.length() > 4096 ? 4096 : (int) md.length()];
-                final long len = input.length();
-                long read = 0;
-                while (len > read) {
-                    final long bytesLeft = len - read;
-                    final int bytesToRead = bytesLeft < buffer.length ? (int) bytesLeft : buffer.length;
-                    input.readBytes(buffer, 0, bytesToRead, false);
-                    checksum.update(buffer, 0, bytesToRead);
-                    read += bytesToRead;
-                }
-                String adler32 = Store.digestToString(checksum.getValue());
-                if (!adler32.equals(md.checksum())) {
-                    throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + md.checksum() +
-                            " actual=" + adler32, input);
-                }
+            // throw exception if the file is corrupt
+            String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
+            // throw exception if metadata is inconsistent
+            if (!checksum.equals(md.checksum())) {
+                throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
+                        ", metadata checksum=" + md.checksum(), input);
             }
         }
     }
@@ -799,7 +763,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final int size = in.readVInt();
             Map<String, StoreFileMetaData> metadata = new HashMap<>();
             for (int i = 0; i < size; i++) {
-                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
+                StoreFileMetaData meta = new StoreFileMetaData(in);
                 metadata.put(meta.name(), meta);
             }
             Map<String, String> commitUserData = new HashMap<>();
@@ -836,14 +800,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             long numDocs;
             Map<String, StoreFileMetaData> builder = new HashMap<>();
-            Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 @SuppressWarnings("deprecation")
-                Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
+                Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
                     if (version == null) {
@@ -854,26 +817,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
-                        String legacyChecksum = checksumMap.get(file);
-                        if (version.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
+                        if (version.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION)) {
                             checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
                         } else {
-                            builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, version));
+                            throw new IllegalStateException("version must be onOrAfter: " + StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION + " but was: " +  version);
                         }
                     }
                 }
+                if (maxVersion == null) {
+                    maxVersion = StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION;
+                }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                String legacyChecksum = checksumMap.get(segmentsFile);
-                if (maxVersion.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
+                if (maxVersion.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION)) {
                     checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
                 } else {
-                    final BytesRefBuilder fileHash = new BytesRefBuilder();
-                    final long length;
-                    try (final IndexInput in = directory.openInput(segmentsFile, IOContext.READONCE)) {
-                        length = in.length();
-                        hashFile(fileHash, new InputStreamIndexInput(in, length), length);
-                    }
-                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, length, legacyChecksum, maxVersion, fileHash.get()));
+                    throw new IllegalStateException("version must be onOrAfter: " + StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION + " but was: " +  maxVersion);
                 }
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
@@ -896,61 +854,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 throw ex;
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
-        }
-
-        /**
-         * Reads legacy checksum files found in the directory.
-         * <p>
-         * Files are expected to start with _checksums- prefix
-         * followed by long file version. Only file with the highest version is read, all other files are ignored.
-         *
-         * @param directory the directory to read checksums from
-         * @return a map of file checksums and the checksum file version
-         */
-        @SuppressWarnings("deprecation") // Legacy checksum needs legacy methods
-        static Tuple<Map<String, String>, Long> readLegacyChecksums(Directory directory) throws IOException {
-            synchronized (directory) {
-                long lastFound = -1;
-                for (String name : directory.listAll()) {
-                    if (!isChecksum(name)) {
-                        continue;
-                    }
-                    long current = Long.parseLong(name.substring(CHECKSUMS_PREFIX.length()));
-                    if (current > lastFound) {
-                        lastFound = current;
-                    }
-                }
-                if (lastFound > -1) {
-                    try (IndexInput indexInput = directory.openInput(CHECKSUMS_PREFIX + lastFound, IOContext.READONCE)) {
-                        indexInput.readInt(); // version
-                        return new Tuple<>(indexInput.readStringStringMap(), lastFound);
-                    }
-                }
-                return new Tuple<>(new HashMap<>(), -1L);
-            }
-        }
-
-        /**
-         * Deletes all checksum files with version lower than newVersion.
-         *
-         * @param directory  the directory to clean
-         * @param newVersion the latest checksum file version
-         */
-        static void cleanLegacyChecksums(Directory directory, long newVersion) throws IOException {
-            synchronized (directory) {
-                for (String name : directory.listAll()) {
-                    if (isChecksum(name)) {
-                        long current = Long.parseLong(name.substring(CHECKSUMS_PREFIX.length()));
-                        if (current < newVersion) {
-                            try {
-                                directory.deleteFile(name);
-                            } catch (IOException ex) {
-                                logger.debug("can't delete old checksum file [{}]", ex, name);
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetaData> builder,
@@ -1221,64 +1124,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public final static class LegacyChecksums {
-        private final Map<String, String> legacyChecksums = new HashMap<>();
-
-        public void add(StoreFileMetaData metaData) throws IOException {
-
-            if (metaData.hasLegacyChecksum()) {
-                synchronized (this) {
-                    // we don't add checksums if they were written by LUCENE_48... now we are using the build in mechanism.
-                    legacyChecksums.put(metaData.name(), metaData.checksum());
-                }
-            }
-        }
-
-        public synchronized void write(Store store) throws IOException {
-            synchronized (store.directory) {
-                Tuple<Map<String, String>, Long> tuple = MetadataSnapshot.readLegacyChecksums(store.directory);
-                tuple.v1().putAll(legacyChecksums);
-                if (!tuple.v1().isEmpty()) {
-                    writeChecksums(store.directory, tuple.v1(), tuple.v2());
-                }
-            }
-        }
-
-        @SuppressWarnings("deprecation") // Legacy checksum uses legacy methods
-        synchronized void writeChecksums(Directory directory, Map<String, String> checksums, long lastVersion) throws IOException {
-            // Make sure if clock goes backwards we still move version forwards:
-            long nextVersion = Math.max(lastVersion+1, System.currentTimeMillis());
-            final String checksumName = CHECKSUMS_PREFIX + nextVersion;
-            try (IndexOutput output = directory.createOutput(checksumName, IOContext.DEFAULT)) {
-                output.writeInt(0); // version
-                output.writeStringStringMap(checksums);
-            }
-            directory.sync(Collections.singleton(checksumName));
-            MetadataSnapshot.cleanLegacyChecksums(directory, nextVersion);
-        }
-
-        public void clear() {
-            this.legacyChecksums.clear();
-        }
-
-        public void remove(String name) {
-            legacyChecksums.remove(name);
-        }
-    }
-
-    public static final String CHECKSUMS_PREFIX = "_checksums-";
-
-    public static boolean isChecksum(String name) {
-        // TODO can we drowp .cks
-        return name.startsWith(CHECKSUMS_PREFIX) || name.endsWith(".cks"); // bwcomapt - .cks used to be a previous checksum file
-    }
 
     /**
      * Returns true if the file is auto-generated by the store and shouldn't be deleted during cleanup.
      * This includes write lock and checksum files
      */
     public static boolean isAutogenerated(String name) {
-        return IndexWriter.WRITE_LOCK_NAME.equals(name) || isChecksum(name);
+        return IndexWriter.WRITE_LOCK_NAME.equals(name);
     }
 
     /**

@@ -20,7 +20,9 @@
 package org.elasticsearch.bwcompat;
 
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SmallFloat;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -297,6 +299,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         importIndex(indexName);
         assertIndexSanity(indexName, version);
         assertBasicSearchWorks(indexName);
+        assertAllSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
         assertNewReplicasWork(indexName);
@@ -352,6 +355,39 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
+    }
+
+    boolean findPayloadBoostInExplanation(Explanation expl) {
+        if (expl.getDescription().startsWith("payloadBoost=") && expl.getValue() != 1f) {
+            return true;
+        } else {
+            boolean found = false;
+            for (Explanation sub : expl.getDetails()) {
+                found |= findPayloadBoostInExplanation(sub);
+            }
+            return found;
+        }
+    }
+
+    void assertAllSearchWorks(String indexName) {
+        logger.info("--> testing _all search");
+        SearchResponse searchRsp = client().prepareSearch(indexName).get();
+        ElasticsearchAssertions.assertNoFailures(searchRsp);
+        assertThat(searchRsp.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        SearchHit bestHit = searchRsp.getHits().getAt(0);
+
+        // Make sure there are payloads and they are taken into account for the score
+        // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
+        String stringValue = (String) bestHit.sourceAsMap().get("string");
+        assertNotNull(stringValue);
+        Explanation explanation = client().prepareExplain(indexName, bestHit.getType(), bestHit.getId())
+                .setQuery(QueryBuilders.matchQuery("_all", stringValue)).get().getExplanation();
+        assertTrue("Could not find payload boost in explanation\n" + explanation, findPayloadBoostInExplanation(explanation));
+
+        // Make sure the query can run on the whole index
+        searchRsp = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("_all", stringValue)).setExplain(true).get();
+        ElasticsearchAssertions.assertNoFailures(searchRsp);
+        assertThat(searchRsp.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
     }
 
     void assertBasicAggregationWorks(String indexName) {

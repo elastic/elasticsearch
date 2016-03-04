@@ -132,7 +132,7 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     // See NullPointer issue when filters are empty:
-    // https://github.com/elasticsearch/elasticsearch/issues/8438
+    // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder<?> emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")

@@ -123,7 +123,7 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
     }
 
     public void testScoreAccessWithinScript() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "body", "type=string", "index",
+        assertAcked(prepareCreate("test").addMapping("type", "body", "type=text", "index",
                 "type=" + randomFrom("short", "float", "long", "integer", "double")));
         ensureYellow();
 

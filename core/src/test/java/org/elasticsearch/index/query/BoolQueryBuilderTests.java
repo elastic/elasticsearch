@@ -185,7 +185,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
     }
 
-    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    // https://github.com/elastic/elasticsearch/issues/7240
     public void testEmptyBooleanQuery() throws Exception {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         BytesReference query = contentBuilder.startObject().startObject("bool").endObject().endObject().bytes();

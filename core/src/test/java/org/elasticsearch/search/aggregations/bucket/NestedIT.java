@@ -360,7 +360,7 @@ public class NestedIT extends ESIntegTestCase {
         }
     }
 
-    // Test based on: https://github.com/elasticsearch/elasticsearch/issues/9280
+    // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
                     .startObject("comments")

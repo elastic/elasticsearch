@@ -94,7 +94,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testPlugin() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
+        String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -257,7 +257,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testXContentResponse() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
+        String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -309,7 +309,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRandom(true, false, indexRequestBuilderList);
 
         // Now create some holes in the index with selective deletes caused by updates.
-        // This is the scenario that caused this issue https://github.com/elasticsearch/elasticsearch/issues/7951
+        // This is the scenario that caused this issue https://github.com/elastic/elasticsearch/issues/7951
         // Scoring algorithms throw exceptions if term docFreqs exceed the reported size of the index
         // from which they are taken so need to make sure this doesn't happen.
         String[] text = cat1v1;
@@ -333,7 +333,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testBackgroundVsSeparateSet() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
+        String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         testBackgroundVsSeparateSet(new MutualInformation(true, true), new MutualInformation(true, false));
@@ -460,7 +460,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
-        indexRandomFrequencies01(randomBoolean() ? "string" : "long");
+        indexRandomFrequencies01(randomBoolean() ? "text" : "long");
         ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
         ensureYellow();
         SearchResponse response = client().prepareSearch(INDEX_NAME)

@@ -69,7 +69,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
     /**
      * Tests retry mechanism when indexing. If an exception occurs when indexing then the indexing request is tried again before finally failing.
      * If auto generated ids are used this must not lead to duplicate ids
-     * see https://github.com/elasticsearch/elasticsearch/issues/8788
+     * see https://github.com/elastic/elasticsearch/issues/8788
      */
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);

@@ -574,9 +574,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
             // TODO, do this in parallel (and wait)
             for (DiscoveryNode node : nodesDelta.addedNodes()) {
-                if (!nodeRequiresConnection(node)) {
-                    continue;
-                }
                 try {
                     transportService.connectToNode(node);
                 } catch (Throwable e) {
@@ -828,9 +825,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (lifecycle.stoppedOrClosed()) {
                     return;
                 }
-                if (!nodeRequiresConnection(node)) {
-                    continue;
-                }
                 if (clusterState.nodes().nodeExists(node.id())) { // we double check existence of node since connectToNode might take time...
                     if (!transportService.nodeConnected(node)) {
                         try {
@@ -875,10 +869,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     public static String generateNodeId(Settings settings) {
         Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
         return Strings.randomBase64UUID(random);
-    }
-
-    private boolean nodeRequiresConnection(DiscoveryNode node) {
-        return localNode().shouldConnectTo(node);
     }
 
     private static class LocalNodeMasterListeners implements ClusterStateListener {

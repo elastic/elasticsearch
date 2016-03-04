@@ -198,7 +198,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
 
     /**
-     * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
+     * Test that no split brain occurs under partial network partition. See https://github.com/elastic/elasticsearch/issues/2488
      */
     public void testFailWithMinimumMasterNodesConfigured() throws Exception {
         List<String> nodes = startCluster(3);

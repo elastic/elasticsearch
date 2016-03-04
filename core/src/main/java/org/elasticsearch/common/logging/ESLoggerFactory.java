@@ -34,7 +34,7 @@ public abstract class ESLoggerFactory {
     public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING =
         new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, SettingsProperty.ClusterScope);
     public static final Setting<LogLevel> LOG_LEVEL_SETTING =
-        Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse,
+        Setting.prefixKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse,
             SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
 
     public static ESLogger getLogger(String prefix, String name) {

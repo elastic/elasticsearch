@@ -180,7 +180,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
          *
          * @return file checksum
          */
-        @Nullable
         public String checksum() {
             return metadata.checksum();
         }

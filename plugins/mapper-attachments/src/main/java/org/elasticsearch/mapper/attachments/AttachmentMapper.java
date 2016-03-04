@@ -299,7 +299,7 @@ public class AttachmentMapper extends FieldMapper {
             if (typeNode != null) {
                 type = typeNode.toString();
             } else {
-                type = "string";
+                type = "text";
             }
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, propNode, parserContext);

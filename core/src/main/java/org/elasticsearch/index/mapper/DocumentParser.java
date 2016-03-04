@@ -510,17 +510,17 @@ class DocumentParser implements Closeable {
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", "string");
             if (builder == null) {
                 builder = new StringFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof TextFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof KeywordFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
             if (builder == null) {
                 builder = new KeywordFieldMapper.Builder(currentFieldName);
             }
@@ -568,7 +568,7 @@ class DocumentParser implements Closeable {
             // we need to do it here so we can handle things like attachment templates, where calling
             // text (to see if its a date) causes the binary value to be cleared
             {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "text", null);
                 if (builder != null) {
                     return builder;
                 }
@@ -617,7 +617,7 @@ class DocumentParser implements Closeable {
             }
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
-                builder = new StringFieldMapper.Builder(currentFieldName);
+                builder = new TextFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {

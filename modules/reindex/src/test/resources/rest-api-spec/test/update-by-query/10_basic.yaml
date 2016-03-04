@@ -12,6 +12,7 @@
   - do:
       update-by-query:
         index: test
+  - is_false: timed_out
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}

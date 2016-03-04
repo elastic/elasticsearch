@@ -191,8 +191,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected ReindexResponse buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
-            return new ReindexResponse(took, task.getStatus(), indexingFailures, searchFailures);
+        protected ReindexResponse buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
+                boolean timedOut) {
+            return new ReindexResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
         }
 
         /*

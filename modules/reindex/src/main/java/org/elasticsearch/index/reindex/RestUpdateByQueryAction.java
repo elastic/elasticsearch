@@ -107,7 +107,10 @@ public class RestUpdateByQueryAction extends
         internalRequest.setSize(internalRequest.getSearchRequest().source().size());
         internalRequest.setPipeline(request.param("pipeline"));
         internalRequest.getSearchRequest().source().size(request.paramAsInt("scroll_size", scrollSize));
-
+        // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
+        if (request.hasParam("search_timeout")) {
+            internalRequest.getSearchRequest().source().timeout(request.paramAsTime("search_timeout", null));
+        }
 
         execute(request, internalRequest, channel);
     }

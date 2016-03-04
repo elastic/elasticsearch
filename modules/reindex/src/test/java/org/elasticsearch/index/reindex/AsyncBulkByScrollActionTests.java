@@ -248,14 +248,32 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testShardFailuresAbortRequest() throws Exception {
         ShardSearchFailure shardFailure = new ShardSearchFailure(new RuntimeException("test"));
-        new DummyAbstractAsyncBulkByScrollAction()
-                .onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
+        InternalSearchResponse internalResponse = new InternalSearchResponse(null, null, null, null, false, null);
+        new DummyAbstractAsyncBulkByScrollAction().onScrollResponse(
+                new SearchResponse(internalResponse, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
         BulkIndexByScrollResponse response = listener.get();
         assertThat(response.getIndexingFailures(), emptyCollectionOf(Failure.class));
         assertThat(response.getSearchFailures(), contains(shardFailure));
+        assertFalse(response.isTimedOut());
         assertNull(response.getReasonCancelled());
         assertThat(client.scrollsCleared, contains(scrollId));
     }
+
+    /**
+     * Mimicks search timeouts.
+     */
+    public void testSearchTimeoutsAbortRequest() throws Exception {
+        InternalSearchResponse internalResponse = new InternalSearchResponse(null, null, null, null, true, null);
+        new DummyAbstractAsyncBulkByScrollAction()
+                .onScrollResponse(new SearchResponse(internalResponse, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[0]));
+        BulkIndexByScrollResponse response = listener.get();
+        assertThat(response.getIndexingFailures(), emptyCollectionOf(Failure.class));
+        assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        assertTrue(response.isTimedOut());
+        assertNull(response.getReasonCancelled());
+        assertThat(client.scrollsCleared, contains(scrollId));
+    }
+
 
     /**
      * Mimicks bulk indexing failures.
@@ -396,7 +414,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testCancelBeforeStartNormalTermination() throws Exception {
         // Refresh or not doesn't matter - we don't try to refresh.
         mainRequest.setRefresh(usually());
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNormalTermination(emptyList(), emptyList()));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNormalTermination(emptyList(), emptyList(), false));
         // This wouldn't return if we called refresh - the action would hang waiting for the refresh that we haven't mocked.
     }
 
@@ -430,8 +448,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         @Override
         protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<Failure> indexingFailures,
-                List<ShardSearchFailure> searchFailures) {
-            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures);
+                List<ShardSearchFailure> searchFailures, boolean timedOut) {
+            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
         }
     }
 

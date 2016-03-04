@@ -36,6 +36,9 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
     @Override
     protected RestStatus getStatus(R response) {
         RestStatus status = RestStatus.OK;
+        if (response.isTimedOut()) {
+            status = RestStatus.REQUEST_TIMEOUT;
+        }
         for (Failure failure : response.getIndexingFailures()) {
             if (failure.getStatus().getStatus() > status.getStatus()) {
                 status = failure.getStatus();

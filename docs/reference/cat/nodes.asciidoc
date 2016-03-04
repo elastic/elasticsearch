@@ -41,10 +41,10 @@ it?
 
 [source,sh]
 --------------------------------------------------
-uptime data/client master name
-  3.5h d           m      Boneyard
-  3.5h d           *      Athena
-  3.5h d           m      Zarek
+uptime node.role master name
+  3.5h di        -      Boneyard
+  3.5h md        *      Athena
+  3.5h i         -      Zarek
 --------------------------------------------------
 
 [float]
@@ -105,9 +105,9 @@ descriptors |1024
 |`load` |`l` |No |Most recent load average |0.22
 |`cpu` | |No |Recent system CPU usage as percent |12
 |`uptime` |`u` |No |Node uptime |17.3m
-|`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Data node (d); Client
-node (c) |d
-|`master` |`m` |Yes |Current master (*); master eligible (m) |m
+|`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Master eligible node (m);
+Data node (d); Ingest node (i); Coordinating node only (-) |mdi
+|`master` |`m` |Yes |Current master (*); |*
 |`name` |`n` |Yes |Node name |Venom
 |`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
 |`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata

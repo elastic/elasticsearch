@@ -44,11 +44,11 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -67,7 +67,7 @@ import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.Locale;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -142,8 +142,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
-        table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node");
-        table.addCell("master", "alias:m;desc:m:master-eligible, *:current master");
+        table.addCell("node.role", "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only");
+        table.addCell("master", "alias:m;desc:*:current master");
         table.addCell("name", "alias:n;desc:node name");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
@@ -284,8 +284,15 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
-            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
-            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
+
+            String roles;
+            if (node.getRoles().size() == 0) {
+                roles = "-";
+            } else {
+                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+            }
+            table.addCell(roles);
+            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : "-");
             table.addCell(node.name());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();

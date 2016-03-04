@@ -47,7 +47,7 @@ import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -644,11 +644,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         }
 
         private static final Setting<String> INDEX_A =
-            new Setting<>("index.a", "", Function.identity(), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            new Setting<>("index.a", "", Function.identity(), Property.Dynamic, Property.IndexScope);
         private static final Setting<String> INDEX_C =
-            new Setting<>("index.c", "", Function.identity(), SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            new Setting<>("index.c", "", Function.identity(), Property.Dynamic, Property.IndexScope);
         private static final Setting<String> INDEX_E =
-            new Setting<>("index.e", "", Function.identity(), SettingsProperty.IndexScope);
+            new Setting<>("index.e", "", Function.identity(), Property.IndexScope);
 
 
         public void onModule(SettingsModule module) {

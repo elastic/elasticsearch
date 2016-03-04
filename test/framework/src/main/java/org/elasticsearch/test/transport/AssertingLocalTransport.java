@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
@@ -70,10 +70,10 @@ public class AssertingLocalTransport extends LocalTransport {
 
     public static final Setting<Version> ASSERTING_TRANSPORT_MIN_VERSION_KEY =
         new Setting<>("transport.asserting.version.min", Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id),
-            (s) -> Version.fromId(Integer.parseInt(s)), SettingsProperty.ClusterScope);
+            (s) -> Version.fromId(Integer.parseInt(s)), Property.NodeScope);
     public static final Setting<Version> ASSERTING_TRANSPORT_MAX_VERSION_KEY =
         new Setting<>("transport.asserting.version.max", Integer.toString(Version.CURRENT.id),
-            (s) -> Version.fromId(Integer.parseInt(s)), SettingsProperty.ClusterScope);
+            (s) -> Version.fromId(Integer.parseInt(s)), Property.NodeScope);
     private final Random random;
     private final Version minVersion;
     private final Version maxVersion;

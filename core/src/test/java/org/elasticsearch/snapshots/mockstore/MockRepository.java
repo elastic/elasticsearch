@@ -31,7 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -60,9 +60,9 @@ public class MockRepository extends FsRepository {
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin {
 
-        public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", SettingsProperty.ClusterScope);
+        public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
         public static final Setting<String> PASSWORD_SETTING =
-            Setting.simpleString("secret.mock.password", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+            Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
 
         @Override
         public String name() {

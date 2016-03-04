@@ -39,7 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PriorityComparator;
 
@@ -74,12 +74,12 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 public class BalancedShardsAllocator extends AbstractComponent implements ShardsAllocator {
 
     public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, Property.Dynamic, Property.NodeScope);
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.shard", 0.45f, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.floatSetting("cluster.routing.allocation.balance.shard", 0.45f, Property.Dynamic, Property.NodeScope);
     public static final Setting<Float> THRESHOLD_SETTING =
         Setting.floatSetting("cluster.routing.allocation.balance.threshold", 1.0f, 0.0f,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
 
     private volatile WeightFunction weightFunction;
     private volatile float threshold;

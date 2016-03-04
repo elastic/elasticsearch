@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -70,11 +70,11 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
     public static final Setting<String> NODE_INITIAL_SHARDS_SETTING =
         new Setting<>("gateway.initial_shards", (settings) -> settings.get("gateway.local.initial_shards", "quorum"), INITIAL_SHARDS_PARSER,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     @Deprecated
     public static final Setting<String> INDEX_RECOVERY_INITIAL_SHARDS_SETTING =
         new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER,
-            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            Property.Dynamic, Property.IndexScope);
 
     public PrimaryShardAllocator(Settings settings) {
         super(settings);

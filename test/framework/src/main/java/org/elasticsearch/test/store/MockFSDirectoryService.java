@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
@@ -32,14 +31,13 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -63,15 +61,15 @@ import java.util.Random;
 public class MockFSDirectoryService extends FsDirectoryService {
 
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING =
-        Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, SettingsProperty.IndexScope);
+        Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, Property.IndexScope);
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_SETTING =
-        Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, SettingsProperty.IndexScope);
+        Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, Property.IndexScope);
     public static final Setting<Boolean> RANDOM_PREVENT_DOUBLE_WRITE_SETTING =
-        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, SettingsProperty.IndexScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, Property.IndexScope);// true is default in MDW
     public static final Setting<Boolean> RANDOM_NO_DELETE_OPEN_FILE_SETTING =
-        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, SettingsProperty.IndexScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, Property.IndexScope);// true is default in MDW
     public static final Setting<Boolean> CRASH_INDEX_SETTING =
-        Setting.boolSetting("index.store.mock.random.crash_index", true, SettingsProperty.IndexScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.crash_index", true, Property.IndexScope);// true is default in MDW
 
     private final FsDirectoryService delegateService;
     private final Random random;

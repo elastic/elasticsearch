@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class ScriptSettings {
                 ScriptModes.sourceKey(scriptType),
                 scriptType.getDefaultScriptMode().getMode(),
                 ScriptMode::parse,
-                SettingsProperty.ClusterScope));
+                Property.NodeScope));
         }
         SCRIPT_TYPE_SETTING_MAP = Collections.unmodifiableMap(scriptTypeSettingMap);
     }
@@ -66,7 +66,7 @@ public class ScriptSettings {
                 throw new IllegalArgumentException("unregistered default language [" + setting + "]");
             }
             return setting;
-        }, SettingsProperty.ClusterScope);
+        }, Property.NodeScope);
     }
 
     private static Map<ScriptContext, Setting<ScriptMode>> contextSettings(ScriptContextRegistry scriptContextRegistry) {
@@ -76,7 +76,7 @@ public class ScriptSettings {
                 ScriptModes.operationKey(scriptContext),
                 ScriptMode.OFF.getMode(),
                 ScriptMode::parse,
-                SettingsProperty.ClusterScope
+                Property.NodeScope
             ));
         }
         return scriptContextSettingMap;
@@ -136,7 +136,7 @@ public class ScriptSettings {
                                 ScriptModes.getKey(language, scriptType, scriptContext),
                                 defaultSetting,
                                 ScriptMode::parse,
-                                SettingsProperty.ClusterScope);
+                                Property.NodeScope);
                         scriptModeSettings.add(setting);
                     }
                 }

@@ -38,7 +38,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -83,21 +83,21 @@ public class DiskThresholdDecider extends AllocationDecider {
     private volatile TimeValue rerouteInterval;
 
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, Property.Dynamic, Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);;
+            Property.Dynamic, Property.NodeScope);;
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
 
     /**
      * Listens for a node to go over the high watermark and kicks off an empty

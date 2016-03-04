@@ -29,7 +29,7 @@ import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -120,29 +120,29 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     public static Setting<ByteSizeValue> SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
             Setting.byteSizeSetting("http.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1),
-                SettingsProperty.ClusterScope);
+                Property.NodeScope);
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-            Setting.intSetting("http.netty.max_composite_buffer_components", -1, SettingsProperty.ClusterScope);
+            Setting.intSetting("http.netty.max_composite_buffer_components", -1, Property.NodeScope);
 
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
             (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), SettingsProperty.ClusterScope);
+            (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
-        boolSetting("http.tcp_no_delay", NetworkService.TcpSettings.TCP_NO_DELAY, SettingsProperty.ClusterScope);
+        boolSetting("http.tcp_no_delay", NetworkService.TcpSettings.TCP_NO_DELAY, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
-        boolSetting("http.tcp.keep_alive", NetworkService.TcpSettings.TCP_KEEP_ALIVE, SettingsProperty.ClusterScope);
+        boolSetting("http.tcp.keep_alive", NetworkService.TcpSettings.TCP_KEEP_ALIVE, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_BLOCKING_SERVER =
-        boolSetting("http.tcp.blocking_server", NetworkService.TcpSettings.TCP_BLOCKING_SERVER, SettingsProperty.ClusterScope);
+        boolSetting("http.tcp.blocking_server", NetworkService.TcpSettings.TCP_BLOCKING_SERVER, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =
-        boolSetting("http.tcp.reuse_address", NetworkService.TcpSettings.TCP_REUSE_ADDRESS, SettingsProperty.ClusterScope);
+        boolSetting("http.tcp.reuse_address", NetworkService.TcpSettings.TCP_REUSE_ADDRESS, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("http.tcp.send_buffer_size", NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
-            SettingsProperty.ClusterScope);
+            Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
-            SettingsProperty.ClusterScope);
+            Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("transport.netty.receive_predictor_size",
             settings -> {
@@ -154,11 +154,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
                 return new ByteSizeValue(defaultReceiverPredictor).toString();
-            }, SettingsProperty.ClusterScope);
+            }, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, SettingsProperty.ClusterScope);
+        byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("http.netty.receive_predictor_max", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, SettingsProperty.ClusterScope);
+        byteSizeSetting("http.netty.receive_predictor_max", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
 
 
     protected final NetworkService networkService;

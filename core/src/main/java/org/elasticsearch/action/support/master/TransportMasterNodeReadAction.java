@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +39,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         extends TransportMasterNodeAction<Request, Response> {
 
     public static final Setting<Boolean> FORCE_LOCAL_SETTING =
-        Setting.boolSetting("action.master.force_local", false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("action.master.force_local", false, Property.NodeScope);
 
     private final boolean forceLocal;
 

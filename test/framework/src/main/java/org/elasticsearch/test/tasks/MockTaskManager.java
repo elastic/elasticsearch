@@ -20,7 +20,7 @@
 package org.elasticsearch.test.tasks;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -35,7 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MockTaskManager extends TaskManager {
 
     public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING =
-        Setting.boolSetting("tests.mock.taskmanager.enabled", false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("tests.mock.taskmanager.enabled", false, Property.NodeScope);
 
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 

@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -48,13 +48,13 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     private volatile ScheduledFuture scheduledFuture;
 
     public final static Setting<Boolean> ENABLED_SETTING =
-        Setting.boolSetting("monitor.jvm.gc.enabled", true, SettingsProperty.ClusterScope);
+        Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-            SettingsProperty.ClusterScope);
+            Property.NodeScope);
 
     private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
-    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, SettingsProperty.ClusterScope);
+    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
 
     static class GcThreshold {
         public final String name;

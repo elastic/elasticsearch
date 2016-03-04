@@ -30,7 +30,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -68,14 +68,14 @@ public class AzureRepository extends BlobStoreRepository {
     public final static String TYPE = "azure";
 
     public static final class Repository {
-        public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("account", SettingsProperty.ClusterScope);
+        public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("account", Property.NodeScope);
         public static final Setting<String> CONTAINER_SETTING =
-            new Setting<>("container", "elasticsearch-snapshots", Function.identity(), SettingsProperty.ClusterScope);
-        public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", SettingsProperty.ClusterScope);
-        public static final Setting<String> LOCATION_MODE_SETTING = Setting.simpleString("location_mode", SettingsProperty.ClusterScope);
+            new Setting<>("container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
+        public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
+        public static final Setting<String> LOCATION_MODE_SETTING = Setting.simpleString("location_mode", Property.NodeScope);
         public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, SettingsProperty.ClusterScope);
-        public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, Property.NodeScope);
+        public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     }
 
     private final AzureBlobStore blobStore;

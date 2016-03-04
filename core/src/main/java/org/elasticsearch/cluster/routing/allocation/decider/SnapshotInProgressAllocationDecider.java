@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -42,7 +42,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      */
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING =
         Setting.boolSetting("cluster.routing.allocation.snapshot.relocation_enabled", false,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
 
     private volatile boolean enableRelocation = false;
 

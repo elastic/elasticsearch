@@ -44,11 +44,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Setting.SettingsProperty scope;
+    private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
 
-    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.SettingsProperty scope) {
+    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
         this.scope = scope;
@@ -96,7 +96,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
-    public Setting.SettingsProperty getScope() {
+    public Setting.Property getScope() {
         return this.scope;
     }
 

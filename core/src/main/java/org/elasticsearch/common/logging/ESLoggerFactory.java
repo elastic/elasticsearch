@@ -21,8 +21,7 @@ package org.elasticsearch.common.logging;
 
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting.Property;
 
 import java.util.Locale;
 
@@ -32,10 +31,10 @@ import java.util.Locale;
 public abstract class ESLoggerFactory {
 
     public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING =
-        new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, SettingsProperty.ClusterScope);
+        new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, Property.NodeScope);
     public static final Setting<LogLevel> LOG_LEVEL_SETTING =
         Setting.prefixKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
 
     public static ESLogger getLogger(String prefix, String name) {
         prefix = prefix == null ? null : prefix.intern();

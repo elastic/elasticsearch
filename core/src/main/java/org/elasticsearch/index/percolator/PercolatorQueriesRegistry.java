@@ -31,14 +31,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -63,7 +61,7 @@ import java.util.concurrent.TimeUnit;
 public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
     public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
-        Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Property.IndexScope);
 
     private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final QueryShardContext queryShardContext;

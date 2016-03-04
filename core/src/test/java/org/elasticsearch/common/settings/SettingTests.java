@@ -19,7 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -38,7 +38,7 @@ public class SettingTests extends ESTestCase {
 
 
     public void testGet() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         assertFalse(booleanSetting.get(Settings.EMPTY));
         assertFalse(booleanSetting.get(Settings.builder().put("foo.bar", false).build()));
         assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
@@ -46,12 +46,12 @@ public class SettingTests extends ESTestCase {
 
     public void testByteSize() {
         Setting<ByteSizeValue> byteSizeValueSetting =
-            Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 1024);
 
-        byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 2048);
 
@@ -70,7 +70,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testSimpleUpdate() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<Boolean> settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger);
         Settings build = Settings.builder().put("foo.bar", false).build();
@@ -91,7 +91,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testUpdateNotDynamic() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, SettingsProperty.ClusterScope);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.NodeScope);
         assertFalse(booleanSetting.isGroupSetting());
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
         try {
@@ -103,7 +103,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testUpdaterIsIsolated() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         AtomicReference<Boolean> ab1 = new AtomicReference<>(null);
         AtomicReference<Boolean> ab2 = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<Boolean> settingUpdater = booleanSetting.newUpdater(ab1::set, logger);
@@ -115,7 +115,7 @@ public class SettingTests extends ESTestCase {
     public void testDefault() {
         TimeValue defautlValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
         Setting<TimeValue> setting =
-            Setting.positiveTimeSetting("my.time.value", defautlValue, SettingsProperty.ClusterScope);
+            Setting.positiveTimeSetting("my.time.value", defautlValue, Property.NodeScope);
         assertFalse(setting.isGroupSetting());
         String aDefault = setting.getDefaultRaw(Settings.EMPTY);
         assertEquals(defautlValue.millis() + "ms", aDefault);
@@ -123,11 +123,11 @@ public class SettingTests extends ESTestCase {
         assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
 
         Setting<String> secondaryDefault =
-            new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), Function.identity(), SettingsProperty.ClusterScope);
+            new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
         Setting<String> secondaryDefaultViaSettings =
-            new Setting<>("foo.bar", secondaryDefault, Function.identity(), SettingsProperty.ClusterScope);
+            new Setting<>("foo.bar", secondaryDefault, Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
         assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
     }
@@ -135,7 +135,7 @@ public class SettingTests extends ESTestCase {
     public void testComplexType() {
         AtomicReference<ComplexType> ref = new AtomicReference<>(null);
         Setting<ComplexType> setting = new Setting<>("foo.bar", (s) -> "", (s) -> new ComplexType(s),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();
@@ -156,19 +156,17 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testType() {
-        Setting<Integer> integerSetting = Setting.intSetting("foo.int.bar", 1, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
-        assertThat(integerSetting.hasClusterScope(), is(true));
+        Setting<Integer> integerSetting = Setting.intSetting("foo.int.bar", 1, Property.Dynamic, Property.NodeScope);
+        assertThat(integerSetting.hasNodeScope(), is(true));
         assertThat(integerSetting.hasIndexScope(), is(false));
-        assertThat(integerSetting.hasNodeScope(), is(false));
-        integerSetting = Setting.intSetting("foo.int.bar", 1, SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+        integerSetting = Setting.intSetting("foo.int.bar", 1, Property.Dynamic, Property.IndexScope);
         assertThat(integerSetting.hasIndexScope(), is(true));
-        assertThat(integerSetting.hasClusterScope(), is(false));
         assertThat(integerSetting.hasNodeScope(), is(false));
     }
 
     public void testGroups() {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
-        Setting<Settings> setting = Setting.groupSetting("foo.bar.", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Dynamic, Property.NodeScope);
         assertTrue(setting.isGroupSetting());
         ClusterSettings.SettingUpdater<Settings> settingUpdater = setting.newUpdater(ref::set, logger);
 
@@ -246,8 +244,8 @@ public class SettingTests extends ESTestCase {
 
     public void testComposite() {
         Composite c = new Composite();
-        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
-        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
         ClusterSettings.SettingUpdater<Tuple<Integer, Integer>> settingUpdater = Setting.compoundUpdater(c::set, a, b, logger);
         assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertNull(c.a);
@@ -276,7 +274,7 @@ public class SettingTests extends ESTestCase {
 
     public void testListSettings() {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
         List<String> value = listSetting.get(Settings.EMPTY);
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
@@ -316,7 +314,7 @@ public class SettingTests extends ESTestCase {
         assertEquals("foo,bar", ref.get().get(0));
 
         Setting<List<Integer>> otherSettings = Setting.listSetting("foo.bar", Collections.emptyList(), Integer::parseInt,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
         List<Integer> defaultValue = otherSettings.get(Settings.EMPTY);
         assertEquals(0, defaultValue.size());
         List<Integer> intValues = otherSettings.get(Settings.builder().put("foo.bar", "0,1,2,3").build());
@@ -326,7 +324,7 @@ public class SettingTests extends ESTestCase {
         }
 
         Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, Function.identity(),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
         value = settingWithFallback.get(Settings.EMPTY);
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
@@ -349,7 +347,7 @@ public class SettingTests extends ESTestCase {
 
     public void testListSettingAcceptsNumberSyntax() {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
         Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
         // try to parse this really annoying format
@@ -367,7 +365,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDynamicKeySetting() {
-        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", "false", Boolean::parseBoolean, SettingsProperty.ClusterScope);
+        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", "false", Boolean::parseBoolean, Property.NodeScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar"));
         assertFalse(setting.match("foo"));
@@ -385,7 +383,7 @@ public class SettingTests extends ESTestCase {
 
     public void testAdfixKeySetting() {
         Setting<Boolean> setting =
-            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Setting.SettingsProperty.ClusterScope);
+            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
@@ -406,7 +404,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testMinMaxInt() {
-        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, SettingsProperty.ClusterScope);
+        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);
         try {
             integerSetting.get(Settings.builder().put("foo.bar", 11).build());
             fail();
@@ -430,46 +428,21 @@ public class SettingTests extends ESTestCase {
      */
     public void testMutuallyExclusiveScopes() {
         // Those should pass
-        Setting<String> setting = Setting.simpleString("foo.bar", SettingsProperty.ClusterScope);
-        assertThat(setting.hasClusterScope(), is(true));
-        assertThat(setting.hasNodeScope(), is(false));
-        assertThat(setting.hasIndexScope(), is(false));
-        setting = Setting.simpleString("foo.bar", SettingsProperty.NodeScope);
+        Setting<String> setting = Setting.simpleString("foo.bar", Property.NodeScope);
         assertThat(setting.hasNodeScope(), is(true));
         assertThat(setting.hasIndexScope(), is(false));
-        assertThat(setting.hasClusterScope(), is(false));
-        setting = Setting.simpleString("foo.bar", SettingsProperty.IndexScope);
+        setting = Setting.simpleString("foo.bar", Property.IndexScope);
         assertThat(setting.hasIndexScope(), is(true));
         assertThat(setting.hasNodeScope(), is(false));
-        assertThat(setting.hasClusterScope(), is(false));
 
         // We test the default scope
         setting = Setting.simpleString("foo.bar");
         assertThat(setting.hasNodeScope(), is(true));
         assertThat(setting.hasIndexScope(), is(false));
-        assertThat(setting.hasClusterScope(), is(false));
 
         // Those should fail
         try {
-            Setting.simpleString("foo.bar", SettingsProperty.IndexScope, SettingsProperty.ClusterScope);
-            fail("Multiple scopes should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
-        }
-        try {
-            Setting.simpleString("foo.bar", SettingsProperty.IndexScope, SettingsProperty.NodeScope);
-            fail("Multiple scopes should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
-        }
-        try {
-            Setting.simpleString("foo.bar", SettingsProperty.ClusterScope, SettingsProperty.NodeScope);
-            fail("Multiple scopes should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
-        }
-        try {
-            Setting.simpleString("foo.bar", SettingsProperty.IndexScope, SettingsProperty.ClusterScope, SettingsProperty.NodeScope);
+            Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope);
             fail("Multiple scopes should fail");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));

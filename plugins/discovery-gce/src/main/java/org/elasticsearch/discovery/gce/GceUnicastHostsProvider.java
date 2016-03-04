@@ -31,7 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -55,7 +55,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
      */
     public static final Setting<List<String>> TAGS_SETTING =
-            Setting.listSetting("discovery.gce.tags", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
+            Setting.listSetting("discovery.gce.tags", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";

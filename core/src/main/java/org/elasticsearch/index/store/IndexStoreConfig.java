@@ -22,7 +22,7 @@ import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -39,13 +39,13 @@ public class IndexStoreConfig {
      */
     public static final Setting<StoreRateLimiting.Type> INDICES_STORE_THROTTLE_TYPE_SETTING =
         new Setting<>("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name(),StoreRateLimiting.Type::fromString,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     /**
      * Configures the node / cluster level throttle intensity. The default is <tt>10240 MB</tt>
      */
     public static final Setting<ByteSizeValue> INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING =
         Setting.byteSizeSetting("indices.store.throttle.max_bytes_per_sec", new ByteSizeValue(0),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     private volatile StoreRateLimiting.Type rateLimitingType;
     private volatile ByteSizeValue rateLimitingThrottle;
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();

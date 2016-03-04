@@ -33,7 +33,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -99,10 +99,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     // tracer log
 
     public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING =
-        listSetting("transport.tracer.include", emptyList(), Function.identity(), SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        listSetting("transport.tracer.include", emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
     public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
         listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME),
-            Function.identity(), SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Function.identity(), Property.Dynamic, Property.NodeScope);
 
     private final ESLogger tracerLog;
 

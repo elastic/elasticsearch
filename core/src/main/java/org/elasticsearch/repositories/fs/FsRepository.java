@@ -24,7 +24,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -53,16 +53,16 @@ public class FsRepository extends BlobStoreRepository {
     public final static String TYPE = "fs";
 
     public static final Setting<String> LOCATION_SETTING =
-        new Setting<>("location", "", Function.identity(), SettingsProperty.ClusterScope);
+        new Setting<>("location", "", Function.identity(), Property.NodeScope);
     public static final Setting<String> REPOSITORIES_LOCATION_SETTING =
-        new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), SettingsProperty.ClusterScope);
+        new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("chunk_size", "-1", SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("chunk_size", "-1", Property.NodeScope);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("repositories.fs.chunk_size", "-1", SettingsProperty.ClusterScope);
-    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("repositories.fs.chunk_size", "-1", Property.NodeScope);
+    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
-        Setting.boolSetting("repositories.fs.compress", false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
 
     private final FsBlobStore blobStore;
 

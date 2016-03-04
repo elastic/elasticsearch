@@ -34,7 +34,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
@@ -54,7 +54,7 @@ import java.util.function.ToLongBiFunction;
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
 
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY =
-        Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), Property.NodeScope);
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 

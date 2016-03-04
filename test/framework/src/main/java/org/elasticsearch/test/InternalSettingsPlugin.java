@@ -20,7 +20,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
@@ -36,11 +36,11 @@ public final class InternalSettingsPlugin extends Plugin {
     }
 
     public static final Setting<Integer> VERSION_CREATED =
-        Setting.intSetting("index.version.created", 0, SettingsProperty.IndexScope);
+        Setting.intSetting("index.version.created", 0, Property.IndexScope);
     public static final Setting<Boolean> MERGE_ENABLED =
-        Setting.boolSetting("index.merge.enabled", true, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.merge.enabled", true, Property.IndexScope);
     public static final Setting<Long> INDEX_CREATION_DATE_SETTING =
-        Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, SettingsProperty.IndexScope);
+        Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, Property.IndexScope);
 
     public void onModule(SettingsModule module) {
         module.registerSetting(VERSION_CREATED);

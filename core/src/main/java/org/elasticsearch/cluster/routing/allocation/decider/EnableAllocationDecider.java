@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
@@ -63,17 +63,17 @@ public class EnableAllocationDecider extends AllocationDecider {
 
     public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING =
         new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     public static final Setting<Allocation> INDEX_ROUTING_ALLOCATION_ENABLE_SETTING =
         new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
-            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            Property.Dynamic, Property.IndexScope);
 
     public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING =
         new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     public static final Setting<Rebalance> INDEX_ROUTING_REBALANCE_ENABLE_SETTING =
         new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
-            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            Property.Dynamic, Property.IndexScope);
 
     private volatile Rebalance enableRebalance;
     private volatile Allocation enableAllocation;

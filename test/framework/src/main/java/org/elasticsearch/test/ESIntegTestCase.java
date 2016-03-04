@@ -77,7 +77,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -197,7 +197,7 @@ import static org.hamcrest.Matchers.startsWith;
  * should be used, here is an example:
  * <pre>
  *
- * {@literal @}ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
+ * {@literal @}NodeScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
  * </pre>
@@ -208,7 +208,7 @@ import static org.hamcrest.Matchers.startsWith;
  * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
  * that are created before the tests start.
  *  <pre>
- * {@literal @}ClusterScope(scope=Scope.SUITE, numDataNodes=3)
+ * {@literal @}NodeScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
@@ -270,7 +270,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * It's set once per test via a generic index template.
      */
     public static final Setting<Long> INDEX_TEST_SEED_SETTING =
-        Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, SettingsProperty.IndexScope);
+        Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, Property.IndexScope);
 
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the

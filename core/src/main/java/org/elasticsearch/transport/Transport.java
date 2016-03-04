@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -36,7 +36,7 @@ import java.util.Map;
 public interface Transport extends LifecycleComponent<Transport> {
 
 
-    Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, SettingsProperty.ClusterScope);
+    Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
     void transportServiceAdapter(TransportServiceAdapter service);
 

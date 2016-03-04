@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
@@ -43,7 +43,7 @@ public class EsExecutors {
      * This is used to adjust thread pools sizes etc. per node.
      */
     public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Math.min(32, Runtime.getRuntime().availableProcessors()), 1, SettingsProperty.ClusterScope);
+        Setting.intSetting("processors", Math.min(32, Runtime.getRuntime().availableProcessors()), 1, Property.NodeScope);
 
     /**
      * Returns the number of processors available but at most <tt>32</tt>.

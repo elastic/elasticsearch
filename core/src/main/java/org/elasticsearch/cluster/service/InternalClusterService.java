@@ -52,7 +52,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -99,14 +99,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
         Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
     public static final Setting<TimeValue> CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), SettingsProperty.ClusterScope);
+        Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), Property.NodeScope);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     public static final Setting<Long> NODE_ID_SEED_SETTING =
             // don't use node.id.seed so it won't be seen as an attribute
-            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, SettingsProperty.ClusterScope);
+            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
     private final ThreadPool threadPool;
 
     private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;

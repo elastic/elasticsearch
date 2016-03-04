@@ -21,7 +21,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
@@ -45,7 +45,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
     public static class SettingsListenerPlugin extends Plugin {
         private final SettingsTestingService service = new SettingsTestingService();
         private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0,
-            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            Property.Dynamic, Property.IndexScope);
         /**
          * The name of the plugin.
          */
@@ -96,7 +96,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
     public static class SettingsTestingService {
         public volatile int value;
         public static Setting<Integer> VALUE = Setting.intSetting("index.test.new.setting", -1, -1,
-            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            Property.Dynamic, Property.IndexScope);
 
         public void setValue(int value) {
             this.value = value;

@@ -36,7 +36,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,7 +49,6 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.process.ProcessProbe;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -138,19 +137,19 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      * Maximum number of data nodes that should run in an environment.
      */
     public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1,
-            SettingsProperty.ClusterScope);
+            Property.NodeScope);
 
     /**
      * If true automatically append node id to custom data paths.
      */
     public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_id_to_custom_path", true, SettingsProperty.ClusterScope);
+        Setting.boolSetting("node.add_id_to_custom_path", true, Property.NodeScope);
 
     /**
      * If true the [verbose] SegmentInfos.infoStream logging is sent to System.out.
      */
     public static final Setting<Boolean> ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING =
-        Setting.boolSetting("node.enable_lucene_segment_infos_trace", false, SettingsProperty.ClusterScope);
+        Setting.boolSetting("node.enable_lucene_segment_infos_trace", false, Property.NodeScope);
 
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
@@ -225,7 +224,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
             maybeLogPathDetails();
             maybeLogHeapDetails();
-            
+
             applySegmentInfosTrace(settings);
             assertCanWrite();
             success = true;

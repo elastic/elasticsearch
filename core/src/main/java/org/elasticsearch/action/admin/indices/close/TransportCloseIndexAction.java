@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +48,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
     public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING =
-        Setting.boolSetting("cluster.indices.close.enable", true, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.boolSetting("cluster.indices.close.enable", true, Property.Dynamic, Property.NodeScope);
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,

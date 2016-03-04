@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
@@ -51,7 +51,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     public static final String NAME = "cluster_rebalance";
     public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING =
         new Setting<>("cluster.routing.allocation.allow_rebalance", ClusterRebalanceType.INDICES_ALL_ACTIVE.name().toLowerCase(Locale.ROOT),
-            ClusterRebalanceType::parseString, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            ClusterRebalanceType::parseString, Property.Dynamic, Property.NodeScope);
 
     /**
      * An enum representation for the configured re-balance type.

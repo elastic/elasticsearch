@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -46,13 +46,13 @@ public class SettingsModuleTests extends ModuleTestCase {
         {
             Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
             SettingsModule module = new SettingsModule(settings);
-            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, SettingsProperty.ClusterScope));
+            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
         {
             Settings settings = Settings.builder().put("some.custom.setting", "false").build();
             SettingsModule module = new SettingsModule(settings);
-            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, SettingsProperty.ClusterScope));
+            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
@@ -132,9 +132,9 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testRegisterSettingsFilter() {
         Settings settings = Settings.builder().put("foo.bar", "false").put("bar.foo", false).put("bar.baz", false).build();
         SettingsModule module = new SettingsModule(settings);
-        module.registerSetting(Setting.boolSetting("foo.bar", true, SettingsProperty.ClusterScope));
-        module.registerSetting(Setting.boolSetting("bar.foo", true, SettingsProperty.ClusterScope, SettingsProperty.Filtered));
-        module.registerSetting(Setting.boolSetting("bar.baz", true, SettingsProperty.ClusterScope));
+        module.registerSetting(Setting.boolSetting("foo.bar", true, Property.NodeScope));
+        module.registerSetting(Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered));
+        module.registerSetting(Setting.boolSetting("bar.baz", true, Property.NodeScope));
 
         module.registerSettingsFilter("foo.*");
         try {

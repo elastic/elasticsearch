@@ -37,7 +37,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 
@@ -73,7 +73,7 @@ public class PluginsService extends AbstractComponent {
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
     public static final Setting<List<String>> MANDATORY_SETTING =
-        Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), SettingsProperty.ClusterScope);
+        Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 

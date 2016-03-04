@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -62,7 +62,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      */
     public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING =
         Setting.intSetting("index.routing.allocation.total_shards_per_node", -1, -1,
-            SettingsProperty.Dynamic, SettingsProperty.IndexScope);
+            Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls the maximum number of shards per node on a global level.
@@ -70,7 +70,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      */
     public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING =
         Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
-            SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+            Property.Dynamic, Property.NodeScope);
 
 
     @Inject

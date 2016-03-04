@@ -31,7 +31,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
@@ -199,9 +199,9 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
         public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
-            Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, SettingsProperty.IndexScope);
+            Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
         public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
-            Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, SettingsProperty.IndexScope);
+            Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
         public static class TestPlugin extends Plugin {
             @Override
             public String name() {

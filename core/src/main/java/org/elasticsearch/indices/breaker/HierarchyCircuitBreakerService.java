@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -48,21 +48,21 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap();
 
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.byteSizeSetting("indices.breaker.total.limit", "70%", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("indices.breaker.total.limit", "70%", Property.Dynamic, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.byteSizeSetting("indices.breaker.fielddata.limit", "60%", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("indices.breaker.fielddata.limit", "60%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.fielddata.overhead", 1.03d, 0.0d, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.doubleSetting("indices.breaker.fielddata.overhead", 1.03d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING =
-        new Setting<>("indices.breaker.fielddata.type", "memory", CircuitBreaker.Type::parseValue, SettingsProperty.ClusterScope);
+        new Setting<>("indices.breaker.fielddata.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.byteSizeSetting("indices.breaker.request.limit", "40%", SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.byteSizeSetting("indices.breaker.request.limit", "40%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.request.overhead", 1.0d, 0.0d, SettingsProperty.Dynamic, SettingsProperty.ClusterScope);
+        Setting.doubleSetting("indices.breaker.request.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =
-        new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, SettingsProperty.ClusterScope);
+        new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
 
 

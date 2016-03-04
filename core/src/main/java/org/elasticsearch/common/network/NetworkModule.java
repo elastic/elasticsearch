@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
@@ -155,11 +155,11 @@ public class NetworkModule extends AbstractModule {
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
-    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", SettingsProperty.ClusterScope);
-    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, SettingsProperty.ClusterScope);
+    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", Property.NodeScope);
+    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, Property.NodeScope);
     public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
-        Setting.simpleString("transport.service.type", SettingsProperty.ClusterScope);
-    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", SettingsProperty.ClusterScope);
+        Setting.simpleString("transport.service.type", Property.NodeScope);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", Property.NodeScope);
 
 
 

@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -73,11 +73,11 @@ import java.util.function.Function;
 public class HunspellService extends AbstractComponent {
 
     public final static Setting<Boolean> HUNSPELL_LAZY_LOAD =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, SettingsProperty.ClusterScope);
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
     public final static Setting<Boolean> HUNSPELL_IGNORE_CASE =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, SettingsProperty.ClusterScope);
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, Property.NodeScope);
     public final static Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
-        Setting.groupSetting("indices.analysis.hunspell.dictionary.", SettingsProperty.ClusterScope);
+        Setting.groupSetting("indices.analysis.hunspell.dictionary.", Property.NodeScope);
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;

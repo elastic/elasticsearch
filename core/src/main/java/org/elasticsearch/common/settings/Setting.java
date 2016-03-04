@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  * together with {@link AbstractScopedSettings}. This class contains several utility methods that makes it straight forward
  * to add settings for the majority of the cases. For instance a simple boolean settings can be defined like this:
  * <pre>{@code
- * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, SettingsProperty.ClusterScope);}
+ * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, SettingsProperty.NodeScope);}
  * </pre>
  * To retrieve the value of the setting a {@link Settings} object can be passed directly to the {@link Setting#get(Settings)} method.
  * <pre>
@@ -66,13 +66,13 @@ import java.util.stream.Collectors;
  *     RED, GREEN, BLUE;
  * }
  * public static final Setting<Color> MY_BOOLEAN =
- *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, SettingsProperty.ClusterScope);
+ *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, SettingsProperty.NodeScope);
  * }
  * </pre>
  */
 public class Setting<T> extends ToXContentToBytes {
 
-    public enum SettingsProperty {
+    public enum Property {
         /**
          * should be filtered in some api (mask password/credentials)
          */
@@ -89,25 +89,14 @@ public class Setting<T> extends ToXContentToBytes {
         Deprecated,
 
         /**
-         * Cluster scope.
-         * @See IndexScope
-         * @See NodeScope
-         */
-        ClusterScope,
-
-        /**
-         * Node scope.
-         * @See ClusterScope
-         * @See IndexScope
+         * Node scope
          */
         NodeScope,
 
         /**
-         * Index scope.
-         * @See ClusterScope
-         * @See NodeScope
+         * Index scope
          */
-        IndexScope;
+        IndexScope
     }
 
     private static final ESLogger logger = Loggers.getLogger(Setting.class);
@@ -116,31 +105,30 @@ public class Setting<T> extends ToXContentToBytes {
     private final Key key;
     protected final Function<Settings, String> defaultValue;
     private final Function<String, T> parser;
-    private final EnumSet<SettingsProperty> properties;
+    private final EnumSet<Property> properties;
 
     /**
-     * Creates a new Setting instance
+     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, SettingsProperty... properties) {
+    public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
         assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
         if (properties.length == 0) {
-            this.properties = EnumSet.of(SettingsProperty.NodeScope);
+            this.properties = EnumSet.of(Property.NodeScope);
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
         }
         // We validate scope settings. They are mutually exclusive
         int numScopes = 0;
-        for (SettingsProperty property : properties) {
-            if (property == SettingsProperty.ClusterScope ||
-                property == SettingsProperty.IndexScope ||
-                property == SettingsProperty.NodeScope) {
+        for (Property property : properties) {
+            if (property == Property.NodeScope ||
+                property == Property.IndexScope) {
                 numScopes++;
             }
         }
@@ -156,7 +144,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, String defaultValue, Function<String, T> parser, SettingsProperty... properties) {
+    public Setting(String key, String defaultValue, Function<String, T> parser, Property... properties) {
         this(key, s -> defaultValue, parser, properties);
     }
 
@@ -167,7 +155,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, SettingsProperty... properties) {
+    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
         this(new SimpleKey(key), defaultValue, parser, properties);
     }
 
@@ -178,7 +166,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, SettingsProperty... properties) {
+    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, Property... properties) {
         this(key, fallBackSetting::getRaw, parser, properties);
     }
 
@@ -204,14 +192,14 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
-        return properties.contains(SettingsProperty.Dynamic);
+        return properties.contains(Property.Dynamic);
     }
 
     /**
      * Returns the setting properties
-     * @see SettingsProperty
+     * @see Property
      */
-    public EnumSet<SettingsProperty> getProperties() {
+    public EnumSet<Property> getProperties() {
         return properties;
     }
 
@@ -219,35 +207,28 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns <code>true</code> if this setting must be filtered, otherwise <code>false</code>
      */
     public boolean isFiltered() {
-        return properties.contains(SettingsProperty.Filtered);
+        return properties.contains(Property.Filtered);
     }
 
     /**
-     * Returns <code>true</code> if this setting has a cluster scope, otherwise <code>false</code>
+     * Returns <code>true</code> if this setting has a node scope, otherwise <code>false</code>
      */
-    public boolean hasClusterScope() {
-        return properties.contains(SettingsProperty.ClusterScope);
+    public boolean hasNodeScope() {
+        return properties.contains(Property.NodeScope);
     }
 
     /**
      * Returns <code>true</code> if this setting has an index scope, otherwise <code>false</code>
      */
     public boolean hasIndexScope() {
-        return properties.contains(SettingsProperty.IndexScope);
-    }
-
-    /**
-     * Returns <code>true</code> if this setting has an index scope, otherwise <code>false</code>
-     */
-    public boolean hasNodeScope() {
-        return properties.contains(SettingsProperty.NodeScope);
+        return properties.contains(Property.IndexScope);
     }
 
     /**
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
     public boolean isDeprecated() {
-        return properties.contains(SettingsProperty.Deprecated);
+        return properties.contains(Property.Deprecated);
     }
 
     /**
@@ -451,11 +432,11 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
 
-    public static Setting<Float> floatSetting(String key, float defaultValue, SettingsProperty... properties) {
+    public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
     }
 
-    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, SettingsProperty... properties) {
+    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
@@ -465,19 +446,19 @@ public class Setting<T> extends ToXContentToBytes {
         }, properties);
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, SettingsProperty... properties) {
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, Property... properties) {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), properties);
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, SettingsProperty... properties) {
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Property... properties) {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), properties);
     }
 
-    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, SettingsProperty... properties) {
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
         return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), properties);
     }
 
-    public static Setting<String> simpleString(String key, SettingsProperty... properties) {
+    public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }
 
@@ -512,52 +493,52 @@ public class Setting<T> extends ToXContentToBytes {
         return timeValue;
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, SettingsProperty... properties) {
+    public static Setting<Integer> intSetting(String key, int defaultValue, Property... properties) {
         return intSetting(key, defaultValue, Integer.MIN_VALUE, properties);
     }
 
-    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, SettingsProperty... properties) {
+    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, properties);
     }
 
-    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, SettingsProperty... properties) {
+    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, SettingsProperty... properties) {
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, Property... properties) {
         return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, SettingsProperty... properties) {
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
         return byteSizeSetting(key, (s) -> value.toString(), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSettings,
-                                                         SettingsProperty... properties) {
+                                                         Property... properties) {
         return byteSizeSetting(key, fallbackSettings::getRaw, properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue,
-                                                         SettingsProperty... properties) {
+                                                         Property... properties) {
         return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
-    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, SettingsProperty... properties) {
+    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser,
-                                                   SettingsProperty... properties) {
+                                                   Property... properties) {
         return listSetting(key, (s) -> defaultStringValue, singleValueParser, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, Setting<List<T>> fallbackSetting, Function<String, T> singleValueParser,
-                                                   SettingsProperty... properties) {
+                                                   Property... properties) {
         return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
-                                                   Function<String, T> singleValueParser, SettingsProperty... properties) {
+                                                   Function<String, T> singleValueParser, Property... properties) {
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
@@ -611,7 +592,7 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-    public static Setting<Settings> groupSetting(String key, SettingsProperty... properties) {
+    public static Setting<Settings> groupSetting(String key, Property... properties) {
         // TODO CHECK IF WE REMOVE
         if (key.endsWith(".") == false) {
             throw new IllegalArgumentException("key must end with a '.'");
@@ -671,7 +652,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue,
-                                                 SettingsProperty... properties) {
+                                                 Property... properties) {
         return new Setting<>(key, defaultValue, (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
             if (timeValue.millis() < minValue.millis()) {
@@ -681,19 +662,19 @@ public class Setting<T> extends ToXContentToBytes {
         }, properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, SettingsProperty... properties) {
+    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, Property... properties) {
         return timeSetting(key, (s) -> defaultValue.getStringRep(), minValue, properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, SettingsProperty... properties) {
+    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, SettingsProperty... properties) {
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
-    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, SettingsProperty... properties) {
+    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {
         return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
             final double d = Double.parseDouble(s);
             if (d < minValue) {
@@ -722,7 +703,7 @@ public class Setting<T> extends ToXContentToBytes {
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
     public static <T> Setting<T> prefixKeySetting(String prefix, String defaultValue, Function<String, T> parser,
-                                                  SettingsProperty... properties) {
+                                                  Property... properties) {
         return affixKeySetting(AffixKey.withPrefix(prefix), (s) -> defaultValue, parser, properties);
     }
 
@@ -732,17 +713,17 @@ public class Setting<T> extends ToXContentToBytes {
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
     public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
-                                                 Function<String, T> parser, SettingsProperty... properties) {
+                                                 Function<String, T> parser, Property... properties) {
         return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, properties);
     }
 
     public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
-                                                 SettingsProperty... properties) {
+                                                 Property... properties) {
         return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
     }
 
     public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser,
-                                                 SettingsProperty... properties) {
+                                                 Property... properties) {
         return new Setting<T>(key, defaultValue, parser, properties) {
 
             @Override

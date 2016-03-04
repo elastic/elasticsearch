@@ -22,7 +22,7 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,32 +46,32 @@ public class NetworkService extends AbstractComponent {
     public static final String DEFAULT_NETWORK_HOST = "_local_";
 
     public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
-        Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), Function.identity(), SettingsProperty.ClusterScope);
+        Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING =
-        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), SettingsProperty.ClusterScope);
+        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING =
-        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), SettingsProperty.ClusterScope);
-    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, SettingsProperty.ClusterScope);
+        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
 
     public static final class TcpSettings {
         public static final Setting<Boolean> TCP_NO_DELAY =
-            Setting.boolSetting("network.tcp.no_delay", true, SettingsProperty.ClusterScope);
+            Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
         public static final Setting<Boolean> TCP_KEEP_ALIVE =
-            Setting.boolSetting("network.tcp.keep_alive", true, SettingsProperty.ClusterScope);
+            Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
         public static final Setting<Boolean> TCP_REUSE_ADDRESS =
-            Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), SettingsProperty.ClusterScope);
+            Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
         public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
-            Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
         public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
-            Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
         public static final Setting<Boolean> TCP_BLOCKING =
-            Setting.boolSetting("network.tcp.blocking", false, SettingsProperty.ClusterScope);
+            Setting.boolSetting("network.tcp.blocking", false, Property.NodeScope);
         public static final Setting<Boolean> TCP_BLOCKING_SERVER =
-            Setting.boolSetting("network.tcp.blocking_server", TCP_BLOCKING, SettingsProperty.ClusterScope);
+            Setting.boolSetting("network.tcp.blocking_server", TCP_BLOCKING, Property.NodeScope);
         public static final Setting<Boolean> TCP_BLOCKING_CLIENT =
-            Setting.boolSetting("network.tcp.blocking_client", TCP_BLOCKING, SettingsProperty.ClusterScope);
+            Setting.boolSetting("network.tcp.blocking_client", TCP_BLOCKING, Property.NodeScope);
         public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-            Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), SettingsProperty.ClusterScope);
+            Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
     }
 
     /**

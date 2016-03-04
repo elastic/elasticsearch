@@ -38,7 +38,7 @@ import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -72,7 +72,7 @@ import java.util.concurrent.Executor;
 public final class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
-        Setting.boolSetting("index.load_fixed_bitset_filters_eagerly", true, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.load_fixed_bitset_filters_eagerly", true, Property.IndexScope);
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Query, Value>> loadedFilters;

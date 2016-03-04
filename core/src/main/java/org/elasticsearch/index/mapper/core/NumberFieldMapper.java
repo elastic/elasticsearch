@@ -33,7 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +55,7 @@ import java.util.List;
 public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
     // this is private since it has a different default
     private static final Setting<Boolean> COERCE_SETTING =
-        Setting.boolSetting("index.mapping.coerce", true, SettingsProperty.IndexScope);
+        Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
     public static class Defaults {
 

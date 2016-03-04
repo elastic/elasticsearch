@@ -24,7 +24,7 @@ import com.microsoft.azure.storage.StorageException;
 
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -42,19 +42,19 @@ public interface AzureStorageService {
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
         public static final Setting<TimeValue> TIMEOUT_SETTING =
-            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), SettingsProperty.ClusterScope);
+            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope);
         public static final Setting<String> ACCOUNT_SETTING =
-            Setting.simpleString("repositories.azure.account", SettingsProperty.ClusterScope, SettingsProperty.Filtered);
+            Setting.simpleString("repositories.azure.account", Property.NodeScope, Property.Filtered);
         public static final Setting<String> CONTAINER_SETTING =
-            Setting.simpleString("repositories.azure.container", SettingsProperty.ClusterScope);
+            Setting.simpleString("repositories.azure.container", Property.NodeScope);
         public static final Setting<String> BASE_PATH_SETTING =
-            Setting.simpleString("repositories.azure.base_path", SettingsProperty.ClusterScope);
+            Setting.simpleString("repositories.azure.base_path", Property.NodeScope);
         public static final Setting<String> LOCATION_MODE_SETTING =
-            Setting.simpleString("repositories.azure.location_mode", SettingsProperty.ClusterScope);
+            Setting.simpleString("repositories.azure.location_mode", Property.NodeScope);
         public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.azure.chunk_size", new ByteSizeValue(-1), SettingsProperty.ClusterScope);
+            Setting.byteSizeSetting("repositories.azure.chunk_size", new ByteSizeValue(-1), Property.NodeScope);
         public static final Setting<Boolean> COMPRESS_SETTING =
-            Setting.boolSetting("repositories.azure.compress", false, SettingsProperty.ClusterScope);
+            Setting.boolSetting("repositories.azure.compress", false, Property.NodeScope);
     }
 
     boolean doesContainerExist(String account, LocationMode mode, String container);

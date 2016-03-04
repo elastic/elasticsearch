@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.settings.Setting.SettingsProperty;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -50,7 +50,7 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid index level settings.
- * @see org.elasticsearch.common.settings.Setting.SettingsProperty#IndexScope
+ * @see Property#IndexScope
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
@@ -135,15 +135,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         IndexWarmer.INDEX_NORMS_LOADING_SETTING,
         // this sucks but we can't really validate all the analyzers/similarity in here
-        Setting.groupSetting("index.similarity.", SettingsProperty.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", SettingsProperty.IndexScope) // this allows analysis settings to be passed
+        Setting.groupSetting("index.similarity.", Property.IndexScope), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
 
     )));
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, SettingsProperty.IndexScope);
+        super(settings, settingsSet, Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {

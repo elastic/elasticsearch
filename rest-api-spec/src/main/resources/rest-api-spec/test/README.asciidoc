@@ -1,6 +1,23 @@
 Test Suite:
 ===========
 
+[NOTE]
+.Required settings
+=======================================
+Certain tests require specific settings to be applied to the
+Elasticsearch instance in order to pass.  You should run
+Elasticsearch as follows:
+
+[source,sh]
+---------------------
+bin/elasticsearch --script.inline true --node.testattr test --path.repo /tmp --repositories.url.allowed_urls 'http://snapshot.*'
+---------------------
+
+=======================================
+
+Test file structure
+--------------------
+
 A YAML test file consists of:
 * an optional `setup` section, followed by
 * one or more test sections

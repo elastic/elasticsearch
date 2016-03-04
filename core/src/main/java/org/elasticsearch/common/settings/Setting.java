@@ -38,7 +38,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -119,18 +121,11 @@ public class Setting<T> extends ToXContentToBytes {
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
-        // We validate scope settings. We should have one and only one.
-        int numScopes = 0;
-        for (Property property : properties) {
-            if (property == Property.NodeScope ||
-                property == Property.IndexScope) {
-                numScopes++;
-            }
+        if (properties.length == 0) {
+            this.properties = EnumSet.noneOf(Property.class);
+        } else {
+            this.properties = EnumSet.copyOf(Arrays.asList(properties));
         }
-        if (numScopes != 1) {
-            throw new IllegalArgumentException("Zero or more than one scope has been added to the setting [" + key + "]");
-        }
-        this.properties = EnumSet.copyOf(Arrays.asList(properties));
     }
 
     /**

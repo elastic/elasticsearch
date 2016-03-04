@@ -435,18 +435,14 @@ public class SettingTests extends ESTestCase {
         assertThat(setting.hasIndexScope(), is(true));
         assertThat(setting.hasNodeScope(), is(false));
 
-        // Those should fail
-        try {
-            Setting.simpleString("foo.bar");
-            fail("Zero scope should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Zero or more than one scope has been added to the setting"));
-        }
-        try {
-            Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope);
-            fail("Multiple scopes should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Zero or more than one scope has been added to the setting"));
-        }
+        // We accept settings with no scope but they will be rejected when we register with SettingsModule.registerSetting
+        setting = Setting.simpleString("foo.bar");
+        assertThat(setting.hasIndexScope(), is(false));
+        assertThat(setting.hasNodeScope(), is(false));
+
+        // We accept settings with multiple scopes but they will be rejected when we register with SettingsModule.registerSetting
+        setting = Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope);
+        assertThat(setting.hasIndexScope(), is(true));
+        assertThat(setting.hasNodeScope(), is(true));
     }
 }

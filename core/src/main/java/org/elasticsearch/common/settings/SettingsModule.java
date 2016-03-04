@@ -76,6 +76,11 @@ public class SettingsModule extends AbstractModule {
                 registerSettingsFilter(setting.getKey());
             }
         }
+
+        // We validate scope settings. We should have one and only one scope.
+        if (setting.hasNodeScope() && setting.hasIndexScope()) {
+            throw new IllegalArgumentException("More than one scope has been added to the setting [" + setting.getKey() + "]");
+        }
         if (setting.hasNodeScope()) {
             if (nodeSettings.containsKey(setting.getKey())) {
                 throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");

@@ -22,6 +22,9 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+
 public class SettingsModuleTests extends ModuleTestCase {
 
     public void testValidate() {
@@ -148,5 +151,25 @@ public class SettingsModuleTests extends ModuleTestCase {
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("bar.baz"));
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().get("bar.baz").equals("false"));
 
+    }
+
+    public void testMutuallyExclusiveScopes() {
+        new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.NodeScope));
+        new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.IndexScope));
+
+        // Those should fail
+        try {
+            new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar"));
+            fail("No scope should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("No scope found for setting"));
+        }
+        // Those should fail
+        try {
+            new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope));
+            fail("Multiple scopes should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+        }
     }
 }

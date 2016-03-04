@@ -492,7 +492,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             });
         }
         executor.shutdown();
-        boolean done = executor.awaitTermination(10, TimeUnit.SECONDS);
+        boolean done = executor.awaitTermination(20, TimeUnit.SECONDS);
         assertThat(done, equalTo(true));
         if (!done) {
             executor.shutdownNow();

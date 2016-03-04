@@ -21,6 +21,9 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script.ScriptParseException;
@@ -34,17 +37,20 @@ public class ScriptParameterParser {
     public static final String FILE_SUFFIX = "_file";
     public static final String INDEXED_SUFFIX = "_id";
 
-    private Map<String, ScriptParameterValue> parameterValues = new HashMap<>();
+    private final Map<String, ScriptParameterValue> parameterValues = new HashMap<>();
     private Set<ParseField> inlineParameters;
     private Set<ParseField> fileParameters;
     private Set<ParseField> indexedParameters;
     private String lang = null;
+    private final DeprecationLogger deprecationLogger;
 
     public ScriptParameterParser() {
         this(null);
     }
 
     public ScriptParameterParser(Set<String> parameterNames) {
+        ESLogger logger = Loggers.getLogger(getClass());
+        deprecationLogger = new DeprecationLogger(logger);
         if (parameterNames == null || parameterNames.isEmpty()) {
             inlineParameters = Collections.singleton(ScriptService.SCRIPT_INLINE);
             fileParameters = Collections.singleton(ScriptService.SCRIPT_FILE);
@@ -202,7 +208,12 @@ public class ScriptParameterParser {
     }
 
     public ScriptParameterValue getScriptParameterValue(String parameterName) {
-        return parameterValues.get(parameterName);
+        ScriptParameterValue scriptParameterValue = parameterValues.get(parameterName);
+        if (scriptParameterValue != null) {
+            deprecationLogger.deprecated("this form of the script api is deprecated and will be removed from the java api in the next "
+                    + "major version. See scripting section of the documentation for the new syntax");
+        }
+        return scriptParameterValue;
     }
 
     public String lang() {
@@ -210,8 +221,8 @@ public class ScriptParameterParser {
     }
 
     public static class ScriptParameterValue {
-        private String script;
-        private ScriptType scriptType;
+        private final String script;
+        private final ScriptType scriptType;
 
         public ScriptParameterValue(String script, ScriptType scriptType) {
             this.script = script;

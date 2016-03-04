@@ -89,21 +89,10 @@ public final class FragmentBuilderHelper {
         }
         if (analyzer instanceof CustomAnalyzer) {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            if (a.tokenizerFactory() instanceof EdgeNGramTokenizerFactory
-                    || (a.tokenizerFactory() instanceof NGramTokenizerFactory
-                            && !((NGramTokenizerFactory)a.tokenizerFactory()).version().onOrAfter(Version.LUCENE_4_2))) {
-                // ngram tokenizer is broken before 4.2
-                return true;
-            }
             TokenFilterFactory[] tokenFilters = a.tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof WordDelimiterTokenFilterFactory
                         || tokenFilterFactory instanceof EdgeNGramTokenFilterFactory) {
-                    return true;
-                }
-                if (tokenFilterFactory instanceof NGramTokenFilterFactory
-                        && !((NGramTokenFilterFactory)tokenFilterFactory).version().onOrAfter(Version.LUCENE_4_2)) {
-                    // ngram token filter is broken before 4.2
                     return true;
                 }
             }

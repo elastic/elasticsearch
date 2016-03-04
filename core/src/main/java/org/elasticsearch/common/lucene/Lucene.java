@@ -236,13 +236,8 @@ public class Lucene {
             protected Object doBody(String segmentFileName) throws IOException {
                 try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
                     final int format = input.readInt();
-                    final int actualFormat;
                     if (format == CodecUtil.CODEC_MAGIC) {
-                        // 4.0+
-                        actualFormat = CodecUtil.checkHeaderNoMagic(input, "segments", SegmentInfos.VERSION_40, Integer.MAX_VALUE);
-                        if (actualFormat >= SegmentInfos.VERSION_48) {
-                            CodecUtil.checksumEntireFile(input);
-                        }
+                        CodecUtil.checksumEntireFile(input);
                     }
                     // legacy....
                 }

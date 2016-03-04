@@ -50,7 +50,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery#setSlop(int)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#setSlop(int)
      */
     public void setSlop(int s) {
         slop = s;
@@ -63,7 +63,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery#getSlop()
+     * @see org.apache.lucene.search.PhraseQuery.Builder#getSlop()
      */
     public int getSlop() {
         return slop;
@@ -72,7 +72,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Add a single term at the next position in the phrase.
      *
-     * @see org.apache.lucene.search.PhraseQuery#add(Term)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term term) {
         add(new Term[]{term});
@@ -82,7 +82,7 @@ public class MultiPhrasePrefixQuery extends Query {
      * Add multiple terms at the next position in the phrase.  Any of the terms
      * may match.
      *
-     * @see org.apache.lucene.search.PhraseQuery#add(Term)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term[] terms) {
         int position = 0;
@@ -97,7 +97,7 @@ public class MultiPhrasePrefixQuery extends Query {
      *
      * @param terms the terms
      * @param position the position of the terms provided as argument
-     * @see org.apache.lucene.search.PhraseQuery#add(Term, int)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term, int)
      */
     public void add(Term[] terms, int position) {
         if (termArrays.size() == 0)

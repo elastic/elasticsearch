@@ -169,11 +169,6 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.logging.Log', 
   'org.apache.commons.logging.LogFactory',
 
-  // from org.apache.lucene.sandbox.queries.regex.JakartaRegexpCapabilities$JakartaRegexMatcher (lucene-sandbox)
-  'org.apache.regexp.CharacterIterator', 
-  'org.apache.regexp.RE', 
-  'org.apache.regexp.REProgram', 
-
   // from org.jboss.netty.handler.ssl.OpenSslEngine (netty)
   'org.apache.tomcat.jni.Buffer', 
   'org.apache.tomcat.jni.Library', 

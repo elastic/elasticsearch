@@ -28,6 +28,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,7 @@ public class DocumentMapperParser {
     final MapperService mapperService;
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final SimilarityLookupService similarityLookupService;
     private final ScriptService scriptService;
 
@@ -122,6 +124,7 @@ public class DocumentMapperParser {
             Object fieldNode = entry.getValue();
 
             if ("transform".equals(fieldName)) {
+                deprecationLogger.deprecated("Mapping transform is deprecated and will be removed in the next major version");
                 if (fieldNode instanceof Map) {
                     parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
                 } else if (fieldNode instanceof List) {

@@ -19,15 +19,17 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.plugin.discovery.multicast.MulticastZenPing;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-
 public class MulticastDiscoveryPlugin extends Plugin {
+
+    private static ESLogger logger = ESLoggerFactory.getLogger("discovery");
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
 
@@ -44,8 +46,10 @@ public class MulticastDiscoveryPlugin extends Plugin {
     public String description() {
         return "Multicast Discovery Plugin";
     }
-    
+
     public void onModule(DiscoveryModule module) {
+        deprecationLogger.deprecated("[discovery-multicast] plugin will be removed in the next major version. " +
+            "Use unicast or any cloud discovery plugin.");
         if (settings.getAsBoolean("discovery.zen.ping.multicast.enabled", false)) {
             module.addZenPing(MulticastZenPing.class);
         }

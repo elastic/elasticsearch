@@ -7,7 +7,7 @@ This processor adds this information by default under the `geoip` field.
 The ingest-geoip plugin ships by default with the GeoLite2 City and GeoLite2 Country geoip2 databases from Maxmind made available
 under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
-The GeoIP processor can run with other geoip2 databases from Maxmind. The files must be copied into the geoip config directory
+The GeoIP processor can run with other geoip2 databases from Maxmind. The files must be copied into the geoip config directory,
 and the `database_file` option should be used to specify the filename of the custom database. The geoip config directory
 is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too.
 
@@ -24,13 +24,13 @@ is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too
 
 *Depends on what is available in `database_field`:
 
-* If the GeoLite2 City database is used then the following fields may be added under the `target_field`: `ip`,
+* If the GeoLite2 City database is used, then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name`, `continent_name`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
 and `location`. The fields actually added depend on what has been found and which fields were configured in `fields`.
-* If the GeoLite2 Country database is used then the following fields may be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name` and `continent_name`.The fields actually added depend on what has been found and which fields were configured in `fields`.
+* If the GeoLite2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which fields were configured in `fields`.
 
-An example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
+Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
 [source,js]
 --------------------------------------------------
@@ -46,7 +46,7 @@ An example that uses the default city database and adds the geographical informa
 }
 --------------------------------------------------
 
-An example that uses the default country database and add the geographical information to the `geo` field based on the `ip` field`:
+Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field`:
 
 [source,js]
 --------------------------------------------------

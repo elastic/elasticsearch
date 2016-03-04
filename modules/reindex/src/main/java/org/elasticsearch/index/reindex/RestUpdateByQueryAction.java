@@ -106,6 +106,12 @@ public class RestUpdateByQueryAction extends
             bodyModified = true;
         }
 
+        // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
+        if (request.hasParam("search_timeout")) {
+            body.v2().put("timeout", request.paramAsTime("search_timeout", null));
+            bodyModified = true;
+        }
+
         BytesReference bodyContent = null;
         if (bodyModified) {
             XContentBuilder builder = XContentFactory.contentBuilder(body.v1());
@@ -120,7 +126,6 @@ public class RestUpdateByQueryAction extends
             internalRequest.setConflicts(conflicts);
         }
         parseCommon(internalRequest, request);
-
         execute(request, internalRequest, channel);
     }
 }

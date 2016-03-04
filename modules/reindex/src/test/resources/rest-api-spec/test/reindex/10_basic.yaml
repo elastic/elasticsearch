@@ -75,6 +75,7 @@
             index: source
           dest:
             index: dest
+  - is_false: timed_out
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
   - is_false: updated

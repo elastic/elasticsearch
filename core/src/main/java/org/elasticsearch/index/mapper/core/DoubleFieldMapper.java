@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -155,7 +156,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
-            long longValue = LegacyNumericUtils.doubleToSortableLong(parseDoubleValue(value));
+            long longValue = NumericUtils.doubleToSortableLong(parseDoubleValue(value));
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             LegacyNumericUtils.longToPrefixCoded(longValue, 0, bytesRef);   // 0 because of exact match
             return bytesRef.get();
@@ -181,8 +182,8 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            double minValue = LegacyNumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
-            double maxValue = LegacyNumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));
+            double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
+            double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));
             return new FieldStats.Double(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
@@ -281,7 +282,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, LegacyNumericUtils.doubleToSortableLong(value));
+            addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
         }
     }
 

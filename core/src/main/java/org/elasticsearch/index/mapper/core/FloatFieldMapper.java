@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -156,7 +157,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
-            int intValue = LegacyNumericUtils.floatToSortableInt(parseValue(value));
+            int intValue = NumericUtils.floatToSortableInt(parseValue(value));
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             LegacyNumericUtils.intToPrefixCoded(intValue, 0, bytesRef);   // 0 because of exact match
             return bytesRef.get();
@@ -182,8 +183,8 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            float minValue = LegacyNumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
-            float maxValue = LegacyNumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));
+            float minValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
+            float maxValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));
             return new FieldStats.Float(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
@@ -293,7 +294,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, LegacyNumericUtils.floatToSortableInt(value));
+            addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
         }
     }
 

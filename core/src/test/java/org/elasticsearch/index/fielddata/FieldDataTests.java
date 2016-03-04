@@ -22,14 +22,14 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
 public class FieldDataTests extends ESTestCase {
 
     public void testSortableLongBitsToDoubles() {
         final double value = randomDouble();
-        final long valueBits = LegacyNumericUtils.doubleToSortableLong(value);
+        final long valueBits = NumericUtils.doubleToSortableLong(value);
 
         NumericDocValues values = new NumericDocValues() {
             @Override
@@ -70,7 +70,7 @@ public class FieldDataTests extends ESTestCase {
 
     public void testDoublesToSortableLongBits() {
         final double value = randomDouble();
-        final long valueBits = LegacyNumericUtils.doubleToSortableLong(value);
+        final long valueBits = NumericUtils.doubleToSortableLong(value);
 
         NumericDoubleValues values = new NumericDoubleValues() {
             @Override

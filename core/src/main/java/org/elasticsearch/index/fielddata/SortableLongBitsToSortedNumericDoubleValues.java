@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.NumericUtils;
 
 /**
  * {@link SortedNumericDoubleValues} instance that wraps a {@link SortedNumericDocValues}
@@ -42,7 +42,7 @@ final class SortableLongBitsToSortedNumericDoubleValues extends SortedNumericDou
 
     @Override
     public double valueAt(int index) {
-        return LegacyNumericUtils.sortableLongToDouble(values.valueAt(index));
+        return NumericUtils.sortableLongToDouble(values.valueAt(index));
     }
 
     @Override

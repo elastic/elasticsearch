@@ -26,8 +26,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -518,13 +518,13 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
                 double dval=Double.parseDouble(val.utf8ToString());
-                result.addAccept( LegacyNumericUtils.doubleToSortableLong(dval));
+                result.addAccept(NumericUtils.doubleToSortableLong(dval));
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
                 double dval=Double.parseDouble(val.utf8ToString());
-                result.addReject( LegacyNumericUtils.doubleToSortableLong(dval));
+                result.addReject(NumericUtils.doubleToSortableLong(dval));
             }
         }
         return result;

@@ -30,7 +30,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -61,7 +61,7 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override
     protected IndexableField createField(String name, int value) {
-        return new SortedNumericDocValuesField(name, LegacyNumericUtils.floatToSortableInt(value));
+        return new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value));
     }
 
     protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {

@@ -26,7 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -194,7 +194,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
         @Override
         public double get(int docID) {
-            return LegacyNumericUtils.sortableIntToFloat((int) in.get(docID));
+            return NumericUtils.sortableIntToFloat((int) in.get(docID));
         }
     }
 
@@ -215,7 +215,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
         @Override
         public double valueAt(int index) {
-            return LegacyNumericUtils.sortableIntToFloat((int) in.valueAt(index));
+            return NumericUtils.sortableIntToFloat((int) in.valueAt(index));
         }
 
         @Override

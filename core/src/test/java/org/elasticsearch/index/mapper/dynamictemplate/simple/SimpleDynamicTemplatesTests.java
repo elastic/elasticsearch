@@ -45,7 +45,7 @@ public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject().startObject("person").startArray("dynamic_templates").startObject().startObject("test")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("index", "no").endObject()
+                .startObject("mapping").field("index", false).endObject()
                 .endObject().endObject().endArray().endObject().endObject();
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("person").setSource(builder.string()).get();

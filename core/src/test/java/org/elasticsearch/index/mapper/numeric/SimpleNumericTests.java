@@ -40,7 +40,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -111,10 +111,10 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
-        assertThat(mapper, instanceOf(StringFieldMapper.class));
+        assertThat(mapper, instanceOf(TextFieldMapper.class));
 
         mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
-        assertThat(mapper, instanceOf(StringFieldMapper.class));
+        assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testIgnoreMalformedOption() throws Exception {

@@ -113,55 +113,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
     }
 
-    public void testPlainHighlighterWithLongUnanalyzedStringTerm() throws IOException {
-        XContentBuilder mappings = jsonBuilder();
-        mappings.startObject();
-        mappings.startObject("type")
-                .startObject("properties")
-                .startObject("long_text")
-                .field("type", "string")
-                .field("analyzer", "keyword")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .field("ignore_above", 1)
-                .endObject()
-                .startObject("text")
-                .field("type", "text")
-                .field("analyzer", "keyword")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .endObject()
-                .endObject()
-                .endObject();
-        mappings.endObject();
-        assertAcked(prepareCreate("test")
-                .addMapping("type", mappings));
-        ensureYellow();
-        // crate a term that is larger than the allowed 32766, index it and then try highlight on it
-        // the search request should still succeed
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < 32767; i++) {
-            builder.append('a');
-        }
-        client().prepareIndex("test", "type", "1")
-                .setSource(jsonBuilder().startObject().field("long_text", builder.toString()).field("text", "text").endObject())
-                .get();
-        refresh();
-        String highlighter = randomFrom("plain", "postings", "fvh");
-        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text")))
-                .highlighter(new HighlightBuilder().field(new Field("*").highlighterType(highlighter))).get();
-        assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text")))
-                .highlighter(new HighlightBuilder().field(new Field("long_text").highlighterType(highlighter))).get();
-        assertNoFailures(search);
-        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
-
-        search = client().prepareSearch().setQuery(prefixQuery("text", "te"))
-                .highlighter(new HighlightBuilder().field(new Field("long_text").highlighterType(highlighter))).get();
-        assertNoFailures(search);
-        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
-    }
-
     public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
@@ -2526,7 +2477,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
             //generating text with word to highlight in a different position
-            //(https://github.com/elasticsearch/elasticsearch/issues/4103)
+            //(https://github.com/elastic/elasticsearch/issues/4103)
             String prefix = randomAsciiOfLengthBetween(5, 30);
             prefixes.put(String.valueOf(i), prefix);
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix

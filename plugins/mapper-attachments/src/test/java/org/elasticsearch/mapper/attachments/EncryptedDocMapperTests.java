@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
+ * Test for https://github.com/elastic/elasticsearch-mapper-attachments/issues/18
  * Note that we have converted /org/elasticsearch/index/mapper/xcontent/testContentLength.txt
  * to a /org/elasticsearch/index/mapper/xcontent/encrypted.pdf with password `12345678`.
  */

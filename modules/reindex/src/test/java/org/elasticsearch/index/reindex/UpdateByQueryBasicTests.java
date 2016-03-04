@@ -94,7 +94,7 @@ public class UpdateByQueryBasicTests extends UpdateByQueryTestCase {
 
         // Now make foo searchable
         assertAcked(client().admin().indices().preparePutMapping("test").setType("test")
-                .setSource("{\"test\": {\"properties\":{\"foo\": {\"type\": \"string\"}}}}"));
+                .setSource("{\"test\": {\"properties\":{\"foo\": {\"type\": \"text\"}}}}"));
         UpdateByQueryRequestBuilder update = request().source("test");
         if (refresh != null) {
             update.refresh(refresh);

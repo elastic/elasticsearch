@@ -366,7 +366,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    // related to https://github.com/elasticsearch/elasticsearch/issues/5864
+    // related to https://github.com/elastic/elasticsearch/issues/5864
     public void testMistypedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
         try {
@@ -378,7 +378,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     public void testMisplacedMappingAsRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
         try {
@@ -390,7 +390,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     // test that RootObjectMapping still works
     public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -404,7 +404,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         parser.parse("test", new CompressedXContent(mapping));
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     public void testMetadataMappersStillWorking() throws MapperParsingException, IOException {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();

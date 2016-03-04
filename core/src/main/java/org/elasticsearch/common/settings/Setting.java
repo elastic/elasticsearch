@@ -119,12 +119,7 @@ public class Setting<T> extends ToXContentToBytes {
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
-        if (properties.length == 0) {
-            this.properties = EnumSet.of(Property.NodeScope);
-        } else {
-            this.properties = EnumSet.copyOf(Arrays.asList(properties));
-        }
-        // We validate scope settings. They are mutually exclusive
+        // We validate scope settings. We should have one and only one.
         int numScopes = 0;
         for (Property property : properties) {
             if (property == Property.NodeScope ||
@@ -132,9 +127,10 @@ public class Setting<T> extends ToXContentToBytes {
                 numScopes++;
             }
         }
-        if (numScopes > 1) {
-            throw new IllegalArgumentException("More than one scope has been added to the setting [" + key + "]");
+        if (numScopes != 1) {
+            throw new IllegalArgumentException("Zero or more than one scope has been added to the setting [" + key + "]");
         }
+        this.properties = EnumSet.copyOf(Arrays.asList(properties));
     }
 
     /**

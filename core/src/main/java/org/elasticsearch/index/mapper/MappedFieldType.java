@@ -32,7 +32,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -398,7 +400,12 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query termQuery(Object value, @Nullable QueryShardContext context) {
-        return new TermQuery(createTerm(value));
+        TermQuery query = new TermQuery(createTerm(value));
+        if (boost == 1f ||
+            (context != null && context.indexVersionCreated().before(Version.V_5_0_0))) {
+            return query;
+        }
+        return new BoostQuery(query, boost);
     }
 
     public Query termsQuery(List values, @Nullable QueryShardContext context) {

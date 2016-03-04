@@ -317,7 +317,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
-            field.setBoost(valueAndBoost.boost());
+            if (valueAndBoost.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                field.setBoost(valueAndBoost.boost());
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {

@@ -98,7 +98,6 @@ class DocumentParser implements Closeable {
         }
 
         reverseOrder(context);
-        applyDocBoost(context);
 
         ParsedDocument doc = parsedDocument(source, context, update(context, mapping));
         // reset the context to free up memory
@@ -183,24 +182,6 @@ class DocumentParser implements Closeable {
         // reverse the order of docs for nested docs support, parent should be last
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
-        }
-    }
-
-    private static void applyDocBoost(ParseContext.InternalParseContext context) {
-        // apply doc boost
-        if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = new HashSet<>();
-            for (ParseContext.Document doc : context.docs()) {
-                encounteredFields.clear();
-                for (IndexableField field : doc) {
-                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
-                        if (!encounteredFields.contains(field.name())) {
-                            ((Field) field).setBoost(context.docBoost() * field.boost());
-                            encounteredFields.add(field.name());
-                        }
-                    }
-                }
-            }
         }
     }
 

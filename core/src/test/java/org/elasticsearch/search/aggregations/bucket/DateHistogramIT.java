@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -44,7 +45,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -128,8 +131,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
-                ScriptMocks.ExtractFieldScriptPlugin.class,
-                ScriptMocks.FieldValueScriptPlugin.class);
+                DateScriptsMockPlugin.class);
     }
 
     @After
@@ -452,10 +454,12 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")
-                        .script(new Script("", ScriptType.INLINE, ScriptMocks.FieldValueScriptEngine.NAME, null))
+                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -586,10 +590,12 @@ public class DateHistogramIT extends ESIntegTestCase {
      * doc 6: [ Apr 23, May 24]
      */
     public void testMultiValuedFieldWithValueScript() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script("", ScriptType.INLINE, ScriptMocks.FieldValueScriptEngine.NAME, null))
+                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -638,8 +644,11 @@ public class DateHistogramIT extends ESIntegTestCase {
      * Mar 23
      */
     public void testScriptSingleValue() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script("date", ScriptType.INLINE, ScriptMocks.ExtractFieldScriptEngine.NAME, null)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
+                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -673,8 +682,11 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     public void testScriptMultiValued() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script("dates", ScriptType.INLINE, ScriptMocks.ExtractFieldScriptEngine.NAME, null)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
+                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);

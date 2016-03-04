@@ -26,6 +26,8 @@ import org.joda.time.DateTimeZone;
 
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorBuilder> {
 
+    private final static String[] timeZoneIds = DateTimeZone.getAvailableIDs().toArray(new String[DateTimeZone.getAvailableIDs().size()]);
+
     @Override
     protected DateRangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
@@ -58,7 +60,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorB
             factory.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            factory.timeZone(DateTimeZone.forOffsetHours(randomIntBetween(-23, 23)));
+            factory.timeZone(DateTimeZone.forID(randomFrom(timeZoneIds)));
         }
         return factory;
     }

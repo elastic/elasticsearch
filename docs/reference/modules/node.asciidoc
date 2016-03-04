@@ -27,23 +27,21 @@ the cluster.
 A node that has `node.data` set to `true` (default). Data nodes hold data and
 perform data related operations such as CRUD, search, and aggregations.
 
-<<client-node,Client node>>::
+<<ingest,Ingest node>>::
 
-A client node has both `node.master` and `node.data` set to `false`. It can
-neither hold data nor become the master node.  It behaves as a ``smart
-router'' and is used to forward cluster-level requests to the master node and
-data-related requests (such as search) to the appropriate data nodes.
+A node that has `node.ingest` set to `true` (default). Ingest nodes can be
+used to pre-process documents before the actual indexing takes place.
 
 <<modules-tribe,Tribe node>>::
 
 A tribe node, configured via the `tribe.*` settings, is a special type  of
-client node that can connect to multiple clusters and perform search and other
-operations across all connected clusters.
+coordinating only node that can connect to multiple clusters and perform
+search and other operations across all connected clusters.
 
-By default a node is both a master-eligible node and a data node. This is very
-convenient for small clusters but, as the cluster grows, it becomes important
-to consider separating dedicated master-eligible nodes from dedicated data
-nodes.
+By default a node is a master-eligible node and a data node, plus it can
+pre-process documents through ingest pipelines. This is very convenient for
+small clusters but, as the cluster grows, it becomes important to consider
+separating dedicated master-eligible nodes from dedicated data nodes.
 
 [NOTE]
 [[coordinating-node]]
@@ -61,8 +59,11 @@ returns its results to the coordinating node. In the _gather_  phase, the
 coordinating node reduces each data node's results into a single global
 resultset.
 
-This means that a _client_ node needs to have enough memory and CPU in order to
-deal with the gather phase.
+Every node is implicitly a coordinating node. This means that a node that has
+all three `node.master`, `node.data` and `node.ingest` set to `false` will
+only act as a coordinating node, which cannot be disabled. As a result, such
+a node needs to have enough memory and CPU in order to deal with the gather
+phase.
 
 ===============================================
 
@@ -96,9 +97,11 @@ To create a standalone master-eligible node, set:
 -------------------
 node.master: true <1>
 node.data: false <2>
+node.ingest: false <3>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
+<3> Disable the `node.ingest` role (enabled by default).
 
 [float]
 [[split-brain]]
@@ -177,40 +180,65 @@ To create a dedicated data node, set:
 -------------------
 node.master: false <1>
 node.data: true <2>
+node.ingest: false <3>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
+<3> Disable the `node.ingest` role (enabled by default).
 
 [float]
-[[client-node]]
-=== Client Node
+[[node-ingest-node]]
+=== Ingest Node
 
-If you take away the ability to be able to handle master duties and take away
-the ability to hold data, then you are left with a _client_ node that can only
-route requests, handle the search reduce phase, and distribute bulk indexing.
-Essentially, client nodes behave as smart load balancers.
+Ingest nodes can execute pre-processing pipelines, composed of one or more
+ingest processors. Depending on the type of operations performed by the ingest
+processors and the required resources, it may make sense to have dedicated
+ingest nodes, that will only perform this specific task.
 
-Standalone client nodes can benefit large clusters by offloading the
-coordinating node role from data and master-eligible nodes.  Client nodes join
-the cluster and receive the full <<cluster-state,cluster state>>, like every
-other node, and they use the cluster state to route requests directly to the
-appropriate place(s).
-
-WARNING: Adding too many client nodes to a cluster can increase the burden on
-the entire cluster because the elected master node must await acknowledgement
-of cluster state updates from every node! The benefit of client nodes should
-not be overstated -- data nodes can happily serve the same purpose as client
-nodes.
-
-To create a deciated client node, set:
+To create a dedicated ingest node, set:
 
 [source,yaml]
 -------------------
 node.master: false <1>
 node.data: false <2>
+node.ingest: true <3>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
+<3> The `node.ingest` role is enabled by default.
+
+[float]
+[[coordinating-only-node]]
+=== Coordinating only node
+
+If you take away the ability to be able to handle master duties, to hold data,
+and pre-process documents, then you are left with a _coordinating_ node that
+can only route requests, handle the search reduce phase, and distribute bulk
+indexing. Essentially, coordinating only nodes behave as smart load balancers.
+
+Coordinating only nodes can benefit large clusters by offloading the
+coordinating node role from data and master-eligible nodes.  They join the
+cluster and receive the full <<cluster-state,cluster state>>, like every other
+node, and they use the cluster state to route requests directly to the
+appropriate place(s).
+
+WARNING: Adding too many coordinating only nodes to a cluster can increase the
+burden on the entire cluster because the elected master node must await
+acknowledgement of cluster state updates from every node! The benefit of
+coordinating only nodes should not be overstated -- data nodes can happily
+serve the same purpose.
+
+To create a coordinating only node, set:
+
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: false <2>
+node.ingest: false <3>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> Disable the `node.data` role (enabled by default).
+<3> Disable the `node.ingest` role (enabled by default).
 
 [float]
 == Node data path settings
@@ -259,7 +287,7 @@ setting to the `elasticsearch.yml` config file:
 node.max_local_storage_nodes: 1
 ------------------------------
 
-WARNING: Never run different node types (i.e. master, data, client) from the
+WARNING: Never run different node types (i.e. master, data) from the
 same data directory. This can lead to unexpected data loss.
 
 [float]

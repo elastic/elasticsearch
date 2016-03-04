@@ -56,7 +56,7 @@ public abstract class Command {
             options = parser.parse(args);
         } catch (OptionException e) {
             printHelp(terminal);
-            terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            terminal.println("ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
         }
 
@@ -69,7 +69,7 @@ public abstract class Command {
             if (options.has(verboseOption)) {
                 // mutually exclusive, we can remove this with jopt-simple 5.0, which natively supports it
                 printHelp(terminal);
-                terminal.println(Terminal.Verbosity.SILENT, "ERROR: Cannot specify -s and -v together");
+                terminal.println("ERROR: Cannot specify -s and -v together");
                 return ExitCodes.USAGE;
             }
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
@@ -81,6 +81,10 @@ public abstract class Command {
 
         try {
             return execute(terminal, options);
+        } catch (OptionException e) {
+            printHelp(terminal);
+            terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            return ExitCodes.USAGE;
         } catch (UserError e) {
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return e.exitCode;

@@ -92,10 +92,10 @@ Will return, for example:
    "nodes": {
       "count": {
          "total": 2,
-         "master_only": 0,
-         "data_only": 0,
-         "master_data": 2,
-         "client": 0
+         "master": 2,
+         "data": 2,
+         "ingest": 2,
+         "coordinating_only": 0
       },
       "versions": [
          "{version}"

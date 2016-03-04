@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -34,6 +35,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -43,12 +46,9 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public class ClusterStatsIT extends ESIntegTestCase {
 
-    private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
-        assertThat(counts.getTotal(), Matchers.equalTo(total));
-        assertThat(counts.getMasterOnly(), Matchers.equalTo(masterOnly));
-        assertThat(counts.getDataOnly(), Matchers.equalTo(dataOnly));
-        assertThat(counts.getMasterData(), Matchers.equalTo(masterData));
-        assertThat(counts.getClient(), Matchers.equalTo(client));
+    private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
+        assertThat(counts.getTotal(), equalTo(total));
+        assertThat(counts.getRoles(), equalTo(roles));
     }
 
     private void waitForNodes(int numNodes) {
@@ -58,25 +58,53 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testNodeCounts() {
+        int total = 1;
+        Map<String, Integer> expectedCounts = new HashMap<>();
+        expectedCounts.put(DiscoveryNode.Role.DATA.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.Role.MASTER.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.Role.INGEST.getRoleName(), 1);
+        expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
+        int numNodes = randomIntBetween(1, 5);
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
+        assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
-        waitForNodes(2);
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
+        for (int i = 0; i < numNodes; i++) {
+            boolean isDataNode = randomBoolean();
+            boolean isMasterNode = randomBoolean();
+            boolean isIngestNode = randomBoolean();
+            Settings settings = Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
+                    .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode).put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
+                    .build();
+            internalCluster().startNode(settings);
+            total++;
+            waitForNodes(total);
 
-        internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
-        waitForNodes(3);
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
+            if (isDataNode) {
+                incrementCountForRole(DiscoveryNode.Role.DATA.getRoleName(), expectedCounts);
+            }
+            if (isMasterNode) {
+                incrementCountForRole(DiscoveryNode.Role.MASTER.getRoleName(), expectedCounts);
+            }
+            if (isIngestNode) {
+                incrementCountForRole(DiscoveryNode.Role.INGEST.getRoleName(), expectedCounts);
+            }
+            if (!isDataNode && !isMasterNode && !isIngestNode) {
+                incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
+            }
 
-        internalCluster().startNode(Settings.builder().put(Node.NODE_CLIENT_SETTING.getKey(), true));
-        waitForNodes(4);
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
+            response = client().admin().cluster().prepareClusterStats().get();
+            assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
+        }
     }
 
+    private static void incrementCountForRole(String role, Map<String, Integer> counts) {
+        Integer count = counts.get(role);
+        if (count == null) {
+            counts.put(role, 1);
+        } else {
+            counts.put(role, ++count);
+        }
+    }
 
     private void assertShardStats(ClusterStatsIndices.ShardStats stats, int indices, int total, int primaries, double replicationFactor) {
         assertThat(stats.getIndices(), Matchers.equalTo(indices));

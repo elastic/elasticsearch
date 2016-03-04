@@ -41,7 +41,9 @@ import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class ClusterStatsNodes implements ToXContent, Streamable {
@@ -213,25 +215,29 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
     }
 
     public static class Counts implements Streamable, ToXContent {
-        int total;
-        int masterOnly;
-        int dataOnly;
-        int masterData;
-        int client;
+        static final String COORDINATING_ONLY = "coordinating_only";
+
+        private int total;
+        private Map<String, Integer> roles;
+
+        Counts() {
+            roles = new HashMap<>();
+            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
+                roles.put(role.getRoleName(), 0);
+            }
+            roles.put(COORDINATING_ONLY, 0);
+        }
 
         public void addNodeInfo(NodeInfo nodeInfo) {
             total++;
-            DiscoveryNode node = nodeInfo.getNode();
-            if (node.masterNode()) {
-                if (node.dataNode()) {
-                    masterData++;
-                } else {
-                    masterOnly++;
+            if (nodeInfo.getNode().getRoles().size() == 0) {
+                Integer count = roles.get(COORDINATING_ONLY);
+                roles.put(COORDINATING_ONLY, ++count);
+            } else {
+                for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
+                    Integer count = roles.get(role.getRoleName());
+                    roles.put(role.getRoleName(), ++count);
                 }
-            } else if (node.dataNode()) {
-                dataOnly++;
-            } else if (node.clientNode()) {
-                client++;
             }
         }
 
@@ -239,20 +245,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             return total;
         }
 
-        public int getMasterOnly() {
-            return masterOnly;
-        }
-
-        public int getDataOnly() {
-            return dataOnly;
-        }
-
-        public int getMasterData() {
-            return masterData;
-        }
-
-        public int getClient() {
-            return client;
+        public Map<String, Integer> getRoles() {
+            return roles;
         }
 
         public static Counts readCounts(StreamInput in) throws IOException {
@@ -262,38 +256,28 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public void readFrom(StreamInput in) throws IOException {
             total = in.readVInt();
-            masterOnly = in.readVInt();
-            dataOnly = in.readVInt();
-            masterData = in.readVInt();
-            client = in.readVInt();
+            roles = (Map<String, Integer>)in.readGenericValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
-            out.writeVInt(masterOnly);
-            out.writeVInt(dataOnly);
-            out.writeVInt(masterData);
-            out.writeVInt(client);
+            out.writeGenericValue(roles);
         }
 
         static final class Fields {
             static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString MASTER_ONLY = new XContentBuilderString("master_only");
-            static final XContentBuilderString DATA_ONLY = new XContentBuilderString("data_only");
-            static final XContentBuilderString MASTER_DATA = new XContentBuilderString("master_data");
-            static final XContentBuilderString CLIENT = new XContentBuilderString("client");
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.TOTAL, total);
-            builder.field(Fields.MASTER_ONLY, masterOnly);
-            builder.field(Fields.DATA_ONLY, dataOnly);
-            builder.field(Fields.MASTER_DATA, masterData);
-            builder.field(Fields.CLIENT, client);
+            for (Map.Entry<String, Integer> entry : roles.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
             return builder;
         }
     }

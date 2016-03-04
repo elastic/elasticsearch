@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.io.GeohashUtils;
-import com.spatial4j.core.shape.Rectangle;
+import org.locationtech.spatial4j.io.GeohashUtils;
+import org.locationtech.spatial4j.shape.Rectangle;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;

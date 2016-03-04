@@ -72,7 +72,7 @@ dependencies {
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
 
   // lucene spatial
-  compile "com.spatial4j:spatial4j:${versions.spatial4j}", optional
+  compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
   compile "com.vividsolutions:jts:${versions.jts}", optional
 
   // logging
@@ -211,7 +211,7 @@ thirdPartyAudit.excludes = [
   'org.jboss.marshalling.MarshallingConfiguration', 
   'org.jboss.marshalling.Unmarshaller', 
 
-  // from com.spatial4j.core.io.GeoJSONReader (spatial4j)
+  // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser', 
 
   // from org.jboss.netty.container.osgi.NettyBundleActivator (netty)

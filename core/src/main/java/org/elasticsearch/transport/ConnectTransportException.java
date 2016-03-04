@@ -61,7 +61,12 @@ public class ConnectTransportException extends ActionTransportException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(node);
+        if (node == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            node.writeTo(out);
+        }
     }
 
     public DiscoveryNode node() {

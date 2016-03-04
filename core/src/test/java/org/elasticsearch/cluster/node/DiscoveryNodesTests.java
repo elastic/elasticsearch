@@ -104,12 +104,8 @@ public class DiscoveryNodesTests extends ESTestCase {
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
-            if (randomBoolean()) {
-                attributes.put("master", Boolean.toString(randomBoolean()));
-                attributes.put("data", Boolean.toString(randomBoolean()));
-                attributes.put("ingest", Boolean.toString(randomBoolean()));
-            } else {
-                attributes.put("client", "true");
+            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
+                attributes.put(role.getRoleName(), Boolean.toString(randomBoolean()));
             }
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
@@ -138,21 +134,28 @@ public class DiscoveryNodesTests extends ESTestCase {
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 return Collections.singleton(nodes.masterNodeId());
             }
-        }, MASTER_ELIGIBLE("master:true") {
+        }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, DATA("data:true") {
+        }, DATA(DiscoveryNode.Role.DATA.getRoleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getDataNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, CUSTOM_ATTRIBUTE("attr:value") {
+        }, INGEST(DiscoveryNode.Role.INGEST.getRoleName() + ":true") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getIngestNodes().keysIt().forEachRemaining(ids::add);
+                return ids;
+            }
+        },CUSTOM_ATTRIBUTE("attr:value") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();

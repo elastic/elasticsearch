@@ -123,12 +123,8 @@ public class TransportNodesActionTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
-            if (randomBoolean()) {
-                attributes.put("master", Boolean.toString(randomBoolean()));
-                attributes.put("data", Boolean.toString(randomBoolean()));
-                attributes.put("ingest", Boolean.toString(randomBoolean()));
-            } else {
-                attributes.put("client", "true");
+            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
+                attributes.put(role.getRoleName(), Boolean.toString(randomBoolean()));
             }
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));

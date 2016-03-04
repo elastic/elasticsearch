@@ -313,8 +313,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     // Create a new DiscoveryNode
     private static DiscoveryNode newNode(final String nodeId, boolean isMasterEligible, boolean isData) {
         final Map<String, String> attributes = MapBuilder.<String, String>newMapBuilder()
-                                                   .put(DiscoveryNode.MASTER_ATTR, isMasterEligible ? "true" : "false")
-                                                   .put(DiscoveryNode.DATA_ATTR, isData ? "true": "false")
+                                                   .put(DiscoveryNode.Role.MASTER.getRoleName(), isMasterEligible ? "true" : "false")
+                                                   .put(DiscoveryNode.Role.DATA.getRoleName(), isData ? "true": "false")
                                                    .immutableMap();
         return new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
     }

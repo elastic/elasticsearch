@@ -53,9 +53,9 @@ public class DiscoveryNodeService extends AbstractComponent {
                 + ", " + Node.NODE_DATA_SETTING.getKey() + " and " + Node.NODE_INGEST_SETTING.getKey() + " explicitly instead");
         }
         //nocommit why don't we remove master as well if it's true? and ingest?
-        if (attributes.containsKey("data")) {
-            if (attributes.get("data").equals("true")) {
-                attributes.remove("data");
+        if (attributes.containsKey(DiscoveryNode.Role.DATA.getRoleName())) {
+            if (attributes.get(DiscoveryNode.Role.DATA.getRoleName()).equals("true")) {
+                attributes.remove(DiscoveryNode.Role.DATA.getRoleName());
             }
         }
 

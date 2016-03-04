@@ -45,7 +45,8 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
             Object resp = nodesResponses.get(i);
             if (resp instanceof ClearRolesCacheResponse.Node) {
                 responses.add((ClearRolesCacheResponse.Node) resp);
-            } else {
+            } else if (resp == null) {
+                // null is possible if there is an error and we do not accumulate exceptions...
                 throw new IllegalArgumentException("node response [" + resp.getClass() + "] is not the correct type");
             }
         }

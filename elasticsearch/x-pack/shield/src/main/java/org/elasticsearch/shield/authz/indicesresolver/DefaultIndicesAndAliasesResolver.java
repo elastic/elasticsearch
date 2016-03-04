@@ -166,6 +166,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData,
                                                                List<String> authorizedIndices) {
 
+        // check for all and return list of authorized indices
         if (IndexNameExpressionResolver.isAllIndices(indicesList(indices))) {
             List<String> visibleIndices = new ArrayList<>();
             for (String authorizedIndex : authorizedIndices) {

@@ -6,6 +6,8 @@
 package org.elasticsearch.shield.authz.indicesresolver;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -20,31 +22,45 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.XPackUser;
+import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.authc.AnonymousService;
+import org.elasticsearch.shield.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.shield.authz.InternalAuthorizationService;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
+import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DefaultIndicesResolverTests extends ESTestCase {
+
     private User user;
     private User userNoIndices;
+    private RolesStore rolesStore;
     private MetaData metaData;
     private DefaultIndicesAndAliasesResolver defaultIndicesResolver;
 
@@ -66,35 +82,23 @@ public class DefaultIndicesResolverTests extends ESTestCase {
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")).settings(settings))
                 .put(indexBuilder("bar").settings(settings))
                 .put(indexBuilder("bar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
-                .put(indexBuilder("bar2").settings(settings));
+                .put(indexBuilder("bar2").settings(settings))
+                .put(indexBuilder(ShieldTemplateService.SECURITY_INDEX_NAME).settings(settings));
         metaData = mdBuilder.build();
 
-        AuthorizationService authzService = mock(AuthorizationService.class);
         user = new User("user", "role");
-
-        String[] authorizedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
-        when(authzService.authorizedIndicesAndAliases(user, SearchAction.NAME))
-                .thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
-        when(authzService.authorizedIndicesAndAliases(user, MultiSearchAction.NAME))
-                .thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
-        when(authzService.authorizedIndicesAndAliases(user, MultiGetAction.NAME))
-                .thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
-        when(authzService.authorizedIndicesAndAliases(user, IndicesAliasesAction.NAME))
-                .thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
-        when(authzService.authorizedIndicesAndAliases(user, GetAliasesAction.NAME))
-                .thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
-        when(authzService.authorizedIndicesAndAliases(user, DeleteIndexAction.NAME))
-                .thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
         userNoIndices = new User("test", "test");
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, IndicesAliasesAction.NAME))
-                .thenReturn(Collections.<String>emptyList());
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, GetAliasesAction.NAME))
-                .thenReturn(Collections.<String>emptyList());
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, SearchAction.NAME))
-                .thenReturn(Collections.<String>emptyList());
-        when(authzService.authorizedIndicesAndAliases(userNoIndices, MultiSearchAction.NAME))
-                .thenReturn(Collections.<String>emptyList());
+        rolesStore = mock(RolesStore.class);
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed" };
+        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        when(rolesStore.role("test")).thenReturn(Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(metaData);
 
+        InternalAuthorizationService authzService = new InternalAuthorizationService(settings, rolesStore, clusterService,
+                mock(AuditTrail.class), new AnonymousService(settings), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class));
         defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService);
     }
 
@@ -104,8 +108,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveEmptyIndicesExpandWilcardsOpen() {
@@ -114,8 +119,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveAllExpandWilcardsOpenAndClosed() {
@@ -124,8 +130,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveAllExpandWilcardsOpen() {
@@ -134,8 +141,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveWildcardsExpandWilcardsOpenAndClosed() {
@@ -144,8 +152,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveWildcardsExpandWilcardsOpen() {
@@ -154,8 +163,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveWildcardsMinusExpandWilcardsOpen() {
@@ -164,8 +174,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveWildcardsMinusExpandWilcardsOpenAndClosed() {
@@ -174,8 +185,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "bar-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpen() {
@@ -184,8 +196,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "barbaz"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosed() {
@@ -194,8 +207,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "bar-closed", "barbaz"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContaining(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
     public void testResolveNonMatchingIndices() {
@@ -223,6 +237,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] expectedIndices = new String[]{"bar", "missing"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), equalTo(expectedIndices));
     }
@@ -253,10 +268,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"alias1", "alias2", "foo", "foofoo", "foobar"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foo", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("alias1"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("foo", "foobar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("foo", "foobar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
     public void testResolveIndicesAliasesRequestExistingAlias() {
@@ -268,10 +283,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"alias1", "foofoobar", "foo", "foofoo", "foobar"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foo", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("alias1"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("foo", "foobar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("foo", "foobar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
     public void testResolveIndicesAliasesRequestMissingIndex() {
@@ -283,10 +298,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"alias1", "alias2", "foo", "foofoo", "missing"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foo", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("alias1"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("missing"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("missing"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
     public void testResolveWildcardsIndicesAliasesRequest() {
@@ -299,10 +314,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("alias1"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("bar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
     public void testResolveWildcardsIndicesAliasesRequestNoMatchingIndices() {
@@ -330,10 +345,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
         //_all gets replaced with all indices that user is authorized for, on each single action
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining(replacedIndices));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("alias1"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining(replacedIndices));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
     public void testResolveAllIndicesAliasesRequestNoAuthorizedIndices() {
@@ -369,10 +384,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"foo", "foofoobar", "foofoo", "barbaz"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("foofoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("barbaz"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("foofoo"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("barbaz"));
     }
 
     public void testResolveIndicesAliasesRequestDeleteActionsMissingIndex() {
@@ -384,10 +399,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"foo", "foofoobar", "missing_index", "missing_alias"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("missing_index"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("missing_alias"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("missing_index"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("missing_alias"));
     }
 
     public void testResolveWildcardsIndicesAliasesRequestDeleteActions() {
@@ -400,10 +415,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced within each single action
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("bar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("barbaz"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("barbaz"));
     }
 
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActions() {
@@ -418,10 +433,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("bar", "foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("bar", "foofoobar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar", "foofoobar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
     public void testResolveAllAliasesWildcardsIndicesAliasesRequestDeleteActions() {
@@ -436,10 +451,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("bar", "foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("bar", "foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar", "explicit"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "explicit"));
     }
 
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
@@ -465,10 +480,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //every single action has its indices replaced with matching (authorized) ones
-        assertThat(request.getAliasActions().get(0).indices(), arrayContaining("foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContaining("foofoobar"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContaining("bar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
     public void testResolveGetAliasesRequest() {
@@ -478,8 +493,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"alias1", "foo", "foofoo"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContaining("foo", "foofoo"));
-        assertThat(request.aliases(), arrayContaining("alias1"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
     public void testResolveGetAliasesRequestMissingIndex() {
@@ -491,8 +506,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"alias2", "missing"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContaining("missing"));
-        assertThat(request.aliases(), arrayContaining("alias2"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
     public void testResolveWildcardsGetAliasesRequest() {
@@ -505,8 +520,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
-        assertThat(request.indices(), arrayContaining("foofoobar", "foofoo", "foofoo-closed"));
-        assertThat(request.aliases(), arrayContaining("alias1"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo", "foofoo-closed"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
     public void testResolveWildcardsGetAliasesRequestNoMatchingIndices() {
@@ -536,8 +551,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContaining(replacedIndices));
-        assertThat(request.aliases(), arrayContaining("alias1"));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
     public void testResolveAllGetAliasesRequestExpandWildcardsOpenOnly() {
@@ -556,8 +571,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContaining(replacedIndices));
-        assertThat(request.aliases(), arrayContaining("alias1"));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
     public void testResolveAllGetAliasesRequestNoAuthorizedIndices() {
@@ -600,8 +615,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContaining(expectedIndices));
-        assertThat(request.aliases(), arrayContaining("foofoobar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
     public void testResolveAllAndExplicitAliasesGetAliasesRequest() {
@@ -615,8 +630,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContaining("bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"));
-        assertThat(request.aliases(), arrayContaining("foofoobar", "explicit"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "explicit"));
     }
 
     public void testResolveAllAndWildcardsAliasesGetAliasesRequest() {
@@ -630,8 +645,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContaining(expectedIndices));
-        assertThat(request.aliases(), arrayContaining("foofoobar", "foofoobar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foofoobar"));
     }
 
     public void testResolveAliasesWildcardsGetAliasesRequest() {
@@ -646,8 +661,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
-        assertThat(request.indices(), arrayContaining("bar", "foofoobar"));
-        assertThat(request.aliases(), arrayContaining("foofoobar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foofoobar"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
@@ -797,7 +812,33 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContaining(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+    }
+
+    public void testXPackUserHasAccessToSecurityIndex() {
+        SearchRequest request = new SearchRequest();
+        Set<String> indices = defaultIndicesResolver.resolve(XPackUser.INSTANCE, SearchAction.NAME, request, metaData);
+        assertThat(indices, hasItem(ShieldTemplateService.SECURITY_INDEX_NAME));
+
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        aliasesRequest.addAlias("shield_alias", "*");
+        indices = defaultIndicesResolver.resolve(XPackUser.INSTANCE, IndicesAliasesAction.NAME, aliasesRequest, metaData);
+        assertThat(indices, hasItem(ShieldTemplateService.SECURITY_INDEX_NAME));
+    }
+
+    public void testNonXPackUserAccessingSecurityIndex() {
+        User allAccessUser = new User("all_access", new String[] { "all_access" } );
+        when(rolesStore.role("all_access")).thenReturn(
+                Role.builder("all_access").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build());
+
+        SearchRequest request = new SearchRequest();
+        Set<String> indices = defaultIndicesResolver.resolve(allAccessUser, SearchAction.NAME, request, metaData);
+        assertThat(indices, not(hasItem(ShieldTemplateService.SECURITY_INDEX_NAME)));
+
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        aliasesRequest.addAlias("shield_alias1", "*");
+        indices = defaultIndicesResolver.resolve(allAccessUser, IndicesAliasesAction.NAME, aliasesRequest, metaData);
+        assertThat(indices, not(hasItem(ShieldTemplateService.SECURITY_INDEX_NAME)));
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

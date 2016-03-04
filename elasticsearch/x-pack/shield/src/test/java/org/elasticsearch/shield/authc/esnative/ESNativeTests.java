@@ -20,13 +20,10 @@ import org.elasticsearch.shield.action.user.DeleteUserResponse;
 import org.elasticsearch.shield.action.user.GetUsersResponse;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.RoleDescriptor;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.client.SecurityClient;
-import org.elasticsearch.test.ShieldIntegTestCase;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,12 +33,11 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 
 /**
  * Tests for the ESNativeUsersStore and ESNativeRolesStore
  */
-public class ESNativeTests extends ShieldIntegTestCase {
+public class ESNativeTests extends NativeRealmIntegTestCase {
 
     public void testDeletingNonexistingUserAndRole() throws Exception {
         SecurityClient c = securityClient();
@@ -389,57 +385,5 @@ public class ESNativeTests extends ShieldIntegTestCase {
                         Collections.singletonMap("Authorization",basicAuthHeaderValue("joe", new SecuredString("changeme2".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertFalse(response.isTimedOut());
-    }
-
-    @Before
-    public void ensureStoresStarted() throws Exception {
-        // Clear the realm cache for all realms since we use a SUITE scoped cluster
-        SecurityClient client = securityClient();
-        client.prepareClearRealmCache().get();
-
-        for (ESNativeUsersStore store : internalCluster().getInstances(ESNativeUsersStore.class)) {
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), is(ESNativeUsersStore.State.STARTED));
-                }
-            });
-        }
-
-        for (ESNativeRolesStore store : internalCluster().getInstances(ESNativeRolesStore.class)) {
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), is(ESNativeRolesStore.State.STARTED));
-                }
-            });
-        }
-    }
-
-    @After
-    public void stopESNativeStores() throws Exception {
-        for (ESNativeUsersStore store : internalCluster().getInstances(ESNativeUsersStore.class)) {
-            store.stop();
-            // the store may already be stopping so wait until it is stopped
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), isOneOf(ESNativeUsersStore.State.STOPPED, ESNativeUsersStore.State.FAILED));
-                }
-            });
-            store.reset();
-        }
-
-        for (ESNativeRolesStore store : internalCluster().getInstances(ESNativeRolesStore.class)) {
-            store.stop();
-            // the store may already be stopping so wait until it is stopped
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), isOneOf(ESNativeRolesStore.State.STOPPED, ESNativeRolesStore.State.FAILED));
-                }
-            });
-            store.reset();
-        }
     }
 }

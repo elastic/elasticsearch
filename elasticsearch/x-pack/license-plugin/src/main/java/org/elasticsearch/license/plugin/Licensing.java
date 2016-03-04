@@ -8,7 +8,6 @@ package org.elasticsearch.license.plugin;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -44,13 +43,8 @@ public class Licensing {
 
     @Inject
     public Licensing(Settings settings) {
-        if (DiscoveryNode.clientNode(settings)) {
-            // Enable plugin only on node clients
-            this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        } else {
-            this.isEnabled = true;
-        }
-        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+        this.transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+        isEnabled = transportClient == false;
     }
 
     public void onModule(NetworkModule module) {

@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -63,7 +64,8 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
         n = randomIntBetween(1, 2);
         logger.debug("--> starting {} client only nodes", n);
         InternalTestCluster.Async<List<String>> clientNodes = internalCluster().startNodesAsync(n,
-                settingsBuilder().put("node.client", true).build());
+                settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), false)
+                        .put(Node.NODE_INGEST_SETTING.getKey(), false).build());
         clientNodes.get();
         nodes += n;
 

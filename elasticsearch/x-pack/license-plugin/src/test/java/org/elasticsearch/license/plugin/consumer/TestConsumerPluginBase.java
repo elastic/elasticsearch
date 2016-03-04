@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin.consumer;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -21,12 +20,7 @@ public abstract class TestConsumerPluginBase extends Plugin {
     private final boolean isEnabled;
 
     public TestConsumerPluginBase(Settings settings) {
-        if (DiscoveryNode.clientNode(settings)) {
-            // Enable plugin only on node clients
-            this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        } else {
-            this.isEnabled = true;
-        }
+        this.isEnabled = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false;
     }
 
     @Override

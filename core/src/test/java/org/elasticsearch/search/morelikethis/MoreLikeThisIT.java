@@ -139,7 +139,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).id(), equalTo("2"));
 
         logger.info("Running moreLikeThis on alias with node client");
-        response = internalCluster().clientNodeClient().prepareSearch("beta").setQuery(
+        response = internalCluster().coordOnlyNodeClient().prepareSearch("beta").setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("test", "type1", "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 1L);
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));

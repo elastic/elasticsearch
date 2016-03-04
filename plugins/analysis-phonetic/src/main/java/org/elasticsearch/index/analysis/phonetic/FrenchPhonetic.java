@@ -57,7 +57,6 @@ public class FrenchPhonetic implements StringEncoder {
 
             //Trailing muted consonant
             if (MUTED_ENDED_CONSONANT.contains(c)) {
-
                 if(c != 'X'){
                     return operatePhonetic(
                             substring(acc, true, 0, acc.length() - 1),
@@ -75,8 +74,6 @@ public class FrenchPhonetic implements StringEncoder {
                         );
                     }
                 }
-
-
             }
 
         } else {
@@ -126,7 +123,7 @@ public class FrenchPhonetic implements StringEncoder {
             }
 
             //remove double consonant ex
-            if (DOUBLE_CONSONANT.contains(c) && tail.charAt(0) == c) {
+            if (isDoubleConsonnant(c, tail)) {
                 return operatePhonetic(acc, c, substring(tail, false, 1, tail.length()));
             }
 
@@ -180,11 +177,22 @@ public class FrenchPhonetic implements StringEncoder {
         return operatePhonetic(acc + c, charAt(tail, 0), substring(tail, true, 1, tail.length()));
     }
 
+    private boolean isDoubleConsonnant(Character c, String tail) {
+        return DOUBLE_CONSONANT.contains(c) && charAt(tail, 0) == c;
+    }
+
     private String replaceTwoLettersSounds(String acc, char c, String tail) {
 
         //Trailing ER, ET as 2
-        if (c == 'E' && tail.length() == 1 && (tail.charAt(0) == 'R' || tail.charAt(0) == 'T')) {
-            return acc + "2";
+        if (c == 'E' && tail.length() >= 1 && (tail.charAt(0) == 'R' || tail.charAt(0) == 'T') && !isDoubleConsonnant(tail.charAt(0), substring(tail, true, 1, tail.length()))) {
+            String encodedTail = operatePhonetic("",charAt(tail,1),substring(tail,true,2,tail.length()));
+            if(encodedTail.isEmpty()){
+                return acc + "2";
+            } else {
+                return acc + "2" + tail.charAt(0) + encodedTail;
+            }
+
+
         }
 
         // AU as O
@@ -297,6 +305,6 @@ public class FrenchPhonetic implements StringEncoder {
         if (count == len) {
             return str.toUpperCase(Locale.FRENCH);
         }
-        return new String(chars, 0, count).toUpperCase(Locale.FRENCH);
+        return new String(chars, 0, count).toUpperCase(java.util.Locale.FRENCH);
     }
 }

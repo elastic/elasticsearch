@@ -492,4 +492,29 @@ public class FrenchPhoneticTest {
         String result = frenchPhonetic.substring("ERT", false, 1, 3);
         MatcherAssert.assertThat(result, equalTo("RT"));
     }
+    @Test
+    public void testEndingERT() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("AUBERT");
+        MatcherAssert.assertThat(encode, equalTo("OB2"));
+    }
+
+    @Test
+    public void testEndingER() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("OBER");
+        MatcherAssert.assertThat(encode, equalTo("OB2"));
+    }
+    @Test
+    public void testBeginningER() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("HERTZIEN");
+        MatcherAssert.assertThat(encode, equalTo("2RTZI3"));
+    }
+    @Test
+    public void testEndindAUD() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("BADAUDS");
+        MatcherAssert.assertThat(encode, equalTo("BADO"));
+    }
 }

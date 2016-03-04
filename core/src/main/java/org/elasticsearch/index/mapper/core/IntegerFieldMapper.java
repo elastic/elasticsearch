@@ -298,7 +298,9 @@ public class IntegerFieldMapper extends NumberFieldMapper {
     protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomIntegerNumericField field = new CustomIntegerNumericField(value, fieldType());
-            field.setBoost(boost);
+            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                field.setBoost(boost);
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {

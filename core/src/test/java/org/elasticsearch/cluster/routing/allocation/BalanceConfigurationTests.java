@@ -320,7 +320,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             }
 
             @Override
-            public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public boolean moveShards(RoutingAllocation allocation) {
                 return false;
             }
 

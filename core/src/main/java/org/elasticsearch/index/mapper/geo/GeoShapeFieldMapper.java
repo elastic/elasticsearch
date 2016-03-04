@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -452,7 +453,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 return null;
             }
             for (Field field : fields) {
-                if (!customBoost()) {
+                if (!customBoost() &&
+                    fieldType.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

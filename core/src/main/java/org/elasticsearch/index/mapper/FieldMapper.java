@@ -300,7 +300,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (Field field : fields) {
                 if (!customBoost()
                         // don't set boosts eg. on dv fields
-                        && field.fieldType().indexOptions() != IndexOptions.NONE) {
+                        && field.fieldType().indexOptions() != IndexOptions.NONE
+                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

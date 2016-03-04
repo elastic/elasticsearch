@@ -384,7 +384,8 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testAdfixKeySetting() {
-        Setting<Boolean> setting = Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
+        Setting<Boolean> setting =
+            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Setting.SettingsProperty.ClusterScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));

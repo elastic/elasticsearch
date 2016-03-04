@@ -46,11 +46,13 @@ public final class AzureStorageSettings {
         TIMEOUT_KEY,
         (s) -> Storage.TIMEOUT_SETTING.get(s).toString(),
         (s) -> Setting.parseTimeValue(s, TimeValue.timeValueSeconds(-1), TIMEOUT_KEY.toString()),
-        false,
-        Setting.Scope.CLUSTER);
-    private static final Setting<String> ACCOUNT_SETTING = Setting.adfixKeySetting(Storage.PREFIX, ACCOUNT_SUFFIX, "", Function.identity(), false, Setting.Scope.CLUSTER);
-    private static final Setting<String> KEY_SETTING = Setting.adfixKeySetting(Storage.PREFIX, KEY_SUFFIX, "", Function.identity(), false, Setting.Scope.CLUSTER);
-    private static final Setting<Boolean> DEFAULT_SETTING = Setting.adfixKeySetting(Storage.PREFIX, DEFAULT_SUFFIX, "false", Boolean::valueOf, false, Setting.Scope.CLUSTER);
+        Setting.SettingsProperty.ClusterScope);
+    private static final Setting<String> ACCOUNT_SETTING =
+        Setting.adfixKeySetting(Storage.PREFIX, ACCOUNT_SUFFIX, "", Function.identity(), Setting.SettingsProperty.ClusterScope);
+    private static final Setting<String> KEY_SETTING =
+        Setting.adfixKeySetting(Storage.PREFIX, KEY_SUFFIX, "", Function.identity(), Setting.SettingsProperty.ClusterScope);
+    private static final Setting<Boolean> DEFAULT_SETTING =
+        Setting.adfixKeySetting(Storage.PREFIX, DEFAULT_SUFFIX, "false", Boolean::valueOf, Setting.SettingsProperty.ClusterScope);
 
 
     private final String name;
@@ -110,7 +112,7 @@ public final class AzureStorageSettings {
     }
 
     private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
-        Setting<Settings> storageGroupSetting = Setting.groupSetting(Storage.PREFIX, false, Setting.Scope.CLUSTER);
+        Setting<Settings> storageGroupSetting = Setting.groupSetting(Storage.PREFIX, Setting.SettingsProperty.ClusterScope);
         // ignore global timeout which has the same prefix but does not belong to any group
         Settings groups = storageGroupSetting.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
         List<AzureStorageSettings> storageSettings = new ArrayList<>();

@@ -165,11 +165,10 @@ public class Setting<T> extends ToXContentToBytes {
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true iff this setting can be dynamically updateable
-     * @param scope the scope of this setting
+     * @param properties properties for this setting like scope, filtering...
      */
-    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
-        this(new SimpleKey(key), defaultValue, parser, dynamic, scope);
+    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, SettingsProperty... properties) {
+        this(new SimpleKey(key), defaultValue, parser, properties);
     }
 
     /**
@@ -722,8 +721,9 @@ public class Setting<T> extends ToXContentToBytes {
      * can easily be added with this setting. Yet, prefix key settings don't support updaters out of the box unless
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> prefixKeySetting(String prefix, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
-        return affixKeySetting(AffixKey.withPrefix(prefix), (s) -> defaultValue, parser, dynamic, scope);
+    public static <T> Setting<T> prefixKeySetting(String prefix, String defaultValue, Function<String, T> parser,
+                                                  SettingsProperty... properties) {
+        return affixKeySetting(AffixKey.withPrefix(prefix), (s) -> defaultValue, parser, properties);
     }
 
     /**
@@ -731,12 +731,14 @@ public class Setting<T> extends ToXContentToBytes {
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, adfix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
-        return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, dynamic, scope);
+    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
+                                                 Function<String, T> parser, SettingsProperty... properties) {
+        return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, properties);
     }
 
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
-        return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, dynamic, scope);
+    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
+                                                 SettingsProperty... properties) {
+        return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
     }
 
     public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser,

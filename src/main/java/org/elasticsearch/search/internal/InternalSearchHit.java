@@ -461,9 +461,10 @@ public class InternalSearchHit implements SearchHit {
                 if (field.values().isEmpty()) {
                     continue;
                 }
-                String fieldName = field.getName();
-                if (field.isMetadataField()) {
-                    builder.field(fieldName, field.value());
+                final String fieldName = field.getName();
+                // Maybe use config to determine 0.90- or 1.0+ behavior...?
+                if (field.isMetadataField() || (field.getValues().size() == 1)) {
+                    builder.field(fieldName, field.getValue());
                 } else {
                     builder.startArray(fieldName);
                     for (Object value : field.getValues()) {

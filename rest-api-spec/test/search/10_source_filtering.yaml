@@ -79,7 +79,7 @@
         body:
           fields: [ include.field2 ]
           query: { match_all: {} }
-  - match: { hits.hits.0.fields: { include.field2 : [v2] }}
+  - match: { hits.hits.0.fields: { include.field2 : v2 }}
   - is_false:  hits.hits.0._source
 
   - do:
@@ -87,12 +87,12 @@
           body:
             fields: [ include.field2, _source ]
             query: { match_all: {} }
-  - match: { hits.hits.0.fields: { include.field2 : [v2] }}
+  - match: { hits.hits.0.fields: { include.field2 : v2 }}
   - is_true:  hits.hits.0._source
 
 
   - do:
       search:
         fielddata_fields: [ "count" ]
-  - match: { hits.hits.0.fields.count: [1] }
+  - match: { hits.hits.0.fields.count: 1 }
 

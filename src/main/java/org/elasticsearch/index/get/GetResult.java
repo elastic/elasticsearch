@@ -219,7 +219,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                     continue;
                 }
                 String fieldName = field.getName();
-                if (field.isMetadataField()) {
+                // Maybe use config to determine 0.90- or 1.0+ behavior...?
+                if (field.isMetadataField() || (field.getValues().size() == 1)) {
                     builder.field(fieldName, field.getValue());
                 } else {
                     builder.startArray(field.getName());

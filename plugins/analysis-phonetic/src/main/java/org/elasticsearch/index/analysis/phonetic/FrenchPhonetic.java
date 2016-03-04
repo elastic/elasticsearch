@@ -57,7 +57,7 @@ public class FrenchPhonetic implements StringEncoder {
 
             //Trailing muted consonant
             if (MUTED_ENDED_CONSONANT.contains(c)) {
-                if(c != 'X'){
+                if (c != 'X') {
                     return operatePhonetic(
                             substring(acc, true, 0, acc.length() - 1),
                             charAt(acc, acc.length() - 1),
@@ -66,7 +66,7 @@ public class FrenchPhonetic implements StringEncoder {
                 } else {
 
                     //1X must be pronounced
-                    if(charAt(acc, acc.length()-1)!= '1'){
+                    if (charAt(acc, acc.length() - 1) != '1') {
                         return operatePhonetic(
                                 substring(acc, true, 0, acc.length() - 1),
                                 charAt(acc, acc.length() - 1),
@@ -85,7 +85,7 @@ public class FrenchPhonetic implements StringEncoder {
                 }
             }
 
-            if(!acc.isEmpty() && VOWELS.contains(acc.charAt(acc.length() - 1)) && c == 'H'){
+            if (!acc.isEmpty() && VOWELS.contains(acc.charAt(acc.length() - 1)) && c == 'H') {
                 return operatePhonetic(acc, tail.charAt(0), substring(tail, false, 1, tail.length()));
             }
 
@@ -95,16 +95,20 @@ public class FrenchPhonetic implements StringEncoder {
             } else {
                 //C as K
                 if (c == 'C' && tail.charAt(0) != 'E' && tail.charAt(0) != 'I' && tail.charAt(0) != 'Y' && tail.charAt(0) != 'H') {
-                    return operatePhonetic(acc + 'K', tail.charAt(0), substring(tail, false, 1, tail.length()));
+                    if (!acc.isEmpty() && charAt(acc, acc.length() - 1) == 'K') {
+                        return operatePhonetic(acc, tail.charAt(0), substring(tail, true, 1, tail.length()));
+                    } else {
+                        return operatePhonetic(acc + 'K', tail.charAt(0), substring(tail, true, 1, tail.length()));
+                    }
                 }
             }
 
-            if(c == 'O' && tail.length() >= 2 && charAt(tail, 0) == 'E' && charAt(tail, 1) == 'U'){
+            if (c == 'O' && tail.length() >= 2 && charAt(tail, 0) == 'E' && charAt(tail, 1) == 'U') {
                 return operatePhonetic(acc + "8", charAt(tail, 2), substring(tail, true, 3, tail.length()));
             }
 
-            if(c == 'E' && charAt(tail, 0) == 'U'){
-                return operatePhonetic(acc +"8", charAt(tail, 1), substring(tail, true, 2, tail.length()));
+            if (c == 'E' && charAt(tail, 0) == 'U') {
+                return operatePhonetic(acc + "8", charAt(tail, 1), substring(tail, true, 2, tail.length()));
             }
 
             //G as J
@@ -154,7 +158,7 @@ public class FrenchPhonetic implements StringEncoder {
             }
 
 
-            if(c == 'T' && tail.length()>=3 && VOWELS.contains(charAt(acc, acc.length()-1)) && "ION".equals(substring(tail, false, 0, 3))){
+            if (c == 'T' && tail.length() >= 3 && VOWELS.contains(charAt(acc, acc.length() - 1)) && "ION".equals(substring(tail, false, 0, 3))) {
                 return operatePhonetic(acc + "S", charAt(tail, 0), substring(tail, false, 1, tail.length()));
             }
 
@@ -185,8 +189,8 @@ public class FrenchPhonetic implements StringEncoder {
 
         //Trailing ER, ET as 2
         if (c == 'E' && tail.length() >= 1 && (tail.charAt(0) == 'R' || tail.charAt(0) == 'T') && !isDoubleConsonnant(tail.charAt(0), substring(tail, true, 1, tail.length()))) {
-            String encodedTail = operatePhonetic("",charAt(tail,1),substring(tail,true,2,tail.length()));
-            if(encodedTail.isEmpty()){
+            String encodedTail = operatePhonetic("", charAt(tail, 1), substring(tail, true, 2, tail.length()));
+            if (encodedTail.isEmpty()) {
                 return acc + "2";
             } else {
                 return acc + "2" + tail.charAt(0) + encodedTail;
@@ -228,7 +232,7 @@ public class FrenchPhonetic implements StringEncoder {
     private String replaceAISounds(String acc, char c, String tail, Character... firstLetters) {
         if (Arrays.asList(firstLetters).contains(c) && (tail.charAt(0) == 'I' || tail.charAt(0) == 'Y')) {
             acc += "2";
-            if (tail.charAt(0) == 'Y' && tail.length() != 1 && (c !='E' || c=='E' && VOWELS.contains(tail.charAt(1)))) {
+            if (tail.charAt(0) == 'Y' && tail.length() != 1 && (c != 'E' || c == 'E' && VOWELS.contains(tail.charAt(1)))) {
                 acc += "I";
             }
             return operatePhonetic(acc, charAt(tail, 1), substring(tail, true, 2, tail.length()));

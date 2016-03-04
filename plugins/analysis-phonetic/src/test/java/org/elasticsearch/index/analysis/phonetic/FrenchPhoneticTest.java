@@ -517,4 +517,23 @@ public class FrenchPhoneticTest {
         String encode = frenchPhonetic.encode("BADAUDS");
         MatcherAssert.assertThat(encode, equalTo("BADO"));
     }
+    @Test
+    public void testEndingCCO() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("BACCO");
+        MatcherAssert.assertThat(encode,equalTo("BAKO"));
+    }
+
+    @Test
+    public void testEndingCO() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("BACO");
+        MatcherAssert.assertThat(encode, equalTo("BAKO"));
+    }
+    @Test
+    public void testEndingCOT() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("BACOT");
+        MatcherAssert.assertThat(encode, equalTo("BAKO"));
+    }
 }

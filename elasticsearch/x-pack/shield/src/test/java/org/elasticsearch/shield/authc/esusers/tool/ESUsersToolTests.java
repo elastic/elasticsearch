@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
-import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.authc.support.SecuredStringTests;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,6 +13,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -40,10 +40,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- *
- */
-public class ESUsersToolTests extends CliToolTestCase {
+public class ESUsersToolTests extends ESTestCase {
     public void testUseraddParseAllOptions() throws Exception {
         ESUsersTool tool = new ESUsersTool();
         CliTool.Command command = tool.parse("useradd", args("username -p changeme -r r1,r2,r3"));

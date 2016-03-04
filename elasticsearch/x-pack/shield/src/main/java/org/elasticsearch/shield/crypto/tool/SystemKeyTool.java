@@ -65,7 +65,6 @@ public class SystemKeyTool extends Command {
         if (keyPath == null) {
             keyPath = InternalCryptoService.resolveSystemKey(env.settings(), env);
         }
-        FileAttributesChecker attributesChecker = new FileAttributesChecker(keyPath);
 
         // write the key
         terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
@@ -80,9 +79,6 @@ public class SystemKeyTool extends Command {
             terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, "
                 + "permissions are set to owner read/write only");
         }
-
-        // check if attributes changed
-        attributesChecker.check(terminal);
     }
 
 }

@@ -151,8 +151,7 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
 
         if (fields != null) {
             for (String field : fields) {
-                assertNotNull("source must contain field [" + field + "] with a non-null value",
-                        XContentMapValues.extractValue(field, sourceFields));
+                assertSourceField(field, sourceFields);
             }
 
             // Checks that no extra fields are present
@@ -171,6 +170,11 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
             }
             assertThat("found extra field(s) " + extra, extra.size(), equalTo(0));
         }
+    }
+
+    protected void assertSourceField(String field, Map<String, Object> sourceFields) {
+        assertNotNull("source must contain field [" + field + "] with a non-null value",
+                XContentMapValues.extractValue(field, sourceFields));
     }
 
     protected static String randomMonitoringId() {

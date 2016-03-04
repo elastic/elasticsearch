@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.resolver.node;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -75,6 +76,15 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
     @Override
     protected boolean checkResolvedId() {
         return false;
+    }
+
+    @Override
+    protected void assertSourceField(String field, Map<String, Object> sourceFields) {
+        // Assertions on node stats fields that are not reported on Windows platforms
+        if (Constants.WINDOWS && field.startsWith("node_stats.os.cpu.load_average")) {
+            return;
+        }
+        super.assertSourceField(field, sourceFields);
     }
 
     public void testNodeStatsResolver() throws IOException {

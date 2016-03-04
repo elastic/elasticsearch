@@ -45,6 +45,7 @@ public class ValueSourceMustacheIT extends AbstractMustacheTestCase {
 
         valueSource = ValueSource.wrap(Arrays.asList("_value", "{{field1}}"), templateService);
         assertThat(valueSource, instanceOf(ValueSource.ListValue.class));
+        @SuppressWarnings("unchecked")
         List<String> result = (List<String>) valueSource.copyAndResolve(model);
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0), equalTo("_value"));
@@ -56,6 +57,7 @@ public class ValueSourceMustacheIT extends AbstractMustacheTestCase {
         map.put("field4", "_value");
         valueSource = ValueSource.wrap(map, templateService);
         assertThat(valueSource, instanceOf(ValueSource.MapValue.class));
+        @SuppressWarnings("unchecked")
         Map<String, Object> resultMap = (Map<String, Object>) valueSource.copyAndResolve(model);
         assertThat(resultMap.size(), equalTo(3));
         assertThat(resultMap.get("field1"), equalTo("value1"));

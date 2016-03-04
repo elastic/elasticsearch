@@ -277,7 +277,7 @@ POST /_reindex
 --------------------------------------------------
 // AUTOSENSE
 
-Reindex can also use the link:ingest.html[Ingest] feature by specifying a
+Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
 [source,js]

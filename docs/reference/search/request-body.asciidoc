@@ -165,7 +165,7 @@ include::request/explain.asciidoc[]
 
 include::request/version.asciidoc[]
 
-include::request/mapping-boost.asciidoc[]
+include::request/index-boost.asciidoc[]
 
 include::request/min-score.asciidoc[]
 

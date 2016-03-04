@@ -20,6 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> {
 
     private String username;
+    private boolean refresh = true;
 
     public DeleteUserRequest() {
     }
@@ -41,20 +42,30 @@ public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> {
         return this.username;
     }
 
+    public boolean refresh() {
+        return refresh;
+    }
+
     public void username(String username) {
         this.username = username;
+    }
+
+    public void refresh(boolean refresh) {
+        this.refresh = refresh;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         username = in.readString();
+        refresh = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
+        out.writeBoolean(refresh);
     }
 
 }

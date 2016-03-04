@@ -99,7 +99,6 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
 
     class MockServerDispatcher extends Dispatcher {
 
-        private final MockResponse OK = newResponse(200, "");
         private final MockResponse NOT_FOUND = newResponse(404, "");
 
         private final Set<String> requests = new HashSet<>();
@@ -130,7 +129,7 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
                     } catch (Exception e) {
                         return newResponse(500, e.getMessage());
                     }
-                    return OK;
+                    return newResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
                 default:
                     String[] paths = Strings.splitStringToArray(request.getPath(), '/');
 

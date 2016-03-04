@@ -34,6 +34,7 @@ import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -52,10 +53,10 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
     public void testGettingUserThatDoesntExist() throws Exception {
         SecurityClient c = securityClient();
-        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertFalse("user should not exist", resp.hasUsers());
         GetRolesResponse resp2 = c.prepareGetRoles().names("role").get();
-        assertFalse("role should not exist", resp2.isExists());
+        assertFalse("role should not exist", resp2.hasRoles());
     }
 
     public void testAddAndGetUser() throws Exception {
@@ -63,9 +64,9 @@ public class ESNativeTests extends ShieldIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3kirt".toCharArray(), "role1", "user").get();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         User joe = resp.users()[0];
         assertEquals(joe.principal(), "joe");
@@ -74,8 +75,6 @@ public class ESNativeTests extends ShieldIntegTestCase {
         logger.info("--> adding two more users");
         c.preparePutUser("joe2", "s3kirt2".toCharArray(), "role2", "user").get();
         c.preparePutUser("joe3", "s3kirt3".toCharArray(), "role3", "user").get();
-        // Since getting multiple users relies on them being visible to search, perform a refresh
-        refresh();
         GetUsersResponse allUsersResp = c.prepareGetUsers().get();
         assertTrue("users should exist", allUsersResp.hasUsers());
         assertEquals("should be 3 users total", 3, allUsersResp.users().length);
@@ -86,7 +85,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
         CollectionUtil.timSort(names);
         assertArrayEquals(new String[] { "joe", "joe2", "joe3" }, names.toArray(Strings.EMPTY_ARRAY));
 
-        GetUsersResponse someUsersResp = c.prepareGetUsers().usernames("joe", "joe3").get();
+        GetUsersResponse someUsersResp = c.prepareGetUsers("joe", "joe3").get();
         assertTrue("users should exist", someUsersResp.hasUsers());
         assertEquals("should be 2 users returned", 2, someUsersResp.users().length);
         names = new ArrayList<>(2);
@@ -100,7 +99,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
         DeleteUserResponse delResp = c.prepareDeleteUser("joe").get();
         assertTrue(delResp.found());
         logger.info("--> retrieving user");
-        resp = c.prepareGetUsers().usernames("joe").get();
+        resp = c.prepareGetUsers("joe").get();
         assertFalse("user should not exist after being deleted", resp.hasUsers());
     }
 
@@ -114,11 +113,11 @@ public class ESNativeTests extends ShieldIntegTestCase {
                         new String[]{"body", "title"}, new BytesArray("{\"query\": {\"match_all\": {}}}"))
                 .get();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving role");
         GetRolesResponse resp = c.prepareGetRoles().names("test_role").get();
-        assertTrue("role should exist", resp.isExists());
-        RoleDescriptor testRole = resp.roles().get(0);
+        assertTrue("role should exist", resp.hasRoles());
+        RoleDescriptor testRole = resp.roles()[0];
         assertNotNull(testRole);
 
         c.preparePutRole("test_role2")
@@ -134,25 +133,22 @@ public class ESNativeTests extends ShieldIntegTestCase {
                         new String[]{"body", "title"}, new BytesArray("{\"query\": {\"match_all\": {}}}"))
                 .get();
 
-        // Refresh to make new roles visible
-        refresh();
-
         logger.info("--> retrieving all roles");
         GetRolesResponse allRolesResp = c.prepareGetRoles().get();
-        assertTrue("roles should exist", allRolesResp.isExists());
-        assertEquals("should be 3 roles total", 3, allRolesResp.roles().size());
+        assertTrue("roles should exist", allRolesResp.hasRoles());
+        assertEquals("should be 3 roles total", 3, allRolesResp.roles().length);
 
         logger.info("--> retrieving all roles");
         GetRolesResponse someRolesResp = c.prepareGetRoles().names("test_role", "test_role3").get();
-        assertTrue("roles should exist", someRolesResp.isExists());
-        assertEquals("should be 2 roles total", 2, someRolesResp.roles().size());
+        assertTrue("roles should exist", someRolesResp.hasRoles());
+        assertEquals("should be 2 roles total", 2, someRolesResp.roles().length);
 
         logger.info("--> deleting role");
         DeleteRoleResponse delResp = c.prepareDeleteRole("test_role").get();
         assertTrue(delResp.found());
         logger.info("--> retrieving role");
         GetRolesResponse resp2 = c.prepareGetRoles().names("test_role").get();
-        assertFalse("role should not exist after being deleted", resp2.isExists());
+        assertFalse("role should not exist after being deleted", resp2.hasRoles());
     }
 
     public void testAddUserAndRoleThenAuth() throws Exception {
@@ -160,16 +156,15 @@ public class ESNativeTests extends ShieldIntegTestCase {
         logger.error("--> creating role");
         c.preparePutRole("test_role")
                 .cluster("all")
-                .addIndices(new String[]{"*"}, new String[]{"read"},
-                        new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
+                .addIndices(new String[] { "*" }, new String[] { "read" },
+                        new String[] { "body", "title" }, new BytesArray("{\"match_all\": {}}"))
                 .get();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
-        refresh();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
 
         createIndex("idx");
@@ -187,11 +182,10 @@ public class ESNativeTests extends ShieldIntegTestCase {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
-        refresh();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         assertThat(resp.users()[0].roles(), arrayContaining(ShieldSettingsSource.DEFAULT_ROLE));
 
@@ -223,11 +217,10 @@ public class ESNativeTests extends ShieldIntegTestCase {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
-        refresh();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers().usernames("joe").get();
+        GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         assertThat(resp.users()[0].roles(), arrayContaining(ShieldSettingsSource.DEFAULT_ROLE));
 
@@ -262,9 +255,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
                 .get();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
-        refresh();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
 
         if (authenticate) {
             final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
@@ -284,19 +276,20 @@ public class ESNativeTests extends ShieldIntegTestCase {
             }
         } else {
             GetRolesResponse getRolesResponse = c.prepareGetRoles().names("test_role").get();
-            assertTrue("test_role does not exist!", getRolesResponse.isExists());
+            assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/foo"));
+                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/foo"));
+
             c.preparePutRole("test_role")
                     .cluster("none")
                     .addIndices(new String[]{"*"}, new String[]{"read"},
                             new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                     .get();
             getRolesResponse = c.prepareGetRoles().names("test_role").get();
-            assertTrue("test_role does not exist!", getRolesResponse.isExists());
+            assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/bar"));
+                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/bar"));
         }
     }
 
@@ -309,9 +302,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
                         new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                 .get();
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
-        refresh();
         logger.error("--> waiting for .shield index");
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
 
         final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
@@ -324,6 +316,79 @@ public class ESNativeTests extends ShieldIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
+    }
+
+    public void testPutUserWithoutPassword() {
+        SecurityClient client = securityClient();
+        // create some roles
+        client.preparePutRole("admin_role")
+                .cluster("all")
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null)
+                .get();
+        client.preparePutRole("read_role")
+                .cluster("none")
+                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null)
+                .get();
+
+        assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
+        // check that putting a user without a password fails if the user doesn't exist
+        try {
+            client.preparePutUser("joe", null, "admin_role").get();
+            fail("cannot create a user without a password");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("password must be specified"));
+        }
+
+        assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
+
+        // create joe with a password and verify the user works
+        client.preparePutUser("joe", "changeme".toCharArray(), "admin_role").get();
+        assertThat(client.prepareGetUsers("joe").get().hasUsers(), is(true));
+        final String token = basicAuthHeaderValue("joe", new SecuredString("changeme".toCharArray()));
+        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
+                .prepareHealth().get();
+        assertFalse(response.isTimedOut());
+
+        // modify joe without sending the password
+        client.preparePutUser("joe", null, "read_role").fullName("Joe Smith").get();
+        GetUsersResponse getUsersResponse = client.prepareGetUsers("joe").get();
+        assertThat(getUsersResponse.hasUsers(), is(true));
+        assertThat(getUsersResponse.users().length, is(1));
+        User joe = getUsersResponse.users()[0];
+        assertThat(joe.roles(), arrayContaining("read_role"));
+        assertThat(joe.fullName(), is("Joe Smith"));
+
+        // test that role change took effect
+        try {
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+            fail("test_role does not have permission to get health");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), containsString("authorized"));
+        }
+
+        // update the user with password and admin role again
+        client.preparePutUser("joe", "changeme2".toCharArray(), "admin_role").fullName("Joe Smith").get();
+        getUsersResponse = client.prepareGetUsers("joe").get();
+        assertThat(getUsersResponse.hasUsers(), is(true));
+        assertThat(getUsersResponse.users().length, is(1));
+        joe = getUsersResponse.users()[0];
+        assertThat(joe.roles(), arrayContaining("admin_role"));
+        assertThat(joe.fullName(), is("Joe Smith"));
+
+        // validate that joe cannot auth with the old token
+        try {
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+            fail("should not authenticate with old password");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), containsString("authenticate"));
+        }
+
+        // test with new password and role
+        response = client()
+                .filterWithHeader(
+                        Collections.singletonMap("Authorization",basicAuthHeaderValue("joe", new SecuredString("changeme2".toCharArray()))))
+                .admin().cluster().prepareHealth().get();
+        assertFalse(response.isTimedOut());
     }
 
     @Before

@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -195,22 +195,22 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         internalAuthorizationService.authorize(user, SearchScrollAction.NAME, searchScrollRequest);
         verify(auditTrail).accessGranted(user, SearchScrollAction.NAME, searchScrollRequest);
 
-        // We have to use a mock request for other Scroll actions as the actual requests are package private to SearchServiceTransportAction
+        // We have to use a mock request for other Scroll actions as the actual requests are package private to SearchTransportService
         TransportRequest request = mock(TransportRequest.class);
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
+        internalAuthorizationService.authorize(user, SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
+        verify(auditTrail).accessGranted(user, SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, request);
+        internalAuthorizationService.authorize(user, SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request);
+        verify(auditTrail).accessGranted(user, SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME, request);
+        internalAuthorizationService.authorize(user, SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request);
+        verify(auditTrail).accessGranted(user, SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME, request);
+        internalAuthorizationService.authorize(user, SearchTransportService.QUERY_SCROLL_ACTION_NAME, request);
+        verify(auditTrail).accessGranted(user, SearchTransportService.QUERY_SCROLL_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
+        internalAuthorizationService.authorize(user, SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
+        verify(auditTrail).accessGranted(user, SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
         verifyNoMoreInteractions(auditTrail);
     }
 

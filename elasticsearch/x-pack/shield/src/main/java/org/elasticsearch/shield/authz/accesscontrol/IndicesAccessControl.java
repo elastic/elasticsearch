@@ -94,8 +94,9 @@ public class IndicesAccessControl {
             // this code is a bit of a pita, but right now we can't just initialize an empty set,
             // because an empty Set means no permissions on fields and
             // <code>null</code> means no field level security
+            // Also, if one grants no access to fields and the other grants all access, merging should result in all access...
             Set<String> fields = null;
-            if (this.fields != null || other.getFields() != null) {
+            if (this.fields != null && other.getFields() != null) {
                 fields = new HashSet<>();
                 if (this.fields != null) {
                     fields.addAll(this.fields);
@@ -106,7 +107,7 @@ public class IndicesAccessControl {
                 fields = unmodifiableSet(fields);
             }
             Set<BytesReference> queries = null;
-            if (this.queries != null || other.getQueries() != null) {
+            if (this.queries != null && other.getQueries() != null) {
                 queries = new HashSet<>();
                 if (this.queries != null) {
                     queries.addAll(this.queries);

@@ -10,7 +10,7 @@ import org.elasticsearch.script.ScriptException;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.logging.support.LoggerMessageFormat.format;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  *

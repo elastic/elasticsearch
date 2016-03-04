@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 /**

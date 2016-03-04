@@ -119,8 +119,8 @@ public class SecurityClient {
 
     /** User Management */
 
-    public GetUsersRequestBuilder prepareGetUsers() {
-        return new GetUsersRequestBuilder(client);
+    public GetUsersRequestBuilder prepareGetUsers(String... usernames) {
+        return new GetUsersRequestBuilder(client).usernames(usernames);
     }
 
     public void getUsers(GetUsersRequest request, ActionListener<GetUsersResponse> listener) {
@@ -136,7 +136,7 @@ public class SecurityClient {
     }
 
     public PutUserRequestBuilder preparePutUser(String username, BytesReference source) throws IOException {
-        return new PutUserRequestBuilder(client).username(username).source(source);
+        return new PutUserRequestBuilder(client).source(username, source);
     }
 
     public PutUserRequestBuilder preparePutUser(String username, char[] password, String... roles) {

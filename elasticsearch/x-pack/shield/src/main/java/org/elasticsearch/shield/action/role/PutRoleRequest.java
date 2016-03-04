@@ -8,11 +8,10 @@ package org.elasticsearch.shield.action.role;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -25,12 +24,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the shield index
  */
-public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToXContent {
+public class PutRoleRequest extends ActionRequest<PutRoleRequest> {
 
     private String name;
-    private String[] clusterPrivileges;
+    private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
-    private String[] runAs;
+    private String[] runAs = Strings.EMPTY_ARRAY;
+    private boolean refresh = true;
     
     public PutRoleRequest() {
     }
@@ -44,20 +44,16 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToX
         return validationException;
     }
 
-    public void source(String name, BytesReference source) throws Exception {
-        RoleDescriptor descriptor = RoleDescriptor.source(name, source);
-        this.name = descriptor.getName();
-        this.clusterPrivileges = descriptor.getClusterPrivileges();
-        this.indicesPrivileges = Arrays.asList(descriptor.getIndicesPrivileges());
-        this.runAs = descriptor.getRunAs();
-    }
-
     public void name(String name) {
         this.name = name;
     }
 
     public void cluster(String... clusterPrivileges) {
         this.clusterPrivileges = clusterPrivileges;
+    }
+
+    void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
+        this.indicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
     public void addIndex(String[] indices, String[] privileges, @Nullable String[] fields, @Nullable BytesReference query) {
@@ -71,6 +67,10 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToX
 
     public void runAs(String... usernames) {
         this.runAs = usernames;
+    }
+
+    public void refresh(boolean refresh) {
+        this.refresh = refresh;
     }
 
     public String name() {
@@ -89,38 +89,41 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements ToX
         return runAs;
     }
 
-    private RoleDescriptor roleDescriptor() {
-        return new RoleDescriptor(name, clusterPrivileges,
-                indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]), runAs);
+    public boolean refresh() {
+        return refresh;
     }
-    
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readString();
-        clusterPrivileges = in.readOptionalStringArray();
+        clusterPrivileges = in.readStringArray();
         int indicesSize = in.readVInt();
         indicesPrivileges = new ArrayList<>(indicesSize);
         for (int i = 0; i < indicesSize; i++) {
-            indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.readIndicesPrivileges(in));
+            indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.createFrom(in));
         }
-        runAs = in.readOptionalStringArray();
+        runAs = in.readStringArray();
+        refresh = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        out.writeOptionalStringArray(clusterPrivileges);
+        out.writeStringArray(clusterPrivileges);
         out.writeVInt(indicesPrivileges.size());
         for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
-        out.writeOptionalStringArray(runAs);
+        out.writeStringArray(runAs);
+        out.writeBoolean(refresh);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return this.roleDescriptor().toXContent(builder, params);
+    RoleDescriptor roleDescriptor() {
+        return new RoleDescriptor(name,
+                clusterPrivileges,
+                indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
+                runAs);
     }
 }

@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.marvel.agent.collector.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -90,17 +91,16 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
-        Collection<MarvelDoc> results = newIndicesStatsCollector().doCollect();
+        Collection<MonitoringDoc> results = newIndicesStatsCollector().doCollect();
         assertThat(results, hasSize(1));
 
-        MarvelDoc marvelDoc = results.iterator().next();
-        assertThat(marvelDoc, instanceOf(IndicesStatsMarvelDoc.class));
+        MonitoringDoc monitoringDoc = results.iterator().next();
+        assertThat(monitoringDoc, instanceOf(IndicesStatsMonitoringDoc.class));
 
-        IndicesStatsMarvelDoc indicesStatsMarvelDoc = (IndicesStatsMarvelDoc) marvelDoc;
+        IndicesStatsMonitoringDoc indicesStatsMarvelDoc = (IndicesStatsMonitoringDoc) monitoringDoc;
         assertThat(indicesStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().
                 prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(indicesStatsMarvelDoc.getTimestamp(), greaterThan(0L));
-        assertThat(indicesStatsMarvelDoc.getType(), equalTo(IndicesStatsCollector.TYPE));
         assertThat(indicesStatsMarvelDoc.getSourceNode(), notNullValue());
 
         IndicesStatsResponse indicesStats = indicesStatsMarvelDoc.getIndicesStats();
@@ -137,13 +137,19 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
             assertHitCount(client().prepareSearch(indexPrefix + i).setSize(0).get(), docsPerIndex[i]);
         }
 
-        Collection<MarvelDoc> results = newIndicesStatsCollector().doCollect();
+        Collection<MonitoringDoc> results = newIndicesStatsCollector().doCollect();
         assertThat(results, hasSize(1));
 
-        MarvelDoc marvelDoc = results.iterator().next();
-        assertThat(marvelDoc, instanceOf(IndicesStatsMarvelDoc.class));
+        MonitoringDoc monitoringDoc = results.iterator().next();
+        assertThat(monitoringDoc, instanceOf(IndicesStatsMonitoringDoc.class));
 
-        IndicesStatsMarvelDoc indicesStatsMarvelDoc = (IndicesStatsMarvelDoc) marvelDoc;
+        IndicesStatsMonitoringDoc indicesStatsMarvelDoc = (IndicesStatsMonitoringDoc) monitoringDoc;
+        assertThat(indicesStatsMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(indicesStatsMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(indicesStatsMarvelDoc.getClusterUUID(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indicesStatsMarvelDoc.getTimestamp(), greaterThan(0L));
+
         IndicesStatsResponse indicesStats = indicesStatsMarvelDoc.getIndicesStats();
         assertNotNull(indicesStats);
         assertThat(indicesStats.getIndices().keySet(), hasSize(nbIndices));
@@ -209,7 +215,6 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         }
         return new IndicesStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));

@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.logging.support.LoggerMessageFormat.format;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  */

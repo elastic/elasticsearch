@@ -31,7 +31,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
     @Override
     protected void doExecute(DeleteRoleRequest request, ActionListener<DeleteRoleResponse> listener) {
         try {
-            rolesStore.removeRole(request, new ActionListener<Boolean>() {
+            rolesStore.deleteRole(request, new ActionListener<Boolean>() {
                 @Override
                 public void onResponse(Boolean found) {
                     listener.onResponse(new DeleteRoleResponse(found));

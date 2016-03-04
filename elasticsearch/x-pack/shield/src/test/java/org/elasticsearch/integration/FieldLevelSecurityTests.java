@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-// The random usage of meta fields such as _timestamp add noice to the test, so disable random index templates:
+// The random usage of meta fields such as _timestamp add noise to the test, so disable random index templates:
 @ESIntegTestCase.ClusterScope(randomDynamicTemplates = false)
 public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
@@ -60,18 +60,20 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "user3:" + USERS_PASSWD_HASHED + "\n" +
                 "user4:" + USERS_PASSWD_HASHED + "\n" +
                 "user5:" + USERS_PASSWD_HASHED + "\n" +
-                "user6:" + USERS_PASSWD_HASHED + "\n";
+                "user6:" + USERS_PASSWD_HASHED + "\n" +
+                "user7:" + USERS_PASSWD_HASHED + "\n" +
+                "user8:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1\n" +
-                "role2:user2\n" +
-                "role3:user3\n" +
-                "role4:user4\n" +
-                "role5:user5\n" +
-                "role5:user6\n";
+                "role1:user1,user7,user8\n" +
+                "role2:user2,user7,user8\n" +
+                "role3:user3,user7\n" +
+                "role4:user4,user7\n" +
+                "role5:user5,user7\n" +
+                "role6:user6\n";
     }
     @Override
     protected String configRoles() {
@@ -109,6 +111,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "role6:\n" +
                 "  cluster: all\n" +
                 "  indices:\n" +
+                "    '*':\n" +
                 "        privileges: ALL\n" +
                 "        fields: 'field*'\n";
     }
@@ -123,9 +126,9 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testQuery() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -156,6 +159,18 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertHitCount(response, 0);
         // user5 has no field level security configured, so the query should match with the document:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field1", "value1"))
+                .get();
+        assertHitCount(response, 1);
+        // user7 has roles with field level security configured and without field level security
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field1", "value1"))
+                .get();
+        assertHitCount(response, 1);
+        // user8 has roles with field level security configured for field1 and field2
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(matchQuery("field1", "value1"))
                 .get();
@@ -191,14 +206,70 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .setQuery(matchQuery("field2", "value2"))
                 .get();
         assertHitCount(response, 1);
+        // user7 has role with field level security and without field level security
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field2", "value2"))
+                .get();
+        assertHitCount(response, 1);
+        // user8 has roles with field level security configured for field1 and field2
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field2", "value2"))
+                .get();
+        assertHitCount(response, 1);
+
+        // user1 has access to field3, so the query should not match with the document:
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 0);
+        // user2 has no access to field3, so the query should not match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 0);
+        // user3 has access to field1 and field2 but not field3, so the query should not match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 0);
+        // user4 has access to no fields, so the query should not match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 0);
+        // user5 has no field level security configured, so the query should match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 1);
+        // user7 has roles with field level security and without field level security
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 1);
+        // user8 has roles with field level security configured for field1 and field2
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 0);
     }
 
     public void testGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
@@ -250,6 +321,42 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
         assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().size(), equalTo(3));
+        assertThat(response.getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getSource().get("field3").toString(), equalTo("value3"));
+
+        // user6 has access to field*
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareGet("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().size(), equalTo(3));
+        assertThat(response.getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getSource().get("field3").toString(), equalTo("value3"));
+
+        // user7 has roles with field level security and without field level security
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareGet("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().size(), equalTo(3));
+        assertThat(response.getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getSource().get("field3").toString(), equalTo("value3"));
+
+        // user8 has roles with field level security with access to field1 and field2
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareGet("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .get();
+        assertThat(response.isExists(), is(true));
         assertThat(response.getSource().size(), equalTo(2));
         assertThat(response.getSource().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSource().get("field2").toString(), equalTo("value2"));
@@ -257,10 +364,9 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testMGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
-                .get();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
 
         Boolean realtime = randomFrom(true, false, null);
         // user1 is granted access to field1 only:
@@ -321,6 +427,48 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
         assertThat(response.getResponses()[0].isFailed(), is(false));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().size(), equalTo(3));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field3").toString(), equalTo("value3"));
+
+        // user6 has access to field*
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareMultiGet()
+                .add("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().size(), equalTo(3));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field3").toString(), equalTo("value3"));
+
+        // user7 has roles with field level security and without field level security
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareMultiGet()
+                .add("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().size(), equalTo(3));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field3").toString(), equalTo("value3"));
+
+        // user8 has roles with field level security with access to field1 and field2
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareMultiGet()
+                .add("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(response.getResponses()[0].getResponse().getSource().size(), equalTo(2));
         assertThat(response.getResponses()[0].getResponse().getSource().get("field1").toString(), equalTo("value1"));
         assertThat(response.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
@@ -328,9 +476,9 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testFieldStatsApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -338,7 +486,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         FieldStatsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareFieldStats()
-                .setFields("field1", "field2")
+                .setFields("field1", "field2", "field3")
                 .get();
         assertThat(response.getAllFieldStats().size(), equalTo(1));
         assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
@@ -346,7 +494,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         // user2 is granted access to field2 only:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareFieldStats()
-                .setFields("field1", "field2")
+                .setFields("field1", "field2", "field3")
                 .get();
         assertThat(response.getAllFieldStats().size(), equalTo(1));
         assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
@@ -354,7 +502,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         // user3 is granted access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareFieldStats()
-                .setFields("field1", "field2")
+                .setFields("field1", "field2", "field3")
                 .get();
         assertThat(response.getAllFieldStats().size(), equalTo(2));
         assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
@@ -370,7 +518,37 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         // user5 has no field level security configured:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
                 .prepareFieldStats()
-                .setFields("field1", "field2")
+                .setFields("field1", "field2", "field3")
+                .get();
+        assertThat(response.getAllFieldStats().size(), equalTo(3));
+        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
+        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
+        assertThat(response.getAllFieldStats().get("field3").getDocCount(), equalTo(1L));
+
+        // user6 has field level security configured for field*:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareFieldStats()
+                .setFields("field1", "field2", "field3")
+                .get();
+        assertThat(response.getAllFieldStats().size(), equalTo(3));
+        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
+        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
+        assertThat(response.getAllFieldStats().get("field3").getDocCount(), equalTo(1L));
+
+        // user7 has no field level security configured (roles with and without field level security):
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareFieldStats()
+                .setFields("field1", "field2", "field3")
+                .get();
+        assertThat(response.getAllFieldStats().size(), equalTo(3));
+        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
+        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
+        assertThat(response.getAllFieldStats().get("field3").getDocCount(), equalTo(1L));
+
+        // user8 has field level security configured for field1 and field2 (multiple roles):
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareFieldStats()
+                .setFields("field1", "field2", "field3")
                 .get();
         assertThat(response.getAllFieldStats().size(), equalTo(2));
         assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
@@ -380,9 +558,9 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -394,18 +572,31 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                     .setQuery(constantScoreQuery(termQuery("field1", "value1")))
                     .get();
             assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getSource().size(), is(1));
+            assertThat(response.getHits().getAt(0).getSource().get("field1"), is("value1"));
             response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .prepareSearch("test")
                     .setQuery(constantScoreQuery(termQuery("field1", "value1")))
                     .get();
             assertHitCount(response, 0);
+            String multipleFieldsUser = randomFrom("user5", "user6", "user7");
+            response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(multipleFieldsUser, USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(constantScoreQuery(termQuery("field1", "value1")))
+                    .get();
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getSource().size(), is(3));
+            assertThat(response.getHits().getAt(0).getSource().get("field1"), is("value1"));
+            assertThat(response.getHits().getAt(0).getSource().get("field2"), is("value2"));
+            assertThat(response.getHits().getAt(0).getSource().get("field3"), is("value3"));
         }
     }
 
     public void testRequestCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)
@@ -431,14 +622,25 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                     .get();
             assertNoFailures(response);
             assertHitCount(response, 0);
+            String multipleFieldsUser = randomFrom("user5", "user6", "user7");
+            response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(multipleFieldsUser, USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setSize(0)
+                    .setQuery(termQuery("field1", "value1"))
+                    .setRequestCache(requestCache)
+                    .get();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
         }
     }
 
     public void testFields() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,store=true", "field2", "type=string,store=true")
+                        .addMapping("type1", "field1", "type=text,store=true", "field2", "type=text,store=true",
+                                "field3", "type=text,store=true")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -448,6 +650,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .prepareSearch("test")
                 .addField("field1")
                 .addField("field2")
+                .addField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -457,6 +660,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .prepareSearch("test")
                 .addField("field1")
                 .addField("field2")
+                .addField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).fields().get("field2").<String>getValue(), equalTo("value2"));
@@ -466,6 +670,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .prepareSearch("test")
                 .addField("field1")
                 .addField("field2")
+                .addField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -476,6 +681,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .prepareSearch("test")
                 .addField("field1")
                 .addField("field2")
+                .addField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(0));
 
@@ -484,6 +690,43 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .prepareSearch("test")
                 .addField("field1")
                 .addField("field2")
+                .addField("field3")
+                .get();
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
+        assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).fields().get("field2").<String>getValue(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).fields().get("field3").<String>getValue(), equalTo("value3"));
+
+        // user6 has field level security configured with access to field*:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addField("field1")
+                .addField("field2")
+                .addField("field3")
+                .get();
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
+        assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).fields().get("field2").<String>getValue(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).fields().get("field3").<String>getValue(), equalTo("value3"));
+
+        // user7 has access to all fields due to a mix of roles without field level security and with:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addField("field1")
+                .addField("field2")
+                .addField("field3")
+                .get();
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
+        assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).fields().get("field2").<String>getValue(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).fields().get("field3").<String>getValue(), equalTo("value3"));
+
+        // user8 has field level security configured with access to field1 and field2:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addField("field1")
+                .addField("field2")
+                .addField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -492,9 +735,9 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -529,6 +772,33 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
         // user5 has no field level security configured:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .get();
+        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(3));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field3").toString(), equalTo("value3"));
+
+        // user6 has field level security configured with access to field*:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("test")
+                .get();
+        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(3));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field3").toString(), equalTo("value3"));
+
+        // user7 has access to all fields
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("test")
+                .get();
+        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(3));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field3").toString(), equalTo("value3"));
+
+        // user8 has field level security configured with access to field1 and field2:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareSearch("test")
                 .get();
         assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(2));
@@ -577,7 +847,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testAggs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)
@@ -615,10 +885,11 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads",
-                                "field2", "type=string,term_vector=with_positions_offsets_payloads")
+                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                                "field2", "type=text,term_vector=with_positions_offsets_payloads",
+                                "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -655,14 +926,54 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getFields().size(), equalTo(0));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "1")
+                .setRealtime(realtime)
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getFields().size(), equalTo(3));
+        assertThat(response.getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field2").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field3").size(), equalTo(1L));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "1")
+                .setRealtime(realtime)
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getFields().size(), equalTo(3));
+        assertThat(response.getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field2").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field3").size(), equalTo(1L));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "1")
+                .setRealtime(realtime)
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getFields().size(), equalTo(3));
+        assertThat(response.getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field2").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field3").size(), equalTo(1L));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareTermVectors("test", "type1", "1")
+                .setRealtime(realtime)
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getFields().size(), equalTo(2));
+        assertThat(response.getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getFields().terms("field2").size(), equalTo(1L));
     }
 
     public void testMTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads",
-                                "field2", "type=string,term_vector=with_positions_offsets_payloads")
+                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                                "field2", "type=text,term_vector=with_positions_offsets_payloads",
+                                "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefresh(true)
                 .get();
 
@@ -703,11 +1014,54 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(0));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(3));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field3").size(), equalTo(1L));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(3));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field3").size(), equalTo(1L));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(3));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field3").size(), equalTo(1L));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
+                .prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(2));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field1").size(), equalTo(1L));
+        assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
     }
 
     public void testPercolateApi() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping(".percolator", "field1", "type=string", "field2", "type=string")
+                        .addMapping(".percolator", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", ".percolator", "1")
                 .setSource("{\"query\" : { \"match_all\" : {} }, \"field1\" : \"value1\"}")
@@ -779,7 +1133,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testUpdateApiIsBlocked() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type", "1")
                 .setSource("field1", "value1", "field2", "value1")
@@ -825,7 +1179,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testQuery_withRoleWithFieldWildcards() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)

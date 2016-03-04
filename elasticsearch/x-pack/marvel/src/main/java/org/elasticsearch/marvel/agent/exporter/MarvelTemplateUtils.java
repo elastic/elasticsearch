@@ -18,8 +18,8 @@ public final class MarvelTemplateUtils {
     static final String INDEX_TEMPLATE_FILE         = "/monitoring-es.json";
     static final String INDEX_TEMPLATE_NAME_PREFIX  = ".monitoring-es-";
 
-    static final String DATA_TEMPLATE_FILE          = "/monitoring-es-data.json";
-    static final String DATA_TEMPLATE_NAME_PREFIX   = ".monitoring-es-data-";
+    static final String DATA_TEMPLATE_FILE          = "/monitoring-data.json";
+    static final String DATA_TEMPLATE_NAME_PREFIX   = ".monitoring-data-";
 
     static final String PROPERTIES_FILE             = "/monitoring.properties";
     static final String TEMPLATE_VERSION_PROPERTY   = "template.version";

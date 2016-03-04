@@ -8,6 +8,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -35,15 +36,16 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
         return super.configUsers() +
                 "user1:" + USERS_PASSWD_HASHED + "\n" +
                 "user2:" + USERS_PASSWD_HASHED + "\n" +
-                "user3:" + USERS_PASSWD_HASHED + "\n" ;
+                "user3:" + USERS_PASSWD_HASHED + "\n" +
+                "user4:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1\n" +
-                "role2:user2\n" +
-                "role3:user3\n";
+                "role1:user1,user4\n" +
+                "role2:user2,user4\n" +
+                "role3:user3,user4\n";
     }
 
     @Override
@@ -82,7 +84,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testSimpleQuery() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setRefresh(true)
@@ -107,12 +109,21 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
         assertSearchHits(response, "2");
         assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSource().get("field2").toString(), equalTo("value2"));
+
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort("_uid", SortOrder.ASC)
+                .get();
+        assertHitCount(response, 2);
+        assertSearchHits(response, "1", "2");
+        assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(1).getSource().get("field2").toString(), equalTo("value2"));
     }
 
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setRefresh(true)
@@ -149,6 +160,20 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
             assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(0));
+
+            // user4 has all roles
+            response = client().filterWithHeader(
+                    Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .addSort("_uid", SortOrder.ASC)
+                    .get();
+            assertHitCount(response, 2);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
+            assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+            assertThat(response.getHits().getAt(1).sourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(1).sourceAsMap().get("field2"), equalTo("value2"));
         }
     }
 

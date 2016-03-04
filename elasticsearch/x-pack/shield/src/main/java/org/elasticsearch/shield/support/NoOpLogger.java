@@ -8,13 +8,14 @@ package org.elasticsearch.shield.support;
 import org.elasticsearch.common.logging.ESLogger;
 
 /**
- *
+ * A logger that doesn't log anything.
  */
-public class NoOpLogger implements ESLogger {
+public class NoOpLogger extends ESLogger {
 
     public static final ESLogger INSTANCE = new NoOpLogger();
 
     private NoOpLogger() {
+        super(null, null);
     }
 
     @Override

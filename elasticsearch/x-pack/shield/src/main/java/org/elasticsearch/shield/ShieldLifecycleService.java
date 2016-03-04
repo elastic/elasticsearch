@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.shield.audit.AuditTrailModule;
@@ -41,16 +42,19 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
     @Inject
     public ShieldLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                                   IndexAuditTrail indexAuditTrail, ESNativeUsersStore esUserStore,
-                                  ESNativeRolesStore esRolesStore) {
+                                  ESNativeRolesStore esRolesStore, Provider<InternalClient> clientProvider) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
         this.esUserStore = esUserStore;
         this.esRolesStore = esRolesStore;
+        // TODO: define a common interface for these and delegate from one place. esUserStore store is it's on cluster
+        // state listener , but is also activated from this clusterChanged method
         clusterService.add(this);
         clusterService.add(esUserStore);
         clusterService.add(esRolesStore);
+        clusterService.add(new ShieldTemplateService(settings, clusterService, clientProvider, threadPool));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
             @Override

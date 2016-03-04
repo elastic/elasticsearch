@@ -12,6 +12,7 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -24,8 +25,8 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -52,7 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
  * An {@link IndexSearcherWrapper} implementation that is used for field and document level security.
@@ -116,13 +117,15 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
             }
 
             if (permissions.getQueries() != null) {
-                BooleanQuery.Builder roleQuery = new BooleanQuery.Builder();
+                BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
                     ParsedQuery parsedQuery = queryShardContext.parse(bytesReference);
-                    roleQuery.add(parsedQuery.query(), FILTER);
+                    filter.add(parsedQuery.query(), SHOULD);
                 }
-                reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, roleQuery.build());
+                // at least one of the queries should match
+                filter.setMinimumNumberShouldMatch(1);
+                reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));
             }
 
             if (permissions.getFields() != null) {

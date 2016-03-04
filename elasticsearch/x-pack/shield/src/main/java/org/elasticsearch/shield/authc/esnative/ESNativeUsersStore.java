@@ -18,13 +18,13 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -55,6 +57,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -88,7 +91,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     }
 
     // TODO - perhaps separate indices for users/roles instead of types?
-    public static final String INDEX_USER_TYPE = "user";
+    public static final String USER_DOC_TYPE = "user";
 
     // this map contains the mapping for username -> version, which is used when polling the index to easily detect of
     // any changes that may have been missed since the last update.
@@ -143,9 +146,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             @Override
             public void onFailure(Throwable t) {
                 if (t instanceof IndexNotFoundException) {
-                    logger.trace("failed to retrieve user", t);
+                    logger.trace("failed to retrieve user [{}] since security index does not exist", username);
                 } else {
-                    logger.info("failed to retrieve user", t);
+                    logger.info("failed to retrieve user [{}]", t, username);
                 }
 
                 // We don't invoke the onFailure listener here, instead
@@ -168,12 +171,13 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             final List<User> users = new ArrayList<>();
             QueryBuilder query;
             if (usernames == null || usernames.length == 0) {
-                query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("_type", INDEX_USER_TYPE));
+                query = QueryBuilders.matchAllQuery();
             } else {
-                query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(INDEX_USER_TYPE).addIds(usernames));
+                query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(usernames));
             }
-            SearchRequest request = client.prepareSearch(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+            SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                     .setScroll(scrollKeepAlive)
+                    .setTypes(USER_DOC_TYPE)
                     .setQuery(query)
                     .setSize(scrollSize)
                     .setFetchSource(true)
@@ -183,11 +187,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             // This function is MADNESS! But it works, don't think about it too hard...
             client.search(request, new ActionListener<SearchResponse>() {
                 @Override
-                public void onResponse(SearchResponse resp) {
+                public void onResponse(final SearchResponse resp) {
                     boolean hasHits = resp.getHits().getHits().length > 0;
                     if (hasHits) {
                         for (SearchHit hit : resp.getHits().getHits()) {
-                            UserAndPassword u = transformUser(hit.getSource());
+                            UserAndPassword u = transformUser(hit.getId(), hit.getSource());
                             if (u != null) {
                                 users.add(u.user());
                             }
@@ -206,7 +210,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                             @Override
                             public void onFailure(Throwable t) {
                                 // Not really much to do here except for warn about it...
-                                logger.warn("failed to clear scroll after retrieving all users", t);
+                                logger.warn("failed to clear scroll [{}] after retrieving all users", t, resp.getScrollId());
                             }
                         });
                         // Finally, return the list of users
@@ -217,7 +221,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 @Override
                 public void onFailure(Throwable t) {
                     if (t instanceof IndexNotFoundException) {
-                        logger.trace("could not retrieve users because shield index does not exist");
+                        logger.trace("could not retrieve users because security index does not exist");
                     } else {
                         logger.info("failed to retrieve users", t);
                     }
@@ -257,18 +261,17 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
     private void getUserAndPassword(String user, final ActionListener<UserAndPassword> listener) {
         try {
-            GetRequest request = client.prepareGet(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, INDEX_USER_TYPE, user).request();
-            request.indicesOptions().ignoreUnavailable();
+            GetRequest request = client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
             client.get(request, new ActionListener<GetResponse>() {
                 @Override
-                public void onResponse(GetResponse getFields) {
-                    listener.onResponse(transformUser(getFields.getSource()));
+                public void onResponse(GetResponse response) {
+                    listener.onResponse(transformUser(response.getId(), response.getSource()));
                 }
 
                 @Override
                 public void onFailure(Throwable t) {
                     if (t instanceof IndexNotFoundException) {
-                        logger.trace("could not retrieve user because shield index does not exist", t);
+                        logger.trace("could not retrieve user because security index does not exist", t);
                     } else {
                         logger.info("failed to retrieve user", t);
                     }
@@ -278,7 +281,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 }
             });
         } catch (IndexNotFoundException infe) {
-            logger.trace("could not retrieve user because shield index does not exist");
+            logger.trace("could not retrieve user because security index does not exist");
             listener.onResponse(null);
         } catch (Exception e) {
             logger.error("unable to retrieve user", e);
@@ -286,44 +289,91 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
     }
 
-    public void putUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+    public void putUser(final PutUserRequest request, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             listener.onFailure(new IllegalStateException("user cannot be added as native user service has not been started"));
             return;
         }
 
         try {
-            IndexRequest request = client.prepareIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_USER_TYPE, putUserRequest.username())
-                    .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
-                            User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                            User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                            User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                            User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
-                    .request();
-
-            client.index(request, new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    // if the document was just created, then we don't need to clear cache
-                    if (indexResponse.isCreated()) {
-                        listener.onResponse(indexResponse.isCreated());
-                        return;
-                    }
-
-                    clearRealmCache(putUserRequest.username(), listener, indexResponse.isCreated());
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
+            if (request.passwordHash() == null) {
+                updateUserWithoutPassword(request, listener);
+            } else {
+                indexUser(request, listener);
+            }
         } catch (Exception e) {
-            logger.error("unable to add user", e);
+            logger.error("unable to put user [{}]", e, request.username());
             listener.onFailure(e);
         }
+    }
+
+    private void updateUserWithoutPassword(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+        assert putUserRequest.passwordHash() == null;
+        // We must have an existing document
+        client.prepareUpdate(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, putUserRequest.username())
+                .setDoc(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
+                .setRefresh(putUserRequest.refresh())
+                .execute(new ActionListener<UpdateResponse>() {
+                    @Override
+                    public void onResponse(UpdateResponse updateResponse) {
+                        assert updateResponse.isCreated() == false;
+                        clearRealmCache(putUserRequest.username(), listener, false);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        Throwable cause = e;
+                        if (e instanceof RemoteTransportException) {
+                            cause = ExceptionsHelper.unwrapCause(e);
+                            if ((cause instanceof IndexNotFoundException) == false
+                                    && (cause instanceof DocumentMissingException) == false) {
+                                listener.onFailure(e);
+                                return;
+                            }
+                        }
+
+                        // if the index doesn't exist we can never update a user
+                        // if the document doesn't exist, then this update is not valid
+                        logger.debug("failed to update user document with username [{}]", cause, putUserRequest.username());
+                        ValidationException validationException = new ValidationException();
+                        validationException.addValidationError("password must be specified unless you are updating an existing user");
+                        listener.onFailure(validationException);
+                    }
+                });
+    }
+
+    private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+        assert putUserRequest.passwordHash() != null;
+        client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME,
+                USER_DOC_TYPE, putUserRequest.username())
+                .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                        User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
+                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
+                .setRefresh(putUserRequest.refresh())
+                .execute(new ActionListener<IndexResponse>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        // if the document was just created, then we don't need to clear cache
+                        if (indexResponse.isCreated()) {
+                            listener.onResponse(indexResponse.isCreated());
+                            return;
+                        }
+
+                        clearRealmCache(putUserRequest.username(), listener, indexResponse.isCreated());
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        listener.onFailure(e);
+                    }
+                });
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
@@ -333,9 +383,10 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
 
         try {
-            DeleteRequest request = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                    INDEX_USER_TYPE, deleteUserRequest.username()).request();
+            DeleteRequest request = client.prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME,
+                    USER_DOC_TYPE, deleteUserRequest.username()).request();
             request.indicesOptions().ignoreUnavailable();
+            request.refresh(deleteUserRequest.refresh());
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
@@ -360,27 +411,27 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we
-            // think may not have the .shield index but they it may not have
+            // think may not have the .security index but they it may not have
             // been restored from the cluster state on disk yet
             logger.debug("native users store waiting until gateway has recovered from disk");
             return false;
         }
 
-        if (clusterState.metaData().templates().get(ShieldTemplateService.SHIELD_TEMPLATE_NAME) == null) {
+        if (clusterState.metaData().templates().get(ShieldTemplateService.SECURITY_TEMPLATE_NAME) == null) {
             logger.debug("native users template [{}] does not exist, so service cannot start",
-                    ShieldTemplateService.SHIELD_TEMPLATE_NAME);
+                    ShieldTemplateService.SECURITY_TEMPLATE_NAME);
             return false;
         }
 
-        IndexMetaData metaData = clusterState.metaData().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        IndexMetaData metaData = clusterState.metaData().index(ShieldTemplateService.SECURITY_INDEX_NAME);
         if (metaData == null) {
-            logger.debug("shield user index [{}] does not exist, so service can start", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+            logger.debug("security index [{}] does not exist, so service can start", ShieldTemplateService.SECURITY_INDEX_NAME);
             return true;
         }
 
-        if (clusterState.routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("shield user index [{}] all primary shards started, so service can start",
-                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        if (clusterState.routingTable().index(ShieldTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
+            logger.debug("security index [{}] all primary shards started, so service can start",
+                    ShieldTemplateService.SECURITY_INDEX_NAME);
             return true;
         }
         return false;
@@ -398,7 +449,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 try {
                     poller.doRun();
                 } catch (Exception e) {
-                    logger.warn("failed to do initial poll of shield users", e);
+                    logger.warn("failed to do initial poll of users", e);
                 }
                 versionChecker = threadPool.scheduleWithFixedDelay(poller,
                         settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)));
@@ -472,11 +523,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME) != null;
+        final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SECURITY_INDEX_NAME) != null;
         // make sure all the primaries are active
-        if (exists && event.state().routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("shield user index [{}] all primary shards started, so polling can start",
-                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        if (exists && event.state().routingTable().index(ShieldTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
+            logger.debug("security index [{}] all primary shards started, so polling can start",
+                    ShieldTemplateService.SECURITY_INDEX_NAME);
             shieldIndexExists = true;
         } else {
             // always set the value - it may have changed...
@@ -502,12 +553,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     }
 
     @Nullable
-    private UserAndPassword transformUser(Map<String, Object> sourceMap) {
+    private UserAndPassword transformUser(String username, Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }
         try {
-            String username = (String) sourceMap.get(User.Fields.USERNAME.getPreferredName());
             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
             String[] roles = ((List<String>) sourceMap.get(User.Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(User.Fields.FULL_NAME.getPreferredName());
@@ -528,8 +578,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 return;
             }
             if (shieldIndexExists == false) {
-                logger.trace("cannot poll for user changes since shield admin index [{}] does not exist", ShieldTemplateService
-                        .SHIELD_ADMIN_INDEX_NAME);
+                logger.trace("cannot poll for user changes since security index [{}] does not exist", ShieldTemplateService
+                        .SECURITY_INDEX_NAME);
                 return;
             }
 
@@ -609,9 +659,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             final ObjectLongMap<String> map = new ObjectLongHashMap<>();
             SearchResponse response = null;
             try {
-                SearchRequest request = client.prepareSearch(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+                SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                         .setScroll(scrollKeepAlive)
-                        .setQuery(QueryBuilders.typeQuery(INDEX_USER_TYPE))
+                        .setQuery(QueryBuilders.typeQuery(USER_DOC_TYPE))
                         .setSize(scrollSize)
                         .setVersion(true)
                         .setFetchSource(true)
@@ -635,7 +685,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                     keepScrolling = response.getHits().getHits().length > 0;
                 }
             } catch (IndexNotFoundException e) {
-                logger.trace("shield user index does not exist", e);
+                logger.trace("security index does not exist", e);
             } finally {
                 if (response != null) {
                     ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();

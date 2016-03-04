@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service.attachment;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,7 +21,7 @@ public class EmailAttachmentsParser {
 
     @Inject
     public EmailAttachmentsParser(Map<String, EmailAttachmentParser> parsers) {
-        this.parsers = parsers;
+        this.parsers = ImmutableMap.copyOf(parsers);
     }
 
     public EmailAttachments parse(XContentParser parser) throws IOException {
@@ -53,4 +54,7 @@ public class EmailAttachmentsParser {
         return new EmailAttachments(attachments);
     }
 
+    public Map<String, EmailAttachmentParser> getParsers() {
+        return parsers;
+    }
 }

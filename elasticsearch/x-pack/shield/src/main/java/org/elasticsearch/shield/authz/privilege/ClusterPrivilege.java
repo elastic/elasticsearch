@@ -24,6 +24,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     public static final ClusterPrivilege ALL = new ClusterPrivilege(Name.ALL, "cluster:*", "indices:admin/template/*");
     public static final ClusterPrivilege MONITOR = new ClusterPrivilege("monitor", "cluster:monitor/*");
     public static final ClusterPrivilege MANAGE_SHIELD = new ClusterPrivilege("manage_shield", "cluster:admin/shield/*");
+    public static final ClusterPrivilege MANAGE_PIPELINE = new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
 
     public final static Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -34,6 +35,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
         values.add(ALL);
         values.add(MONITOR);
         values.add(MANAGE_SHIELD);
+        values.add(MANAGE_PIPELINE);
     }
 
     static Set<ClusterPrivilege> values() {

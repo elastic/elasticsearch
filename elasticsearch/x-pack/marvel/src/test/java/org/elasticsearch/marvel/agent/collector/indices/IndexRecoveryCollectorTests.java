@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.marvel.agent.collector.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -58,7 +59,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNode(node1);
 
         logger.info("--> collect index recovery data");
-        Collection<MarvelDoc> results = newIndexRecoveryCollector(node1).doCollect();
+        Collection<MonitoringDoc> results = newIndexRecoveryCollector(node1).doCollect();
 
         logger.info("--> no indices created, expecting 0 monitoring documents");
         assertNotNull(results);
@@ -96,15 +97,16 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(results);
         assertThat(results, hasSize(1));
 
-        MarvelDoc marvelDoc = results.iterator().next();
-        assertNotNull(marvelDoc);
-        assertThat(marvelDoc, instanceOf(IndexRecoveryMarvelDoc.class));
+        MonitoringDoc monitoringDoc = results.iterator().next();
+        assertNotNull(monitoringDoc);
+        assertThat(monitoringDoc, instanceOf(IndexRecoveryMonitoringDoc.class));
 
-        IndexRecoveryMarvelDoc indexRecoveryMarvelDoc = (IndexRecoveryMarvelDoc) marvelDoc;
+        IndexRecoveryMonitoringDoc indexRecoveryMarvelDoc = (IndexRecoveryMonitoringDoc) monitoringDoc;
+        assertThat(indexRecoveryMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(indexRecoveryMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(indexRecoveryMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(indexRecoveryMarvelDoc.getTimestamp(), greaterThan(0L));
-        assertThat(indexRecoveryMarvelDoc.getType(), equalTo(IndexRecoveryCollector.TYPE));
         assertThat(indexRecoveryMarvelDoc.getSourceNode(), notNullValue());
 
         RecoveryResponse recovery = indexRecoveryMarvelDoc.getRecoveryResponse();
@@ -206,7 +208,6 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         }
         return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));

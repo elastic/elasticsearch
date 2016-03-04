@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.shield.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.client.SecurityClient;
 
@@ -34,15 +35,18 @@ public class RestPutRoleAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        new SecurityClient(client).preparePutRole(request.param("name"), request.content()).execute(
-                new RestBuilderListener<PutRoleResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK,
-                                builder.startObject()
-                                        .field("role", putRoleResponse)
-                                        .endObject());
-                    }
-                });
+        PutRoleRequestBuilder requestBuilder = new SecurityClient(client).preparePutRole(request.param("name"), request.content());
+        if (request.hasParam("refresh")) {
+            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
+        }
+        requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
+                return new BytesRestResponse(RestStatus.OK,
+                        builder.startObject()
+                                .field("role", putRoleResponse)
+                                .endObject());
+            }
+        });
     }
 }

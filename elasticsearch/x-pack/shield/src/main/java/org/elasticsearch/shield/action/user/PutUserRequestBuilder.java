@@ -8,6 +8,7 @@ package org.elasticsearch.shield.action.user;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,8 +45,8 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder password(char[] password) {
-        request.passwordHash(hasher.hash(new SecuredString(password)));
+    public PutUserRequestBuilder password(@Nullable char[] password) {
+        request.passwordHash(password == null ? null : hasher.hash(new SecuredString(password)));
         return this;
     }
 
@@ -64,7 +65,13 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder source(BytesReference source) throws IOException {
+    public PutUserRequestBuilder refresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
+    public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
+        username(username);
         try (XContentParser parser = XContentHelper.createParser(source)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
@@ -73,11 +80,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.USERNAME)) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        username(parser.text());
-                    } else {
-                        throw new ElasticsearchParseException(
-                                "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
+                    if (username.equals(parser.text()) == false) {
+                        throw new ElasticsearchParseException("failed to parse user [{}]. username doesn't match user id [{}]",
+                                username, parser.text());
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD)) {
                     if (token == XContentParser.Token.VALUE_STRING) {

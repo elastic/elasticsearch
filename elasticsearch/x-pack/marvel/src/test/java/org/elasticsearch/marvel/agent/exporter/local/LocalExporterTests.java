@@ -6,20 +6,22 @@
 package org.elasticsearch.marvel.agent.exporter.local;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
-import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
-import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
+import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
+import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -77,20 +79,21 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         deleteMarvelIndices();
 
-        final List<MarvelDoc> marvelDocs = new ArrayList<>();
+        final List<MonitoringDoc> monitoringDocs = new ArrayList<>();
         for (int i=0; i < randomIntBetween(2, 50); i++) {
-            marvelDocs.add(newRandomMarvelDoc());
+            monitoringDocs.add(newRandomMarvelDoc());
         }
 
-        logger.debug("--> exporting {} monitoring docs", marvelDocs.size());
-        exporter.export(marvelDocs);
-        awaitMarvelDocsCount(is((long) marvelDocs.size()));
+        logger.debug("--> exporting {} monitoring docs", monitoringDocs.size());
+        exporter.export(monitoringDocs);
+        awaitMarvelDocsCount(is((long) monitoringDocs.size()));
 
-        SearchResponse response = client().prepareSearch(MarvelSettings.MONITORING_INDICES_PREFIX + "*").get();
+        SearchResponse response = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").get();
         for (SearchHit hit : response.getHits().hits()) {
             Map<String, Object> source = hit.sourceAsMap();
             assertNotNull(source.get("cluster_uuid"));
             assertNotNull(source.get("timestamp"));
+            assertNotNull(source.get("source_node"));
         }
     }
 
@@ -109,7 +112,6 @@ public class LocalExporterTests extends MarvelIntegTestCase {
     }
 
     public void testIndexTimestampFormat() throws Exception {
-        long time = System.currentTimeMillis();
         String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
 
         internalCluster().startNode(Settings.builder()
@@ -120,16 +122,11 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         LocalExporter exporter = getLocalExporter("_local");
 
-        // first lets test that the index resolver works with time
-        String indexName = MarvelSettings.MONITORING_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" +
-                DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(time);
-        assertThat(exporter.indexNameResolver().resolve(time), equalTo(indexName));
-
         // now lets test that the index name resolver works with a doc
-        MarvelDoc doc = newRandomMarvelDoc();
-        indexName = MarvelSettings.MONITORING_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" +
-                DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
-        assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
+        MonitoringDoc doc = newRandomMarvelDoc();
+        String indexName = ".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
+                + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
+        assertThat(exporter.getResolvers().getResolver(doc).index(doc), equalTo(indexName));
 
         logger.debug("--> exporting a random monitoring document");
         exporter.export(Collections.singletonList(doc));
@@ -139,9 +136,9 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         timeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
         updateClusterSettings(Settings.builder().put("xpack.monitoring.agent.exporters._local.index.name.time_format", timeFormat));
         exporter = getLocalExporter("_local"); // we need to get it again.. as it was rebuilt
-        indexName = MarvelSettings.MONITORING_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" +
-                DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
-        assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
+        indexName = ".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
+                + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
+        assertThat(exporter.getResolvers().getResolver(doc).index(doc), equalTo(indexName));
 
         logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]",
                 timeFormat, indexName);
@@ -164,7 +161,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         assertNull(exporter.getBulk().requestBuilder);
 
         logger.debug("--> closing monitoring indices");
-        assertAcked(client().admin().indices().prepareClose(MarvelSettings.MONITORING_INDICES_PREFIX + "*").get());
+        assertAcked(client().admin().indices().prepareClose(MONITORING_INDICES_PREFIX + "*").get());
 
         try {
             logger.debug("--> exporting a second monitoring doc");
@@ -188,19 +185,19 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         return (LocalExporter) exporter;
     }
 
-    private MarvelDoc newRandomMarvelDoc() {
+    private MonitoringDoc newRandomMarvelDoc() {
         if (randomBoolean()) {
-            IndexRecoveryMarvelDoc doc = new IndexRecoveryMarvelDoc();
+            IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
-            doc.setType(IndexRecoveryCollector.TYPE);
             doc.setTimestamp(System.currentTimeMillis());
+            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
             doc.setRecoveryResponse(new RecoveryResponse());
             return doc;
         } else {
-            ClusterStateMarvelDoc doc = new ClusterStateMarvelDoc();
+            ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
-            doc.setType(ClusterStateCollector.TYPE);
             doc.setTimestamp(System.currentTimeMillis());
+            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
             doc.setClusterState(ClusterState.PROTO);
             doc.setStatus(ClusterHealthStatus.GREEN);
             return doc;

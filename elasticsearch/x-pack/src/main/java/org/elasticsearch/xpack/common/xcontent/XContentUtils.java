@@ -35,7 +35,7 @@ public class XContentUtils {
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("expected a user object, but found token [{}]", parser.currentToken());
+            throw new ElasticsearchParseException("expected an object, but found token [{}]", parser.currentToken());
         }
     }
 

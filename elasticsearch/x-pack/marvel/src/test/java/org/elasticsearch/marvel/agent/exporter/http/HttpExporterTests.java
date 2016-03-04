@@ -19,17 +19,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
-import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
-import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
-import org.elasticsearch.marvel.agent.exporter.Exporters;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
+import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringDoc;
+import org.elasticsearch.marvel.agent.exporter.Exporters;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -91,7 +92,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueResponse(201, "template for timestamped indices created");
         enqueueResponse(404, "template for data index does not exist");
         enqueueResponse(201, "template for data index created");
-        enqueueResponse(200, "successful bulk request ");
+        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         Settings.Builder builder = Settings.builder()
                 .put(MarvelSettings.INTERVAL.getKey(), "-1")
@@ -177,7 +178,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueResponse(201, "template for timestamped indices created");
         enqueueResponse(404, "template for data index does not exist");
         enqueueResponse(201, "template for data index created");
-        enqueueResponse(200, "successful bulk request ");
+        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         String agentNode = internalCluster().startNode(builder);
 
@@ -246,7 +247,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             enqueueResponse(secondWebServer, 404, "template for timestamped indices does not exist");
             enqueueResponse(secondWebServer, 201, "template for timestamped indices created");
             enqueueResponse(secondWebServer, 200, "template for data index exist");
-            enqueueResponse(secondWebServer, 200, "successful bulk request ");
+            enqueueResponse(secondWebServer, 200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
             logger.info("--> exporting a second event");
             exporter.export(Collections.singletonList(newRandomMarvelDoc()));
@@ -325,11 +326,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueResponse(201, "template for timestamped indices created");
         enqueueResponse(404, "template for data index does not exist");
         enqueueResponse(201, "template for data index created");
-        enqueueResponse(200, "successful bulk request ");
+        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         HttpExporter exporter = getExporter(agentNode);
 
-        MarvelDoc doc = newRandomMarvelDoc();
+        MonitoringDoc doc = newRandomMarvelDoc();
         exporter.export(Collections.singletonList(doc));
 
         assertThat(webServer.getRequestCount(), equalTo(6));
@@ -360,7 +361,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
         assertThat(recordedRequest.getPath(), equalTo("/_bulk"));
 
-        String indexName = exporter.indexNameResolver().resolve(doc);
+        String indexName = exporter.getResolvers().getResolver(doc).index(doc);
         logger.info("--> checks that the document in the bulk request is indexed in [{}]", indexName);
 
         byte[] bytes = recordedRequest.getBody().readByteArray();
@@ -379,13 +380,13 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueResponse(200, "template for timestamped indices exist");
         enqueueResponse(200, "template for data index exist");
-        enqueueResponse(200, "successful bulk request ");
+        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         doc = newRandomMarvelDoc();
         exporter = getExporter(agentNode);
         exporter.export(Collections.singletonList(doc));
 
-        String expectedMarvelIndex = MarvelSettings.MONITORING_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
+        String expectedMarvelIndex = ".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
                 + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
 
         assertThat(webServer.getRequestCount(), equalTo(6 + 4));
@@ -442,27 +443,27 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         return (HttpExporter) exporters.iterator().next();
     }
 
-    private MarvelDoc newRandomMarvelDoc() {
+    private MonitoringDoc newRandomMarvelDoc() {
         if (randomBoolean()) {
-            IndexRecoveryMarvelDoc doc = new IndexRecoveryMarvelDoc();
+            IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
-            doc.setType(IndexRecoveryCollector.TYPE);
             doc.setTimestamp(System.currentTimeMillis());
+            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
             doc.setRecoveryResponse(new RecoveryResponse());
             return doc;
         } else {
-            ClusterStateMarvelDoc doc = new ClusterStateMarvelDoc();
+            ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
-            doc.setType(ClusterStateCollector.TYPE);
             doc.setTimestamp(System.currentTimeMillis());
+            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
             doc.setClusterState(ClusterState.PROTO);
             doc.setStatus(ClusterHealthStatus.GREEN);
             return doc;
         }
     }
 
-    private List<MarvelDoc> newRandomMarvelDocs(int nb) {
-        List<MarvelDoc> docs = new ArrayList<>(nb);
+    private List<MonitoringDoc> newRandomMarvelDocs(int nb) {
+        List<MonitoringDoc> docs = new ArrayList<>(nb);
         for (int i = 0; i < nb; i++) {
             docs.add(newRandomMarvelDoc());
         }

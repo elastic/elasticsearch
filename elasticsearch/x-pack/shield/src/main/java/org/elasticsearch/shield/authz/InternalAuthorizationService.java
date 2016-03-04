@@ -21,7 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.XPackUser;
@@ -281,12 +281,12 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private static boolean isScrollRelatedAction(String action) {
         return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME) ||
-                action.equals(SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-                action.equals(SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME) ||
-                action.equals(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
-                action.equals(SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+                action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
     private ElasticsearchSecurityException denial(User user, String action, TransportRequest request) {

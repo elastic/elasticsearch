@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service.attachment;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -81,7 +82,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     }
 
     @Override
-    public Attachment toAttachment(WatchExecutionContext context, Payload payload, HttpRequestAttachment attachment) {
+    public Attachment toAttachment(WatchExecutionContext context, Payload payload,
+                                   HttpRequestAttachment attachment) throws ElasticsearchException {
         Map<String, Object> model = Variables.createCtxModel(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
@@ -106,6 +108,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                     httpRequest.method(), httpRequest.path(), e.getMessage());
         }
 
-        return null;
+        throw new ElasticsearchException("Unable to get attachment of type [{}] with id [{}] in watch [{}] aborting watch execution",
+                type(), attachment.getId(), context.watch().id());
     }
 }

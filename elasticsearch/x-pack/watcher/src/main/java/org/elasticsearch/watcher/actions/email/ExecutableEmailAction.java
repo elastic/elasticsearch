@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
@@ -45,15 +46,19 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         Map<String, Attachment> attachments = new HashMap<>();
         DataAttachment dataAttachment = action.getDataAttachment();
         if (dataAttachment != null) {
-            Attachment attachment = dataAttachment.create(model);
+            Attachment attachment = dataAttachment.create("data", model);
             attachments.put(attachment.id(), attachment);
         }
 
         if (action.getAttachments() != null && action.getAttachments().getAttachments().size() > 0) {
             for (EmailAttachmentParser.EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
                 EmailAttachmentParser parser = emailAttachmentParsers.get(emailAttachment.type());
-                Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
-                attachments.put(attachment.id(), attachment);
+                try {
+                    Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
+                    attachments.put(attachment.id(), attachment);
+                } catch (ElasticsearchException e) {
+                    return new EmailAction.Result.Failure(action.type(), e.getMessage());
+                }
             }
         }
 

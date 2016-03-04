@@ -55,7 +55,7 @@ logstash:
 # Monitoring user role. Assign to monitoring users.
 monitoring_user:
   indices:
-    '.monitoring-es-*':
+    '.monitoring-*':
       privileges: read
     '.kibana':
       privileges: indices:admin/exists, indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search
@@ -65,5 +65,9 @@ monitoring_user:
 remote_monitoring_agent:
   cluster: indices:admin/template/put, indices:admin/template/get
   indices:
-    '.monitoring-es-*':
+    '.monitoring-*':
       privileges: all
+
+# Allows all operations required to manage ingest pipelines
+ingest_admin:
+  cluster: manage_pipeline

@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.ArrayList;
@@ -83,18 +83,20 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             assertHitCount(client().prepareSearch("test-" + i).setSize(0).get(), docsPerIndex[i]);
         }
 
-        Collection<MarvelDoc> results = newClusterStateCollector().doCollect();
+        Collection<MonitoringDoc> results = newClusterStateCollector().doCollect();
         assertMarvelDocs(results, nbShards);
 
-        MarvelDoc marvelDoc = results.iterator().next();
-        assertNotNull(marvelDoc);
-        assertThat(marvelDoc, instanceOf(ClusterStateMarvelDoc.class));
+        MonitoringDoc monitoringDoc = results.iterator().next();
+        assertNotNull(monitoringDoc);
+        assertThat(monitoringDoc, instanceOf(ClusterStateMonitoringDoc.class));
 
-        ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
+        ClusterStateMonitoringDoc clusterStateMarvelDoc = (ClusterStateMonitoringDoc) monitoringDoc;
+
+        assertThat(clusterStateMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(clusterStateMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(clusterStateMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStateMarvelDoc.getTimestamp(), greaterThan(0L));
-        assertThat(clusterStateMarvelDoc.getType(), equalTo(ClusterStateCollector.TYPE));
         assertThat(clusterStateMarvelDoc.getSourceNode(), notNullValue());
         assertNotNull(clusterStateMarvelDoc.getClusterState());
 
@@ -151,50 +153,48 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new ClusterStateCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));
     }
 
-    private void assertMarvelDocs(Collection<MarvelDoc> results, final int nbShards) {
+    private void assertMarvelDocs(Collection<MonitoringDoc> results, final int nbShards) {
         assertThat("expecting 1 document for cluster state and 2 documents per node", results, hasSize(1 + internalCluster().size() * 2));
 
         final ClusterState clusterState = securedClient().admin().cluster().prepareState().get().getState();
         final String clusterUUID = clusterState.getMetaData().clusterUUID();
         final String stateUUID = clusterState.stateUUID();
 
-        List<ClusterStateNodeMarvelDoc> clusterStateNodes = new ArrayList<>();
-        List<DiscoveryNodeMarvelDoc> discoveryNodes = new ArrayList<>();
+        List<ClusterStateNodeMonitoringDoc> clusterStateNodes = new ArrayList<>();
+        List<DiscoveryNodeMonitoringDoc> discoveryNodes = new ArrayList<>();
 
-        for (MarvelDoc marvelDoc : results) {
-            assertThat(marvelDoc.getClusterUUID(), equalTo(clusterUUID));
-            assertThat(marvelDoc.getTimestamp(), greaterThan(0L));
-            assertThat(marvelDoc.getSourceNode(), notNullValue());
-            assertThat(marvelDoc, anyOf(instanceOf(ClusterStateMarvelDoc.class), instanceOf(ClusterStateNodeMarvelDoc.class),
-                    instanceOf(DiscoveryNodeMarvelDoc.class)));
+        for (MonitoringDoc doc : results) {
+            assertThat(doc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+            assertThat(doc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
+            assertThat(doc.getClusterUUID(), equalTo(clusterUUID));
+            assertThat(doc.getTimestamp(), greaterThan(0L));
+            assertThat(doc.getSourceNode(), notNullValue());
+            assertThat(doc, anyOf(instanceOf(ClusterStateMonitoringDoc.class),
+                    instanceOf(ClusterStateNodeMonitoringDoc.class), instanceOf(DiscoveryNodeMonitoringDoc.class)));
 
-            if (marvelDoc instanceof ClusterStateMarvelDoc) {
-                ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
+            if (doc instanceof ClusterStateMonitoringDoc) {
+                ClusterStateMonitoringDoc clusterStateMarvelDoc = (ClusterStateMonitoringDoc) doc;
                 assertThat(clusterStateMarvelDoc.getClusterState().getRoutingTable().allShards(), hasSize(nbShards));
                 assertThat(clusterStateMarvelDoc.getClusterState().getNodes().getSize(), equalTo(internalCluster().size()));
 
-            } else if (marvelDoc instanceof ClusterStateNodeMarvelDoc) {
-                ClusterStateNodeMarvelDoc clusterStateNodeMarvelDoc = (ClusterStateNodeMarvelDoc) marvelDoc;
+            } else if (doc instanceof ClusterStateNodeMonitoringDoc) {
+                ClusterStateNodeMonitoringDoc clusterStateNodeMarvelDoc = (ClusterStateNodeMonitoringDoc) doc;
                 assertThat(clusterStateNodeMarvelDoc.getStateUUID(), equalTo(stateUUID));
                 assertThat(clusterStateNodeMarvelDoc.getNodeId(), not(isEmptyOrNullString()));
                 clusterStateNodes.add(clusterStateNodeMarvelDoc);
 
-            } else if (marvelDoc instanceof DiscoveryNodeMarvelDoc) {
-                DiscoveryNodeMarvelDoc discoveryNodeMarvelDoc = (DiscoveryNodeMarvelDoc) marvelDoc;
-                assertThat(discoveryNodeMarvelDoc.getIndex(),
-                        equalTo(MarvelSettings.MONITORING_DATA_INDEX_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
-                assertThat(discoveryNodeMarvelDoc.getId(), not(isEmptyOrNullString()));
+            } else if (doc instanceof DiscoveryNodeMonitoringDoc) {
+                DiscoveryNodeMonitoringDoc discoveryNodeMarvelDoc = (DiscoveryNodeMonitoringDoc) doc;
                 assertNotNull(discoveryNodeMarvelDoc.getNode());
                 discoveryNodes.add(discoveryNodeMarvelDoc);
 
             } else {
-                fail("unknown monitoring document type " + marvelDoc.getType());
+                fail("unknown monitoring document type " + doc);
             }
         }
 
@@ -205,7 +205,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
 
             boolean found = false;
-            for (ClusterStateNodeMarvelDoc doc : clusterStateNodes) {
+            for (ClusterStateNodeMonitoringDoc doc : clusterStateNodes) {
                 if (nodeId.equals(doc.getNodeId())) {
                     found = true;
                     break;
@@ -214,7 +214,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             assertTrue("Could not find node id [" + nodeName + "]", found);
 
             found = false;
-            for (DiscoveryNodeMarvelDoc doc : discoveryNodes) {
+            for (DiscoveryNodeMonitoringDoc doc : discoveryNodes) {
                 if (nodeName.equals(doc.getNode().getName())) {
                     found = true;
                     break;

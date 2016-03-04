@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -24,11 +25,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.shield.InternalClient;
 import org.joda.time.DateTime;
@@ -36,6 +40,8 @@ import org.joda.time.DateTimeZone;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
@@ -48,7 +54,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private final Client client;
     private final ClusterService clusterService;
-    private final RendererRegistry renderers;
+    private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
 
     private volatile LocalBulk bulk;
@@ -57,12 +63,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     /** Version number of built-in templates **/
     private final Integer templateVersion;
 
-    public LocalExporter(Exporter.Config config, Client client, ClusterService clusterService, RendererRegistry renderers,
-                         CleanerService cleanerService) {
+    public LocalExporter(Exporter.Config config, Client client, ClusterService clusterService, CleanerService cleanerService) {
         super(TYPE, config);
         this.client = client;
         this.clusterService = clusterService;
-        this.renderers = renderers;
         this.cleanerService = cleanerService;
 
         // Loads the current version number of built-in templates
@@ -71,6 +75,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             throw new IllegalStateException("unable to find built-in template version");
         }
 
+        resolvers = new ResolversRegistry(config.settings());
         bulk = resolveBulk(clusterService.state(), bulk);
         clusterService.add(this);
         cleanerService.add(this);
@@ -78,6 +83,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     LocalBulk getBulk() {
         return bulk;
+    }
+
+    ResolversRegistry getResolvers() {
+        return resolvers;
     }
 
     @Override
@@ -152,7 +161,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
             // ok.. we have a compatible template... we can start
             logger.debug("local exporter [{}] - started!", name());
-            return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, indexNameResolver, renderers);
+            return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, resolvers);
         }
 
         // we are on master
@@ -182,7 +191,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         // ok.. we have a compatible templates... we can start
-        return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, indexNameResolver, renderers);
+        return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, resolvers);
     }
 
     /**
@@ -266,18 +275,33 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             ClusterState clusterState = clusterService.state();
             if (clusterState != null) {
                 long expirationTime = expiration.getMillis();
-                Set<String> indices = new HashSet<>();
 
+                // Get the list of monitoring index patterns
+                Set<String> monitoringPatterns = new HashSet<>();
+                for (MonitoringIndexNameResolver resolver : getResolvers()) {
+                    monitoringPatterns.add(resolver.indexPattern());
+                }
+
+                String[] patterns = StreamSupport.stream(getResolvers().spliterator(), false)
+                                                .map(MonitoringIndexNameResolver::indexPattern)
+                                                .toArray(String[]::new);
+
+                MonitoringDoc monitoringDoc = new MonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
+                monitoringDoc.setTimestamp(System.currentTimeMillis());
+
+                // Get the names of the current monitoring indices
+                Set<String> currents = StreamSupport.stream(getResolvers().spliterator(), false)
+                                                    .map(r -> r.index(monitoringDoc))
+                                                    .collect(Collectors.toSet());
+
+                Set<String> indices = new HashSet<>();
                 for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
                     String indexName =  index.key;
-                    if (Regex.simpleMatch(MarvelSettings.MONITORING_INDICES_PREFIX + "*", indexName)) {
-                        // Never delete the data indices
-                        if (indexName.startsWith(MarvelSettings.MONITORING_DATA_INDEX_PREFIX)) {
-                            continue;
-                        }
 
-                        // Never delete the current timestamped index
-                        if (indexName.equals(indexNameResolver().resolve(System.currentTimeMillis()))) {
+                    if (Regex.simpleMatch(patterns, indexName)) {
+
+                        // Never delete the data index or a current index
+                        if (currents.contains(indexName)) {
                             continue;
                         }
 
@@ -325,22 +349,20 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public static class Factory extends Exporter.Factory<LocalExporter> {
 
         private final InternalClient client;
-        private final RendererRegistry registry;
         private final ClusterService clusterService;
         private final CleanerService cleanerService;
 
         @Inject
-        public Factory(InternalClient client, ClusterService clusterService, RendererRegistry registry, CleanerService cleanerService) {
+        public Factory(InternalClient client, ClusterService clusterService, CleanerService cleanerService) {
             super(TYPE, true);
             this.client = client;
             this.clusterService = clusterService;
-            this.registry = registry;
             this.cleanerService = cleanerService;
         }
 
         @Override
         public LocalExporter create(Config config) {
-            return new LocalExporter(config, client, clusterService, registry, cleanerService);
+            return new LocalExporter(config, client, clusterService, cleanerService);
         }
     }
 }

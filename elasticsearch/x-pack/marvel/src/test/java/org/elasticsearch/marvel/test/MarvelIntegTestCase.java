@@ -14,11 +14,15 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -60,6 +64,8 @@ import static org.hamcrest.Matchers.lessThan;
  *
  */
 public abstract class MarvelIntegTestCase extends ESIntegTestCase {
+
+    public static final String MONITORING_INDICES_PREFIX = MonitoringIndexNameResolver.PREFIX + MonitoringIndexNameResolver.DELIMITER;
 
     protected static Boolean shieldEnabled;
 
@@ -163,7 +169,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             @Override
             public void run() {
                 try {
-                    boolean exist = client().admin().indices().prepareExists(".monitoring-es-*").get().isExists();
+                    boolean exist = client().admin().indices().prepareExists(MONITORING_INDICES_PREFIX + "*")
+                            .get().isExists();
                     if (exist) {
                         deleteMarvelIndices();
                     } else {
@@ -180,12 +187,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void deleteMarvelIndices() {
         if (shieldEnabled) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(".monitoring-es-*"));
+                assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
             } catch (IndexNotFoundException e) {
                 // if shield couldn't resolve any marvel index, it'll throw index not found exception.
             }
         } else {
-            assertAcked(client().admin().indices().prepareDelete(".monitoring-es-*"));
+            assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
         }
     }
 
@@ -206,10 +213,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
-        String indices = MarvelSettings.MONITORING_INDICES_PREFIX + "*";
         try {
-            securedFlushAndRefresh(indices);
-            long count = client().prepareSearch(indices).setSize(0).setTypes(types).get().getHits().totalHits();
+            securedFlushAndRefresh(MONITORING_INDICES_PREFIX + "*");
+            long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*")
+                    .setSize(0).setTypes(types).get().getHits().totalHits();
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);
         } catch (IndexNotFoundException e) {
@@ -241,7 +248,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void waitForMarvelIndices() throws Exception {
-        awaitIndexExists(MarvelSettings.MONITORING_INDICES_PREFIX + "*");
+        awaitIndexExists(MONITORING_INDICES_PREFIX + "*");
         assertBusy(this::ensureMarvelIndicesYellow);
     }
 
@@ -356,6 +363,49 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().put(MarvelSettings.INTERVAL.getKey(), value, timeUnit)));
+    }
+
+    protected class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
+
+        public MockDataIndexNameResolver(int version) {
+            super(version);
+        }
+
+        @Override
+        public String type(MonitoringDoc document) {
+            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving type");
+        }
+
+        @Override
+        public String id(MonitoringDoc document) {
+            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving id");
+        }
+
+        @Override
+        protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving building XContent");
+        }
+    }
+
+    protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
+
+        public MockTimestampedIndexNameResolver(String id, int version, Settings settings) {
+            super(id, version, settings);
+        }
+
+        public MockTimestampedIndexNameResolver(String id, int version) {
+            this(id, version, Settings.EMPTY);
+        }
+
+        @Override
+        public String type(MonitoringDoc document) {
+            throw new UnsupportedOperationException("MockTimestampedIndexNameResolver does not support resolving type");
+        }
+
+        @Override
+        protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            throw new UnsupportedOperationException("MockTimestampedIndexNameResolver does not support resolving building XContent");
+        }
     }
 
     /** Shield related settings */

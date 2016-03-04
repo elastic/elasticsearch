@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.ElasticsearchException;
 
-import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -21,16 +20,12 @@ public abstract class ExportBulk {
         this.name = name;
     }
 
-    public ExportBulk add(MarvelDoc... docs) throws Exception {
-        return add(Arrays.asList(docs));
-    }
-
     @Override
     public String toString() {
         return name;
     }
 
-    public abstract ExportBulk add(Collection<MarvelDoc> docs) throws Exception;
+    public abstract ExportBulk add(Collection<MonitoringDoc> docs) throws Exception;
 
     public abstract void flush() throws Exception;
 
@@ -74,7 +69,7 @@ public abstract class ExportBulk {
         }
 
         @Override
-        public ExportBulk add(Collection<MarvelDoc> docs) throws Exception {
+        public ExportBulk add(Collection<MonitoringDoc> docs) throws Exception {
             for (ExportBulk bulk : bulks) {
                 bulk.add(docs);
             }

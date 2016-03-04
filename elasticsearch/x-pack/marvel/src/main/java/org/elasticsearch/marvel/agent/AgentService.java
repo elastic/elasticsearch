@@ -14,13 +14,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -184,8 +184,9 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                         }
                         for (Collector collector : collectors) {
                             if (collecting) {
-                                Collection<MarvelDoc> docs = collector.collect();
-                                if (docs != null) {
+                                Collection<MonitoringDoc> docs = collector.collect();
+
+                                if ((docs != null) && (docs.size() > 0)) {
                                     logger.trace("bulk [{}] - adding [{}] collected docs from [{}] collector", bulk, docs.size(),
                                             collector.name());
                                     bulk.add(docs);

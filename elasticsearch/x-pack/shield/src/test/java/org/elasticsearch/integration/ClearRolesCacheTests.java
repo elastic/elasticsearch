@@ -33,6 +33,7 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -88,7 +89,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
 
         // warm up the caches on every node
         for (ESNativeRolesStore rolesStore : internalCluster().getInstances(ESNativeRolesStore.class)) {
@@ -134,8 +135,8 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
-            UpdateResponse response = client.prepareUpdate().setId(role).setIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
-                    .setType(ESNativeRolesStore.INDEX_ROLE_TYPE)
+            UpdateResponse response = client.prepareUpdate().setId(role).setIndex(ShieldTemplateService.SECURITY_INDEX_NAME)
+                    .setType(ESNativeRolesStore.ROLE_DOC_TYPE)
                     .setDoc("run_as", new String[] { role })
                     .get();
             assertThat(response.isCreated(), is(false));
@@ -174,17 +175,17 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         SecurityClient securityClient = securityClient(client);
 
         final String role = randomFrom(roles);
-        List<RoleDescriptor> foundRoles = securityClient.prepareGetRoles().names(role).get().roles();
-        assertThat(foundRoles.size(), is(1));
+        RoleDescriptor[] foundRoles = securityClient.prepareGetRoles().names(role).get().roles();
+        assertThat(foundRoles.length, is(1));
         logger.debug("--> deleting role [{}]", role);
-        DeleteResponse response = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
-                ESNativeRolesStore.INDEX_ROLE_TYPE, role).get();
+        DeleteResponse response = client
+                .prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME, ESNativeRolesStore.ROLE_DOC_TYPE, role).get();
         assertThat(response.isFound(), is(true));
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(securityClient.prepareGetRoles().names(role).get().roles().isEmpty(), is(true));
+                assertThat(securityClient.prepareGetRoles().names(role).get().roles(), arrayWithSize(0));
             }
         });
     }
@@ -193,8 +194,8 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         for (String role : roles) {
             logger.debug("--> getting role [{}]", role);
             GetRolesResponse roleResponse = securityClient.prepareGetRoles().names(role).get();
-            assertThat(roleResponse.isExists(), is(true));
-            final String[] runAs = roleResponse.roles().get(0).getRunAs();
+            assertThat(roleResponse.hasRoles(), is(true));
+            final String[] runAs = roleResponse.roles()[0].getRunAs();
             if (toModify.contains(role)) {
                 assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.length == 0, is(false));
                 assertThat(Arrays.asList(runAs).contains(role), is(true));

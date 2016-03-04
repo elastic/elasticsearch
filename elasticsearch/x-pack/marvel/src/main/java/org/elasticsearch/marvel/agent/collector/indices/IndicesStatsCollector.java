@@ -12,11 +12,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.agent.collector.AbstractCollector;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.collector.AbstractCollector;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.Shield;
@@ -28,19 +27,18 @@ import java.util.Collections;
 /**
  * Collector for indices statistics.
  * <p>
- * This collector runs on the master node only and collect one {@link IndicesStatsMarvelDoc} document.
+ * This collector runs on the master node only and collect one {@link IndicesStatsMonitoringDoc} document.
  */
 public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollector> {
 
     public static final String NAME = "indices-stats-collector";
-    public static final String TYPE = "indices_stats";
 
     private final Client client;
 
     @Inject
-    public IndicesStatsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+    public IndicesStatsCollector(Settings settings, ClusterService clusterService,
                                  MarvelSettings  marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
     }
 
@@ -50,7 +48,7 @@ public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollect
     }
 
     @Override
-    protected Collection<MarvelDoc> doCollect() throws Exception {
+    protected Collection<MonitoringDoc> doCollect() throws Exception {
         try {
             IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                     .setIndices(marvelSettings.indices())
@@ -62,9 +60,8 @@ public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollect
                     .setStore(true)
                     .get(marvelSettings.indicesStatsTimeout());
 
-            IndicesStatsMarvelDoc indicesStatsDoc = new IndicesStatsMarvelDoc();
+            IndicesStatsMonitoringDoc indicesStatsDoc = new IndicesStatsMonitoringDoc(monitoringId(), monitoringVersion());
             indicesStatsDoc.setClusterUUID(clusterUUID());
-            indicesStatsDoc.setType(TYPE);
             indicesStatsDoc.setTimestamp(System.currentTimeMillis());
             indicesStatsDoc.setSourceNode(localNode());
             indicesStatsDoc.setIndicesStats(indicesStats);

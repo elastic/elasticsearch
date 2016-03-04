@@ -310,7 +310,7 @@ public class AllocationService extends AbstractComponent {
         }
 
         // move shards that no longer can be allocated
-        changed |= moveShards(allocation);
+        changed |= shardsAllocators.moveShards(allocation);
 
         // rebalance
         changed |= shardsAllocators.rebalance(allocation);
@@ -325,46 +325,6 @@ public class AllocationService extends AbstractComponent {
             final IndexMetaData indexMetaData = metaData.index(shardRouting.index());
             shardRouting.unassignedInfo().updateDelay(allocation.getCurrentNanoTime(), settings, indexMetaData.getSettings());
         }
-    }
-
-    private boolean moveShards(RoutingAllocation allocation) {
-        boolean changed = false;
-
-        // create a copy of the shards interleaving between nodes, and check if they can remain
-        List<ShardRouting> shards = new ArrayList<>();
-        int index = 0;
-        boolean found = true;
-        final RoutingNodes routingNodes = allocation.routingNodes();
-        while (found) {
-            found = false;
-            for (RoutingNode routingNode : routingNodes) {
-                if (index >= routingNode.size()) {
-                    continue;
-                }
-                found = true;
-                shards.add(routingNode.get(index));
-            }
-            index++;
-        }
-        for (int i = 0; i < shards.size(); i++) {
-            ShardRouting shardRouting = shards.get(i);
-            // we can only move started shards...
-            if (!shardRouting.started()) {
-                continue;
-            }
-            final RoutingNode routingNode = routingNodes.node(shardRouting.currentNodeId());
-            Decision decision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-            if (decision.type() == Decision.Type.NO) {
-                logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
-                boolean moved = shardsAllocators.move(shardRouting, routingNode, allocation);
-                if (!moved) {
-                    logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
-                } else {
-                    changed = true;
-                }
-            }
-        }
-        return changed;
     }
 
     private boolean electPrimariesAndUnassignedDanglingReplicas(RoutingAllocation allocation) {

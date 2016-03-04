@@ -78,7 +78,6 @@ dependencies {
   // logging
   compile "log4j:log4j:${versions.log4j}", optional
   compile "log4j:apache-log4j-extras:${versions.log4j}", optional
-  compile "org.slf4j:slf4j-api:${versions.slf4j}", optional
 
   compile "net.java.dev.jna:jna:${versions.jna}", optional
 
@@ -225,8 +224,9 @@ thirdPartyAudit.excludes = [
   'org.osgi.util.tracker.ServiceTracker', 
   'org.osgi.util.tracker.ServiceTrackerCustomizer', 
 
-  'org.slf4j.impl.StaticMDCBinder', 
-  'org.slf4j.impl.StaticMarkerBinder',
+  // from org.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+  'org.slf4j.Logger',
+  'org.slf4j.LoggerFactory',
 ]
 
 // dependency license are currently checked in distribution

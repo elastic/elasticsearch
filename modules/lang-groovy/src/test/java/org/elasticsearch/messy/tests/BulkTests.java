@@ -404,7 +404,7 @@ public class BulkTests extends ESIntegTestCase {
     }
 
     /*
-    Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+    Test for https://github.com/elastic/elasticsearch/issues/3444
      */
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
@@ -441,7 +441,7 @@ public class BulkTests extends ESIntegTestCase {
     }
 
     /*
-    Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+    Test for https://github.com/elastic/elasticsearch/issues/3444
      */
     public void testBulkUpdateUpsertWithParent() throws Exception {
         assertAcked(prepareCreate("test")
@@ -475,7 +475,7 @@ public class BulkTests extends ESIntegTestCase {
     }
 
     /*
-     * Test for https://github.com/elasticsearch/elasticsearch/issues/8365
+     * Test for https://github.com/elastic/elasticsearch/issues/8365
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}").addMapping("child",

@@ -1683,10 +1683,10 @@ public class PercolatorIT extends ESIntegTestCase {
         String mapping = "{\n" +
                 "    \"doc\": {\n" +
                 "      \"properties\": {\n" +
-                "        \"name\": {\"type\":\"string\"},\n" +
+                "        \"name\": {\"type\":\"text\"},\n" +
                 "        \"persons\": {\n" +
                 "          \"type\": \"nested\"\n," +
-                "          \"properties\" : {\"foo\" : {\"type\" : \"string\"}}" +
+                "          \"properties\" : {\"foo\" : {\"type\" : \"text\"}}" +
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +

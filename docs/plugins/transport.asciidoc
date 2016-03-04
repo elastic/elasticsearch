@@ -8,7 +8,7 @@ Transport plugins offer alternatives to HTTP.
 
 The core transport plugins are:
 
-https://github.com/elasticsearch/elasticsearch-transport-wares::[Servlet transport]::
+https://github.com/elastic/elasticsearch-transport-wares[Servlet transport]::
 
 Use the REST interface over servlets.
 

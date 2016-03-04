@@ -114,14 +114,14 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static SearchSourceBuilder getRestSearchSource(BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry,
+    public static void parseRestSearchSource(SearchSourceBuilder source, BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry,
             ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers)
             throws IOException {
         XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
         QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
         queryParseContext.reset(parser);
         queryParseContext.parseFieldMatcher(parseFieldMatcher);
-        return SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers);
+        source.parseXContent(parser, queryParseContext, aggParsers);
     }
 
     /**

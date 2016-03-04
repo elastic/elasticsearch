@@ -674,7 +674,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             } else {
                 try {
                     indexNameExpressionResolver.concreteIndices(context, "Foo*");
-                    fail("expecting exeption when result empty and allowNoIndicec=false");
+                    fail("expecting exception when result empty and allowNoIndicec=false");
                 } catch (IndexNotFoundException e) {
                     // expected exception
                 }

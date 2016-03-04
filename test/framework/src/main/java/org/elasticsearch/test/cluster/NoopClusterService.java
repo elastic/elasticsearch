@@ -84,6 +84,11 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
+    public void removeInitialStateBlock(int blockId) throws IllegalStateException {
+
+    }
+
+    @Override
     public OperationRouting operationRouting() {
         return null;
     }

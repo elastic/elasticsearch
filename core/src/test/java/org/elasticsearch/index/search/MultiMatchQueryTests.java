@@ -54,10 +54,10 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "            \"name\":{\n" +
                 "                  \"properties\":{\n" +
                 "                        \"first\": {\n" +
-                "                            \"type\":\"string\"\n" +
+                "                            \"type\":\"text\"\n" +
                 "                        }," +
                 "                        \"last\": {\n" +
-                "                            \"type\":\"string\"\n" +
+                "                            \"type\":\"text\"\n" +
                 "                        }" +
                 "                   }" +
                 "            }\n" +

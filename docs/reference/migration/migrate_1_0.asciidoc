@@ -262,7 +262,7 @@ use the empty stopwords list (ie `_none_`) instead.
 When dates are specified without a year, for example: `Dec 15 10:00:00` they
 are treated as dates in 2000 during indexing and range searches... except for
 the upper included bound `lte` where they were treated as dates in 1970!  Now,
-all https://github.com/elasticsearch/elasticsearch/issues/4451[dates without years]
+all https://github.com/elastic/elasticsearch/issues/4451[dates without years]
 use `1970` as the default.
 
 === Parameters
@@ -270,7 +270,7 @@ use `1970` as the default.
 * Geo queries used to use `miles` as the default unit.  And we
   http://en.wikipedia.org/wiki/Mars_Climate_Orbiter[all know what
   happened at NASA] because of that decision.  The new default unit is
-  https://github.com/elasticsearch/elasticsearch/issues/4515[`meters`].
+  https://github.com/elastic/elasticsearch/issues/4515[`meters`].
 
 * For all queries that support _fuzziness_, the `min_similarity`, `fuzziness`
   and `edit_distance` parameters have been unified as the single parameter

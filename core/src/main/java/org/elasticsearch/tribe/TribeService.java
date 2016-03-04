@@ -20,7 +20,6 @@
 package org.elasticsearch.tribe;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -48,7 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
@@ -62,7 +61,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -112,7 +110,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         sb.put(Node.NODE_CLIENT_SETTING.getKey(), true); // this node should just act as a node client
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
         // nothing is going to be discovered, since no master will be elected
-        sb.put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
+        sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
@@ -138,7 +136,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     return s;
                 }
                 throw new IllegalArgumentException(
-                    "Invalid value for [tribe.on_conflict] must be either [any, drop or start with prefer_] but was: [" + s + "]");
+                        "Invalid value for [tribe.on_conflict] must be either [any, drop or start with prefer_] but was: [" + s + "]");
         }
     }, false, Setting.Scope.CLUSTER);
 
@@ -154,7 +152,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
 
     public static final Set<String> TRIBE_SETTING_KEYS = Sets.newHashSet(TRIBE_NAME_SETTING.getKey(), ON_CONFLICT_SETTING.getKey(),
-        BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
+            BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
 
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
@@ -162,7 +160,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
     @Inject
-    public TribeService(Settings settings, ClusterService clusterService, DiscoveryService discoveryService) {
+    public TribeService(Settings settings, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -183,38 +181,36 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             nodes.add(new TribeClientNode(sb.build()));
         }
 
-        String[] blockIndicesWrite = Strings.EMPTY_ARRAY;
-        String[] blockIndicesRead = Strings.EMPTY_ARRAY;
-        String[] blockIndicesMetadata = Strings.EMPTY_ARRAY;
+        this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+
         if (!nodes.isEmpty()) {
-            // remove the initial election / recovery blocks since we are not going to have a
-            // master elected in this single tribe  node local "cluster"
-            clusterService.removeInitialStateBlock(discoveryService.getNoMasterBlock());
-            clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
             if (BLOCKS_WRITE_SETTING.get(settings)) {
                 clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
             }
-            blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             if (BLOCKS_METADATA_SETTING.get(settings)) {
                 clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
             }
-            blockIndicesMetadata =  BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
-            blockIndicesRead =  BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
-            for (Node node : nodes) {
-                node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
-            }
         }
-        this.blockIndicesMetadata = blockIndicesMetadata;
-        this.blockIndicesRead = blockIndicesRead;
-        this.blockIndicesWrite = blockIndicesWrite;
 
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
 
     @Override
     protected void doStart() {
+        if (nodes.isEmpty() == false) {
+            // remove the initial election / recovery blocks since we are not going to have a
+            // master elected in this single tribe  node local "cluster"
+            clusterService.removeInitialStateBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+        }
+    }
+
+    public void startNodes() {
         for (Node node : nodes) {
             try {
+                node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
                 node.start();
             } catch (Throwable e) {
                 // calling close is safe for non started nodes, we can just iterate over all
@@ -410,14 +406,14 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
 
         private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable,
-                IndexMetaData index) {
+                                 IndexMetaData index) {
             metaData.remove(index.getIndex().getName());
             routingTable.remove(index.getIndex().getName());
             blocks.removeIndexBlocks(index.getIndex().getName());
         }
 
         private void addNewIndex(ClusterState tribeState, ClusterBlocks.Builder blocks, MetaData.Builder metaData,
-                RoutingTable.Builder routingTable, IndexMetaData tribeIndex) {
+                                 RoutingTable.Builder routingTable, IndexMetaData tribeIndex) {
             Settings tribeSettings = Settings.builder().put(tribeIndex.getSettings()).put(TRIBE_NAME_SETTING.getKey(), tribeName).build();
             metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
             routingTable.add(tribeState.routingTable().index(tribeIndex.getIndex()));

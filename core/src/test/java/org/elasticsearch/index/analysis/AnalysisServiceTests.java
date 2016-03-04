@@ -28,7 +28,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ESTestCase;
@@ -77,7 +76,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testOverrideDefaultIndexAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(getRandom(), Version.V_3_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(getRandom(), Version.V_5_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         try {
             AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
@@ -91,7 +90,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testBackCompatOverrideDefaultIndexAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_3_0_0));
+        Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_0_0));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
                 Collections.singletonMap("default_index", analyzerProvider("default_index")),
@@ -113,7 +112,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_3_0_0));
+        Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_0_0));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         Map<String, AnalyzerProvider> analyzers = new HashMap<>();
         analyzers.put("default_index", analyzerProvider("default_index"));

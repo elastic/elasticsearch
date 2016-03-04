@@ -42,6 +42,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SmallFloat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
@@ -89,8 +90,8 @@ public class SimpleAllTests extends ESTestCase {
             if (payload == null || payload.length == 0) {
                 assertEquals(boost, 1f, 0.001f);
             } else {
-                assertEquals(4, payload.length);
-                final float b = PayloadHelper.decodeFloat(payload.bytes, payload.offset);
+                assertEquals(1, payload.length);
+                final float b = SmallFloat.byte315ToFloat(payload.bytes[payload.offset]);
                 assertEquals(boost, b, 0.001f);
             }
         }

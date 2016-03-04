@@ -73,6 +73,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("just_a_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     @Override
@@ -132,20 +134,26 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         }
     }
 
-    public void testIllegalValues() {
+    public void testIllegalValues() throws IOException {
         QueryBuilder query = RandomQueryBuilder.createQuery(random());
         try {
             new HasParentQueryBuilder(null, query);
             fail("must not be null");
         } catch (IllegalArgumentException ex) {
-
         }
 
         try {
             new HasParentQueryBuilder("foo", null);
             fail("must not be null");
         } catch (IllegalArgumentException ex) {
+        }
 
+        QueryShardContext context = createShardContext();
+        HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("just_a_type", new MatchAllQueryBuilder());
+        try {
+            queryBuilder.doToQuery(context);
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
         }
     }
 

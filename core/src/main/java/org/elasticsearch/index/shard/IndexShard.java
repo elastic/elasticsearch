@@ -153,7 +153,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
-    private final IndexSettings idxSettings;
 
     /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      *  across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -205,7 +204,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider, SearchSlowLog slowLog, Engine.Warmer warmer, IndexingOperationListener... listeners) {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
-        this.idxSettings = indexSettings;
         this.codecService = new CodecService(mapperService, logger);
         this.warmer = warmer;
         this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
@@ -248,16 +246,12 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.suspendableRefContainer = new SuspendableRefContainer();
         this.searcherWrapper = indexSearcherWrapper;
-        QueryShardContext queryShardContext = new QueryShardContext(idxSettings, indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
+        QueryShardContext queryShardContext = new QueryShardContext(indexSettings, indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryShardContext);
     }
 
     public Store store() {
         return this.store;
-    }
-
-    public IndexSettings getIndexSettings() {
-        return idxSettings;
     }
 
     /** returns true if this shard supports indexing (i.e., write) operations. */
@@ -319,8 +313,9 @@ public class IndexShard extends AbstractIndexShardComponent {
      * unless explicitly disabled.
      *
      * @throws IndexShardRelocatedException if shard is marked as relocated and relocation aborted
+     * @throws IOException if shard state could not be persisted
      */
-    public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) {
+    public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) throws IOException {
         final ShardRouting currentRouting = this.shardRouting;
         if (!newRouting.shardId().equals(shardId())) {
             throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
@@ -328,57 +323,54 @@ public class IndexShard extends AbstractIndexShardComponent {
         if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
             throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
         }
-        try {
-            if (currentRouting != null) {
-                if (!newRouting.primary() && currentRouting.primary()) {
-                    logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
-                }
-                // if its the same routing, return
-                if (currentRouting.equals(newRouting)) {
-                    return;
-                }
+        if (currentRouting != null) {
+            if (!newRouting.primary() && currentRouting.primary()) {
+                logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
             }
+            // if its the same routing, return
+            if (currentRouting.equals(newRouting)) {
+                return;
+            }
+        }
 
-            if (state == IndexShardState.POST_RECOVERY) {
-                // if the state is started or relocating (cause it might move right away from started to relocating)
-                // then move to STARTED
-                if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
-                    // we want to refresh *before* we move to internal STARTED state
-                    try {
-                        getEngine().refresh("cluster_state_started");
-                    } catch (Throwable t) {
-                        logger.debug("failed to refresh due to move to cluster wide started", t);
-                    }
+        if (state == IndexShardState.POST_RECOVERY) {
+            // if the state is started or relocating (cause it might move right away from started to relocating)
+            // then move to STARTED
+            if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
+                // we want to refresh *before* we move to internal STARTED state
+                try {
+                    getEngine().refresh("cluster_state_started");
+                } catch (Throwable t) {
+                    logger.debug("failed to refresh due to move to cluster wide started", t);
+                }
 
-                    boolean movedToStarted = false;
-                    synchronized (mutex) {
-                        // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
-                        if (state == IndexShardState.POST_RECOVERY) {
-                            changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-                            movedToStarted = true;
-                        } else {
-                            logger.debug("state [{}] not changed, not in POST_RECOVERY, global state is [{}]", state, newRouting.state());
-                        }
-                    }
-                    if (movedToStarted) {
-                        indexEventListener.afterIndexShardStarted(this);
+                boolean movedToStarted = false;
+                synchronized (mutex) {
+                    // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
+                    if (state == IndexShardState.POST_RECOVERY) {
+                        changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+                        movedToStarted = true;
+                    } else {
+                        logger.debug("state [{}] not changed, not in POST_RECOVERY, global state is [{}]", state, newRouting.state());
                     }
                 }
+                if (movedToStarted) {
+                    indexEventListener.afterIndexShardStarted(this);
+                }
             }
+        }
 
-            if (state == IndexShardState.RELOCATED &&
-                (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
-                // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
-                // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
-                // active primaries.
-                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
-            }
-            this.shardRouting = newRouting;
-            indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
-        } finally {
-            if (persistState) {
-                persistMetadata(newRouting, currentRouting);
-            }
+        if (state == IndexShardState.RELOCATED &&
+            (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
+            // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
+            // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
+            // active primaries.
+            throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
+        }
+        this.shardRouting = newRouting;
+        indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
+        if (persistState) {
+            persistMetadata(newRouting, currentRouting);
         }
     }
 
@@ -638,8 +630,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats() {
-        SegmentsStats segmentsStats = getEngine().segmentsStats();
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -733,7 +725,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion == null ? idxSettings.getIndexVersionCreated().luceneVersion : luceneVersion;
+        return luceneVersion == null ? indexSettings.getIndexVersionCreated().luceneVersion : luceneVersion;
     }
 
     /**
@@ -1046,18 +1038,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /**
-     * Deletes the shards metadata state. This method can only be executed if the shard is not active.
-     *
-     * @throws IOException if the delete fails
-     */
-    public void deleteShardState() throws IOException {
-        if (this.routingEntry() != null && this.routingEntry().active()) {
-            throw new IllegalStateException("Can't delete shard state on an active shard");
-        }
-        MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
-    }
-
     public boolean isActive() {
         return active.get();
     }
@@ -1070,7 +1050,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        boolean shouldExist = shardRouting.allocatedPostIndexCreate(idxSettings.getIndexMetaData());
+        boolean shouldExist = shardRouting.allocatedPostIndexCreate(indexSettings.getIndexMetaData());
 
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromStore(this, shouldExist, localNode);
@@ -1344,27 +1324,25 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     // pkg private for testing
-    void persistMetadata(ShardRouting newRouting, ShardRouting currentRouting) {
+    void persistMetadata(ShardRouting newRouting, @Nullable ShardRouting currentRouting) throws IOException {
         assert newRouting != null : "newRouting must not be null";
-        if (newRouting.active()) {
-            try {
-                final String writeReason;
-                if (currentRouting == null) {
-                    writeReason = "freshly started, allocation id [" + newRouting.allocationId() + "]";
-                } else if (currentRouting.equals(newRouting) == false) {
-                    writeReason = "routing changed from " + currentRouting + " to " + newRouting;
-                } else {
-                    logger.trace("{} skip writing shard state, has been written before", shardId);
-                    return;
-                }
-                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
-                logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.legacyVersion, shardPath().getShardStatePath());
-            } catch (IOException e) { // this is how we used to handle it.... :(
-                logger.warn("failed to write shard state", e);
-                // we failed to write the shard state, we will try and write
-                // it next time...
+
+        // only persist metadata if routing information that is persisted in shard state metadata actually changed
+        if (currentRouting == null
+            || currentRouting.primary() != newRouting.primary()
+            || currentRouting.allocationId().equals(newRouting.allocationId()) == false) {
+            assert currentRouting == null || currentRouting.isSameAllocation(newRouting);
+            final String writeReason;
+            if (currentRouting == null) {
+                writeReason = "initial state with allocation id [" + newRouting.allocationId() + "]";
+            } else {
+                writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
+            logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
+            final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
+            ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.legacyVersion, shardPath().getShardStatePath());
+        } else {
+            logger.trace("{} skip writing shard state, has been written before", shardId);
         }
     }
 
@@ -1396,7 +1374,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
-            idxSettings.getSettings().getAsTime(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, IndexingMemoryController.SHARD_DEFAULT_INACTIVE_TIME));
+            indexSettings.getSettings().getAsTime(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, IndexingMemoryController.SHARD_DEFAULT_INACTIVE_TIME));
     }
 
     public Releasable acquirePrimaryOperationLock() {

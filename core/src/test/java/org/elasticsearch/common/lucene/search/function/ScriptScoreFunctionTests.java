@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptScoreFunctionTests extends ESTestCase {
     /**
-     * Tests https://github.com/elasticsearch/elasticsearch/issues/2426
+     * Tests https://github.com/elastic/elasticsearch/issues/2426
      */
     public void testScriptScoresReturnsNaN() throws IOException {
         ScoreFunction scoreFunction = new ScriptScoreFunction(new Script("Float.NaN"), new FloatValueScript(Float.NaN));

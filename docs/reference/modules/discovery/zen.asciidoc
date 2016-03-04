@@ -30,8 +30,7 @@ as gossip routers. It provides the following settings with the
 |=======================================================================
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
-value is either in the form of `host:port`, or in the form of
-`host:port1-port2`. Note that IPv6 hosts must be bracketed. Defaults to
+value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be bracketed. Defaults to
 `127.0.0.1, [::1]`
 |=======================================================================
 

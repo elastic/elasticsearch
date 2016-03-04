@@ -405,7 +405,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    // forces QUERY_THEN_FETCH because of https://github.com/elasticsearch/elasticsearch/issues/4829
+    // forces QUERY_THEN_FETCH because of https://github.com/elastic/elasticsearch/issues/4829
     public void testEquivalence() throws Exception {
         // no dummy docs since merges can change scores while we run queries.
         int numDocs = indexRandomNumbers("whitespace", -1, false);

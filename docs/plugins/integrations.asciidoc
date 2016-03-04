@@ -76,13 +76,13 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by Elasticsearch:
 
-* https://github.com/elasticsearch/puppet-elasticsearch[Puppet]:
+* https://github.com/elastic/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
 
 [float]
 ==== Supported by the community:
 
-* http://github.com/elasticsearch/cookbook-elasticsearch[Chef]:
+* https://github.com/elastic/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
 
 This project appears to have been abandoned:

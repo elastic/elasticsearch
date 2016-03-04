@@ -22,7 +22,7 @@
                     type:
                         properties:
                             text:
-                                type:     string
+                                type:     text
                                 analyzer: my_analyzer
     - do:
        cluster.health:

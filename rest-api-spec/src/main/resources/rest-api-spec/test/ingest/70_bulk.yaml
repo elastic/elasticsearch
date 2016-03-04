@@ -48,6 +48,7 @@ setup:
               _type:  test_type
               _id:    test_id2
           - f1: v2
+  - gte: { ingest_took: 0 }
 
   - do:
       get:
@@ -85,6 +86,8 @@ setup:
               _id:    test_id2
               pipeline: pipeline2
           - f1: v2
+  - gte: { ingest_took: 0 }
+
   - do:
       get:
         index: test_index

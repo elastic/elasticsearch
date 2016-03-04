@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Information about a currently running task.
@@ -50,17 +51,24 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
 
     private final String description;
 
+    private final long startTime;
+
+    private final long runningTimeNanos;
+
     private final Task.Status status;
 
     private final TaskId parentTaskId;
 
-    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, TaskId parentTaskId) {
+    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, long startTime,
+                    long runningTimeNanos, TaskId parentTaskId) {
         this.node = node;
         this.taskId = new TaskId(node.getId(), id);
         this.type = type;
         this.action = action;
         this.description = description;
         this.status = status;
+        this.startTime = startTime;
+        this.runningTimeNanos = runningTimeNanos;
         this.parentTaskId = parentTaskId;
     }
 
@@ -75,6 +83,8 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         } else {
             status = null;
         }
+        startTime = in.readLong();
+        runningTimeNanos = in.readLong();
         parentTaskId = new TaskId(in);
     }
 
@@ -110,6 +120,23 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         return status;
     }
 
+    /**
+     * Returns the task start time
+     */
+    public long getStartTime() {
+        return startTime;
+    }
+
+    /**
+     * Returns the task running time
+     */
+    public long getRunningTimeNanos() {
+        return runningTimeNanos;
+    }
+
+    /**
+     * Returns the parent task id
+     */
     public TaskId getParentTaskId() {
         return parentTaskId;
     }
@@ -132,6 +159,8 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         } else {
             out.writeBoolean(false);
         }
+        out.writeLong(startTime);
+        out.writeLong(runningTimeNanos);
         parentTaskId.writeTo(out);
     }
 
@@ -147,6 +176,8 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         if (description != null) {
             builder.field("description", description);
         }
+        builder.dateValueField("start_time_in_millis", "start_time", startTime);
+        builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
         if (parentTaskId.isSet() == false) {
             builder.field("parent_task_id", parentTaskId.toString());
         }

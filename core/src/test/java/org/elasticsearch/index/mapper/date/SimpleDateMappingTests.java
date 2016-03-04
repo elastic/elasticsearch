@@ -27,7 +27,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -48,11 +47,10 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -106,11 +104,11 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
 
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testParseLocal() {
@@ -156,7 +154,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .startObject()
                   .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
                   .field("date_field_de", "Mi, 06 Dez 2000 02:55:00 -0800")
-                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a successs!
+                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a success!
                 .endObject()
                 .bytes());
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");

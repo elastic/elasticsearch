@@ -34,6 +34,7 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +51,7 @@ public class DiscoveryModule extends AbstractModule {
             "zen", Function.identity(), false, Setting.Scope.CLUSTER);
 
     private final Settings settings;
-    private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = new ArrayList<>();
+    private final Map<String, List<Class<? extends UnicastHostsProvider>>> unicastHostProviders = new HashMap<>();
     private final ExtensionPoint.ClassSet<ZenPing> zenPings = new ExtensionPoint.ClassSet<>("zen_ping", ZenPing.class);
     private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
     private final Map<String, Class<? extends ElectMasterService>> masterServiceType = new HashMap<>();
@@ -66,9 +67,17 @@ public class DiscoveryModule extends AbstractModule {
 
     /**
      * Adds a custom unicast hosts provider to build a dynamic list of unicast hosts list when doing unicast discovery.
+     *
+     * @param type discovery for which this provider is relevant
+     * @param unicastHostProvider the host provider
      */
-    public void addUnicastHostProvider(Class<? extends UnicastHostsProvider> unicastHostProvider) {
-        unicastHostProviders.add(unicastHostProvider);
+    public void addUnicastHostProvider(String type, Class<? extends UnicastHostsProvider> unicastHostProvider) {
+        List<Class<? extends UnicastHostsProvider>> providerList = unicastHostProviders.get(type);
+        if (providerList == null) {
+            providerList = new ArrayList<>();
+            unicastHostProviders.put(type, providerList);
+        }
+        providerList.add(unicastHostProvider);
     }
 
     /**
@@ -116,12 +125,12 @@ public class DiscoveryModule extends AbstractModule {
             }
             bind(ZenPingService.class).asEagerSingleton();
             Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
-            for (Class<? extends UnicastHostsProvider> unicastHostProvider : unicastHostProviders) {
+            for (Class<? extends UnicastHostsProvider> unicastHostProvider :
+                    unicastHostProviders.getOrDefault(discoveryType, Collections.emptyList())) {
                 unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
             }
             zenPings.bind(binder());
         }
         bind(Discovery.class).to(discoveryClass).asEagerSingleton();
-        bind(DiscoveryService.class).asEagerSingleton();
     }
 }

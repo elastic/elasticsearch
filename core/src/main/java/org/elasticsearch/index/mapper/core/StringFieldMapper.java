@@ -132,6 +132,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+                throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
+                        + "or [keyword] field instead for field [" + fieldName + "]");
+            }
             StringFieldMapper.Builder builder = new StringFieldMapper.Builder(fieldName);
             // hack for the fact that string can't just accept true/false for
             // the index property and still accepts no/not_analyzed/analyzed
@@ -236,6 +240,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 int positionIncrementGap, int ignoreAbove,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0)) {
+            throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
+                    + "or [keyword] field instead for field [" + fieldType.name() + "]");
+        }
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
             throw new MapperParsingException("Field [" + fieldType.name() + "] cannot be analyzed and have doc values");
         }
@@ -309,7 +317,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
-            field.setBoost(valueAndBoost.boost());
+            if (valueAndBoost.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                field.setBoost(valueAndBoost.boost());
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
@@ -334,7 +344,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             return new ValueAndBoost(nullValue, defaultBoost);
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
+                && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
             XContentParser.Token token;
             String currentFieldName = null;
             String value = nullValue;

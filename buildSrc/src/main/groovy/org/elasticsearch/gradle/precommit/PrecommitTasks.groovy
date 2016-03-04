@@ -33,6 +33,7 @@ class PrecommitTasks {
         List<Task> precommitTasks = [
             configureForbiddenApis(project),
             configureCheckstyle(project),
+            configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
@@ -108,5 +109,12 @@ class PrecommitTasks {
             }
         }
         return checkstyleTask
+    }
+
+    private static Task configureNamingConventions(Project project) {
+        if (project.sourceSets.findByName("test")) {
+            return project.tasks.create('namingConventions', NamingConventionsTask)
+        }
+        return null
     }
 }

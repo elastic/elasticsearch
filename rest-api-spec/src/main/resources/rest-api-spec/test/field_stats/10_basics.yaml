@@ -1,5 +1,15 @@
----
-"Basic field stats":
+setup:
+  - do:
+      indices.create:
+          index:  test_1
+          body:
+            mappings:
+              test:
+                  properties:
+                    foo:
+                      type: text
+                    number:
+                      type: long
   - do:
       index:
           index:  test_1
@@ -10,6 +20,8 @@
   - do:
       indices.refresh: {}
 
+---
+"Basic field stats":
   - do:
       field_stats:
           index:  test_1
@@ -29,16 +41,6 @@
 ---
 "Basic field stats with level set to indices":
   - do:
-      index:
-          index:  test_1
-          type:   test
-          id:     id_1
-          body:   { foo: "bar", number: 123 }
-
-  - do:
-      indices.refresh: {}
-
-  - do:
       field_stats:
           index:  test_1
           fields:  [foo, number]
@@ -57,15 +59,6 @@
 
 ---
 "Field stats with filtering":
-  - do:
-      index:
-          index:  test_1
-          type:   test
-          id:     id_1
-          body:   { foo: "bar", number: 123 }
-
-  - do:
-      indices.refresh: {}
 
   - do:
       field_stats:

@@ -83,7 +83,7 @@ public class NettyTransportIT extends ESIntegTestCase {
         assertThat(clusterIndexHealths.getStatus(), is(ClusterHealthStatus.GREEN));
         try {
             transportClient.filterWithHeader(Collections.singletonMap("ERROR", "MY MESSAGE")).admin().cluster().prepareHealth().get();
-            fail("Expected exception, but didnt happen");
+            fail("Expected exception, but didn't happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
             assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));

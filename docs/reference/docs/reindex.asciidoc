@@ -268,7 +268,7 @@ POST /_reindex
         "company": "cat"
       }
     }
-  }
+  },
   "index": {
     "index": "dest",
     "routing": "=cat"
@@ -277,6 +277,23 @@ POST /_reindex
 --------------------------------------------------
 // AUTOSENSE
 
+Reindex can also use the <<ingest>> feature by specifying a
+`pipeline` like this:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "source"
+  },
+  "index": {
+    "index": "dest",
+    "pipeline": "some_ingest_pipeline"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
 
 [float]
 === URL Parameters

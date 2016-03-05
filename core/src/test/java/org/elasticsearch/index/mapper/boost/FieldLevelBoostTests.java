@@ -36,6 +36,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -96,6 +97,97 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
 
         f = doc.getField("short_field");
         assertThat((double) f.boost(), closeTo(9.0, 0.001));
+    }
+
+    public void testBackCompatFieldLevelMappingBoost() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
+            .startObject("str_field").field("type", "keyword").field("boost", "2.0").endObject()
+            .startObject("int_field").field("type", "integer").field("boost", "3.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("byte_field").field("type", "byte").field("boost", "4.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("date_field").field("type", "date").field("boost", "5.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("double_field").field("type", "double").field("boost", "6.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("float_field").field("type", "float").field("boost", "7.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("long_field").field("type", "long").field("boost", "8.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("short_field").field("type", "short").field("boost", "9.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .string();
+
+        {
+            DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+            BytesReference json = XContentFactory.jsonBuilder().startObject()
+                .field("str_field", "some name")
+                .field("int_field", 10)
+                .field("byte_field", 20)
+                .field("date_field", "2012-01-10")
+                .field("double_field", 30.0)
+                .field("float_field", 40.0)
+                .field("long_field", 50)
+                .field("short_field", 60)
+                .bytes();
+            Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+
+            IndexableField f = doc.getField("str_field");
+            assertThat((double) f.boost(), closeTo(2.0, 0.001));
+
+            f = doc.getField("int_field");
+            assertThat((double) f.boost(), closeTo(3.0, 0.001));
+
+            f = doc.getField("byte_field");
+            assertThat((double) f.boost(), closeTo(4.0, 0.001));
+
+            f = doc.getField("date_field");
+            assertThat((double) f.boost(), closeTo(5.0, 0.001));
+
+            f = doc.getField("double_field");
+            assertThat((double) f.boost(), closeTo(6.0, 0.001));
+
+            f = doc.getField("float_field");
+            assertThat((double) f.boost(), closeTo(7.0, 0.001));
+
+            f = doc.getField("long_field");
+            assertThat((double) f.boost(), closeTo(8.0, 0.001));
+
+            f = doc.getField("short_field");
+            assertThat((double) f.boost(), closeTo(9.0, 0.001));
+        }
+
+        {
+            DocumentMapper docMapper = createIndex("test2").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+            BytesReference json = XContentFactory.jsonBuilder().startObject()
+                .field("str_field", "some name")
+                .field("int_field", 10)
+                .field("byte_field", 20)
+                .field("date_field", "2012-01-10")
+                .field("double_field", 30.0)
+                .field("float_field", 40.0)
+                .field("long_field", 50)
+                .field("short_field", 60)
+                .bytes();
+            Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+
+            IndexableField f = doc.getField("str_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("int_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("byte_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("date_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("double_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("float_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("long_field");
+            assertThat(f.boost(), equalTo(1f));
+
+            f = doc.getField("short_field");
+            assertThat(f.boost(), equalTo(1f));
+        }
     }
 
     public void testBackCompatInvalidFieldLevelBoost() throws Exception {

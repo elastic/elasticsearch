@@ -158,6 +158,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             index.timestamp(mainRequest.getDestination().timestamp());
             index.ttl(mainRequest.getDestination().ttl());
             index.contentType(mainRequest.getDestination().getContentType());
+            index.setPipeline(mainRequest.getDestination().getPipeline());
             // OpType is synthesized from version so it is handled when we copy version above.
 
             return index;

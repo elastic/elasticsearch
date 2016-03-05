@@ -740,10 +740,4 @@ public abstract class StreamOutput extends OutputStream {
         writeNamedWriteable(suggestion);
     }
 
-    /**
-     * Writes a completion {@link QueryContext} to the current stream
-     */
-    public void writeCompletionSuggestionQueryContext(QueryContext queryContext) throws IOException {
-        writeNamedWriteable(queryContext);
-    }
 }

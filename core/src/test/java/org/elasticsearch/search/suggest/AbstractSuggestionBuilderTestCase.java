@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -160,7 +161,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertTrue("suggestion builder is not equal to self", firstBuilder.equals(firstBuilder));
             assertThat("same suggestion builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
                     equalTo(firstBuilder.hashCode()));
-            assertThat("different suggestion builders should not be equal", mutate(firstBuilder), not(equalTo(firstBuilder)));
+        final SB mutate = mutate(firstBuilder);
+        assertThat("different suggestion builders should not be equal", mutate, not(equalTo(firstBuilder)));
 
             SB secondBuilder = serializedCopy(firstBuilder);
             assertTrue("suggestion builder is not equal to self", secondBuilder.equals(secondBuilder));
@@ -211,6 +213,22 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         }
     }
 
+    protected Tuple<MapperService, SB> mockMapperServiceAndSuggestionBuilder(
+        IndexSettings idxSettings, AnalysisService mockAnalysisService, SB suggestBuilder) {
+        final MapperService mapperService = new MapperService(idxSettings, mockAnalysisService, null,
+            new IndicesModule().getMapperRegistry(), null) {
+            @Override
+            public MappedFieldType fullName(String fullName) {
+                StringFieldType type = new StringFieldType();
+                if (randomBoolean()) {
+                    type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
+                }
+                return type;
+            }
+        };
+        return new Tuple<>(mapperService, suggestBuilder);
+    }
+
     /**
      * parses random suggestion builder via old parseElement method and via
      * build, comparing the results for equality
@@ -226,30 +244,21 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             }
         };
 
-        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService, null,
-                                                               new IndicesModule().getMapperRegistry(), null) {
-            @Override
-            public MappedFieldType fullName(String fullName) {
-                StringFieldType type = new StringFieldType();
-                if (randomBoolean()) {
-                    type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
-                }
-                return type;
-            }
-        };
-
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, mockMapperService, null, scriptService, null) {
-            @Override
-            public MappedFieldType fieldMapper(String name) {
-                StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
-                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
-            }
-        };
-        mockShardContext.setMapUnmappedFieldAsString(true);
-
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SuggestBuilder suggestBuilder = new SuggestBuilder();
             SB suggestionBuilder = randomTestBuilder();
+            Tuple<MapperService, SB> mapperServiceSBTuple =
+                mockMapperServiceAndSuggestionBuilder(idxSettings, mockAnalysisService, suggestionBuilder);
+            suggestionBuilder = mapperServiceSBTuple.v2();
+            QueryShardContext mockShardContext = new QueryShardContext(idxSettings,
+                null, null, mapperServiceSBTuple.v1(), null, scriptService, null) {
+                @Override
+                public MappedFieldType fieldMapper(String name) {
+                    StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
+                    return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+                }
+            };
+            mockShardContext.setMapUnmappedFieldAsString(true);
             suggestBuilder.addSuggestion(randomAsciiOfLength(10), suggestionBuilder);
 
             if (suggestionBuilder.text() == null) {

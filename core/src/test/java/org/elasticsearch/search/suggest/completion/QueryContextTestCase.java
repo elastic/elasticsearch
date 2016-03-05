@@ -26,23 +26,26 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.completion.context.QueryContext;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static junit.framework.TestCase.assertEquals;
 
-public abstract class QueryContextTestCase<QC extends QueryContext> extends WritableTestCase<QC> {
+
+public abstract class QueryContextTestCase<QC extends QueryContext> extends ESTestCase {
 
     private static final int NUMBER_OF_RUNS = 20;
+
+    /**
+     * create random model that is put under test
+     */
+    protected abstract QC createTestModel();
 
     /**
      * query context prototype to read serialized format
      */
     protected abstract QC prototype();
-
-    @Override
-    protected QC readFrom(StreamInput in) throws IOException {
-        return (QC) prototype().readFrom(in);
-    }
 
     public void testToXContext() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {

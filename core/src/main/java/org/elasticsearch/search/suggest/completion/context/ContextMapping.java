@@ -23,11 +23,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -38,7 +40,7 @@ import java.util.Set;
  *
  * Implementations have to define how contexts are parsed at query/index time
  */
-public abstract class ContextMapping implements ToXContent {
+public abstract class ContextMapping<T extends QueryContext> implements ToXContent {
 
     public static final String FIELD_TYPE = "type";
     public static final String FIELD_NAME = "name";
@@ -94,10 +96,25 @@ public abstract class ContextMapping implements ToXContent {
      */
     protected abstract Set<CharSequence> parseContext(ParseContext.Document document);
 
+    protected abstract T prototype();
+
     /**
      * Parses query contexts for this mapper
      */
-    public abstract List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException;
+    public List<InternalQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+        List<T> queryContexts = new ArrayList<>();
+        Token token = parser.nextToken();
+        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
+            queryContexts.add((T) prototype().fromXContext(parser));
+        } else if (token == Token.START_ARRAY) {
+            while (parser.nextToken() != Token.END_ARRAY) {
+                queryContexts.add((T) prototype().fromXContext(parser));
+            }
+        }
+        return toInternalQueryContexts(queryContexts);
+    }
+
+    protected abstract List<InternalQueryContext> toInternalQueryContexts(List<T> queryContexts);
 
     /**
      * Implementations should add specific configurations
@@ -136,15 +153,36 @@ public abstract class ContextMapping implements ToXContent {
         }
     }
 
-    public static class QueryContext {
+    public static class InternalQueryContext {
         public final String context;
         public final int boost;
         public final boolean isPrefix;
 
-        public QueryContext(String context, int boost, boolean isPrefix) {
+        public InternalQueryContext(String context, int boost, boolean isPrefix) {
             this.context = context;
             this.boost = boost;
             this.isPrefix = isPrefix;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            InternalQueryContext that = (InternalQueryContext) o;
+
+            if (boost != that.boost) return false;
+            if (isPrefix != that.isPrefix) return false;
+            return context != null ? context.equals(that.context) : that.context == null;
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = context != null ? context.hashCode() : 0;
+            result = 31 * result + boost;
+            result = 31 * result + (isPrefix ? 1 : 0);
+            return result;
         }
 
         @Override

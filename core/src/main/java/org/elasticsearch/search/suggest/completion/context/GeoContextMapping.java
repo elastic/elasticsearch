@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
 import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
@@ -56,7 +57,7 @@ import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
  * {@link GeoQueryContext} defines the options for constructing
  * a unit of query context for this context type
  */
-public class GeoContextMapping extends ContextMapping {
+public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
     public static final String FIELD_PRECISION = "precision";
     public static final String FIELD_FIELDNAME = "path";
@@ -221,6 +222,11 @@ public class GeoContextMapping extends ContextMapping {
         return locations;
     }
 
+    @Override
+    protected GeoQueryContext prototype() {
+        return GeoQueryContext.PROTOTYPE;
+    }
+
     /**
      * Parse a list of {@link GeoQueryContext}
      * using <code>parser</code>. A QueryContexts accepts one of the following forms:
@@ -245,17 +251,8 @@ public class GeoContextMapping extends ContextMapping {
      * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
      */
     @Override
-    public List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        List<GeoQueryContext> queryContexts = new ArrayList<>();
-        Token token = parser.nextToken();
-        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add(GeoQueryContext.PROTOTYPE.fromXContext(parser));
-        } else if (token == Token.START_ARRAY) {
-            while (parser.nextToken() != Token.END_ARRAY) {
-                queryContexts.add(GeoQueryContext.PROTOTYPE.fromXContext(parser));
-            }
-        }
-        List<QueryContext> queryContextList = new ArrayList<>();
+    public List<InternalQueryContext> toInternalQueryContexts(List<GeoQueryContext> queryContexts) {
+        List<InternalQueryContext> internalQueryContextList = new ArrayList<>();
         for (GeoQueryContext queryContext : queryContexts) {
             int minPrecision = Math.min(this.precision, queryContext.getPrecision());
             GeoPoint point = queryContext.getGeoPoint();
@@ -265,19 +262,20 @@ public class GeoContextMapping extends ContextMapping {
             if (queryContext.getNeighbours().isEmpty() && geoHash.length() == this.precision) {
                 addNeighbors(geoHash, locations);
             } else if (queryContext.getNeighbours().isEmpty() == false) {
-                for (Integer neighbourPrecision : queryContext.getNeighbours()) {
-                    if (neighbourPrecision < geoHash.length()) {
+                queryContext.getNeighbours().stream()
+                    .filter(neighbourPrecision -> neighbourPrecision < geoHash.length())
+                    .forEach(neighbourPrecision -> {
                         String truncatedGeoHash = geoHash.substring(0, neighbourPrecision);
                         locations.add(truncatedGeoHash);
                         addNeighbors(truncatedGeoHash, locations);
-                    }
-                }
+                    });
             }
-            for (String location : locations) {
-                queryContextList.add(new QueryContext(location, queryContext.getBoost(), location.length() < this.precision));
-            }
+            internalQueryContextList.addAll(
+                locations.stream()
+                    .map(location -> new InternalQueryContext(location, queryContext.getBoost(), location.length() < this.precision))
+                    .collect(Collectors.toList()));
         }
-        return queryContextList;
+        return internalQueryContextList;
     }
 
     @Override
@@ -301,7 +299,7 @@ public class GeoContextMapping extends ContextMapping {
         private int precision = DEFAULT_PRECISION;
         private String fieldName = null;
 
-        protected Builder(String name) {
+        public Builder(String name) {
             super(name);
         }
 

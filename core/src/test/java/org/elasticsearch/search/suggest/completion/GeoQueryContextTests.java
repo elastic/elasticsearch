@@ -50,35 +50,6 @@ public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> 
     }
 
     @Override
-    protected GeoQueryContext createMutation(GeoQueryContext original) throws IOException {
-        final GeoQueryContext.Builder builder = GeoQueryContext.builder();
-        builder.setGeoPoint(original.getGeoPoint()).setBoost(original.getBoost())
-            .setNeighbours(original.getNeighbours()).setPrecision(original.getPrecision());
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                builder.setGeoPoint(randomValueOtherThan(original.getGeoPoint() ,() ->
-                    new GeoPoint(randomDouble(), randomDouble())));
-                break;
-            case 1:
-                builder.setBoost(randomValueOtherThan(original.getBoost() ,() -> randomIntBetween(1, 5)));
-                break;
-            case 2:
-                builder.setPrecision(randomValueOtherThan(original.getPrecision() ,() -> randomIntBetween(1, 12)));
-                break;
-            case 3:
-                builder.setNeighbours(randomValueOtherThan(original.getNeighbours(), () -> {
-                    List<Integer> newNeighbours = new ArrayList<>();
-                    for (int i = 0; i < randomIntBetween(1, 12); i++) {
-                        newNeighbours.add(randomIntBetween(1, 12));
-                    }
-                    return newNeighbours;
-                }));
-                break;
-        }
-        return builder.build();
-    }
-
-    @Override
     protected GeoQueryContext prototype() {
         return GeoQueryContext.PROTOTYPE;
     }

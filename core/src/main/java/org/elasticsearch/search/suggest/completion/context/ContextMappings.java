@@ -152,7 +152,7 @@ public class ContextMappings implements ToXContent {
      * @param queryContexts a map of context mapping name and collected query contexts
      * @return a context-enabled query
      */
-    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<ContextMapping.QueryContext>> queryContexts) {
+    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<ContextMapping.InternalQueryContext>> queryContexts) {
         ContextQuery typedContextQuery = new ContextQuery(query);
         if (queryContexts.isEmpty() == false) {
             CharsRefBuilder scratch = new CharsRefBuilder();
@@ -161,9 +161,9 @@ public class ContextMappings implements ToXContent {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
                 ContextMapping mapping = contextMappings.get(typeId);
-                List<ContextMapping.QueryContext> queryContext = queryContexts.get(mapping.name());
-                if (queryContext != null) {
-                    for (ContextMapping.QueryContext context : queryContext) {
+                List<ContextMapping.InternalQueryContext> internalQueryContext = queryContexts.get(mapping.name());
+                if (internalQueryContext != null) {
+                    for (ContextMapping.InternalQueryContext context : internalQueryContext) {
                         scratch.append(context.context);
                         typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
                         scratch.setLength(1);

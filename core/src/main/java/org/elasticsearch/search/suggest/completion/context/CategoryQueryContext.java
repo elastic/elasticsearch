@@ -21,14 +21,11 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.CONTEXT_BOOST;
@@ -98,11 +95,6 @@ public final class CategoryQueryContext implements QueryContext {
         return result;
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
     private static ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
     static {
         CATEGORY_PARSER.declareString(Builder::setCategory, new ParseField(CONTEXT_VALUE));
@@ -132,22 +124,6 @@ public final class CategoryQueryContext implements QueryContext {
         builder.field(CONTEXT_PREFIX, isPrefix);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(isPrefix);
-        out.writeVInt(boost);
-        out.writeString(category);
-    }
-
-    @Override
-    public QueryContext readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder();
-        builder.isPrefix = in.readBoolean();
-        builder.boost = in.readVInt();
-        builder.category = in.readString();
-        return builder.build();
     }
 
     public static class Builder {

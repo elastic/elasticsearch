@@ -21,13 +21,16 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -42,6 +45,22 @@ public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
     static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
     static final ParseField UNICODE_AWARE_FIELD = new ParseField("unicode_aware");
     static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
+
+    static ObjectParser<FuzzyOptions.Builder, Void> FUZZY_PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(), Builder::new);
+    static {
+        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyMinLength, MIN_LENGTH_FIELD);
+        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES_FIELD);
+        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setUnicodeAware, UNICODE_AWARE_FIELD);
+        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyPrefixLength, PREFIX_LENGTH_FIELD);
+        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setTranspositions, TRANSPOSITION_FIELD);
+        FUZZY_PARSER.declareValue((a, b) -> {
+            try {
+                a.setFuzziness(Fuzziness.parse(b).asDistance());
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
+            }
+        }, Fuzziness.FIELD);
+    }
 
     private int editDistance;
     private boolean transpositions;
@@ -61,6 +80,10 @@ public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
     }
 
     private FuzzyOptions() {
+    }
+
+    public static FuzzyOptions parse(XContentParser parser) throws IOException {
+        return FUZZY_PARSER.parse(parser).build();
     }
 
     public static Builder builder() {

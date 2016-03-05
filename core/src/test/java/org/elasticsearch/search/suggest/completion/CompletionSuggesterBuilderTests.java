@@ -19,10 +19,21 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.search.suggest.completion.context.QueryContext;
 import org.junit.BeforeClass;
@@ -30,18 +41,28 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
-    @BeforeClass
-    public static void initQueryContexts() {
-        namedWriteableRegistry.registerPrototype(QueryContext.class, CategoryQueryContext.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(QueryContext.class, GeoQueryContext.PROTOTYPE);
-    }
-
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
+        return randomSuggestionBuilderWithContextInfo().builder;
+    }
+
+    private static class BuilderAndInfo {
+        CompletionSuggestionBuilder builder;
+        List<String> catContexts = new ArrayList<>();
+        List<String> geoContexts = new ArrayList<>();
+    }
+
+    private BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
+        final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         switch (randomIntBetween(0, 3)) {
             case 0:
@@ -60,38 +81,66 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         List<String> payloads = new ArrayList<>();
         Collections.addAll(payloads, generateRandomStringArray(5, 10, false, false));
         maybeSet(testBuilder::payload, payloads);
+        Map<String, List<? extends QueryContext>> contextMap = new HashMap<>();
         if (randomBoolean()) {
             int numContext = randomIntBetween(1, 5);
-            CategoryQueryContext[] contexts = new CategoryQueryContext[numContext];
+            List<CategoryQueryContext> contexts = new ArrayList<>(numContext);
             for (int i = 0; i < numContext; i++) {
-                contexts[i] = CategoryQueryContextTests.randomCategoryQueryContext();
+                contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
             }
-            testBuilder.categoryContexts(randomAsciiOfLength(10), contexts);
+            String name = randomAsciiOfLength(10);
+            contextMap.put(name, contexts);
+            builderAndInfo.catContexts.add(name);
         }
         if (randomBoolean()) {
             int numContext = randomIntBetween(1, 5);
-            GeoQueryContext[] contexts = new GeoQueryContext[numContext];
+            List<GeoQueryContext> contexts = new ArrayList<>(numContext);
             for (int i = 0; i < numContext; i++) {
-                contexts[i] = GeoQueryContextTests.randomGeoQueryContext();
+                contexts.add(GeoQueryContextTests.randomGeoQueryContext());
             }
-            testBuilder.geoContexts(randomAsciiOfLength(10), contexts);
+            String name = randomAsciiOfLength(10);
+            contextMap.put(name, contexts);
+            builderAndInfo.geoContexts.add(name);
         }
-        return testBuilder;
+        testBuilder.contexts(contextMap);
+        builderAndInfo.builder = testBuilder;
+        return builderAndInfo;
     }
 
     @Override
     protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
+        assertThat(oldSuggestion, instanceOf(CompletionSuggestionContext.class));
+        assertThat(newSuggestion, instanceOf(CompletionSuggestionContext.class));
+        CompletionSuggestionContext oldCompletionSuggestion = (CompletionSuggestionContext) oldSuggestion;
+        CompletionSuggestionContext newCompletionSuggestion = (CompletionSuggestionContext) newSuggestion;
+        assertEquals(oldCompletionSuggestion.getPayloadFields(), newCompletionSuggestion.getPayloadFields());
+        assertEquals(oldCompletionSuggestion.getFuzzyOptions(), newCompletionSuggestion.getFuzzyOptions());
+        assertEquals(oldCompletionSuggestion.getRegexOptions(), newCompletionSuggestion.getRegexOptions());
+        assertEquals(oldCompletionSuggestion.getQueryContexts(), newCompletionSuggestion.getQueryContexts());
 
     }
 
     @Override
-    public void testBuild() throws IOException {
-        // skip for now
-    }
-
-    @Override
-    public void testFromXContent() throws IOException {
-        // skip for now
+    protected Tuple<MapperService, CompletionSuggestionBuilder> mockMapperServiceAndSuggestionBuilder(
+        IndexSettings idxSettings, AnalysisService mockAnalysisService, CompletionSuggestionBuilder suggestBuilder) {
+        final BuilderAndInfo builderAndInfo = randomSuggestionBuilderWithContextInfo();
+        final MapperService mapperService = new MapperService(idxSettings, mockAnalysisService, null,
+            new IndicesModule().getMapperRegistry(), null) {
+            @Override
+            public MappedFieldType fullName(String fullName) {
+                CompletionFieldMapper.CompletionFieldType type = new CompletionFieldMapper.CompletionFieldType();
+                List<ContextMapping> contextMappings = builderAndInfo.catContexts.stream()
+                    .map(catContext -> new CategoryContextMapping.Builder(catContext).build())
+                    .collect(Collectors.toList());
+                contextMappings.addAll(builderAndInfo.geoContexts.stream()
+                    .map(geoContext -> new GeoContextMapping.Builder(geoContext).build())
+                    .collect(Collectors.toList()));
+                type.setContextMappings(new ContextMappings(contextMappings));
+                return type;
+            }
+        };
+        final CompletionSuggestionBuilder builder = builderAndInfo.builder;
+        return new Tuple<>(mapperService, builder);
     }
 
     @Override
@@ -103,20 +152,20 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 builder.payload(payloads);
                 break;
             case 1:
-                int numCategoryContext = randomIntBetween(1, 5);
-                CategoryQueryContext[] categoryContexts = new CategoryQueryContext[numCategoryContext];
-                for (int i = 0; i < numCategoryContext; i++) {
-                    categoryContexts[i] = CategoryQueryContextTests.randomCategoryQueryContext();
+                int nCatContext = randomIntBetween(1, 5);
+                List<CategoryQueryContext> contexts = new ArrayList<>(nCatContext);
+                for (int i = 0; i < nCatContext; i++) {
+                    contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
                 }
-                builder.categoryContexts(randomAsciiOfLength(10), categoryContexts);
+                builder.contexts(Collections.singletonMap(randomAsciiOfLength(10), contexts));
                 break;
             case 2:
-                int numGeoContext = randomIntBetween(1, 5);
-                GeoQueryContext[] geoContexts = new GeoQueryContext[numGeoContext];
-                for (int i = 0; i < numGeoContext; i++) {
-                    geoContexts[i] = GeoQueryContextTests.randomGeoQueryContext();
+                int nGeoContext = randomIntBetween(1, 5);
+                List<GeoQueryContext> geoContexts = new ArrayList<>(nGeoContext);
+                for (int i = 0; i < nGeoContext; i++) {
+                    geoContexts.add(GeoQueryContextTests.randomGeoQueryContext());
                 }
-                builder.geoContexts(randomAsciiOfLength(10), geoContexts);
+                builder.contexts(Collections.singletonMap(randomAsciiOfLength(10), geoContexts));
                 break;
             case 3:
                 builder.prefix(randomAsciiOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());

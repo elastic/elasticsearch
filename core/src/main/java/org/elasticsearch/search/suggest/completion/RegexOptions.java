@@ -21,12 +21,15 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.RegexpFlag;
 
 import java.io.IOException;
@@ -39,6 +42,25 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
     static final ParseField REGEX_OPTIONS = new ParseField(NAME);
     static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
     static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
+
+
+    private static ObjectParser<RegexOptions.Builder, Void> REGEXP_PARSER =
+        new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), RegexOptions.Builder::new);
+    static {
+        REGEXP_PARSER.declareInt(RegexOptions.Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
+        REGEXP_PARSER.declareField((parser, builder, aVoid) -> {
+            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                builder.setFlags(parser.text());
+            } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                builder.setFlagsValue(parser.intValue());
+            } else {
+                throw new ElasticsearchParseException(REGEX_OPTIONS.getPreferredName()
+                    + " " + FLAGS_VALUE.getPreferredName() + " supports string or number");
+            }
+        }, FLAGS_VALUE, ObjectParser.ValueType.VALUE);
+        REGEXP_PARSER.declareStringOrNull(RegexOptions.Builder::setFlags, FLAGS_VALUE);
+    }
+
     private int flagsValue;
     private int maxDeterminizedStates;
 
@@ -67,6 +89,10 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public static RegexOptions parse(XContentParser parser) throws IOException {
+        return REGEXP_PARSER.parse(parser).build();
     }
 
     @Override
@@ -132,6 +158,11 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
          */
         public Builder setFlags(String flags) {
             this.flagsValue = RegexpFlag.resolveValue(flags);
+            return this;
+        }
+
+        private Builder setFlagsValue(int flagsValue) {
+            this.flagsValue = flagsValue;
             return this;
         }
 

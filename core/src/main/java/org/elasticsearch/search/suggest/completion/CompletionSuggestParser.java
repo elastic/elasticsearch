@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -34,14 +33,8 @@ import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils.Fields;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Parses query options for {@link CompletionSuggester}
@@ -74,27 +67,20 @@ import java.util.Map;
 public class CompletionSuggestParser implements SuggestContextParser {
 
     private static ObjectParser<CompletionSuggestionContext, ContextAndSuggest> TLP_PARSER = new ObjectParser<>(CompletionSuggestionBuilder.SUGGESTION_NAME, null);
-    private static ObjectParser<RegexOptions.Builder, ContextAndSuggest> REGEXP_PARSER = new ObjectParser<>(RegexOptions.REGEX_OPTIONS.getPreferredName(), RegexOptions.Builder::new);
-    private static ObjectParser<FuzzyOptions.Builder, ContextAndSuggest> FUZZY_PARSER = new ObjectParser<>(FuzzyOptions.FUZZY_OPTIONS.getPreferredName(), FuzzyOptions.Builder::new);
     static {
-        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyMinLength, FuzzyOptions.MIN_LENGTH_FIELD);
-        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setMaxDeterminizedStates, FuzzyOptions.MAX_DETERMINIZED_STATES_FIELD);
-        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setUnicodeAware, FuzzyOptions.UNICODE_AWARE_FIELD);
-        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyPrefixLength, FuzzyOptions.PREFIX_LENGTH_FIELD);
-        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setTranspositions, FuzzyOptions.TRANSPOSITION_FIELD);
-        FUZZY_PARSER.declareValue((a, b) -> {
-            try {
-                a.setFuzziness(Fuzziness.parse(b).asDistance());
-            } catch (IOException e) {
-                throw new ElasticsearchException(e);
-            }
-        }, Fuzziness.FIELD);
-        REGEXP_PARSER.declareInt(RegexOptions.Builder::setMaxDeterminizedStates, RegexOptions.MAX_DETERMINIZED_STATES);
-        REGEXP_PARSER.declareStringOrNull(RegexOptions.Builder::setFlags, RegexOptions.FLAGS_VALUE);
-
         TLP_PARSER.declareStringArray(CompletionSuggestionContext::setPayloadFields, CompletionSuggestionBuilder.PAYLOAD_FIELD);
-        TLP_PARSER.declareObjectOrDefault(CompletionSuggestionContext::setFuzzyOptionsBuilder, FUZZY_PARSER, FuzzyOptions.Builder::new, FuzzyOptions.FUZZY_OPTIONS);
-        TLP_PARSER.declareObject(CompletionSuggestionContext::setRegexOptionsBuilder, REGEXP_PARSER, RegexOptions.REGEX_OPTIONS);
+        TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
+                if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                    if (parser.booleanValue()) {
+                        completionSuggestionContext.setFuzzyOptions(new FuzzyOptions.Builder().build());
+                    }
+                } else {
+                    completionSuggestionContext.setFuzzyOptions(FuzzyOptions.parse(parser));
+                }
+            },
+            FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+        TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> completionSuggestionContext.setRegexOptions(RegexOptions.parse(parser)),
+            RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
         TLP_PARSER.declareString(SuggestionSearchContext.SuggestionContext::setField, Fields.FIELD);
         TLP_PARSER.declareField((p, v, c) -> {
             String analyzerName = p.text();
@@ -132,7 +118,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser,  QueryShardContext shardContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, QueryShardContext shardContext) throws IOException {
         MapperService mapperService = shardContext.getMapperService();
         final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(shardContext);
         final ContextAndSuggest contextAndSuggest = new ContextAndSuggest(mapperService);
@@ -146,28 +132,12 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (type.hasContextMappings() == false && contextParser != null) {
                 throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
-            Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
-            if (type.hasContextMappings() && contextParser != null) {
-                ContextMappings contextMappings = type.getContextMappings();
-                contextParser.nextToken();
-                queryContexts = new HashMap<>(contextMappings.size());
-                assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
-                XContentParser.Token currentToken;
-                String currentFieldName;
-                while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (currentToken == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = contextParser.currentName();
-                        final ContextMapping mapping = contextMappings.get(currentFieldName);
-                        queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
-                    }
-                }
-                contextParser.close();
-            }
+            suggestion.setQueryContexts(CompletionSuggestionBuilder.parseQueryContexts(contextParser, type));
             suggestion.setFieldType(type);
-            suggestion.setQueryContexts(queryContexts);
             return suggestion;
         } else {
             throw new IllegalArgumentException("Field [" + suggestion.getField() + "] is not a completion suggest field");
         }
     }
+
 }

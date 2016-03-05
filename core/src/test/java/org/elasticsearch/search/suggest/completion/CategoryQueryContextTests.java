@@ -39,25 +39,6 @@ public class CategoryQueryContextTests extends QueryContextTestCase<CategoryQuer
     }
 
     @Override
-    protected CategoryQueryContext createMutation(CategoryQueryContext original) throws IOException {
-        final CategoryQueryContext.Builder builder = CategoryQueryContext.builder();
-        builder.setCategory(original.getCategory()).setBoost(original.getBoost()).setPrefix(original.isPrefix());
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                builder.setCategory(randomValueOtherThan(original.getCategory(), () -> randomAsciiOfLength(10)));
-                break;
-            case 1:
-                builder.setBoost(randomValueOtherThan(original.getBoost(), () -> randomIntBetween(1, 5)));
-                break;
-            case 2:
-                builder.setPrefix(!original.isPrefix());
-                break;
-
-        }
-        return builder.build();
-    }
-
-    @Override
     protected CategoryQueryContext prototype() {
         return CategoryQueryContext.PROTOTYPE;
     }

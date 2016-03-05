@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,7 +27,7 @@ import java.io.IOException;
 /**
  * Interface for serializing/de-serializing completion query context
  */
-public interface QueryContext extends ToXContent, NamedWriteable<QueryContext> {
+public interface QueryContext extends ToXContent {
 
     QueryContext fromXContext(XContentParser parser) throws IOException;
 }

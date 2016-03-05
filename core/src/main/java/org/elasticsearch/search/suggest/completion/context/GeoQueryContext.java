@@ -23,14 +23,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -114,11 +111,6 @@ public final class GeoQueryContext implements QueryContext {
         return new Builder();
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
     private static ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
     static {
         GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)), new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
@@ -157,33 +149,6 @@ public final class GeoQueryContext implements QueryContext {
         builder.field(CONTEXT_PRECISION, precision);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeGeoPoint(geoPoint);
-        out.writeVInt(boost);
-        out.writeInt(precision);
-        out.writeVInt(neighbours.size());
-        for (Integer neighbour : neighbours) {
-            out.writeVInt(neighbour);
-        }
-    }
-
-    @Override
-    public QueryContext readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder();
-        builder.geoPoint = in.readGeoPoint();
-        builder.boost = in.readVInt();
-        builder.precision = in.readInt();
-        int nNeighbour = in.readVInt();
-        if (nNeighbour != 0) {
-            builder.neighbours = new ArrayList<>(nNeighbour);
-            for (int i = 0; i < nNeighbour; i++) {
-                builder.neighbours.add(in.readVInt());
-            }
-        }
-        return builder.build();
     }
 
     public static class Builder {

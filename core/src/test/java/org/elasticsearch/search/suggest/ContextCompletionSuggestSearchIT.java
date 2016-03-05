@@ -36,12 +36,14 @@ import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
+import org.elasticsearch.search.suggest.completion.context.QueryContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -180,7 +182,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
         ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .categoryContexts("cat", CategoryQueryContext.builder().setCategory("cat0").build());
+                .contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
 
         assertSuggestions("foo", prefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
     }
@@ -207,9 +209,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
         ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .categoryContexts("cat",
-                        CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
-                        CategoryQueryContext.builder().setCategory("cat1").build()
+                .contexts(Collections.singletonMap("cat",
+                        Arrays.asList(CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
+                        CategoryQueryContext.builder().setCategory("cat1").build()))
                 );
         assertSuggestions("foo", prefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion2");
     }
@@ -267,24 +269,21 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         // filter only on context cat
         CompletionSuggestionBuilder catFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        catFilterSuggest.categoryContexts("cat", CategoryQueryContext.builder().setCategory("cat0").build());
+        catFilterSuggest.contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
         assertSuggestions("foo", catFilterSuggest, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
 
         // filter only on context type
         CompletionSuggestionBuilder typeFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        typeFilterSuggest.categoryContexts("type", CategoryQueryContext.builder().setCategory("type2").build(),
-                CategoryQueryContext.builder().setCategory("type1").build());
+        typeFilterSuggest.contexts(Collections.singletonMap("type", Arrays.asList(CategoryQueryContext.builder().setCategory("type2").build(),
+                CategoryQueryContext.builder().setCategory("type1").build())));
         assertSuggestions("foo", typeFilterSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
 
         CompletionSuggestionBuilder multiContextFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         // query context order should never matter
-        if (randomBoolean()) {
-            multiContextFilterSuggest.categoryContexts("type", CategoryQueryContext.builder().setCategory("type2").build());
-            multiContextFilterSuggest.categoryContexts("cat", CategoryQueryContext.builder().setCategory("cat2").build());
-        } else {
-            multiContextFilterSuggest.categoryContexts("cat", CategoryQueryContext.builder().setCategory("cat2").build());
-            multiContextFilterSuggest.categoryContexts("type", CategoryQueryContext.builder().setCategory("type2").build());
-        }
+        Map<String, List<? extends QueryContext>> contextMap = new HashMap<>();
+        contextMap.put("type", Collections.singletonList(CategoryQueryContext.builder().setCategory("type2").build()));
+        contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat2").build()));
+        multiContextFilterSuggest.contexts(contextMap);
         assertSuggestions("foo", multiContextFilterSuggest, "suggestion6", "suggestion2");
     }
 
@@ -315,36 +314,33 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         // boost only on context cat
         CompletionSuggestionBuilder catBoostSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        catBoostSuggest.categoryContexts("cat",
-                CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
-                CategoryQueryContext.builder().setCategory("cat1").build());
+        catBoostSuggest.contexts(Collections.singletonMap("cat",
+                Arrays.asList(
+                    CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
+                    CategoryQueryContext.builder().setCategory("cat1").build())));
         assertSuggestions("foo", catBoostSuggest, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion2");
 
         // boost only on context type
         CompletionSuggestionBuilder typeBoostSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        typeBoostSuggest.categoryContexts("type",
-                CategoryQueryContext.builder().setCategory("type2").setBoost(2).build(),
-                CategoryQueryContext.builder().setCategory("type1").setBoost(4).build());
+        typeBoostSuggest.contexts(Collections.singletonMap("type",
+                Arrays.asList(
+                    CategoryQueryContext.builder().setCategory("type2").setBoost(2).build(),
+                    CategoryQueryContext.builder().setCategory("type1").setBoost(4).build())));
         assertSuggestions("foo", typeBoostSuggest, "suggestion9", "suggestion5", "suggestion6", "suggestion1", "suggestion2");
 
         // boost on both contexts
         CompletionSuggestionBuilder multiContextBoostSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         // query context order should never matter
-        if (randomBoolean()) {
-            multiContextBoostSuggest.categoryContexts("type",
-                    CategoryQueryContext.builder().setCategory("type2").setBoost(2).build(),
-                    CategoryQueryContext.builder().setCategory("type1").setBoost(4).build());
-            multiContextBoostSuggest.categoryContexts("cat",
-                    CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
-                    CategoryQueryContext.builder().setCategory("cat1").build());
-        } else {
-            multiContextBoostSuggest.categoryContexts("cat",
-                    CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
-                    CategoryQueryContext.builder().setCategory("cat1").build());
-            multiContextBoostSuggest.categoryContexts("type",
-                    CategoryQueryContext.builder().setCategory("type2").setBoost(2).build(),
-                    CategoryQueryContext.builder().setCategory("type1").setBoost(4).build());
-        }
+        Map<String, List<? extends QueryContext>> contextMap = new HashMap<>();
+        contextMap.put("type", Arrays.asList(
+            CategoryQueryContext.builder().setCategory("type2").setBoost(2).build(),
+            CategoryQueryContext.builder().setCategory("type1").setBoost(4).build())
+        );
+        contextMap.put("cat", Arrays.asList(
+            CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
+            CategoryQueryContext.builder().setCategory("cat1").build())
+        );
+        multiContextBoostSuggest.contexts(contextMap);
         assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
     }
 
@@ -463,7 +459,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
         CompletionSuggestionBuilder geoFilteringPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .geoContexts("geo", GeoQueryContext.builder().setGeoPoint(new GeoPoint(geoPoints[0])).build());
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(
+                    GeoQueryContext.builder().setGeoPoint(new GeoPoint(geoPoints[0])).build())));
 
         assertSuggestions("foo", geoFilteringPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
     }
@@ -497,7 +494,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(2).build();
         GeoQueryContext context2 = GeoQueryContext.builder().setGeoPoint(geoPoints[1]).build();
         CompletionSuggestionBuilder geoBoostingPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .geoContexts("geo", context1, context2);
+                .contexts(Collections.singletonMap("geo", Arrays.asList(context1, context2)));
 
         assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion7");
     }
@@ -528,7 +525,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
         ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .geoContexts("geo", GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.2263, 4.543)).build());
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.2263, 4.543)).build())));
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
@@ -569,7 +566,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
         CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .geoContexts("geo", GeoQueryContext.builder().setGeoPoint(GeoPoint.fromGeohash(geohash)).build());
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(GeoPoint.fromGeohash(geohash)).build())));
 
         assertSuggestions("foo", geoNeighbourPrefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
@@ -626,7 +623,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10)
-                .geoContexts("st", GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build());
+                .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionName, context).get();
 
         assertEquals(suggestResponse.getSuggest().size(), 1);

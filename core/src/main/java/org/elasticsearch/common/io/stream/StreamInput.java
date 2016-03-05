@@ -717,13 +717,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a completion {@link QueryContext} from the current stream
-     */
-    public QueryContext readCompletionSuggestionQueryContext() throws IOException {
-        return readNamedWriteable(QueryContext.class);
-    }
-
-    /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {

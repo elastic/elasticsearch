@@ -57,8 +57,8 @@ import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.correlation.Correlation;
-import org.elasticsearch.search.aggregations.metrics.correlation.CorrelationAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.multifield.MultiFieldStats;
+import org.elasticsearch.search.aggregations.metrics.stats.multifield.MultiFieldStatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
@@ -299,10 +299,10 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link Correlation} aggregation with the given name.
+     * Create a new {@link MultiFieldStats} aggregation with the given name.
      */
-    public static CorrelationAggregatorBuilder correlation(String name) {
-        return new CorrelationAggregatorBuilder(name);
+    public static MultiFieldStatsAggregatorBuilder correlation(String name) {
+        return new MultiFieldStatsAggregatorBuilder(name);
     }
 
     /**

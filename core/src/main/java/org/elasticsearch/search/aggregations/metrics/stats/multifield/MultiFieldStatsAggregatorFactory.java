@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.correlation;
+package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -34,22 +34,22 @@ import java.util.Map;
 
 /**
  */
-public class CorrelationAggregatorFactory extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, CorrelationAggregatorFactory> {
+public class MultiFieldStatsAggregatorFactory extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, MultiFieldStatsAggregatorFactory> {
 
-    public CorrelationAggregatorFactory(String name, InternalAggregation.Type type, Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, AggregationContext context,
-                                        AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public MultiFieldStatsAggregatorFactory(String name, InternalAggregation.Type type, Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, AggregationContext context,
+                                            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, configs, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
         throws IOException {
-        return new CorrelationAggregator(name, null, context, parent, pipelineAggregators, metaData);
+        return new MultiFieldStatsAggregator(name, null, context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent, boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CorrelationAggregator(name, valuesSources, context, parent, pipelineAggregators, metaData);
+        return new MultiFieldStatsAggregator(name, valuesSources, context, parent, pipelineAggregators, metaData);
     }
 }

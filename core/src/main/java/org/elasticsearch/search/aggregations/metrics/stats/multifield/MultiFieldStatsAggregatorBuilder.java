@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.correlation;
+package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,25 +32,25 @@ import java.util.Map;
 
 /**
  */
-public class CorrelationAggregatorBuilder
-    extends MultiValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, CorrelationAggregatorBuilder> {
+public class MultiFieldStatsAggregatorBuilder
+    extends MultiValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MultiFieldStatsAggregatorBuilder> {
 
-    static final CorrelationAggregatorBuilder PROTOTYPE = new CorrelationAggregatorBuilder("");
+    static final MultiFieldStatsAggregatorBuilder PROTOTYPE = new MultiFieldStatsAggregatorBuilder("");
 
-    public CorrelationAggregatorBuilder(String name) {
-        super(name, InternalCorrelation.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    public MultiFieldStatsAggregatorBuilder(String name) {
+        super(name, InternalMultiFieldStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
-    protected CorrelationAggregatorFactory innerBuild(AggregationContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
-                                                      AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new CorrelationAggregatorFactory(name, type, configs, context, parent, subFactoriesBuilder, metaData);
+    protected MultiFieldStatsAggregatorFactory innerBuild(AggregationContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
+                                                          AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new MultiFieldStatsAggregatorFactory(name, type, configs, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
-    protected MultiValuesSourceAggregatorBuilder<Numeric, CorrelationAggregatorBuilder> innerReadFrom(String name,
-                                                                                                      ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
-        return new CorrelationAggregatorBuilder(name);
+    protected MultiValuesSourceAggregatorBuilder<Numeric, MultiFieldStatsAggregatorBuilder> innerReadFrom(String name,
+                                                                                                          ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
+        return new MultiFieldStatsAggregatorBuilder(name);
     }
 
     @Override

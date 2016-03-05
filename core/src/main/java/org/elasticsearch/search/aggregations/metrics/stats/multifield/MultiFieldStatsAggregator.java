@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.correlation;
+package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
@@ -41,15 +41,15 @@ import java.util.Map;
 /**
  * Metric Aggregation for computing the pearson product correlation coefficient between multiple fields
  **/
-public class CorrelationAggregator extends MetricsAggregator {
+public class MultiFieldStatsAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
     final Map<String, ValuesSource.Numeric> valuesSources;
 
     /** array of descriptive stats, per shard, needed to compute the correlation */
-    ObjectArray<CorrelationStats> correlationStats;
+    ObjectArray<MultiFieldStatsResults> correlationStats;
 
-    public CorrelationAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
-                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public MultiFieldStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
+                                     Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSources = valuesSources;
         if (valuesSources != null && !valuesSources.isEmpty()) {
@@ -87,9 +87,9 @@ public class CorrelationAggregator extends MetricsAggregator {
                 Map<String, Double> fields = getFields(doc);
                 if (fields != null) {
                     correlationStats = bigArrays.grow(correlationStats, bucket + 1);
-                    CorrelationStats correlationStat = correlationStats.get(bucket);
+                    MultiFieldStatsResults correlationStat = correlationStats.get(bucket);
                     if (correlationStat == null) {
-                        correlationStat = new CorrelationStats();
+                        correlationStat = new MultiFieldStatsResults();
                     }
                     // add document fields to correlation stats
                     correlationStat.add(fields);
@@ -131,13 +131,13 @@ public class CorrelationAggregator extends MetricsAggregator {
         if (valuesSources == null || bucket >= correlationStats.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalCorrelation(name, correlationStats.size(), correlationStats.get(bucket),
+        return new InternalMultiFieldStats(name, correlationStats.size(), correlationStats.get(bucket),
             pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCorrelation(name, 0, null, pipelineAggregators(), metaData());
+        return new InternalMultiFieldStats(name, 0, null, pipelineAggregators(), metaData());
     }
 
     @Override

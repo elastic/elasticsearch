@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.correlation;
+package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,21 +32,20 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.*;
 
 /**
- * Correlation aggregation integration test
+ * MultiFieldStats aggregation integration test
  * todo: refactor to a general multi_stats aggregation?
  */
-public class CorrelationIT extends AbstractNumericTestCase {
-    protected static HashMap<String, HashMap<String, Double>> expectedCorrelations = null;
+public class MultiFieldStatsIT extends AbstractNumericTestCase {
     protected static String[] valFieldName = new String[] {"value", "randVal1", "randVal2"};
-    protected static CorrelationStats correlationStats = new CorrelationStats();
-    protected static int numDocs = 100;
-    protected static final double TOLERANCE = 1e-7;
-    protected static final String aggName = "corr";
+    protected static MultiFieldStatsResults multiFieldStatsResults = new MultiFieldStatsResults();
+    protected static int numDocs = 10000;
+    protected static final double TOLERANCE = 1e-6;
+    protected static final String aggName = "multifieldstats";
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         super.setupSuiteScopeCluster();
-        createIndex("corr_idx");
+        createIndex("mfs_idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         Map<String, Double> vals = new HashMap<>(3);
@@ -62,9 +61,9 @@ public class CorrelationIT extends AbstractNumericTestCase {
                 .startArray("values").value(i+2).value(i+3).endArray()
                 .endObject()));
             // add document fields
-            correlationStats.add(vals);
+            multiFieldStatsResults.add(vals);
         }
-        expectedCorrelations = correlationStats.computeCorrelation();
+        multiFieldStatsResults.computeStats();
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -88,20 +87,29 @@ public class CorrelationIT extends AbstractNumericTestCase {
         assertSearchResponse(response);
 
         assertHitCount(response, numDocs);
-        Correlation correlation = response.getAggregations().get(aggName);
-        assertThat(correlation, notNullValue());
-        assertThat(correlation.getName(), equalTo(aggName));
-        /** todo refactor to a CorrelationResult class for simple correlation access and output? */
-        HashMap<String, HashMap<String, Double>> correlationResult = correlation.getCorrelation();
-        for (Map.Entry<String, HashMap<String, Double>> row : correlationResult.entrySet()) {
-            final String rowKey = row.getKey();
-            Map<String, Double> expectedRow = expectedCorrelations.get(rowKey);
-            for (Map.Entry<String, Double> col : row.getValue().entrySet()) {
-                final String colKey = col.getKey();
-                assertThat(col.getValue(), closeTo(expectedRow.get(colKey), TOLERANCE));
+        MultiFieldStats multiFieldStats = response.getAggregations().get(aggName);
+        assertThat(multiFieldStats, notNullValue());
+        assertThat(multiFieldStats.getName(), equalTo(aggName));
+        // check mean
+        for (String fieldName : valFieldName) {
+            // check mean
+            assertThat(multiFieldStats.getMean(fieldName), closeTo(multiFieldStatsResults.means.get(fieldName), TOLERANCE));
+            // check variance
+            assertThat(multiFieldStats.getVariance(fieldName), closeTo(multiFieldStatsResults.variances.get(fieldName), TOLERANCE));
+            // check skewness
+            assertThat(multiFieldStats.getSkewness(fieldName), closeTo(multiFieldStatsResults.skewness.get(fieldName), TOLERANCE));
+            // check kurtosis
+            assertThat(multiFieldStats.getKurtosis(fieldName), closeTo(multiFieldStatsResults.kurtosis.get(fieldName), TOLERANCE));
+            // check covariance
+            for (String fieldNameY : valFieldName) {
+                // check covariance
+                assertThat(multiFieldStats.getCovariance(fieldName, fieldNameY),
+                    closeTo(multiFieldStatsResults.getCovariance(fieldName, fieldNameY), TOLERANCE));
+                // check correlation
+                assertThat(multiFieldStats.getCorrelation(fieldName, fieldNameY),
+                    closeTo(multiFieldStatsResults.getCorrelation(fieldName, fieldNameY), TOLERANCE));
             }
         }
-
     }
 
     @Override

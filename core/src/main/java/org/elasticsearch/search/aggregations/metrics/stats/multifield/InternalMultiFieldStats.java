@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.correlation;
+package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,15 +33,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Pearson Product Correlation Aggregation over multiple fields
+ * Computes distribution statistics over multiple fields
  */
-public class InternalCorrelation extends InternalMetricsAggregation implements Correlation {
+public class InternalMultiFieldStats extends InternalMetricsAggregation implements MultiFieldStats {
 
     public final static Type TYPE = new Type("correlation");
     public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public InternalCorrelation readResult(StreamInput in) throws IOException {
-            InternalCorrelation result = new InternalCorrelation();
+        public InternalMultiFieldStats readResult(StreamInput in) throws IOException {
+            InternalMultiFieldStats result = new InternalMultiFieldStats();
             result.readFrom(in);
             return result;
         }
@@ -51,17 +51,17 @@ public class InternalCorrelation extends InternalMetricsAggregation implements C
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    /** per shard stats needed to compute correlation */
-    protected CorrelationStats correlationStats;
+    /** per shard stats needed to compute stats */
+    protected MultiFieldStatsResults multiFieldStatsResults;
 
-    protected InternalCorrelation() {
+    protected InternalMultiFieldStats() {
     }
 
-    protected InternalCorrelation(String name, long count, CorrelationStats correlationStats,
-                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalMultiFieldStats(String name, long count, MultiFieldStatsResults multiFieldStatsResults,
+                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         assert count >= 0;
-        this.correlationStats = correlationStats;
+        this.multiFieldStatsResults = multiFieldStatsResults;
     }
 
     @Override
@@ -70,13 +70,53 @@ public class InternalCorrelation extends InternalMetricsAggregation implements C
     }
 
     @Override
-    public long count() {
-        return correlationStats.count;
+    public long getDocCount() {
+        return multiFieldStatsResults.docCount;
+    }
+
+    @Override
+    public long getFieldCount(String field) {
+        return multiFieldStatsResults.counts.get(field);
+    }
+
+    @Override
+    public double getMean(String field) {
+        return multiFieldStatsResults.means.get(field);
+    }
+
+    @Override
+    public double getVariance(String field) {
+        return multiFieldStatsResults.variances.get(field);
+    }
+
+    @Override
+    public double getSkewness(String field) {
+        return multiFieldStatsResults.skewness.get(field);
+    }
+
+    @Override
+    public double getKurtosis(String field) {
+        return multiFieldStatsResults.kurtosis.get(field);
+    }
+
+    @Override
+    public double getCovariance(String fieldX, String fieldY) {
+        return multiFieldStatsResults.getCovariance(fieldX, fieldY);
+    }
+
+    @Override
+    public HashMap<String, HashMap<String, Double>> getCovariance() {
+        return multiFieldStatsResults.covariances;
+    }
+
+    @Override
+    public double getCorrelation(String fieldX, String fieldY) {
+        return multiFieldStatsResults.getCorrelation(fieldX, fieldY);
     }
 
     @Override
     public HashMap<String, HashMap<String, Double>> getCorrelation() {
-        return correlationStats.correlation;
+        return multiFieldStatsResults.correlation;
     }
 
     static class Fields {
@@ -85,9 +125,9 @@ public class InternalCorrelation extends InternalMetricsAggregation implements C
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (correlationStats != null && correlationStats.correlation != null) {
+        if (multiFieldStatsResults != null && multiFieldStatsResults.correlation != null) {
             builder.startObject(Fields.CORRELATION);
-            for (Map.Entry<String, HashMap<String, Double>> fieldCorr : correlationStats.correlation.entrySet()) {
+            for (Map.Entry<String, HashMap<String, Double>> fieldCorr : multiFieldStatsResults.correlation.entrySet()) {
                 builder.startObject(fieldCorr.getKey());
                 for (Map.Entry<String, Double> corrValue : fieldCorr.getValue().entrySet()) {
                     builder.field(corrValue.getKey(), corrValue.getValue());
@@ -107,7 +147,7 @@ public class InternalCorrelation extends InternalMetricsAggregation implements C
             String coordinate = path.get(0);
             switch (coordinate) {
                 case "correlation":
-                    return correlationStats.correlation;
+                    return multiFieldStatsResults.correlation;
                 default:
                     throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
             }
@@ -118,11 +158,11 @@ public class InternalCorrelation extends InternalMetricsAggregation implements C
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (correlationStats == null) {
+        if (multiFieldStatsResults == null) {
             out.writeVLong(0);
         } else {
-            out.writeVLong(correlationStats.count);
-            correlationStats.writeTo(out);
+            out.writeVLong(multiFieldStatsResults.docCount);
+            multiFieldStatsResults.writeTo(out);
         }
     }
 
@@ -131,22 +171,22 @@ public class InternalCorrelation extends InternalMetricsAggregation implements C
         // read count
         long count = in.readVLong();
         if (count > 0) {
-            correlationStats = new CorrelationStats();
-            correlationStats.count = count;
-            correlationStats.readFrom(in);
+            multiFieldStatsResults = new MultiFieldStatsResults();
+            multiFieldStatsResults.docCount = count;
+            multiFieldStatsResults.readFrom(in);
         }
     }
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // merge stats across all shards
-        aggregations.removeIf(p -> ((InternalCorrelation)p).correlationStats==null);
-        CorrelationStats corrStats = ((InternalCorrelation) aggregations.get(0)).correlationStats;
+        aggregations.removeIf(p -> ((InternalMultiFieldStats)p).multiFieldStatsResults ==null);
+        MultiFieldStatsResults corrStats = ((InternalMultiFieldStats) aggregations.get(0)).multiFieldStatsResults;
         for (int i=1; i < aggregations.size(); ++i) {
-            corrStats.merge(((InternalCorrelation) aggregations.get(i)).correlationStats);
+            corrStats.merge(((InternalMultiFieldStats) aggregations.get(i)).multiFieldStatsResults);
         }
-        corrStats.computeCorrelation();
+        corrStats.computeStats();
 
-        return new InternalCorrelation(name, corrStats.count, corrStats, pipelineAggregators(), getMetaData());
+        return new InternalMultiFieldStats(name, corrStats.docCount, corrStats, pipelineAggregators(), getMetaData());
     }
 }

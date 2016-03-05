@@ -166,10 +166,10 @@ import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.correlation.CorrelationAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.correlation.CorrelationParser;
-import org.elasticsearch.search.aggregations.metrics.correlation.InternalCorrelation;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.multifield.MultiFieldStatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.multifield.MultiFieldStatsParser;
+import org.elasticsearch.search.aggregations.metrics.stats.multifield.InternalMultiFieldStats;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregatorBuilder;
@@ -497,7 +497,7 @@ public class SearchModule extends AbstractModule {
                 PercentileRanksAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(CardinalityAggregatorBuilder::new, new CardinalityParser(),
                 CardinalityAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(CorrelationAggregatorBuilder::new, new CorrelationParser(), CorrelationAggregatorBuilder.AGGREGATION_NAME_FIELD),
+        registerAggregation(MultiFieldStatsAggregatorBuilder::new, new MultiFieldStatsParser(), MultiFieldStatsAggregatorBuilder.AGGREGATION_NAME_FIELD),
         registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MissingAggregatorBuilder::new, new MissingParser(), MissingAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -725,7 +725,7 @@ public class SearchModule extends AbstractModule {
         InternalHDRPercentiles.registerStreams();
         InternalHDRPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
-        InternalCorrelation.registerStreams();
+        InternalMultiFieldStats.registerStreams();
         InternalScriptedMetric.registerStreams();
         InternalGeoCentroid.registerStreams();
 

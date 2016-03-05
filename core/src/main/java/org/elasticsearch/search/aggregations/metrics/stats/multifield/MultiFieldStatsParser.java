@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.correlation;
+package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -31,15 +31,15 @@ import java.util.Map;
 
 /**
  */
-public class CorrelationParser extends AbstractMultiValuesSourceParser.NumericValuesSourceParser {
+public class MultiFieldStatsParser extends AbstractMultiValuesSourceParser.NumericValuesSourceParser {
 
-    public CorrelationParser() {
+    public MultiFieldStatsParser() {
         super(true, true, false);
     }
 
     @Override
     public String type() {
-        return InternalCorrelation.TYPE.name();
+        return InternalMultiFieldStats.TYPE.name();
     }
 
     @Override
@@ -49,13 +49,13 @@ public class CorrelationParser extends AbstractMultiValuesSourceParser.NumericVa
     }
 
     @Override
-    protected CorrelationAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                         ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new CorrelationAggregatorBuilder(aggregationName);
+    protected MultiFieldStatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new MultiFieldStatsAggregatorBuilder(aggregationName);
     }
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return CorrelationAggregatorBuilder.PROTOTYPE;
+        return MultiFieldStatsAggregatorBuilder.PROTOTYPE;
     }
 }

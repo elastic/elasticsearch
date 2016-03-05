@@ -114,7 +114,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             providers.put(name, factory.apply(name, settings));
         }
-      return providers;
+        return providers;
     }
 
     public SimilarityProvider getSimilarity(String name) {
@@ -122,7 +122,7 @@ public final class SimilarityService extends AbstractIndexComponent {
     }
 
     public SimilarityProvider getDefaultSimilarity() {
-      return similarities.get("default");
+        return similarities.get("default");
     }
 
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {

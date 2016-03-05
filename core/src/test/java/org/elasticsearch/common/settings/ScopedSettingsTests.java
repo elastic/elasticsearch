@@ -215,10 +215,10 @@ public class ScopedSettingsTests extends ESTestCase {
         }
 
         try {
-          settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build());
-          fail();
+            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build());
+            fail();
         } catch (IllegalArgumentException e) {
-          assertEquals("Cannot redefine built-in Similarity [classic]", e.getMessage());
+            assertEquals("Cannot redefine built-in Similarity [classic]", e.getMessage());
         }
     }
 

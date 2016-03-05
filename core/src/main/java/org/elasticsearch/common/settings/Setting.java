@@ -487,7 +487,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
-      return groupSetting(key, dynamic, scope, (s) -> true);
+        return groupSetting(key, dynamic, scope, (s) -> true);
     }
 
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope, Predicate<String> settingsValidator) {

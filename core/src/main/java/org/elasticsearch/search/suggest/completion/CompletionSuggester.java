@@ -84,7 +84,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
             // collect payloads
             final Map<String, List<Object>> payload = new HashMap<>(0);
-            Set<String> payloadFields = suggestionContext.getPayloadFields();
+            List<String> payloadFields = suggestionContext.getPayloadFields();
             if (payloadFields.isEmpty() == false) {
                 final int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, leaves);
                 final LeafReaderContext subReaderContext = leaves.get(readerIndex);

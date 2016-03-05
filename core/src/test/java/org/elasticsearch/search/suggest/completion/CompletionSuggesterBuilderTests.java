@@ -113,6 +113,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         assertThat(newSuggestion, instanceOf(CompletionSuggestionContext.class));
         CompletionSuggestionContext oldCompletionSuggestion = (CompletionSuggestionContext) oldSuggestion;
         CompletionSuggestionContext newCompletionSuggestion = (CompletionSuggestionContext) newSuggestion;
+        assertEquals(oldCompletionSuggestion.getFieldType(), newCompletionSuggestion.getFieldType());
         assertEquals(oldCompletionSuggestion.getPayloadFields(), newCompletionSuggestion.getPayloadFields());
         assertEquals(oldCompletionSuggestion.getFuzzyOptions(), newCompletionSuggestion.getFuzzyOptions());
         assertEquals(oldCompletionSuggestion.getRegexOptions(), newCompletionSuggestion.getRegexOptions());

@@ -96,12 +96,15 @@ public abstract class ContextMapping<T extends QueryContext> implements ToXConte
      */
     protected abstract Set<CharSequence> parseContext(ParseContext.Document document);
 
+    /**
+     * Prototype for the query context
+     */
     protected abstract T prototype();
 
     /**
      * Parses query contexts for this mapper
      */
-    public List<InternalQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public final List<InternalQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
         List<T> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
@@ -114,6 +117,9 @@ public abstract class ContextMapping<T extends QueryContext> implements ToXConte
         return toInternalQueryContexts(queryContexts);
     }
 
+    /**
+     * Convert query contexts to common representation
+     */
     protected abstract List<InternalQueryContext> toInternalQueryContexts(List<T> queryContexts);
 
     /**

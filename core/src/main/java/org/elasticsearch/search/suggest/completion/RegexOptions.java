@@ -38,17 +38,14 @@ import java.io.IOException;
  * Regular expression options for completion suggester
  */
 public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
-    static final String NAME = "regex";
-    static final ParseField REGEX_OPTIONS = new ParseField(NAME);
-    static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
-    static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
+    static final ParseField REGEX_OPTIONS = new ParseField("regex");
+    private static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
+    private static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
 
-
-    private static ObjectParser<RegexOptions.Builder, Void> REGEXP_PARSER =
-        new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), RegexOptions.Builder::new);
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), Builder::new);
     static {
-        REGEXP_PARSER.declareInt(RegexOptions.Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
-        REGEXP_PARSER.declareField((parser, builder, aVoid) -> {
+        PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
+        PARSER.declareField((parser, builder, aVoid) -> {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 builder.setFlags(parser.text());
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
@@ -58,7 +55,7 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
                     + " " + FLAGS_VALUE.getPreferredName() + " supports string or number");
             }
         }, FLAGS_VALUE, ObjectParser.ValueType.VALUE);
-        REGEXP_PARSER.declareStringOrNull(RegexOptions.Builder::setFlags, FLAGS_VALUE);
+        PARSER.declareStringOrNull(Builder::setFlags, FLAGS_VALUE);
     }
 
     private int flagsValue;
@@ -91,8 +88,8 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
         return new Builder();
     }
 
-    public static RegexOptions parse(XContentParser parser) throws IOException {
-        return REGEXP_PARSER.parse(parser).build();
+    static RegexOptions parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser).build();
     }
 
     @Override

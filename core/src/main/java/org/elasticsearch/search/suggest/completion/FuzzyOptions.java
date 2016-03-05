@@ -40,20 +40,20 @@ import java.util.Objects;
  */
 public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
     static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
-    static final ParseField TRANSPOSITION_FIELD = new ParseField("transpositions");
-    static final ParseField MIN_LENGTH_FIELD = new ParseField("min_length");
-    static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-    static final ParseField UNICODE_AWARE_FIELD = new ParseField("unicode_aware");
-    static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
+    private static final ParseField TRANSPOSITION_FIELD = new ParseField("transpositions");
+    private static final ParseField MIN_LENGTH_FIELD = new ParseField("min_length");
+    private static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    private static final ParseField UNICODE_AWARE_FIELD = new ParseField("unicode_aware");
+    private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
 
-    static ObjectParser<FuzzyOptions.Builder, Void> FUZZY_PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(), Builder::new);
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(), Builder::new);
     static {
-        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyMinLength, MIN_LENGTH_FIELD);
-        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES_FIELD);
-        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setUnicodeAware, UNICODE_AWARE_FIELD);
-        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyPrefixLength, PREFIX_LENGTH_FIELD);
-        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setTranspositions, TRANSPOSITION_FIELD);
-        FUZZY_PARSER.declareValue((a, b) -> {
+        PARSER.declareInt(Builder::setFuzzyMinLength, MIN_LENGTH_FIELD);
+        PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES_FIELD);
+        PARSER.declareBoolean(Builder::setUnicodeAware, UNICODE_AWARE_FIELD);
+        PARSER.declareInt(Builder::setFuzzyPrefixLength, PREFIX_LENGTH_FIELD);
+        PARSER.declareBoolean(Builder::setTranspositions, TRANSPOSITION_FIELD);
+        PARSER.declareValue((a, b) -> {
             try {
                 a.setFuzziness(Fuzziness.parse(b).asDistance());
             } catch (IOException e) {
@@ -82,8 +82,8 @@ public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
     private FuzzyOptions() {
     }
 
-    public static FuzzyOptions parse(XContentParser parser) throws IOException {
-        return FUZZY_PARSER.parse(parser).build();
+    static FuzzyOptions parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser).build();
     }
 
     public static Builder builder() {

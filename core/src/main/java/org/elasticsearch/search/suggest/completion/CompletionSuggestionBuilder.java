@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,9 +64,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
 
     private static ObjectParser<CompletionSuggestionBuilder, Void> TLP_PARSER =
-        new ObjectParser<>(CompletionSuggestionBuilder.SUGGESTION_NAME, null);
+        new ObjectParser<>(SUGGESTION_NAME, null);
     static {
-        TLP_PARSER.declareStringArray(CompletionSuggestionBuilder::payload, CompletionSuggestionBuilder.PAYLOAD_FIELD);
+        TLP_PARSER.declareStringArray(CompletionSuggestionBuilder::payload, PAYLOAD_FIELD);
         TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
                 if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                     if (parser.booleanValue()) {
@@ -90,7 +90,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             builder.copyCurrentStructure(p);
             v.contextBytes = builder.bytes();
             p.skipChildren();
-        }, CompletionSuggestionBuilder.CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
+        }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
     }
 
     private FuzzyOptions fuzzyOptions;
@@ -100,6 +100,18 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     public CompletionSuggestionBuilder(String fieldname) {
         super(fieldname);
+    }
+
+    /**
+     * internal copy constructor that copies over all class fields except for the fieldname which is
+     * set to the one provided in the first argument
+     */
+    private CompletionSuggestionBuilder(String fieldname, CompletionSuggestionBuilder in) {
+        super(fieldname, in);
+        fuzzyOptions = in.fuzzyOptions;
+        regexOptions = in.regexOptions;
+        contextBytes = in.contextBytes;
+        payloadFields = in.payloadFields;
     }
 
     /**
@@ -184,6 +196,12 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         }
     }
 
+    private String field;
+    private CompletionSuggestionBuilder field(String fieldName) {
+        this.field = fieldName;
+        return this;
+    }
+
     @Override
     protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (payloadFields.isEmpty() == false) {
@@ -209,9 +227,15 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        CompletionSuggestionBuilder builder = new CompletionSuggestionBuilder();
+        CompletionSuggestionBuilder builder = new CompletionSuggestionBuilder("_na_");
         TLP_PARSER.parse(parseContext.parser(), builder);
-        return builder;
+        String field = builder.field;
+        // now we should have field name, check and copy fields over to the suggestion builder we return
+        if (field == null) {
+            throw new ElasticsearchParseException(
+                "required field [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+        }
+        return new CompletionSuggestionBuilder(field, builder);
     }
 
     @Override
@@ -224,10 +248,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         suggestionContext.setFuzzyOptions(fuzzyOptions);
         suggestionContext.setRegexOptions(regexOptions);
         MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
-        if (mappedFieldType == null) {
-            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
-        } else if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
+        if (mappedFieldType != null && mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
+            suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
                 XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes);
                 suggestionContext.setQueryContexts(parseQueryContexts(contextParser, type));
@@ -247,9 +270,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        boolean payloadFieldExists = payloadFields.isEmpty() == false;
-        out.writeBoolean(payloadFieldExists);
-        if (payloadFieldExists) {
+        out.writeBoolean(payloadFields.isEmpty() == false);
+        if (payloadFields.isEmpty() == false) {
             out.writeVInt(payloadFields.size());
             for (String payloadField : payloadFields) {
                 out.writeString(payloadField);
@@ -263,9 +285,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         if (regexOptions != null) {
             regexOptions.writeTo(out);
         }
-        boolean queryContextsExists = contextBytes != null;
-        out.writeBoolean(queryContextsExists);
-        if (queryContextsExists) {
+        out.writeBoolean(contextBytes != null);
+        if (contextBytes != null) {
             out.writeBytesReference(contextBytes);
         }
     }
@@ -295,7 +316,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected boolean doEquals(CompletionSuggestionBuilder other) {
-         return Objects.equals(payloadFields, other.payloadFields) &&
+        return Objects.equals(payloadFields, other.payloadFields) &&
             Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
             Objects.equals(regexOptions, other.regexOptions) &&
             Objects.equals(contextBytes, other.contextBytes);

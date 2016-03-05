@@ -37,7 +37,7 @@ import java.util.Map;
  */
 public class InternalMultiFieldStats extends InternalMetricsAggregation implements MultiFieldStats {
 
-    public final static Type TYPE = new Type("correlation");
+    public final static Type TYPE = new Type("multifield_stats");
     public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalMultiFieldStats readResult(StreamInput in) throws IOException {

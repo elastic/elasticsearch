@@ -26,7 +26,7 @@ import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.correlation;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.multifieldStats;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
@@ -82,7 +82,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
-            .addAggregation(correlation(aggName).fields(Arrays.asList(valFieldName)))
+            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))
             .execute().actionGet();
         assertSearchResponse(response);
 

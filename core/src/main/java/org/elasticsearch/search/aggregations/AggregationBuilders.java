@@ -301,7 +301,7 @@ public class AggregationBuilders {
     /**
      * Create a new {@link MultiFieldStats} aggregation with the given name.
      */
-    public static MultiFieldStatsAggregatorBuilder correlation(String name) {
+    public static MultiFieldStatsAggregatorBuilder multifieldStats(String name) {
         return new MultiFieldStatsAggregatorBuilder(name);
     }
 

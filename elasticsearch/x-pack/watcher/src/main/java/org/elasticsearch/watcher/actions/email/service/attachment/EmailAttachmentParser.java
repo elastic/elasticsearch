@@ -25,6 +25,11 @@ public interface EmailAttachmentParser<T extends EmailAttachmentParser.EmailAtta
          * @return A type to identify the email attachment, same as the parser identifier
          */
         String type();
+
+        /**
+         * @return The id of this attachment
+         */
+        String id();
     }
 
     /**

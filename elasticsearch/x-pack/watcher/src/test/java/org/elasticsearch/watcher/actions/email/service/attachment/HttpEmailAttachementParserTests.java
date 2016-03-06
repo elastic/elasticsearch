@@ -21,7 +21,9 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -83,7 +85,8 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         assertThat(emailAttachments.getAttachments(), hasSize(1));
 
         XContentBuilder toXcontentBuilder = jsonBuilder().startObject();
-        emailAttachments.getAttachments().get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
+        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
+        attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
         toXcontentBuilder.endObject();
         assertThat(toXcontentBuilder.string(), is(builder.string()));
     }

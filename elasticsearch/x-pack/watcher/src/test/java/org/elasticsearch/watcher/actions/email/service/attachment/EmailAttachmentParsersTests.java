@@ -61,15 +61,15 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         EmailAttachments attachments = parser.parse(xContentParser);
         assertThat(attachments.getAttachments(), hasSize(2));
 
-        EmailAttachmentParser.EmailAttachment emailAttachment = attachments.getAttachments().get(0);
+        List<EmailAttachmentParser.EmailAttachment> emailAttachments = new ArrayList<>(attachments.getAttachments());
+        EmailAttachmentParser.EmailAttachment emailAttachment = emailAttachments.get(0);
         assertThat(emailAttachment, instanceOf(TestEmailAttachment.class));
 
         Attachment attachment = parsers.get("test").toAttachment(ctx, new Payload.Simple(), emailAttachment);
         assertThat(attachment.name(), is("my-id"));
         assertThat(attachment.contentType(), is("personalContentType"));
 
-        assertThat(parsers.get("test").toAttachment(ctx, new Payload.Simple(),
-                attachments.getAttachments().get(1)).id(), is("my-other-id"));
+        assertThat(parsers.get("test").toAttachment(ctx, new Payload.Simple(), emailAttachments.get(1)).id(), is("my-other-id"));
     }
 
     public void testThatUnknownParserThrowsException() throws IOException {
@@ -84,13 +84,13 @@ public class EmailAttachmentParsersTests extends ESTestCase {
             parser.parse(xContentParser);
             fail("Expected random parser of type [" + type + "] to throw an exception");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Cannot parse attachment of type " + type));
+            assertThat(e.getMessage(), containsString("Cannot parse attachment of type [" + type + "]"));
         }
     }
 
     public void testThatToXContentSerializationWorks() throws Exception {
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
-        attachments.add(new DataAttachment("my-id", org.elasticsearch.watcher.actions.email.DataAttachment.JSON));
+        attachments.add(new DataAttachment("my-name.json", org.elasticsearch.watcher.actions.email.DataAttachment.JSON));
 
         HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", 80).scheme(Scheme.HTTP).path("/").build();
         HttpRequestAttachment httpRequestAttachment = new HttpRequestAttachment("other-id", requestTemplate, null);
@@ -100,11 +100,34 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
         logger.info("JSON is: " + builder.string());
-        assertThat(builder.string(), containsString("my-id"));
+        assertThat(builder.string(), containsString("my-name.json"));
         assertThat(builder.string(), containsString("json"));
         assertThat(builder.string(), containsString("other-id"));
         assertThat(builder.string(), containsString("localhost"));
         assertThat(builder.string(), containsString("/"));
+    }
+
+    public void testThatTwoAttachmentsWithTheSameIdThrowError() throws Exception {
+        Map<String, EmailAttachmentParser> parsers = new HashMap<>();
+        parsers.put("test", new TestEmailAttachmentParser());
+        EmailAttachmentsParser parser = new EmailAttachmentsParser(parsers);
+
+        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
+        attachments.add(new TestEmailAttachment("my-name.json", "value"));
+        attachments.add(new TestEmailAttachment("my-name.json", "value"));
+
+        EmailAttachments emailAttachments = new EmailAttachments(attachments);
+        XContentBuilder builder = jsonBuilder();
+        emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        logger.info("JSON is: " + builder.string());
+
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        try {
+            parser.parse(xContentParser);
+            fail("Expected parser to fail but did not happen");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), is("Attachment with id [my-name.json] has already been created, must be renamed"));
+        }
     }
 
     public class TestEmailAttachmentParser implements EmailAttachmentParser<TestEmailAttachment> {
@@ -138,7 +161,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         @Override
         public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, TestEmailAttachment attachment) {
-            return new Attachment.Bytes(attachment.getId(), attachment.getValue().getBytes(Charsets.UTF_8), "personalContentType");
+            return new Attachment.Bytes(attachment.id(), attachment.getValue().getBytes(Charsets.UTF_8), "personalContentType");
         }
     }
 
@@ -165,7 +188,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
             return value;
         }
 
-        public String getId() {
+        @Override
+        public String id() {
             return id;
         }
 

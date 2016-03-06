@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -47,8 +48,8 @@ public class RemovePluginCommandTests extends ESTestCase {
         return new Environment(settings);
     }
 
-    static CliToolTestCase.CaptureOutputTerminal removePlugin(String name, Environment env) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.VERBOSE);
+    static MockTerminal removePlugin(String name, Environment env) throws Exception {
+        MockTerminal terminal = new MockTerminal();
         new RemovePluginCommand(env).execute(terminal, name);
         return terminal;
     }

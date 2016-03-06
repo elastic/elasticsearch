@@ -48,6 +48,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
@@ -118,8 +119,8 @@ public class InstallPluginCommandTests extends ESTestCase {
         return writeZip(structure, "elasticsearch");
     }
 
-    static CliToolTestCase.CaptureOutputTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+    static MockTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
+        MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand(env).execute(terminal, pluginUrl, true);
         return terminal;
     }

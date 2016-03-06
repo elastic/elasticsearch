@@ -29,6 +29,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -46,8 +47,8 @@ public class ListPluginsCommandTests extends ESTestCase {
         return new Environment(settings);
     }
 
-    static CliToolTestCase.CaptureOutputTerminal listPlugins(Environment env) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+    static MockTerminal listPlugins(Environment env) throws Exception {
+        MockTerminal terminal = new MockTerminal();
         String[] args = {};
         int status = new ListPluginsCommand(env).main(args, terminal);
         assertEquals(ExitCodes.OK, status);
@@ -64,29 +65,24 @@ public class ListPluginsCommandTests extends ESTestCase {
     }
 
     public void testNoPlugins() throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = listPlugins(createEnv());
-        List<String> lines = terminal.getTerminalOutput();
-        assertEquals(0, lines.size());
+        MockTerminal terminal = listPlugins(createEnv());
+        assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
     }
 
     public void testOnePlugin() throws Exception {
         Environment env = createEnv();
         Files.createDirectory(env.pluginsFile().resolve("fake"));
-        CliToolTestCase.CaptureOutputTerminal terminal = listPlugins(env);
-        List<String> lines = terminal.getTerminalOutput();
-        assertEquals(1, lines.size());
-        assertTrue(lines.get(0).contains("fake"));
+        MockTerminal terminal = listPlugins(env);
+        assertTrue(terminal.getOutput(), terminal.getOutput().contains("fake"));
     }
 
     public void testTwoPlugins() throws Exception {
         Environment env = createEnv();
         Files.createDirectory(env.pluginsFile().resolve("fake1"));
         Files.createDirectory(env.pluginsFile().resolve("fake2"));
-        CliToolTestCase.CaptureOutputTerminal terminal = listPlugins(env);
-        List<String> lines = terminal.getTerminalOutput();
-        assertEquals(2, lines.size());
-        Collections.sort(lines);
-        assertTrue(lines.get(0).contains("fake1"));
-        assertTrue(lines.get(1).contains("fake2"));
+        MockTerminal terminal = listPlugins(env);
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains("fake1"));
+        assertTrue(output, output.contains("fake2"));
     }
 }

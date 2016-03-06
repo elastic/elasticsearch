@@ -24,7 +24,6 @@ import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.nio.charset.Charset;
 
 import org.elasticsearch.common.SuppressForbidden;
@@ -54,6 +53,13 @@ public abstract class Terminal {
     /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
     private Verbosity verbosity = Verbosity.NORMAL;
 
+    /** The newline used when calling println. */
+    private final String lineSeparator;
+
+    protected Terminal(String lineSeparator) {
+        this.lineSeparator = lineSeparator;
+    }
+
     /** Sets the verbosity of the terminal. */
     public void setVerbosity(Verbosity verbosity) {
         this.verbosity = verbosity;
@@ -68,9 +74,6 @@ public abstract class Terminal {
     /** Returns a Writer which can be used to write to the terminal directly. */
     public abstract PrintWriter getWriter();
 
-    /** Print a message directly to the terminal. */
-    protected abstract void doPrint(String msg);
-
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
     public final void println(String msg) {
         println(Verbosity.NORMAL, msg);
@@ -79,13 +82,18 @@ public abstract class Terminal {
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, String msg) {
         if (this.verbosity.ordinal() >= verbosity.ordinal()) {
-            doPrint(msg + System.lineSeparator());
+            getWriter().print(msg + lineSeparator);
+            getWriter().flush();
         }
     }
 
     private static class ConsoleTerminal extends Terminal {
 
         private static final Console console = System.console();
+
+        ConsoleTerminal() {
+            super(System.lineSeparator());
+        }
 
         static boolean isSupported() {
             return console != null;
@@ -94,12 +102,6 @@ public abstract class Terminal {
         @Override
         public PrintWriter getWriter() {
             return console.writer();
-        }
-
-        @Override
-        public void doPrint(String msg) {
-            console.printf("%s", msg);
-            console.flush();
         }
 
         @Override
@@ -115,13 +117,15 @@ public abstract class Terminal {
 
     private static class SystemTerminal extends Terminal {
 
-        private static final PrintWriter writer = new PrintWriter(System.out);
+        private static final PrintWriter writer = newWriter();
 
-        @Override
-        @SuppressForbidden(reason = "System#out")
-        public void doPrint(String msg) {
-            System.out.print(msg);
-            System.out.flush();
+        SystemTerminal() {
+            super(System.lineSeparator());
+        }
+
+        @SuppressForbidden(reason = "Writer for System.out")
+        private static PrintWriter newWriter() {
+            return new PrintWriter(System.out);
         }
 
         @Override
@@ -131,7 +135,7 @@ public abstract class Terminal {
 
         @Override
         public String readText(String text) {
-            doPrint(text);
+            getWriter().print(text);
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
                 return reader.readLine();

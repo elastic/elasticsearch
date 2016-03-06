@@ -20,9 +20,6 @@
 package org.elasticsearch.common.cli;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -30,10 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.After;
 import org.junit.Before;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 
 public abstract class CliToolTestCase extends ESTestCase {
 
@@ -56,68 +49,10 @@ public abstract class CliToolTestCase extends ESTestCase {
         return command.split("\\s+");
     }
 
-    /**
-     * A terminal implementation that discards everything
-     */
-    public static class MockTerminal extends Terminal {
-
-        @Override
-        protected void doPrint(String msg) {}
-
-        @Override
-        public String readText(String prompt) {
-            return null;
-        }
-
-        @Override
-        public char[] readSecret(String prompt) {
-            return new char[0];
-        }
-
-        @Override
-        public PrintWriter getWriter() {
-            return null;
-        }
-    }
-
-    /**
-     * A terminal implementation that captures everything written to it
-     */
-    public static class CaptureOutputTerminal extends MockTerminal {
-
-        List<String> terminalOutput = new ArrayList<>();
-
-        public CaptureOutputTerminal() {
-            this(Verbosity.NORMAL);
-        }
-
-        public CaptureOutputTerminal(Verbosity verbosity) {
-            setVerbosity(verbosity);
-        }
-
-        @Override
-        protected void doPrint(String msg) {
-            terminalOutput.add(msg);
-        }
-
-        public List<String> getTerminalOutput() {
-            return terminalOutput;
-        }
-    }
-
-    public static void assertTerminalOutputContainsHelpFile(CliToolTestCase.CaptureOutputTerminal terminal, String classPath) throws IOException {
-        List<String> nonEmptyLines = new ArrayList<>();
-        for (String line : terminal.getTerminalOutput()) {
-            String originalPrintedLine = line.replaceAll(System.lineSeparator(), "");
-            if (Strings.isNullOrEmpty(originalPrintedLine)) {
-                nonEmptyLines.add(originalPrintedLine);
-            }
-        }
-        assertThat(nonEmptyLines, hasSize(greaterThan(0)));
-
+    public static void assertTerminalOutputContainsHelpFile(MockTerminal terminal, String classPath) throws IOException {
+        String output = terminal.getOutput();
+        assertFalse(output, output.isEmpty());
         String expectedDocs = StreamsUtils.copyToStringFromClasspath(classPath);
-        for (String nonEmptyLine : nonEmptyLines) {
-            assertThat(expectedDocs, containsString(nonEmptyLine.replaceAll(System.lineSeparator(), "")));
-        }
+        assertTrue(output, output.contains(expectedDocs));
     }
 }

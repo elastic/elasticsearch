@@ -233,7 +233,6 @@ public class BootstrapCliParserTests extends CliToolTestCase {
             BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
             ExitStatus status = parser.execute(args(tuple.v1()));
             assertStatus(status, OK_AND_EXIT);
-            // nocommit
             assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/bootstrap/" + tuple.v2());
         }
     }

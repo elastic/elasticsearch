@@ -46,7 +46,8 @@ public class TerminalTests extends CliToolTestCase {
 
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
         logTerminal.println(verbosity, text);
-        assertTrue(logTerminal.getOutput().contains(text));
+        String output = logTerminal.getOutput();
+        assertTrue(output, output.contains(text));
         logTerminal.resetOutput();
     }
 

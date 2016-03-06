@@ -14,6 +14,7 @@ import java.util.List;
 import org.elasticsearch.common.cli.CliTool.Command;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -133,14 +134,14 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
     }
 
     private String runLicenseVerificationTool(License license, Path publicKeyPath, ExitStatus expectedExitStatus) throws Exception {
-        CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
+        MockTerminal outputTerminal = new MockTerminal();
         Settings settings = Settings.builder().put("path.home", createTempDir("LicenseVerificationToolTests")).build();
         LicenseVerifier licenseVerifier = new LicenseVerifier(outputTerminal, license, publicKeyPath);
         assertThat(execute(licenseVerifier, settings), equalTo(expectedExitStatus));
         if (expectedExitStatus == ExitStatus.OK) {
-            assertThat(outputTerminal.getTerminalOutput().size(), equalTo(1));
-
-            return outputTerminal.getTerminalOutput().get(0);
+            String output = outputTerminal.getOutput();
+            assertFalse(output, output.isEmpty());
+            return output;
         } else {
             return null;
         }

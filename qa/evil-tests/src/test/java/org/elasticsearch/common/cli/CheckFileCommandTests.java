@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class CheckFileCommandTests extends ESTestCase {
 
-    private CliToolTestCase.CaptureOutputTerminal captureOutputTerminal = new CliToolTestCase.CaptureOutputTerminal();
+    private MockTerminal captureOutputTerminal = new MockTerminal();
 
     private Configuration jimFsConfiguration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
     private Configuration jimFsConfigurationWithoutPermissions = randomBoolean() ? Configuration.unix().toBuilder().setAttributeViews("basic").build() : Configuration.windows();
@@ -60,62 +60,62 @@ public class CheckFileCommandTests extends ESTestCase {
 
     public void testThatCommandLogsErrorMessageOnFail() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure that the user account running Elasticsearch has read access to this file")));
+        assertThat(captureOutputTerminal.getOutput(), containsString("Please ensure that the user account running Elasticsearch has read access to this file"));
     }
 
     public void testThatCommandLogsNothingWhenPermissionRemains() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsNothingWhenDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsNothingIfFilesystemDoesNotSupportPermissions() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsOwnerChange() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Owner of file ["), containsString("] used to be ["), containsString("], but now is ["))));
+        assertThat(captureOutputTerminal.getOutput(), allOf(containsString("Owner of file ["), containsString("] used to be ["), containsString("], but now is [")));
     }
 
     public void testThatCommandLogsNothingIfOwnerRemainsSame() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsNothingIfOwnerIsDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportOwners() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsIfGroupChanges() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Group of file ["), containsString("] used to be ["), containsString("], but now is ["))));
+        assertThat(captureOutputTerminal.getOutput(), allOf(containsString("Group of file ["), containsString("] used to be ["), containsString("], but now is [")));
     }
 
     public void testThatCommandLogsNothingIfGroupRemainsSame() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsNothingIfGroupIsDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportGroups() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandDoesNotLogAnythingOnFileCreation() throws Exception {
@@ -130,7 +130,7 @@ public class CheckFileCommandTests extends ESTestCase {
             assertThat(Files.exists(path), is(true));
         }
 
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     public void testThatCommandWorksIfFileIsDeletedByCommand() throws Exception {
@@ -147,7 +147,7 @@ public class CheckFileCommandTests extends ESTestCase {
             assertThat(Files.exists(path), is(false));
         }
 
-        assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
+        assertTrue(captureOutputTerminal.getOutput().isEmpty());
     }
 
     private void executeCommand(Configuration configuration, AbstractTestCheckFileCommand command) throws Exception {

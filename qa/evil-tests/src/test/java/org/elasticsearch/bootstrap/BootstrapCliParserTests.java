@@ -24,10 +24,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
@@ -50,7 +49,7 @@ import static org.hamcrest.Matchers.nullValue;
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class BootstrapCliParserTests extends CliToolTestCase {
 
-    private CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+    private MockTerminal terminal = new MockTerminal();
     private List<String> propertiesToClear = new ArrayList<>();
     private Map<Object, Object> properties;
 
@@ -73,10 +72,11 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         ExitStatus status = parser.execute(args("version"));
         assertStatus(status, OK_AND_EXIT);
 
-        assertThatTerminalOutput(containsString(Version.CURRENT.toString()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.shortHash()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.date()));
-        assertThatTerminalOutput(containsString(JvmInfo.jvmInfo().version()));
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains(Version.CURRENT.toString()));
+        assertTrue(output, output.contains(Build.CURRENT.shortHash()));
+        assertTrue(output, output.contains(Build.CURRENT.date()));
+        assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
     }
 
     public void testThatVersionIsReturnedAsStartParameter() throws Exception {
@@ -84,20 +84,22 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         ExitStatus status = parser.execute(args("start -V"));
         assertStatus(status, OK_AND_EXIT);
 
-        assertThatTerminalOutput(containsString(Version.CURRENT.toString()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.shortHash()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.date()));
-        assertThatTerminalOutput(containsString(JvmInfo.jvmInfo().version()));
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains(Version.CURRENT.toString()));
+        assertTrue(output, output.contains(Build.CURRENT.shortHash()));
+        assertTrue(output, output.contains(Build.CURRENT.date()));
+        assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
 
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        terminal.resetOutput();
         parser = new BootstrapCLIParser(terminal);
         status = parser.execute(args("start --version"));
         assertStatus(status, OK_AND_EXIT);
 
-        assertThatTerminalOutput(containsString(Version.CURRENT.toString()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.shortHash()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.date()));
-        assertThatTerminalOutput(containsString(JvmInfo.jvmInfo().version()));
+        output = terminal.getOutput();
+        assertTrue(output, output.contains(Version.CURRENT.toString()));
+        assertTrue(output, output.contains(Build.CURRENT.shortHash()));
+        assertTrue(output, output.contains(Build.CURRENT.date()));
+        assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
@@ -173,11 +175,14 @@ public class BootstrapCliParserTests extends CliToolTestCase {
 
         ExitStatus status = parser.execute(args("start --network.host"));
         assertStatus(status, USAGE);
-        assertThatTerminalOutput(containsString("Parameter [network.host] needs value"));
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains("Parameter [network.host] needs value"));
 
+        terminal.resetOutput();
         status = parser.execute(args("start --network.host --foo"));
         assertStatus(status, USAGE);
-        assertThatTerminalOutput(containsString("Parameter [network.host] needs value"));
+        output = terminal.getOutput();
+        assertTrue(output, output.contains("Parameter [network.host] needs value"));
     }
 
     public void testParsingErrors() throws Exception {
@@ -186,28 +191,32 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         // unknown params
         ExitStatus status = parser.execute(args("version --unknown-param /tmp/pid"));
         assertStatus(status, USAGE);
-        assertThatTerminalOutput(containsString("Unrecognized option: --unknown-param"));
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains("Unrecognized option: --unknown-param"));
 
         // single dash in extra params
-        terminal = new CaptureOutputTerminal();
+        terminal.resetOutput();
         parser = new BootstrapCLIParser(terminal);
         status = parser.execute(args("start -network.host 127.0.0.1"));
         assertStatus(status, USAGE);
-        assertThatTerminalOutput(containsString("Parameter [-network.host]does not start with --"));
+        output = terminal.getOutput();
+        assertTrue(output, output.contains("Parameter [-network.host]does not start with --"));
 
         // never ended parameter
-        terminal = new CaptureOutputTerminal();
+        terminal = new MockTerminal();
         parser = new BootstrapCLIParser(terminal);
         status = parser.execute(args("start --network.host"));
         assertStatus(status, USAGE);
-        assertThatTerminalOutput(containsString("Parameter [network.host] needs value"));
+        output = terminal.getOutput();
+        assertTrue(output, output.contains("Parameter [network.host] needs value"));
 
         // free floating value
-        terminal = new CaptureOutputTerminal();
+        terminal = new MockTerminal();
         parser = new BootstrapCLIParser(terminal);
         status = parser.execute(args("start 127.0.0.1"));
         assertStatus(status, USAGE);
-        assertThatTerminalOutput(containsString("Parameter [127.0.0.1]does not start with --"));
+        output = terminal.getOutput();
+        assertTrue(output, output.contains("Parameter [127.0.0.1]does not start with --"));
     }
 
     public void testHelpWorks() throws Exception {
@@ -220,7 +229,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         tuples.add(new Tuple<>("-h", "elasticsearch.help"));
 
         for (Tuple<String, String> tuple : tuples) {
-            terminal = new CaptureOutputTerminal();
+            terminal.resetOutput();
             BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
             ExitStatus status = parser.execute(args(tuple.v1()));
             assertStatus(status, OK_AND_EXIT);
@@ -253,16 +262,12 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         propertiesToClear.addAll(Arrays.asList(systemProperties));
     }
 
-    private void assertSystemProperty(String name, String expectedValue) {
-        String msg = String.format(Locale.ROOT, "Expected property %s to be %s, terminal output was %s", name, expectedValue, terminal.getTerminalOutput());
+    private void assertSystemProperty(String name, String expectedValue) throws Exception {
+        String msg = String.format(Locale.ROOT, "Expected property %s to be %s, terminal output was %s", name, expectedValue, terminal.getOutput());
         assertThat(msg, System.getProperty(name), is(expectedValue));
     }
 
-    private void assertStatus(ExitStatus status, ExitStatus expectedStatus) {
-        assertThat(String.format(Locale.ROOT, "Expected status to be [%s], but was [%s], terminal output was %s", expectedStatus, status, terminal.getTerminalOutput()), status, is(expectedStatus));
-    }
-
-    private void assertThatTerminalOutput(Matcher<String> matcher) {
-        assertThat(terminal.getTerminalOutput(), hasItem(matcher));
+    private void assertStatus(ExitStatus status, ExitStatus expectedStatus) throws Exception {
+        assertThat(String.format(Locale.ROOT, "Expected status to be [%s], but was [%s], terminal output was %s", expectedStatus, status, terminal.getOutput()), status, is(expectedStatus));
     }
 }

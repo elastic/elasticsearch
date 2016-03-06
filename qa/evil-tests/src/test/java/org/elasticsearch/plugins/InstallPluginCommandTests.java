@@ -46,6 +46,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
@@ -116,8 +117,8 @@ public class InstallPluginCommandTests extends ESTestCase {
         return writeZip(structure, "elasticsearch");
     }
 
-    static CliToolTestCase.CaptureOutputTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+    static MockTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
+        MockTerminal terminal = new MockTerminal();
         CliTool.ExitStatus status = new InstallPluginCommand(terminal, pluginUrl, true).execute(env.settings(), env);
         assertEquals(CliTool.ExitStatus.OK, status);
         return terminal;

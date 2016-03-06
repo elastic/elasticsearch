@@ -175,7 +175,6 @@ integTest {
       ant.waitfor(maxwait: '10', maxwaitunit: 'second', checkevery: '100', checkeveryunit: 'millisecond',
               timeoutproperty: waitForNodeStartProp) {
         and {
-          resourcecontains(resource: "${node.startLog.toString()}", substring: "bound_addresses {${node.httpUri()}")
           resourcecontains(resource: "${node.startLog.toString()}", substring: 'started')
         }
       }

@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -30,7 +31,6 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -229,12 +229,12 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        final CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(terminal, "user1", SecuredStringTests.build("changeme"), "plugin_admin");
 
         CliTool.ExitStatus status = execute(cmd, settings);
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(terminal.getTerminalOutput(), hasSize(0));
+        assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
     }
 
     public void testUseraddNonExistantRole() throws Exception {
@@ -251,13 +251,12 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        final CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(terminal, "user1", SecuredStringTests.build("changeme"), "plugin_admin_2");
 
         CliTool.ExitStatus status = execute(cmd, settings);
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(terminal.getTerminalOutput(), hasSize(1));
-        assertThat(terminal.getTerminalOutput().get(0), containsString("[plugin_admin_2]"));
+        assertThat(terminal.getOutput(), containsString("[plugin_admin_2]"));
     }
 
     public void testUserdelParse() throws Exception {
@@ -319,16 +318,14 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
                 .put("path.home", createTempDir())
                 .build();
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
 
         ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(terminal, "user2");
 
         CliTool.ExitStatus status = execute(cmd, settings);
         assertThat(status, is(CliTool.ExitStatus.NO_USER));
 
-        List<String> output = terminal.getTerminalOutput();
-        assertThat(output, hasSize(equalTo(1)));
-        assertThat(output, hasItem(startsWith("User [user2] doesn't exist")));
+        assertThat(terminal.getOutput(), startsWith("User [user2] doesn't exist"));
 
         assertFileExists(userFile);
         List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
@@ -617,12 +614,12 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(catchTerminalOutput, "user", Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("user,foo,bar"))));
+        assertThat(catchTerminalOutput.getOutput(), allOf(containsString("user"), containsString("user,foo,bar")));
     }
 
     public void testRolesCmdRoleCanBeAddedWhenUserIsNotInRolesFile() throws Exception {
@@ -638,7 +635,7 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.Roles cmd = new ESUsersTool.Roles(catchTerminalOutput, "user", new String[]{"myrole"}, Strings.EMPTY_ARRAY);
         CliTool.ExitStatus status = execute(cmd, settings);
 
@@ -675,14 +672,14 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(2)));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(containsString("admin")));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("user,foo,bar"))));
+        String output = catchTerminalOutput.getOutput();
+        assertThat(output, containsString("admin"));
+        assertThat(output, allOf(containsString("user"), containsString("user,foo,bar")));
     }
 
     public void testListUsersAndRolesCmdListAllUsersWithUnknownRoles() throws Exception {
@@ -695,14 +692,14 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(2)));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(containsString("admin")));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("user,foo*,bar*"))));
+        String output = catchTerminalOutput.getOutput();
+        assertThat(output, containsString("admin"));
+        assertThat(output, allOf(containsString("user"), containsString("user,foo*,bar*")));
     }
 
     public void testListUsersAndRolesCmdListSingleUser() throws Exception {
@@ -717,14 +714,13 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, "admin");
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(1)));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(containsString("admin")));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(not(containsString("user"))));
+        assertThat(catchTerminalOutput.getOutput(), containsString("admin"));
+        assertThat(catchTerminalOutput.getOutput(), not(containsString("user")));
     }
 
     public void testListUsersAndRolesCmdNoUsers() throws Exception {
@@ -737,14 +733,12 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(terminal, null);
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        List<String> output = terminal.getTerminalOutput();
-        assertThat(output, hasSize(1));
-        assertThat(output.get(0), equalTo("No users found" + System.lineSeparator()));
+        assertThat(terminal.getOutput(), equalTo("No users found\n"));
     }
 
     public void testListUsersAndRolesCmdListSingleUserNotFound() throws Exception {
@@ -755,7 +749,7 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, "does-not-exist");
         CliTool.ExitStatus status = execute(cmd, settings);
 
@@ -774,15 +768,15 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(3)));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(containsString("admin")));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("user,foo,bar"))));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("no-roles-user"), containsString("-"))));
+        String output = catchTerminalOutput.getOutput();
+        assertThat(output, containsString("admin"));
+        assertThat(output, allOf(containsString("user"), containsString("user,foo,bar")));
+        assertThat(output, allOf(containsString("no-roles-user"), containsString("-")));
     }
 
     public void testListUsersAndRolesCmdUsersWithoutRolesAreListed() throws Exception {
@@ -797,15 +791,15 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        MockTerminal catchTerminalOutput = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(3)));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("admin"), containsString("-"))));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("-"))));
-        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("no-roles-user"), containsString("-"))));
+        String output = catchTerminalOutput.getOutput();
+        assertThat(output, allOf(containsString("admin"), containsString("-")));
+        assertThat(output, allOf(containsString("user"), containsString("-")));
+        assertThat(output, allOf(containsString("no-roles-user"), containsString("-")));
     }
 
     public void testListUsersAndRolesCmdUsersWithoutRolesAreListedForSingleUser() throws Exception {
@@ -818,13 +812,12 @@ public class ESUsersToolTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
 
-        CaptureOutputTerminal loggingTerminal = new CaptureOutputTerminal();
+        MockTerminal loggingTerminal = new MockTerminal();
         ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(loggingTerminal, "admin");
         CliTool.ExitStatus status = execute(cmd, settings);
 
         assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(loggingTerminal.getTerminalOutput(), hasSize(greaterThanOrEqualTo(1)));
-        assertThat(loggingTerminal.getTerminalOutput(), hasItem(allOf(containsString("admin"), containsString("-"))));
+        assertThat(loggingTerminal.getOutput(), allOf(containsString("admin"), containsString("-")));
     }
 
     public void testUseraddUsernameWithPeriod() throws Exception {

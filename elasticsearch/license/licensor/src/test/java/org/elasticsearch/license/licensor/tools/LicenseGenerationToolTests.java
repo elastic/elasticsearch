@@ -11,7 +11,7 @@ import java.nio.file.Path;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
@@ -74,11 +74,12 @@ public class LicenseGenerationToolTests extends ESTestCase {
     }
 
     private String runTool(String licenseSpecString, Path licenseSpecPath) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal outputTerminal = new CliToolTestCase.CaptureOutputTerminal();
+        MockTerminal outputTerminal = new MockTerminal();
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         licenseGeneratorTool.execute(outputTerminal, pubKeyPath, priKeyPath, licenseSpecString, licenseSpecPath);
-        assertEquals(1, outputTerminal.getTerminalOutput().size());
-        return outputTerminal.getTerminalOutput().get(0);
+        String output = outputTerminal.getOutput();
+        assertFalse(output, output.isEmpty());
+        return output;
     }
 
 }

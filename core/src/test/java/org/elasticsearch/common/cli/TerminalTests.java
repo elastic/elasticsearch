@@ -19,7 +19,10 @@
 
 package org.elasticsearch.common.cli;
 
-public class TerminalTests extends CliToolTestCase {
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.test.ESTestCase;
+
+public class TerminalTests extends ESTestCase {
     public void testVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
@@ -48,7 +51,7 @@ public class TerminalTests extends CliToolTestCase {
         logTerminal.println(verbosity, text);
         String output = logTerminal.getOutput();
         assertTrue(output, output.contains(text));
-        logTerminal.resetOutput();
+        logTerminal.reset();
     }
 
     private void assertNotPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cli;
+package org.elasticsearch.cli;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
@@ -26,6 +26,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Deque;
+
+import org.elasticsearch.common.cli.Terminal;
 
 /**
  * A terminal for tests which captures all output, and
@@ -78,8 +80,10 @@ public class MockTerminal extends Terminal {
         return buffer.toString("UTF-8");
     }
 
-    /** Wipes the output. */
-    public void resetOutput() {
+    /** Wipes the input and output. */
+    public void reset() {
         buffer.reset();
+        textInput.clear();
+        secretInput.clear();
     }
 }

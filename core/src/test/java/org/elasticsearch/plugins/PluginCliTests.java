@@ -20,10 +20,8 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.MockTerminal;
+import org.elasticsearch.cli.MockTerminal;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.cli.MockTerminal;
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.junit.After;
@@ -89,7 +89,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertTrue(output, output.contains(Build.CURRENT.date()));
         assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
 
-        terminal.resetOutput();
+        terminal.reset();
         parser = new BootstrapCLIParser(terminal);
         status = parser.execute(args("start --version"));
         assertStatus(status, OK_AND_EXIT);
@@ -177,7 +177,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         String output = terminal.getOutput();
         assertTrue(output, output.contains("Parameter [network.host] needs value"));
 
-        terminal.resetOutput();
+        terminal.reset();
         status = parser.execute(args("start --network.host --foo"));
         assertStatus(status, USAGE);
         output = terminal.getOutput();
@@ -194,7 +194,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertTrue(output, output.contains("Unrecognized option: --unknown-param"));
 
         // single dash in extra params
-        terminal.resetOutput();
+        terminal.reset();
         parser = new BootstrapCLIParser(terminal);
         status = parser.execute(args("start -network.host 127.0.0.1"));
         assertStatus(status, USAGE);
@@ -228,7 +228,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         tuples.add(new Tuple<>("-h", "elasticsearch.help"));
 
         for (Tuple<String, String> tuple : tuples) {
-            terminal.resetOutput();
+            terminal.reset();
             BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
             ExitStatus status = parser.execute(args(tuple.v1()));
             assertStatus(status, OK_AND_EXIT);

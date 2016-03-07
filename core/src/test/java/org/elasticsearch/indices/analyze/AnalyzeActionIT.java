@@ -196,53 +196,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-    public void testParseXContentForAnalyzeReuqest() throws Exception {
-        BytesReference content =  XContentFactory.jsonBuilder()
-            .startObject()
-            .field("text", "THIS IS A TEST")
-            .field("tokenizer", "keyword")
-            .array("filters", "lowercase")
-            .endObject().bytes();
-
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-
-        RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
-
-        assertThat(analyzeRequest.text().length, equalTo(1));
-        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
-        assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
-        assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
-    }
-
-    public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-
-        try {
-            RestAnalyzeAction.buildFromContent(new BytesArray("{invalid_json}"), analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
-            fail("shouldn't get here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-        BytesReference invalidContent =XContentFactory.jsonBuilder()
-            .startObject()
-            .field("text", "THIS IS A TEST")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-
-        try {
-            RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
-            fail("shouldn't get here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
     public void testAnalyzerWithMultiValues() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();

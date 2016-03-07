@@ -364,6 +364,6 @@ public class LuceneTests extends ESTestCase {
      */
     public void testMMapHackSupported() throws Exception {
         // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue(MMapDirectory.UNMAP_SUPPORTED);
+        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 }

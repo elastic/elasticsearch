@@ -70,6 +70,10 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class InnerHitsIT extends ESIntegTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockScriptEngine.TestPlugin.class);
+    }
 
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject().startObject("article").startObject("properties")

@@ -57,6 +57,12 @@ public class VersionTests extends ESTestCase {
         assertThat(V_2_2_0.onOrAfter(V_5_0_0), is(false));
         assertThat(V_2_2_0.onOrAfter(V_2_2_0), is(true));
         assertThat(V_5_0_0.onOrAfter(V_2_2_0), is(true));
+
+        assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
+        assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
+        assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
+        assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
+
     }
 
     public void testVersionConstantPresent() {
@@ -144,11 +150,39 @@ public class VersionTests extends ESTestCase {
         assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.toString());
         assertEquals("5.0.0", Version.V_5_0_0.toString());
         assertEquals("2.3.0", Version.V_2_3_0.toString());
+        assertEquals("0.90.0.Beta1", Version.fromString("0.90.0.Beta1").toString());
+        assertEquals("1.0.0.Beta1", Version.fromString("1.0.0.Beta1").toString());
+        assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
+        assertEquals("5.0.0-beta1", Version.fromString("5.0.0-beta1").toString());
+        assertEquals("5.0.0-alpha1", Version.fromString("5.0.0-alpha1").toString());
     }
 
     public void testIsBeta() {
         assertTrue(Version.V_2_0_0_beta1.isBeta());
+        assertTrue(Version.fromString("1.0.0.Beta1").isBeta());
+        assertTrue(Version.fromString("0.90.0.Beta1").isBeta());
     }
+
+
+    public void testIsAlpha() {
+        assertTrue(new Version(5000001, org.apache.lucene.util.Version.LUCENE_6_0_0).isAlpha());
+        assertFalse(new Version(4000002, org.apache.lucene.util.Version.LUCENE_6_0_0).isAlpha());
+        assertTrue(new Version(4000002, org.apache.lucene.util.Version.LUCENE_6_0_0).isBeta());
+        assertTrue(Version.fromString("5.0.0-alpha14").isAlpha());
+        assertEquals(5000014, Version.fromString("5.0.0-alpha14").id);
+        assertTrue(Version.fromId(5000015).isAlpha());
+
+        for (int i = 0 ; i < 25; i++) {
+            assertEquals(Version.fromString("5.0.0-alpha" + i).id, Version.fromId(5000000 + i).id);
+            assertEquals("5.0.0-alpha" + i, Version.fromId(5000000 + i).toString());
+        }
+
+        for (int i = 0 ; i < 25; i++) {
+            assertEquals(Version.fromString("5.0.0-beta" + i).id, Version.fromId(5000000 + i + 25).id);
+            assertEquals("5.0.0-beta" + i, Version.fromId(5000000 + i + 25).toString());
+        }
+    }
+
 
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
@@ -160,6 +194,17 @@ public class VersionTests extends ESTestCase {
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
         }
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            Version.fromString("5.0.0-alph2");
+        });
+        assertSame(Version.CURRENT, Version.fromString(Version.CURRENT.toString()));
+
+        assertSame(Version.fromString("2.0.0-SNAPSHOT"), Version.fromString("2.0.0"));
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            Version.fromString("5.0.0-SNAPSHOT");
+        });
     }
 
     public void testParseLenient() {

@@ -875,7 +875,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
-        String storedString = stored ? "yes" : "no";
+        String storedString = stored ? "true" : "false";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
@@ -926,7 +926,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     void indexSingleDocumentWithNumericFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
-        String storedString = stored ? "yes" : "no";
+        String storedString = stored ? "true" : "false";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +

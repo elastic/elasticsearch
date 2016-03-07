@@ -41,6 +41,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -53,6 +54,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -160,7 +163,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private static final List<String> PASS_THROUGH_SETTINGS = Arrays.asList(
         NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey(),
         NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.getKey(),
-        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.getKey()
+        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.getKey(),
+        TransportSettings.HOST.getKey(),
+        TransportSettings.BIND_HOST.getKey(),
+        TransportSettings.PUBLISH_HOST.getKey()
     );
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
@@ -201,6 +207,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
      * combined with tribe specific settings.
      */
     static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+        for (String tribeKey : tribeSettings.getAsMap().keySet()) {
+            if (tribeKey.startsWith("path.")) {
+                throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
+            }
+        }
         Settings.Builder sb = Settings.builder().put(tribeSettings);
         sb.put("node.name", globalSettings.get("node.name") + "/" + tribeName);
         sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
@@ -219,8 +230,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             }
         }
         sb.put(TRIBE_NAME_SETTING.getKey(), tribeName);
-        if (sb.get("http.enabled") == null) {
-            sb.put("http.enabled", false);
+        if (sb.get(NetworkModule.HTTP_ENABLED.getKey()) == null) {
+            sb.put(NetworkModule.HTTP_ENABLED.getKey(), false);
         }
         sb.put(Node.NODE_CLIENT_SETTING.getKey(), true);
         return sb.build();

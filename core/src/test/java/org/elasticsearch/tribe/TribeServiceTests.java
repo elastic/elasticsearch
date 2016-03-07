@@ -49,11 +49,12 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("plugins/path", clientSettings.get("path.plugins"));
         assertEquals("logs/path", clientSettings.get("path.logs"));
 
-        // TODO: this should be an error, not just ignored!
         Settings tribeSettings = Settings.builder()
             .put("path.home", "alternate/path").build();
-        clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
-        assertEquals("some/path", clientSettings.get("path.home"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("Setting [path.home] not allowed in tribe client"));
     }
 
     public void testPassthroughSettings() {
@@ -62,20 +63,32 @@ public class TribeServiceTests extends ESTestCase {
             .put("path.home", "some/path")
             .put("network.host", "0.0.0.0")
             .put("network.bind_host", "1.1.1.1")
-            .put("network.publish_host", "2.2.2.2").build();
+            .put("network.publish_host", "2.2.2.2")
+            .put("transport.host", "3.3.3.3")
+            .put("transport.bind_host", "4.4.4.4")
+            .put("transport.publish_host", "5.5.5.5").build();
         Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
         assertEquals("0.0.0.0", clientSettings.get("network.host"));
         assertEquals("1.1.1.1", clientSettings.get("network.bind_host"));
         assertEquals("2.2.2.2", clientSettings.get("network.publish_host"));
+        assertEquals("3.3.3.3", clientSettings.get("transport.host"));
+        assertEquals("4.4.4.4", clientSettings.get("transport.bind_host"));
+        assertEquals("5.5.5.5", clientSettings.get("transport.publish_host"));
 
         // per tribe client overrides still work
         Settings tribeSettings = Settings.builder()
             .put("network.host", "3.3.3.3")
             .put("network.bind_host", "4.4.4.4")
-            .put("network.publish_host", "5.5.5.5").build();
+            .put("network.publish_host", "5.5.5.5")
+            .put("transport.host", "6.6.6.6")
+            .put("transport.bind_host", "7.7.7.7")
+            .put("transport.publish_host", "8.8.8.8").build();
         clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
         assertEquals("3.3.3.3", clientSettings.get("network.host"));
         assertEquals("4.4.4.4", clientSettings.get("network.bind_host"));
         assertEquals("5.5.5.5", clientSettings.get("network.publish_host"));
+        assertEquals("6.6.6.6", clientSettings.get("transport.host"));
+        assertEquals("7.7.7.7", clientSettings.get("transport.bind_host"));
+        assertEquals("8.8.8.8", clientSettings.get("transport.publish_host"));
     }
 }

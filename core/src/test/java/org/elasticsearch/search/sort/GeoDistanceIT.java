@@ -341,7 +341,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     // Regression bug:
-    // https://github.com/elasticsearch/elasticsearch/issues/2851
+    // https://github.com/elastic/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();

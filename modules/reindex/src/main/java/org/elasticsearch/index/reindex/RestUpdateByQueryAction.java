@@ -105,7 +105,9 @@ public class RestUpdateByQueryAction extends
         parseCommon(internalRequest, request);
 
         internalRequest.setSize(internalRequest.getSearchRequest().source().size());
+        internalRequest.setPipeline(request.param("pipeline"));
         internalRequest.getSearchRequest().source().size(request.paramAsInt("scroll_size", scrollSize));
+
 
         execute(request, internalRequest, channel);
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.rest.RestStatus;
@@ -206,7 +207,20 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
-                threadPool.generic().execute(() -> gateway.performStateRecovery(recoveryListener));
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("Recovery failed", t);
+                        // we reset `recovered` in the listener don't reset it here otherwise there might be a race
+                        // that resets it to false while a new recover is already running?
+                        recoveryListener.onFailure("state recovery failed: " + t.getMessage());
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        gateway.performStateRecovery(recoveryListener);
+                    }
+                });
             }
         }
     }

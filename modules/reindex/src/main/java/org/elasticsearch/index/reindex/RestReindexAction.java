@@ -60,8 +60,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     static {
         ObjectParser.Parser<SearchRequest, ReindexParseContext> sourceParser = (parser, search, context) -> {
             /*
-             * Extract the parameters that we need from the parser. We could do
-             * away with this hack when search source has an ObjectParser.
+             * Extract the parameters that we need from the source sent to the parser. We could do away with this hack when search source
+             * has an ObjectParser.
              */
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -84,6 +84,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         destParser.declareString(IndexRequest::type, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("opType"));
+        destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("versionType"));
 
         // These exist just so the user can get a nice validation error:

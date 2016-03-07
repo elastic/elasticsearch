@@ -76,7 +76,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
 
     /**
      * Test Case for #5132: Source filtering with wildcards broken when given multiple patterns
-     * https://github.com/elasticsearch/elasticsearch/issues/5132
+     * https://github.com/elastic/elasticsearch/issues/5132
      */
     public void testSourceWithWildcardFiltering() {
         createIndex("test");

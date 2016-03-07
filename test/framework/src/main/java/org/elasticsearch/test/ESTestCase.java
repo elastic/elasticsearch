@@ -673,4 +673,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
     }
+
+    protected static long spinForAtLeastOneMillisecond() {
+        long nanosecondsInMillisecond = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+        // force at least one millisecond to elapse, but ensure the
+        // clock has enough resolution to observe the passage of time
+        long start = System.nanoTime();
+        long elapsed;
+        while ((elapsed = (System.nanoTime() - start)) < nanosecondsInMillisecond) {
+            // busy spin
+        }
+        return elapsed;
+    }
 }

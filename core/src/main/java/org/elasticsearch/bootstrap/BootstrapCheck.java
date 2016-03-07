@@ -120,6 +120,9 @@ final class BootstrapCheck {
                 = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
         checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
+        if (Constants.LINUX) {
+            checks.add(new MaxNumberOfThreadsCheck());
+        }
         return Collections.unmodifiableList(checks);
     }
 
@@ -216,6 +219,32 @@ final class BootstrapCheck {
         // visible for testing
         boolean isMemoryLocked() {
             return Natives.isMemoryLocked();
+        }
+
+    }
+
+    static class MaxNumberOfThreadsCheck implements Check {
+
+        private final long maxNumberOfThreadsThreshold = 1 << 15;
+
+        @Override
+        public boolean check() {
+            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < maxNumberOfThreadsThreshold;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "max number of threads [%d] for user [%s] likely too low, increase to at least [%d]",
+                getMaxNumberOfThreads(),
+                BootstrapInfo.getSystemProperties().get("user.name"),
+                maxNumberOfThreadsThreshold);
+        }
+
+        // visible for testing
+        long getMaxNumberOfThreads() {
+            return JNANatives.MAX_NUMBER_OF_THREADS;
         }
 
     }

@@ -76,7 +76,7 @@ public class FilterableTermsEnum extends TermsEnum {
         this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
             // Important - need to use the doc count that includes deleted docs
-            // or we have this issue: https://github.com/elasticsearch/elasticsearch/issues/7951
+            // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
             numDocs = reader.maxDoc();
         }
         List<LeafReaderContext> leaves = reader.leaves();

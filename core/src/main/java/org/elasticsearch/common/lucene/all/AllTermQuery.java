@@ -42,6 +42,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarities.Similarity.SimWeight;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SmallFloat;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -186,9 +187,13 @@ public final class AllTermQuery extends Query {
                     float boost;
                     if (payload == null) {
                         boost = 1;
-                    } else {
-                        assert payload.length == 4;
+                    } else if (payload.length == 1) {
+                        boost = SmallFloat.byte315ToFloat(payload.bytes[payload.offset]);
+                    } else if (payload.length == 4) {
+                        // TODO: for bw compat only, remove this in 6.0
                         boost = PayloadHelper.decodeFloat(payload.bytes, payload.offset);
+                    } else {
+                        throw new IllegalStateException("Payloads are expected to have a length of 1 or 4 but got: " + payload);
                     }
                     payloadBoost += boost;
                 }

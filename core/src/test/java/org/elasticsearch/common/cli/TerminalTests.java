@@ -19,41 +19,41 @@
 
 package org.elasticsearch.common.cli;
 
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-
 public class TerminalTests extends CliToolTestCase {
     public void testVerbosity() throws Exception {
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.SILENT);
+        MockTerminal terminal = new MockTerminal();
+        terminal.setVerbosity(Terminal.Verbosity.SILENT);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+        terminal = new MockTerminal();
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new CaptureOutputTerminal(Terminal.Verbosity.VERBOSE);
+        terminal = new MockTerminal();
+        terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
     public void testEscaping() throws Exception {
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+        MockTerminal terminal = new MockTerminal();
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
     }
 
-    private void assertPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
+    private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
         logTerminal.println(verbosity, text);
-        assertEquals(1, logTerminal.getTerminalOutput().size());
-        assertTrue(logTerminal.getTerminalOutput().get(0).contains(text));
-        logTerminal.terminalOutput.clear();
+        String output = logTerminal.getOutput();
+        assertTrue(output, output.contains(text));
+        logTerminal.resetOutput();
     }
 
-    private void assertNotPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
+    private void assertNotPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
         logTerminal.println(verbosity, text);
-        assertThat(logTerminal.getTerminalOutput(), hasSize(0));
+        String output = logTerminal.getOutput();
+        assertTrue(output, output.isEmpty());
     }
 }

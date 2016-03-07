@@ -36,7 +36,7 @@ import java.io.IOException;
 public class Version {
 
     // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator
-    // AA values below 25 are fro alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
+    // AA values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
 

@@ -38,6 +38,7 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -77,6 +78,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
@@ -107,6 +109,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY);
         task = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", mainRequest);
+
+        mainRequest.putHeader(randomSimpleString(random()), randomSimpleString(random()));
+        mainRequest.putInContext(new Object(), new Object());
     }
 
     @After
@@ -125,6 +130,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         return scrollId;
     }
 
+    public void testFirstSearchRequestHasContextFromMainRequest() {
+        firstSearchRequest = new SearchRequest();
+        new DummyAbstractAsyncBulkByScrollAction().initialSearch();
+        assertEquals(mainRequest.getContext(), client.lastSentSearchRequest.get().getContext());
+        assertEquals(mainRequest.getHeaders(), client.lastSentSearchRequest.get().getHeaders());
+    }
+
     public void testScrollResponseSetsTotal() {
         // Default is 0, meaning unstarted
         assertEquals(0, task.getStatus().getTotal());
@@ -135,6 +147,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         new DummyAbstractAsyncBulkByScrollAction()
             .onScrollResponse(new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
         assertEquals(total, task.getStatus().getTotal());
+    }
+
+    public void testSubsequentSearchScrollRequestsHaveContextFromMainRequest() {
+        firstSearchRequest = new SearchRequest().scroll("1s");
+        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
+        action.setScroll(scrollId());
+        action.startNextScroll();
+        assertEquals(mainRequest.getContext(), client.lastSentSearchScrollRequest.get().getContext());
+        assertEquals(mainRequest.getHeaders(), client.lastSentSearchScrollRequest.get().getHeaders());
     }
 
     public void testEachScrollResponseIsABatch() {
@@ -485,6 +506,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private static class MyMockClient extends FilterClient {
         private final List<String> scrollsCleared = new ArrayList<>();
         private final AtomicInteger bulksAttempts = new AtomicInteger();
+        private final AtomicReference<SearchRequest> lastSentSearchRequest = new AtomicReference<>();
+        private final AtomicReference<SearchScrollRequest> lastSentSearchScrollRequest = new AtomicReference<>();
 
         private int bulksToReject = 0;
 
@@ -499,6 +522,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
                 > void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            if (request instanceof SearchRequest) {
+                lastSentSearchRequest.set((SearchRequest) request);
+                return;
+            }
+            if (request instanceof SearchScrollRequest) {
+                lastSentSearchScrollRequest.set((SearchScrollRequest) request);
+                return;
+            }
             if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScroll = (ClearScrollRequest) request;
                 scrollsCleared.addAll(clearScroll.getScrollIds());

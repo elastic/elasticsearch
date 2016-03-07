@@ -67,7 +67,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
         if (mainRequest.getScript() == null) {
             script = null;
         } else {
-            // NOCOMMIT we're going to need to be super super careful about HeadersAndContext.....
             script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, mainRequest,
                     Collections.<String, String> emptyMap());
         }
@@ -82,7 +81,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
 
     @Override
     protected BulkRequest buildBulk(Iterable<SearchHit> docs) {
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest(mainRequest);
         ExecutableScript executableScript = null;
         Map<String, Object> scriptCtx = null;
 

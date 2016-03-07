@@ -126,7 +126,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? ""
                                 : firstSearchRequest.types());
             }
-            client.search(firstSearchRequest, new ActionListener<SearchResponse>() {
+            // Copy firstSearchRequest to give it mainRequest's context
+            client.search(new SearchRequest(firstSearchRequest, mainRequest), new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
                     logger.debug("[{}] documents match query", response.getHits().getTotalHits());
@@ -281,7 +282,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        SearchScrollRequest request = new SearchScrollRequest();
+        SearchScrollRequest request = new SearchScrollRequest(mainRequest);
         request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
         client.searchScroll(request, new ActionListener<SearchResponse>() {
             @Override

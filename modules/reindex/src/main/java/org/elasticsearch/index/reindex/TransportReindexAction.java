@@ -122,7 +122,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         @Override
         protected IndexRequest buildIndexRequest(SearchHit doc) {
-            IndexRequest index = new IndexRequest();
+            IndexRequest index = new IndexRequest(mainRequest);
 
             // Copy the index from the request so we always write where it asked to write
             index.index(mainRequest.getDestination().index());

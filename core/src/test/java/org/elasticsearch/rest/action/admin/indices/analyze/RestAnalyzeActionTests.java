@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.*;
 
 public class RestAnalyzeActionTests extends ESTestCase {
 
-    public void testParseXContentForAnalyzeReuqest() throws Exception {
+    public void testParseXContentForAnalyzeRequest() throws Exception {
         BytesReference content =  XContentFactory.jsonBuilder()
             .startObject()
             .field("text", "THIS IS A TEST")

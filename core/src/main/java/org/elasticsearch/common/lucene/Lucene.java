@@ -235,11 +235,7 @@ public class Lucene {
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
                 try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
-                    final int format = input.readInt();
-                    if (format == CodecUtil.CODEC_MAGIC) {
-                        CodecUtil.checksumEntireFile(input);
-                    }
-                    // legacy....
+                    CodecUtil.checksumEntireFile(input);
                 }
                 return null;
             }

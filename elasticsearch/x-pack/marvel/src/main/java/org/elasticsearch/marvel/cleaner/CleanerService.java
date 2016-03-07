@@ -10,7 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -88,17 +88,13 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
      * @see MarvelLicensee#allowUpdateRetention()
      */
     public TimeValue getRetention() {
-        TimeValue retention;
-
         // we only care about their value if they are allowed to set it
         if (licensee.allowUpdateRetention() && globalRetention != null) {
-            retention = globalRetention;
+            return globalRetention;
         }
         else {
-            retention = MarvelSettings.HISTORY_DURATION.getDefault(Settings.EMPTY);
+            return MarvelSettings.HISTORY_DURATION.getDefault(Settings.EMPTY);
         }
-
-        return retention;
     }
 
     /**
@@ -155,16 +151,19 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
      * {@code IndicesCleaner} runs and reschedules itself in order to automatically clean (delete) indices that are outside of the
      * {@link #getRetention() retention} period.
      */
-    class IndicesCleaner extends AbstractRunnable {
+    class IndicesCleaner extends AbstractLifecycleRunnable {
 
         private volatile ScheduledFuture<?> future;
 
+        /**
+         * Enable automatic logging and stopping of the runnable based on the {@link #lifecycle}.
+         */
+        public IndicesCleaner() {
+            super(lifecycle, logger);
+        }
+
         @Override
-        protected void doRun() throws Exception {
-            if (lifecycle.stoppedOrClosed()) {
-                logger.trace("cleaning service is stopping, exiting");
-                return;
-            }
+        protected void doRunInLifecycle() throws Exception {
             if (licensee.cleaningEnabled() == false) {
                 logger.debug("cleaning service is disabled due to invalid license");
                 return;
@@ -191,15 +190,13 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
          * Reschedule the cleaner if the service is not stopped.
          */
         @Override
-        public void onAfter() {
-            if (lifecycle.stoppedOrClosed() == false) {
-                DateTime start = new DateTime(ISOChronology.getInstance());
-                TimeValue delay = executionScheduler.nextExecutionDelay(start);
+        protected void onAfterInLifecycle() {
+            DateTime start = new DateTime(ISOChronology.getInstance());
+            TimeValue delay = executionScheduler.nextExecutionDelay(start);
 
-                logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
+            logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
 
-                future = threadPool.schedule(delay, executorName(), this);
-            }
+            future = threadPool.schedule(delay, executorName(), this);
         }
 
         @Override
@@ -231,7 +228,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     }
 
     /**
-     * Schedule task so that it will be executed everyday at 01:00 AM on the next day.
+     * Schedule task so that it will be executed everyday at the next 01:00 AM.
      */
     static class DefaultExecutionScheduler implements ExecutionScheduler {
 
@@ -239,7 +236,8 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
         public TimeValue nextExecutionDelay(DateTime now) {
             // Runs at 01:00 AM today or the next day if it's too late
             DateTime next = now.withTimeAtStartOfDay().plusHours(1);
-            if (next.isBefore(now) || next.equals(now)) {
+            // if it's not after now, then it needs to be the next day!
+            if (next.isAfter(now) == false) {
                 next = next.plusDays(1);
             }
             return TimeValue.timeValueMillis(next.getMillis() - now.getMillis());

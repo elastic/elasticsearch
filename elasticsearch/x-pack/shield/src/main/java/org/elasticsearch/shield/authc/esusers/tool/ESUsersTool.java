@@ -95,14 +95,9 @@ public class ESUsersTool extends MultiCommand {
         @Override
         protected int execute(Terminal terminal, OptionSet options) throws Exception {
             String username = arguments.value(options);
-            String password = passwordOption.value(options);
-            String roles = rolesOption.value(options);
-            execute(terminal, username, password, roles);
-            return ExitCodes.OK;
-        }
+            String passwordStr = passwordOption.value(options);
+            String rolesCsv = rolesOption.value(options);
 
-        // pkg private for testing
-        void execute(Terminal terminal, String username, String passwordStr, String rolesCsv) throws Exception {
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
                 throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
@@ -156,6 +151,7 @@ public class ESUsersTool extends MultiCommand {
             }
 
             attributesChecker.check(terminal);
+            return ExitCodes.OK;
         }
     }
 

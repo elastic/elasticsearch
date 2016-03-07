@@ -13,12 +13,11 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.test.ESTestCase;
 
 public class FileAttributesCheckerTests extends ESTestCase {
@@ -26,9 +25,9 @@ public class FileAttributesCheckerTests extends ESTestCase {
     public void testNonExistentFile() throws Exception {
         Path path = createTempDir().resolve("dne");
         FileAttributesChecker checker = new FileAttributesChecker(path);
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         checker.check(terminal);
-        assertTrue(terminal.getTerminalOutput().isEmpty());
+        assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
     }
 
     public void testNoPosix() throws Exception {
@@ -36,9 +35,9 @@ public class FileAttributesCheckerTests extends ESTestCase {
         try (FileSystem fs = Jimfs.newFileSystem(conf)) {
             Path path = fs.getPath("temp");
             FileAttributesChecker checker = new FileAttributesChecker(path);
-            CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+            MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            assertTrue(terminal.getTerminalOutput().isEmpty());
+            assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
         }
     }
 
@@ -49,9 +48,9 @@ public class FileAttributesCheckerTests extends ESTestCase {
             Files.createFile(path);
             FileAttributesChecker checker = new FileAttributesChecker(path);
 
-            CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+            MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            assertTrue(terminal.getTerminalOutput().isEmpty());
+            assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
         }
     }
 
@@ -70,11 +69,10 @@ public class FileAttributesCheckerTests extends ESTestCase {
             perms.add(PosixFilePermission.GROUP_READ);
             attrs.setPermissions(perms);
 
-            CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+            MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            List<String> output = terminal.getTerminalOutput();
-            assertEquals(output.toString(), 2, output.size());
-            assertTrue(output.toString(), output.get(0).contains("permissions of [" + path + "] have changed"));
+            String output = terminal.getOutput();
+            assertTrue(output, output.contains("permissions of [" + path + "] have changed"));
         }
     }
 
@@ -89,11 +87,10 @@ public class FileAttributesCheckerTests extends ESTestCase {
             PosixFileAttributeView attrs = Files.getFileAttributeView(path, PosixFileAttributeView.class);
             attrs.setOwner(newOwner);
 
-            CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+            MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            List<String> output = terminal.getTerminalOutput();
-            assertEquals(output.toString(), 1, output.size());
-            assertTrue(output.toString(), output.get(0).contains("Owner of file [" + path + "] used to be"));
+            String output = terminal.getOutput();
+            assertTrue(output, output.contains("Owner of file [" + path + "] used to be"));
         }
     }
 
@@ -108,11 +105,10 @@ public class FileAttributesCheckerTests extends ESTestCase {
             PosixFileAttributeView attrs = Files.getFileAttributeView(path, PosixFileAttributeView.class);
             attrs.setGroup(newGroup);
 
-            CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+            MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            List<String> output = terminal.getTerminalOutput();
-            assertEquals(output.toString(), 1, output.size());
-            assertTrue(output.toString(), output.get(0).contains("Group of file [" + path + "] used to be"));
+            String output = terminal.getOutput();
+            assertTrue(output, output.contains("Group of file [" + path + "] used to be"));
         }
     }
 }

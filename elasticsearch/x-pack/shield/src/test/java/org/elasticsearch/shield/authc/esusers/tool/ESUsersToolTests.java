@@ -14,16 +14,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -37,74 +41,60 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ESUsersToolTests extends ESTestCase {
-    public void testUseraddParseAllOptions() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r r1,r2,r3"));
-        assertThat(command, instanceOf(ESUsersTool.Useradd.class));
-        ESUsersTool.Useradd cmd = (ESUsersTool.Useradd) command;
-        assertThat(cmd.username, equalTo("username"));
-        assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
-        assertThat(cmd.roles, notNullValue());
-        assertThat(cmd.roles, arrayContaining("r1", "r2", "r3"));
+public class ESUsersToolTests extends CommandTestCase {
+
+    // settings used to create an Environment for tools
+    Settings.Builder settingsBuilder;
+
+    @Before
+    public void resetSettings() {
+        // TODO: use jimfs so we can run without SM...
+        settingsBuilder = Settings.builder().put("path.home", createTempDir());
     }
 
-    public void testUseraddExtraArgs() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r r1,r2,r3 r4 r6"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.USAGE));
+    @Override
+    protected Command newCommand() {
+        return new ESUsersTool(new Environment(settingsBuilder.build()));
     }
 
-    public void testUseraddParseInvalidUsername() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("$34dkl -p changeme -r r1,r2,r3"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    public void testUseraddInvalidUsername() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("useradd", "$34dkl", "-p", "changeme", "-r", "r1");
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
     }
 
-    public void testUseradd_Parse_InvalidRoleName() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r $343,r2,r3"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    public void testUseraddInvalidRoleName() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("useradd", "username", "-p", "changeme", "-r", "$343");
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid role"));
     }
 
-    public void testUseraddParseInvalidPassword() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p 123 -r r1,r2,r3"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    public void testUseraddInvalidPassword() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("useradd", "username", "-p", "123", "-r", "r1");
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid password"));
     }
 
-    public void testUseraddParseNoUsername() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("-p test123"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        assertThat(((CliTool.Command.Exit) command).status(), is(CliTool.ExitStatus.USAGE));
+    public void testUseraddNoUsername() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("useradd");
+        });
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("TBD"));
     }
 
     public void testUseraddParseNoPassword() throws Exception {
-        ESUsersTool tool = new ESUsersTool(new MockTerminal() {
-            @Override
-            public char[] readSecret(String text) {
-                return "changeme".toCharArray();
-            }
-        });
-        CliTool.Command command = tool.parse("useradd", args("username"));
-        assertThat(command, instanceOf(ESUsersTool.Useradd.class));
-        ESUsersTool.Useradd cmd = (ESUsersTool.Useradd) command;
-        assertThat(cmd.username, equalTo("username"));
-        assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
-        assertThat(cmd.roles, notNullValue());
-        assertThat(cmd.roles.length, is(0));
+        terminal.addSecretInput("changeme");
+        execute("useradd", "username");
+        assertUser("username", "changeme");
     }
 
     public void testUseraddCmdCreate() throws Exception {
@@ -853,11 +843,6 @@ public class ESUsersToolTests extends ESTestCase {
         lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
         assertThat(lines, hasSize(3));
         assertThat(lines, containsInAnyOrder("r1:john.doe", "r2:john.doe", "r3:john.doe"));
-    }
-
-    private CliTool.ExitStatus execute(CliTool.Command cmd, Settings settings) throws Exception {
-        Environment env = new Environment(settings);
-        return cmd.execute(settings, env);
     }
 
     private Path writeFile(String content) throws IOException {

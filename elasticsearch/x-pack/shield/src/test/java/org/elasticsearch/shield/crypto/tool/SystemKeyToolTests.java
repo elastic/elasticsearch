@@ -11,7 +11,7 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
-import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -26,7 +26,7 @@ public class SystemKeyToolTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        terminal = new CliToolTestCase.CaptureOutputTerminal();
+        terminal = new MockTerminal();
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         env = new Environment(settings);

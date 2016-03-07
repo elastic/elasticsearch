@@ -63,10 +63,14 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     public void testThatInstancesAreCachedAndReused() {
-        assertThat(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT)));
-        assertThat(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_0),
-                is(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_2_0)));
+        assertSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT),
+                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT));
+        // same lucene version should be cached
+        assertSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_0),
+                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_1));
+
+        assertNotSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_0),
+            PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_2_0));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {

@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -36,8 +37,9 @@ import org.joda.time.DateTimeZone;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -55,12 +57,7 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase
-public class DateRangeTests extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
+public class DateRangeIT extends ESIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -72,7 +69,11 @@ public class DateRangeTests extends ESIntegTestCase {
     }
 
     private static DateTime date(int month, int day) {
-        return new DateTime(2012, month, day, 0, 0, DateTimeZone.UTC);
+        return date(month, day, DateTimeZone.UTC);
+    }
+
+    private static DateTime date(int month, int day, DateTimeZone timezone) {
+        return new DateTime(2012, month, day, 0, 0, timezone);
     }
 
     private static int numDocs;
@@ -107,18 +108,26 @@ public class DateRangeTests extends ESIntegTestCase {
         ensureSearchable();
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(
+                DateScriptsMockPlugin.class);
+    }
+
     public void testDateMath() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "date");
         DateRangeAggregatorBuilder rangeBuilder = dateRange("range");
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
-            rangeBuilder.script(new Script("doc['date'].value"));
+            rangeBuilder.script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params));
         }
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
                         rangeBuilder.addUnboundedTo("a long time ago", "now-50y").addRange("recently", "now-50y", "now-1y")
-                                .addUnboundedFrom("last year", "now-1y")).execute().actionGet();
+                                .addUnboundedFrom("last year", "now-1y").timeZone(DateTimeZone.forID("EST"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -286,16 +295,24 @@ public class DateRangeTests extends ESIntegTestCase {
     }
 
     public void testSingleValueFieldWithDateMath() throws Exception {
+        String[] ids = DateTimeZone.getAvailableIDs().toArray(new String[DateTimeZone.getAvailableIDs().size()]);
+        DateTimeZone timezone = DateTimeZone.forID(randomFrom(ids));
+        int timeZoneOffset = timezone.getOffset(date(2, 15));
+        // if time zone is UTC (or equivalent), time zone suffix is "Z", else something like "+03:00", which we get with the "ZZ" format
+        String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).toString("ZZ");
+        String mar15Suffix = timeZoneOffset == 0 ? "Z" : date(3,15, timezone).toString("ZZ");
+        long expectedFirstBucketCount = timeZoneOffset < 0 ? 3L : 2L;
+
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("date")
                         .addUnboundedTo("2012-02-15")
                         .addRange("2012-02-15", "2012-02-15||+1M")
-                        .addUnboundedFrom("2012-02-15||+1M"))
+                        .addUnboundedFrom("2012-02-15||+1M")
+                        .timeZone(timezone))
                 .execute().actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -305,30 +322,31 @@ public class DateRangeTests extends ESIntegTestCase {
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000" + feb15Suffix));
         assertThat(((DateTime) bucket.getFrom()), nullValue());
-        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15, timezone).toDateTime(DateTimeZone.UTC)));
         assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(2L));
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix));
+        assertThat(bucket.getDocCount(), equalTo(expectedFirstBucketCount));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
-        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix +
+                "-2012-03-15T00:00:00.000" + mar15Suffix));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15, timezone).toDateTime(DateTimeZone.UTC)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15, timezone).toDateTime(DateTimeZone.UTC)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix + "-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15, timezone).toDateTime(DateTimeZone.UTC)));
         assertThat(((DateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 4L));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 2L - expectedFirstBucketCount));
     }
 
     public void testSingleValueFieldWithCustomKey() throws Exception {
@@ -520,10 +538,12 @@ public class DateRangeTests extends ESIntegTestCase {
 
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                                .script(new Script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()"))
+                                .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
                                 .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
                 .actionGet();
 
@@ -575,9 +595,11 @@ public class DateRangeTests extends ESIntegTestCase {
      */
 
     public void testScriptSingleValue() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script(new Script("doc['date'].value"))
+                        .script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params))
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
@@ -634,11 +656,14 @@ public class DateRangeTests extends ESIntegTestCase {
      */
 
     public void testScriptMultiValued() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "dates");
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateRange("range").script(new Script("doc['dates'].values")).addUnboundedTo(date(2, 15))
-                                .addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute().actionGet();
+                        dateRange("range").script(new Script(DateScriptMocks.ExtractFieldScript.NAME, ScriptType.INLINE, "native", params))
+                        .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
+                        .addUnboundedFrom(date(3, 15))).execute().actionGet();
 
         assertSearchResponse(response);
 

@@ -35,8 +35,8 @@ import java.io.IOException;
 @SuppressWarnings("deprecation")
 public class Version {
 
-    // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
-    // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
+    // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator
+    // AA values below 25 are fro alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
 
@@ -143,9 +143,10 @@ public class Version {
         }
 
         try {
-
+            final int rawMajor = Integer.parseInt(parts[0]);
+            final int betaOffset = rawMajor < 5 ? 0 : 25;
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
-            final int major = Integer.parseInt(parts[0]) * 1000000;
+            final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
 
@@ -153,11 +154,17 @@ public class Version {
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
-                if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
-                    build = Integer.parseInt(buildStr.substring(4));
-                }
-                if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
+                if (buildStr.startsWith("alpha")) {
+                    assert rawMajor >= 5 : "major must be >= 5 but was " + major;
+                    build = Integer.parseInt(buildStr.substring(5));
+                    assert build < 25 : "expected a beta build but " + build + " >= 25";
+                } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
+                    build = betaOffset + Integer.parseInt(buildStr.substring(4));
+                    assert build < 50 : "expected a beta build but " + build + " >= 50";
+                } else if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
                     build = Integer.parseInt(buildStr.substring(2)) + 50;
+                } else {
+                    throw new IllegalArgumentException("unable to parse version " + version);
                 }
             }
 
@@ -220,13 +227,16 @@ public class Version {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
-        if (isBeta()) {
+        if (isAlpha()) {
+            sb.append("-alpha");
+            sb.append(build);
+        } else if (isBeta()) {
             if (major >= 2) {
                 sb.append("-beta");
             } else {
                 sb.append(".Beta");
             }
-            sb.append(build);
+            sb.append(major < 5 ? build : build-25);
         } else if (build < 99) {
             if (major >= 2) {
                 sb.append("-rc");
@@ -262,7 +272,16 @@ public class Version {
     }
 
     public boolean isBeta() {
-        return build < 50;
+        return major < 5 ? build < 50 : build >= 25 && build < 50;
+    }
+
+    /**
+     * Returns true iff this version is an alpha version
+     * Note: This has been introduced in elasticsearch version 5. Previous versions will never
+     * have an alpha version.
+     */
+    public boolean isAlpha() {
+        return major < 5 ? false :  build < 25;
     }
 
     public boolean isRC() {

@@ -198,6 +198,13 @@ public class VersionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> {
             Version.fromString("5.0.0-alph2");
         });
+        assertSame(Version.CURRENT, Version.fromString(Version.CURRENT.toString()));
+
+        assertSame(Version.fromString("2.0.0-SNAPSHOT"), Version.fromString("2.0.0"));
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            Version.fromString("5.0.0-SNAPSHOT");
+        });
     }
 
     public void testParseLenient() {

@@ -137,6 +137,10 @@ public class Version {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
+        final boolean snapshot; // this is some BWC for 2.x and before indices
+        if (snapshot = version.endsWith("-SNAPSHOT")) {
+            version = version.substring(0, version.length() - 9);
+        }
         String[] parts = version.split("\\.|\\-");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor, and revision, and optionally the build: " + version);
@@ -144,6 +148,9 @@ public class Version {
 
         try {
             final int rawMajor = Integer.parseInt(parts[0]);
+            if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
+                throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
+            }
             final int betaOffset = rawMajor < 5 ? 0 : 25;
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;

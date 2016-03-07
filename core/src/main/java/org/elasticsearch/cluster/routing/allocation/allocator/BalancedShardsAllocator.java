@@ -103,27 +103,26 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     }
 
     @Override
-    public void applyStartedShards(StartedRerouteAllocation allocation) { /* ONLY FOR GATEWAYS */ }
-
-    @Override
-    public void applyFailedShards(FailedRerouteAllocation allocation) { /* ONLY FOR GATEWAYS */ }
-
-    @Override
-    public boolean allocateUnassigned(RoutingAllocation allocation) {
+    public boolean allocate(RoutingAllocation allocation) {
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
-        return balancer.allocateUnassigned();
-    }
-
-    @Override
-    public boolean rebalance(RoutingAllocation allocation) {
-        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
-        return balancer.balance();
-    }
-
-    @Override
-    public boolean moveShards(RoutingAllocation allocation) {
-        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
-        return balancer.moveShards();
+        boolean changed = false;
+        if (allocation.routingNodes().unassigned().size() > 0) {
+            changed |= balancer.allocateUnassigned();
+        }
+        changed |= balancer.moveShards();
+        if (allocation.hasPendingAsyncFetch() == false) {
+            /*
+             * see https://github.com/elastic/elasticsearch/issues/14387
+             * if we allow rebalance operations while we are still fetching shard store data
+             * we might end up with unnecessary rebalance operations which can be super confusion/frustrating
+             * since once the fetches come back we might just move all the shards back again.
+             * Therefore we only do a rebalance if we have fetched all information.
+             */
+            changed |= balancer.balance();
+        } else {
+            logger.debug("skipping rebalance due to in-flight shard/store fetches");
+        }
+        return changed;
     }
 
     /**

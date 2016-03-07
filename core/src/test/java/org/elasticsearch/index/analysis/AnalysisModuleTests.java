@@ -28,6 +28,8 @@ import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
@@ -328,11 +330,14 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        AnalysisModule module = new AnalysisModule(new Environment(settings));
+        Environment environment = new Environment(settings);
+        AnalysisModule module = new AnalysisModule(environment);
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
-        Dictionary dictionary = new Dictionary(aff, dic);
-        module.registerHunspellDictionary("foo", dictionary);
-        assertInstanceBinding(module, HunspellService.class, (x) -> x.getDictionary("foo") == dictionary);
+        try (Directory tmp = new SimpleFSDirectory(environment.tmpFile())) {
+            Dictionary dictionary = new Dictionary(tmp, "hunspell", aff, dic);
+            module.registerHunspellDictionary("foo", dictionary);
+            assertInstanceBinding(module, HunspellService.class, (x) -> x.getDictionary("foo") == dictionary);
+        }
     }
 }

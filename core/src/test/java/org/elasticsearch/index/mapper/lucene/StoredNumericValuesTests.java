@@ -76,7 +76,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         // Indexing a doc in the old way
         FieldType fieldType = new FieldType();
         fieldType.setStored(true);
-        fieldType.setNumericType(FieldType.NumericType.INT);
+        fieldType.setNumericType(FieldType.LegacyNumericType.INT);
         Document doc2 = new Document();
         doc2.add(new StoredField("field1", new BytesRef(Numbers.intToBytes(1))));
         doc2.add(new StoredField("field2", new BytesRef(Numbers.floatToBytes(1.1f))));
@@ -85,7 +85,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(3L))));
         writer.addDocument(doc2);
 
-        DirectoryReader reader = DirectoryReader.open(writer, true);
+        DirectoryReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         Set<String> fields = new HashSet<>(Arrays.asList("field1", "field2", "field3"));

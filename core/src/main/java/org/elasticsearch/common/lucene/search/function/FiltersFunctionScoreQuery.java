@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -102,7 +101,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    Query subQuery;
+    final Query subQuery;
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
@@ -136,9 +135,7 @@ public class FiltersFunctionScoreQuery extends Query {
         Query newQ = subQuery.rewrite(reader);
         if (newQ == subQuery)
             return this;
-        FiltersFunctionScoreQuery bq = (FiltersFunctionScoreQuery) this.clone();
-        bq.subQuery = newQ;
-        return bq;
+        return new FiltersFunctionScoreQuery(newQ, scoreMode, filterFunctions, maxBoost, minScore, combineFunction);
     }
 
     @Override
@@ -355,7 +352,6 @@ public class FiltersFunctionScoreQuery extends Query {
             sb.append("{filter(").append(filterFunction.filter).append("), function [").append(filterFunction.function).append("]}");
         }
         sb.append("])");
-        sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 

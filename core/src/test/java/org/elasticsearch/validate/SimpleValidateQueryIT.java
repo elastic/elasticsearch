@@ -243,9 +243,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         // fuzzy queries
         assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
-                containsString("field:the field:tree^0.3333333"), true);
+                containsString("field:the (field:tree)^0.3333333"), true);
         assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"),
-                containsString("field:jumps^0.75"), true);
+                containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))

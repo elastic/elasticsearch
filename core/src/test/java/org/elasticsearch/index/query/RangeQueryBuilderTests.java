@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
@@ -118,8 +118,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
             //we can't properly test unmapped dates because LateParsingQuery is package private
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
-            assertThat(query, instanceOf(NumericRangeQuery.class));
-            NumericRangeQuery numericRangeQuery = (NumericRangeQuery) query;
+            assertThat(query, instanceOf(LegacyNumericRangeQuery.class));
+            LegacyNumericRangeQuery numericRangeQuery = (LegacyNumericRangeQuery) query;
             assertThat(numericRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
             assertThat(numericRangeQuery.getMin(), equalTo(queryBuilder.from()));
             assertThat(numericRangeQuery.getMax(), equalTo(queryBuilder.to()));
@@ -198,8 +198,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery rangeQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
+        LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
         assertThat(rangeQuery.getField(), equalTo(INT_FIELD_NAME));
         assertThat(rangeQuery.getMin().intValue(), equalTo(23));
         assertThat(rangeQuery.getMax().intValue(), equalTo(54));
@@ -220,15 +220,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
 
         // Min value was 01/01/2012 (dd/MM/yyyy)
         DateTime min = DateTime.parse("2012-01-01T00:00:00.000+00");
-        assertThat(((NumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
+        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 
         // Max value was 2030 (yyyy)
         DateTime max = DateTime.parse("2030-01-01T00:00:00.000+00");
-        assertThat(((NumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
+        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
 
         // Test Invalid format
         query = "{\n" +
@@ -259,8 +259,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery rangeQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
+        LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
 
         DateTime min = DateTime.parse("2014-11-01T00:00:00.000+00");
         assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
@@ -279,8 +279,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        rangeQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
+        rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
 
         min = DateTime.parse("2014-11-30T23:59:59.999+00");
         assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
@@ -304,17 +304,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
 
         // Min value was 2012-01-01 (UTC) so we need to remove one hour
         DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
         // Max value is when we started the test. So it should be some ms from now
         DateTime max = new DateTime(startDate, DateTimeZone.UTC);
 
-        assertThat(((NumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
+        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 
         // We should not have a big difference here (should be some ms)
-        assertThat(((NumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
+        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
 
         query = "{\n" +
                 "    \"range\" : {\n" +

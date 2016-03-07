@@ -44,11 +44,6 @@ import java.util.Collections;
 
 public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
-
     MapperRegistry mapperRegistry;
     IndexService indexService;
     DocumentMapperParser parser;
@@ -131,38 +126,4 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
             assertTrue(e.getMessage().contains("Setting [index] cannot be modified"));
         }
     }
-
-    public void testDocValuesSettingBackcompat() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        indexService = createIndex("test_bwc", settings);
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-                .field("type", "murmur3")
-                .field("doc_values", false)
-            .endObject().endObject().endObject().endObject().string();
-
-        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
-        Murmur3FieldMapper mapper = (Murmur3FieldMapper)docMapper.mappers().getMapper("field");
-        assertFalse(mapper.fieldType().hasDocValues());
-    }
-
-    public void testIndexSettingBackcompat() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        indexService = createIndex("test_bwc", settings);
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", "murmur3")
-            .field("index", "not_analyzed")
-            .endObject().endObject().endObject().endObject().string();
-
-        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
-        Murmur3FieldMapper mapper = (Murmur3FieldMapper)docMapper.mappers().getMapper("field");
-        assertEquals(IndexOptions.DOCS, mapper.fieldType().indexOptions());
-    }
-
-    // TODO: add more tests
 }

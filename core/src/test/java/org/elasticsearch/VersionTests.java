@@ -31,8 +31,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.Version.V_0_20_0;
-import static org.elasticsearch.Version.V_0_90_0;
+import static org.elasticsearch.Version.V_2_2_0;
+import static org.elasticsearch.Version.V_5_0_0;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -42,21 +42,21 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends ESTestCase {
 
     public void testVersionComparison() throws Exception {
-        assertThat(V_0_20_0.before(V_0_90_0), is(true));
-        assertThat(V_0_20_0.before(V_0_20_0), is(false));
-        assertThat(V_0_90_0.before(V_0_20_0), is(false));
+        assertThat(V_2_2_0.before(V_5_0_0), is(true));
+        assertThat(V_2_2_0.before(V_2_2_0), is(false));
+        assertThat(V_5_0_0.before(V_2_2_0), is(false));
 
-        assertThat(V_0_20_0.onOrBefore(V_0_90_0), is(true));
-        assertThat(V_0_20_0.onOrBefore(V_0_20_0), is(true));
-        assertThat(V_0_90_0.onOrBefore(V_0_20_0), is(false));
+        assertThat(V_2_2_0.onOrBefore(V_5_0_0), is(true));
+        assertThat(V_2_2_0.onOrBefore(V_2_2_0), is(true));
+        assertThat(V_5_0_0.onOrBefore(V_2_2_0), is(false));
 
-        assertThat(V_0_20_0.after(V_0_90_0), is(false));
-        assertThat(V_0_20_0.after(V_0_20_0), is(false));
-        assertThat(V_0_90_0.after(V_0_20_0), is(true));
+        assertThat(V_2_2_0.after(V_5_0_0), is(false));
+        assertThat(V_2_2_0.after(V_2_2_0), is(false));
+        assertThat(V_5_0_0.after(V_2_2_0), is(true));
 
-        assertThat(V_0_20_0.onOrAfter(V_0_90_0), is(false));
-        assertThat(V_0_20_0.onOrAfter(V_0_20_0), is(true));
-        assertThat(V_0_90_0.onOrAfter(V_0_20_0), is(true));
+        assertThat(V_2_2_0.onOrAfter(V_5_0_0), is(false));
+        assertThat(V_2_2_0.onOrAfter(V_2_2_0), is(true));
+        assertThat(V_5_0_0.onOrAfter(V_2_2_0), is(true));
     }
 
     public void testVersionConstantPresent() {
@@ -127,29 +127,27 @@ public class VersionTests extends ESTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
-        final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
+        final Version version = randomFrom(Version.V_2_0_0, Version.V_2_3_0, Version.V_5_0_0);
         assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
 
     public void testMinCompatVersion() {
         assertThat(Version.V_2_0_0_beta1.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0_beta1));
-        assertThat(Version.V_1_3_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
-        assertThat(Version.V_1_2_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
-        assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
-        assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
+        assertThat(Version.V_2_1_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_2_2_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_2_3_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_5_0_0.minimumCompatibilityVersion(), equalTo(Version.V_5_0_0));
     }
 
     public void testToString() {
         // with 2.0.beta we lowercase
         assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.toString());
-        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.toString());
-        assertEquals("1.4.0", Version.V_1_4_0.toString());
+        assertEquals("5.0.0", Version.V_5_0_0.toString());
+        assertEquals("2.3.0", Version.V_2_3_0.toString());
     }
 
     public void testIsBeta() {
         assertTrue(Version.V_2_0_0_beta1.isBeta());
-        assertTrue(Version.V_1_4_0_Beta1.isBeta());
-        assertFalse(Version.V_1_4_0.isBeta());
     }
 
     public void testParseVersion() {

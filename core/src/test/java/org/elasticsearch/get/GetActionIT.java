@@ -65,11 +65,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class GetActionIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
-    }
-
     public void testSimpleGet() {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
@@ -322,128 +317,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
-    }
-
-    public void testThatGetFromTranslogShouldWorkWithExcludeBackcompat() throws Exception {
-        String index = "test";
-        String type = "type1";
-
-        String mapping = jsonBuilder()
-                .startObject()
-                .startObject(type)
-                .startObject("_source")
-                .array("excludes", "excluded")
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
-
-        assertAcked(prepareCreate(index)
-                .addMapping(type, mapping)
-                .setSettings("index.refresh_interval", -1, IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id));
-
-        client().prepareIndex(index, type, "1")
-                .setSource(jsonBuilder().startObject().field("field", "1", "2").field("excluded", "should not be seen").endObject())
-                .get();
-
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").get();
-        client().admin().indices().prepareFlush(index).get();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").get();
-
-        assertThat(responseBeforeFlush.isExists(), is(true));
-        assertThat(responseAfterFlush.isExists(), is(true));
-        assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("field"));
-        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
-        assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
-    }
-
-    public void testThatGetFromTranslogShouldWorkWithIncludeBackcompat() throws Exception {
-        String index = "test";
-        String type = "type1";
-
-        String mapping = jsonBuilder()
-                .startObject()
-                .startObject(type)
-                .startObject("_source")
-                .array("includes", "included")
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
-
-        assertAcked(prepareCreate(index)
-                .addMapping(type, mapping)
-                .setSettings("index.refresh_interval", -1, IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id));
-
-        client().prepareIndex(index, type, "1")
-                .setSource(jsonBuilder().startObject().field("field", "1", "2").field("included", "should be seen").endObject())
-                .get();
-
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").get();
-        flush();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").get();
-
-        assertThat(responseBeforeFlush.isExists(), is(true));
-        assertThat(responseAfterFlush.isExists(), is(true));
-        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
-        assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
-        assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFieldsBackcompat() throws Exception {
-        String index = "test";
-        String type = "type1";
-
-        String mapping = jsonBuilder()
-                .startObject()
-                .startObject(type)
-                .startObject("_source")
-                .array("includes", "included")
-                .array("excludes", "excluded")
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
-
-        assertAcked(prepareCreate(index)
-                .addMapping(type, mapping)
-                .setSettings("index.refresh_interval", -1, IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id));
-
-        client().prepareIndex(index, type, "1")
-                .setSource(jsonBuilder().startObject()
-                        .field("field", "1", "2")
-                        .startObject("included").field("field", "should be seen").field("field2", "extra field to remove").endObject()
-                        .startObject("excluded").field("field", "should not be seen").field("field2", "should not be seen").endObject()
-                        .endObject())
-                .get();
-
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").get();
-        assertThat(responseBeforeFlush.isExists(), is(true));
-        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
-        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
-        assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
-
-        // now tests that extra source filtering works as expected
-        GetResponse responseBeforeFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included.field", "excluded.field")
-                .setFetchSource(new String[]{"field", "*.field"}, new String[]{"*.field2"}).get();
-        assertThat(responseBeforeFlushWithExtraFilters.isExists(), is(true));
-        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), not(hasKey("excluded")));
-        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), not(hasKey("field")));
-        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), hasKey("included"));
-        assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), hasKey("field"));
-        assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), not(hasKey("field2")));
-
-        flush();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").get();
-        GetResponse responseAfterFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included.field", "excluded.field")
-                .setFetchSource("*.field", "*.field2").get();
-
-        assertThat(responseAfterFlush.isExists(), is(true));
-        assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
-
-        assertThat(responseAfterFlushWithExtraFilters.isExists(), is(true));
-        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsString(), is(responseAfterFlushWithExtraFilters.getSourceAsString()));
     }
 
     public void testGetWithVersion() {
@@ -1006,8 +879,7 @@ public class GetActionIT extends ESIntegTestCase {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
-                "    \"refresh_interval\": \"-1\",\n" +
-                "    \"" + IndexMetaData.SETTING_VERSION_CREATED + "\": " + Version.V_1_4_2.id + "\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
@@ -1058,8 +930,7 @@ public class GetActionIT extends ESIntegTestCase {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
-                "    \"refresh_interval\": \"-1\",\n" +
-                "    \"" + IndexMetaData.SETTING_VERSION_CREATED + "\": " + Version.V_1_4_2.id + "\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +

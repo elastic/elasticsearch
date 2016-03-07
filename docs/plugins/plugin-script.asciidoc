@@ -71,7 +71,7 @@ sudo bin/plugin install lmenezes/elasticsearch-kopf <1>
 sudo bin/plugin install lmenezes/elasticsearch-kopf/2.x <2>
 -----------------------------------
 <1> Installs the latest version from GitHub.
-<2> Installs the 1.x version from GitHub.
+<2> Installs the 2.x version from GitHub.
 
 When installing from Maven Central/Sonatype, `[org]` should be replaced by
 the artifact `groupId`, and `[user|component]` by the `artifactId`.  For

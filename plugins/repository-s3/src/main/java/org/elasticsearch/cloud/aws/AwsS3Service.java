@@ -154,6 +154,5 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.s3.endpoint", Property.NodeScope);
     }
 
-    AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries);
     AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries, EncryptionMaterials clientSideEncryptionMaterials);
 }

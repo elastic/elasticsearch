@@ -104,7 +104,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(settings
-                ).get();
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -209,6 +209,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
             S3Repository.Repositories.REGION_SETTING.get(settings),
             S3Repository.Repositories.KEY_SETTING.get(settings),
             S3Repository.Repositories.SECRET_SETTING.get(settings),
+            null,
             null);
 
         String bucketName = bucket.get("bucket");
@@ -553,7 +554,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, protocol, region, accessKey, secretKey, null);
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, protocol, region, accessKey, secretKey, null, null);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

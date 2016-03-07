@@ -247,7 +247,6 @@ public class S3Repository extends BlobStoreRepository {
          * base_path
          * @see  Repositories#BASE_PATH_SETTING
          */
-
         Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
 
         /**
@@ -319,7 +318,7 @@ public class S3Repository extends BlobStoreRepository {
         String storageClass = getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
         String cannedACL = getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
 
-        logger.debug("using bqucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], cannedACL [{}], storageClass [{}]",
+        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], cannedACL [{}], storageClass [{}]",
                 bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String key = getValue(repositorySettings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
@@ -327,7 +326,7 @@ public class S3Repository extends BlobStoreRepository {
 
         // parse and validate the client side encryption setting
         String symmetricKeyBase64 = getValue(repositorySettings, Repository.CLIENT_SYMMETRIC_KEY, Repositories.CLIENT_SYMMETRIC_KEY);
-        String publicKeyBase64 =getValue(repositorySettings, Repository.CLIENT_PUBLIC_KEY, Repositories.CLIENT_PUBLIC_KEY);
+        String publicKeyBase64 = getValue(repositorySettings, Repository.CLIENT_PUBLIC_KEY, Repositories.CLIENT_PUBLIC_KEY);
         String privateKeyBase64 = getValue(repositorySettings, Repository.CLIENT_PRIVATE_KEY, Repositories.CLIENT_PRIVATE_KEY);
 
         EncryptionMaterials clientSideEncryptionMaterials = initClientSideEncryption(symmetricKeyBase64, publicKeyBase64, privateKeyBase64, name);
@@ -366,7 +365,7 @@ public class S3Repository extends BlobStoreRepository {
         EncryptionMaterials clientSideEncryptionMaterials = null;
 
         if (Strings.isNullOrEmpty(symmetricKey) == false && (Strings.isNullOrEmpty(publicKey) == false || Strings.isNullOrEmpty(privateKey) == false)) {
-            throw new RepositoryException(name.name(), "Client-side encryption: You can't specify an symmetric key AND a public/private key pair");
+            throw new RepositoryException(name.name(), "Client-side encryption: You can't specify a symmetric key AND a public/private key pair");
         }
 
         if (Strings.isNullOrEmpty(symmetricKey) == false || Strings.isNullOrEmpty(publicKey) == false || Strings.isNullOrEmpty(privateKey) == false) {
@@ -380,7 +379,7 @@ public class S3Repository extends BlobStoreRepository {
                 if (Strings.isNullOrEmpty(symmetricKey) == false) {
                     clientSideEncryptionMaterials = new EncryptionMaterials(new SecretKeySpec(Base64.decode(symmetricKey), "AES"));
                 } else {
-                    if (Strings.isNullOrEmpty(publicKey)|| Strings.isNullOrEmpty(privateKey)){
+                    if (Strings.isNullOrEmpty(publicKey) || Strings.isNullOrEmpty(privateKey)) {
                         String missingKey = Strings.isNullOrEmpty(publicKey) ? "public key" : "private key";
                         throw new RepositoryException(name.name(), "Client-side encryption: " + missingKey + " is missing");
                     }

@@ -62,12 +62,9 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries) {
-        return client(endpoint, protocol, region, account, key, maxRetries, null);
-    }
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        EncryptionMaterials clientSideEncryptionMaterials) {
 
-    @Override
-    public AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries, EncryptionMaterials clientSideEncryptionMaterials) {
         if (Strings.isNullOrEmpty(endpoint)) {
             // We need to set the endpoint based on the region
             if (region != null) {
@@ -144,8 +141,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
                     credentials,
                     encryptionMaterialsProvider,
                     clientConfiguration,
-                    cryptoConfiguration
-            );
+                    cryptoConfiguration);
         } else {
             client = new AmazonS3Client(credentials, clientConfiguration);
         }

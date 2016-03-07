@@ -207,7 +207,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = DocumentSubsetReader.wrap(DirectoryReader.open(iw, true), bitsetFilterCache, new MatchAllDocsQuery());
+        DirectoryReader ir = DocumentSubsetReader.wrap(DirectoryReader.open(iw), bitsetFilterCache, new MatchAllDocsQuery());
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 

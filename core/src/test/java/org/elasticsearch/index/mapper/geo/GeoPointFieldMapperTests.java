@@ -293,6 +293,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             fail();
         } catch (MapperParsingException e) {
             assertTrue(e.getRootCause() instanceof NumberFormatException);
+            assertTrue(e.getRootCause().toString().contains("java.lang.NumberFormatException: For input string: \"-\""));
         }
 
         try {
@@ -304,6 +305,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             fail();
         } catch (MapperParsingException e) {
             assertTrue(e.getRootCause() instanceof NumberFormatException);
+            assertTrue(e.getRootCause().toString().contains("java.lang.NumberFormatException: For input string: \"-\""));
         }
 
         try {
@@ -315,6 +317,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             fail();
         } catch (MapperParsingException e) {
             assertTrue(e.getRootCause() instanceof NumberFormatException);
+            assertTrue(e.getRootCause().toString().contains("java.lang.NumberFormatException: For input string: \"-\""));
         }
     }
 

@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -79,12 +79,12 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
         @Override
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                          MappedFieldType defaultFieldType, Settings indexSettings, DoubleFieldMapper latMapper,
-                                         DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                         DoubleFieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          CopyTo copyTo) {
             fieldType.setTokenized(false);
             if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
                 fieldType.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
-                fieldType.setNumericType(FieldType.NumericType.LONG);
+                fieldType.setNumericType(FieldType.LegacyNumericType.LONG);
             }
             setupFieldType(context);
             return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper,
@@ -95,7 +95,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
         public GeoPointFieldMapper build(BuilderContext context) {
             if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
                 fieldType.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
-                fieldType.setNumericType(FieldType.NumericType.LONG);
+                fieldType.setNumericType(FieldType.LegacyNumericType.LONG);
             }
             return super.build(context);
         }
@@ -110,7 +110,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
                                DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
-                               StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
+                               KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
     }

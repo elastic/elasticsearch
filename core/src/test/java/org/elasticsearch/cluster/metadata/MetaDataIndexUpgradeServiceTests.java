@@ -83,7 +83,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_CREATION_DATE, 1)
             .put(IndexMetaData.SETTING_INDEX_UUID, "BOOM")
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_0_18_1_ID)
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_2_0_0_beta1)
             .put(indexSettings)
             .build();
         IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();

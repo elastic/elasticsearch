@@ -165,7 +165,8 @@ public class Node implements Closeable {
         tmpSettings = TribeService.processSettings(tmpSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
-        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
+        final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+        logger.info("version[{}], pid[{}], build[{}/{}]", displayVersion, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
 
         logger.info("initializing ...");
 
@@ -316,18 +317,15 @@ public class Node implements Closeable {
         discovery.start();
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-
         // tribe nodes don't have a master so we shouldn't register an observer
         if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            final CountDownLatch latch = new CountDownLatch(1);
             if (observer.observedState().nodes().masterNodeId() == null) {
+                final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
-                    public void onNewClusterState(ClusterState state) {
-                        latch.countDown();
-                    }
+                    public void onNewClusterState(ClusterState state) { latch.countDown(); }
 
                     @Override
                     public void onClusterServiceClose() {
@@ -336,16 +334,17 @@ public class Node implements Closeable {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        assert false;
+                        logger.warn("timed out while waiting for initial discovery state - timeout: {}",
+                            DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                        latch.countDown();
                     }
-                    // use null timeout as we use timeout on the latchwait
-                }, MasterNodeChangePredicate.INSTANCE, null);
-            }
+                }, MasterNodeChangePredicate.INSTANCE, DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
 
-            try {
-                latch.await(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                }
             }
         }
 

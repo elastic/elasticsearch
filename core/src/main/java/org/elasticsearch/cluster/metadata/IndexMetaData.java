@@ -913,11 +913,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                             }
                         }
                     } else if ("warmers".equals(currentFieldName)) {
-                        // TODO: do this in 4.0:
+                        // TODO: do this in 6.0:
                         // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
-                        // ignore: warmers have been removed in 3.0 and are
+                        // ignore: warmers have been removed in 5.0 and are
                         // simply ignored when upgrading from 2.x
-                        assert Version.CURRENT.major <= 3;
+                        assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
                     } else {
                         // check if its a custom index metadata

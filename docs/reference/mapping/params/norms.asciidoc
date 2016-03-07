@@ -1,10 +1,8 @@
 [[norms]]
 === `norms`
 
-Norms store various normalization factors -- a number to represent the
-relative field length and the <<index-boost,index time `boost`>> setting --
-that are later used at query time in order to compute the score of a document
-relatively to a query.
+Norms store various normalization factors that are later used at query time
+in order to compute the score of a document relatively to a query.
 
 Although useful for scoring, norms also require quite a lot of memory
 (typically in the order of one byte per document per field in your index, even

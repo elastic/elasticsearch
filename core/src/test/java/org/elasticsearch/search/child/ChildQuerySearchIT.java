@@ -758,11 +758,11 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).get();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("parent", matchQuery("text", "value"))).get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).score(true))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("parent", matchQuery("text", "value")).score(true))
                 .get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
@@ -1078,7 +1078,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #3818
     public void testHasChildQueryOnlyReturnsSingleChildType() {
         assertAcked(prepareCreate("grandissue")
-                .addMapping("grandparent", "name", "type=string")
+                .addMapping("grandparent", "name", "type=text")
                 .addMapping("parent", "_parent", "type=grandparent")
                 .addMapping("child_type_one", "_parent", "type=parent")
                 .addMapping("child_type_two", "_parent", "type=parent"));
@@ -1894,11 +1894,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             fail();
         } catch (SearchPhaseExecutionException e) {
         }
-
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
-                .get();
-        assertHitCount(response, 0);
     }
 
     static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {

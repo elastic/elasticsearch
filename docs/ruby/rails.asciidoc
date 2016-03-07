@@ -13,4 +13,4 @@ provides features suitable for Ruby on Rails applications.
 
 You can generate a fully working example Ruby on Rails application with templates provides.
 
-Please refer to the https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-rails[documentation] for more information.
+Please refer to the https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-rails[documentation] for more information.

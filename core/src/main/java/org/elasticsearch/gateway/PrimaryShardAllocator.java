@@ -113,7 +113,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             final boolean enoughAllocationsFound;
 
             if (lastActiveAllocationIds.isEmpty()) {
-                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
+                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_5_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
                 // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
@@ -123,7 +123,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 } else {
                     enoughAllocationsFound = isEnoughVersionBasedAllocationsFound(indexMetaData, nodeShardsResult);
                 }
-                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_3_0_0, nodeShardsResult.allocationsFound, shard);
+                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_5_0_0, nodeShardsResult.allocationsFound, shard);
             } else {
                 assert lastActiveAllocationIds.isEmpty() == false;
                 // use allocation ids to select nodes

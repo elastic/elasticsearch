@@ -26,11 +26,30 @@ import org.elasticsearch.action.search.SearchRequest;
  * locations or IDs.
  */
 public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest> {
+    /**
+     * Ingest pipeline to set on index requests made by this action.
+     */
+    private String pipeline;
+
     public UpdateByQueryRequest() {
     }
 
     public UpdateByQueryRequest(SearchRequest search) {
         super(search);
+    }
+
+    /**
+     * Set the ingest pipeline to set on index requests made by this action.
+     */
+    public void setPipeline(String pipeline) {
+        this.pipeline = pipeline;
+    }
+
+    /**
+     * Ingest pipeline to set on index requests made by this action.
+     */
+    public String getPipeline() {
+        return pipeline;
     }
 
     @Override

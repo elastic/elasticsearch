@@ -113,55 +113,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
     }
 
-    public void testPlainHighlighterWithLongUnanalyzedStringTerm() throws IOException {
-        XContentBuilder mappings = jsonBuilder();
-        mappings.startObject();
-        mappings.startObject("type")
-                .startObject("properties")
-                .startObject("long_text")
-                .field("type", "string")
-                .field("analyzer", "keyword")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .field("ignore_above", 1)
-                .endObject()
-                .startObject("text")
-                .field("type", "text")
-                .field("analyzer", "keyword")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .endObject()
-                .endObject()
-                .endObject();
-        mappings.endObject();
-        assertAcked(prepareCreate("test")
-                .addMapping("type", mappings));
-        ensureYellow();
-        // crate a term that is larger than the allowed 32766, index it and then try highlight on it
-        // the search request should still succeed
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < 32767; i++) {
-            builder.append('a');
-        }
-        client().prepareIndex("test", "type", "1")
-                .setSource(jsonBuilder().startObject().field("long_text", builder.toString()).field("text", "text").endObject())
-                .get();
-        refresh();
-        String highlighter = randomFrom("plain", "postings", "fvh");
-        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text")))
-                .highlighter(new HighlightBuilder().field(new Field("*").highlighterType(highlighter))).get();
-        assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text")))
-                .highlighter(new HighlightBuilder().field(new Field("long_text").highlighterType(highlighter))).get();
-        assertNoFailures(search);
-        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
-
-        search = client().prepareSearch().setQuery(prefixQuery("text", "te"))
-                .highlighter(new HighlightBuilder().field(new Field("long_text").highlighterType(highlighter))).get();
-        assertNoFailures(search);
-        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
-    }
-
     public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
@@ -315,78 +266,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "body",
                 0,
                 equalTo("<em>Test</em>: <em>http://www.facebook.com</em> <em>http://elasticsearch.org</em> <em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"));
-    }
-
-    public void testNgramHighlightingPreLucene42() throws IOException {
-        assertAcked(prepareCreate("test")
-                .addMapping("test",
-                        "name", "type=text,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets",
-                        "name2", "type=text,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets")
-                .setSettings(settingsBuilder()
-                        .put(indexSettings())
-                        .put("analysis.filter.my_ngram.max_gram", 20)
-                        .put("analysis.filter.my_ngram.version", "4.1")
-                        .put("analysis.filter.my_ngram.min_gram", 1)
-                        .put("analysis.filter.my_ngram.type", "ngram")
-                        .put("analysis.tokenizer.my_ngramt.max_gram", 20)
-                        .put("analysis.tokenizer.my_ngramt.version", "4.1")
-                        .put("analysis.tokenizer.my_ngramt.min_gram", 1)
-                        .put("analysis.tokenizer.my_ngramt.type", "ngram")
-                        .put("analysis.analyzer.name_index_analyzer.tokenizer", "my_ngramt")
-                        .put("analysis.analyzer.name2_index_analyzer.tokenizer", "whitespace")
-                        .putArray("analysis.analyzer.name2_index_analyzer.filter", "lowercase", "my_ngram")
-                        .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace")
-                        .put("analysis.analyzer.name_search_analyzer.filter", "lowercase")));
-        ensureYellow();
-        client().prepareIndex("test", "test", "1")
-            .setSource("name", "logicacmg ehemals avinci - the know how company",
-                    "name2", "logicacmg ehemals avinci - the know how company").get();
-        client().prepareIndex("test", "test", "2")
-            .setSource("name", "avinci, unilog avinci, logicacmg, logica",
-                    "name2", "avinci, unilog avinci, logicacmg, logica").get();
-        refresh();
-
-        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "logica m")))
-                .highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, anyOf(equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"),
-                equalTo("avinci, unilog avinci, <em>logica</em>c<em>m</em>g, <em>logica</em>")));
-        assertHighlight(search, 1, "name", 0, anyOf(equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"),
-                equalTo("avinci, unilog avinci, <em>logica</em>c<em>m</em>g, <em>logica</em>")));
-
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "logica ma")))
-                .highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, anyOf(equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-        assertHighlight(search, 1, "name", 0, anyOf(equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "logica")))
-                .highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, anyOf(equalTo("<em>logica</em>cmg ehemals avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-        assertHighlight(search, 0, "name", 0, anyOf(equalTo("<em>logica</em>cmg ehemals avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name2", "logica m")))
-                .highlighter(new HighlightBuilder().field("name2")).get();
-        assertHighlight(search, 0, "name2", 0, anyOf(equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"),
-                equalTo("avinci, unilog avinci, <em>logica</em>c<em>m</em>g, <em>logica</em>")));
-        assertHighlight(search, 1, "name2", 0, anyOf(equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"),
-                equalTo("avinci, unilog avinci, <em>logica</em>c<em>m</em>g, <em>logica</em>")));
-
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name2", "logica ma")))
-                .highlighter(new HighlightBuilder().field("name2")).get();
-        assertHighlight(search, 0, "name2", 0, anyOf(equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-        assertHighlight(search, 1, "name2", 0, anyOf(equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-
-        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name2", "logica")))
-                .highlighter(new HighlightBuilder().field("name2")).get();
-        assertHighlight(search, 0, "name2", 0, anyOf(equalTo("<em>logica</em>cmg ehemals avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
-        assertHighlight(search, 1, "name2", 0, anyOf(equalTo("<em>logica</em>cmg ehemals avinci - the know how company"),
-                equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
     }
 
     public void testNgramHighlighting() throws IOException {
@@ -2526,7 +2405,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
             //generating text with word to highlight in a different position
-            //(https://github.com/elasticsearch/elasticsearch/issues/4103)
+            //(https://github.com/elastic/elasticsearch/issues/4103)
             String prefix = randomAsciiOfLengthBetween(5, 30);
             prefixes.put(String.valueOf(i), prefix);
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix

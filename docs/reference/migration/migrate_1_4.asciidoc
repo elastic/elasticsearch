@@ -89,4 +89,4 @@ restrained set to a specific `field`. It will be removed in 2.0.
 
 Groovy is the new default scripting language in Elasticsearch, and is enabled in `sandbox` mode
 by default.  MVEL has been removed from core, but is available as a plugin:
-https://github.com/elasticsearch/elasticsearch-lang-mvel
+https://github.com/elastic/elasticsearch-lang-mvel

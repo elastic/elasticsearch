@@ -80,6 +80,10 @@
           "type" : "boolean",
           "description" : "Specify whether query terms should be lowercased"
         },
+        "pipeline": {
+          "type" : "string",
+          "description" : "Ingest pipeline to set on index requests made by this action. (default: none)"
+        },
         "preference": {
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"

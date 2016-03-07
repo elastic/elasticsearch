@@ -344,7 +344,7 @@ public class EquivalenceTests extends ESIntegTestCase {
         assertEquals(numDocs, response.getHits().getTotalHits());
     }
 
-    // https://github.com/elasticsearch/elasticsearch/issues/6435
+    // https://github.com/elastic/elasticsearch/issues/6435
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);

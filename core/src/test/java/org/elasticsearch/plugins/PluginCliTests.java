@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
 import static org.hamcrest.Matchers.containsString;
@@ -28,22 +29,22 @@ import static org.hamcrest.Matchers.is;
 
 public class PluginCliTests extends CliToolTestCase {
     public void testHelpWorks() throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         assertThat(new PluginCli(terminal).execute(args("--help")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin.help");
 
-        terminal.getTerminalOutput().clear();
+        terminal.resetOutput();
         assertThat(new PluginCli(terminal).execute(args("install -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-install.help");
         for (String plugin : InstallPluginCommand.OFFICIAL_PLUGINS) {
-            assertThat(terminal.getTerminalOutput(), hasItem(containsString(plugin)));
+            assertThat(terminal.getOutput(), containsString(plugin));
         }
 
-        terminal.getTerminalOutput().clear();
+        terminal.resetOutput();
         assertThat(new PluginCli(terminal).execute(args("remove --help")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-remove.help");
 
-        terminal.getTerminalOutput().clear();
+        terminal.resetOutput();
         assertThat(new PluginCli(terminal).execute(args("list -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
     }

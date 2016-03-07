@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
@@ -36,22 +35,22 @@ import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 public interface ShardsAllocator {
 
     /**
-     * Applies changes on started nodes based on the implemented algorithm. For example if a 
-     * shard has changed to {@link ShardRoutingState#STARTED} from {@link ShardRoutingState#RELOCATING} 
+     * Applies changes on started nodes based on the implemented algorithm. For example if a
+     * shard has changed to {@link ShardRoutingState#STARTED} from {@link ShardRoutingState#RELOCATING}
      * this allocator might apply some cleanups on the node that used to hold the shard.
      * @param allocation all started {@link ShardRouting shards}
      */
     void applyStartedShards(StartedRerouteAllocation allocation);
 
     /**
-     * Applies changes on failed nodes based on the implemented algorithm. 
+     * Applies changes on failed nodes based on the implemented algorithm.
      * @param allocation all failed {@link ShardRouting shards}
      */
     void applyFailedShards(FailedRerouteAllocation allocation);
 
     /**
-     * Assign all unassigned shards to nodes 
-     * 
+     * Assign all unassigned shards to nodes
+     *
      * @param allocation current node allocation
      * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
@@ -59,19 +58,17 @@ public interface ShardsAllocator {
 
     /**
      * Rebalancing number of shards on all nodes
-     *   
+     *
      * @param allocation current node allocation
      * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
     boolean rebalance(RoutingAllocation allocation);
 
     /**
-     * Moves a shard from the given node to other node.
-     * 
-     * @param shardRouting the shard to move
-     * @param node A node containing the shard
+     * Move started shards that can not be allocated to a node anymore
+     *
      * @param allocation current node allocation
      * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
-    boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
+    boolean moveShards(RoutingAllocation allocation);
 }

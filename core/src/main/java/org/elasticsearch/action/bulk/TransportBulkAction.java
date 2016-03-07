@@ -60,8 +60,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 /**
  *
@@ -73,27 +76,41 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final ClusterService clusterService;
     private final TransportShardBulkAction shardBulkAction;
     private final TransportCreateIndexAction createIndexAction;
+    private final LongSupplier relativeTimeProvider;
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
+        this(settings, threadPool, transportService, clusterService,
+                shardBulkAction, createIndexAction,
+                actionFilters, indexNameExpressionResolver,
+                autoCreateIndex,
+                System::nanoTime);
+    }
+
+    public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
+                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
         super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new);
+        Objects.requireNonNull(relativeTimeProvider);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = autoCreateIndex;
         this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
+        this.relativeTimeProvider = relativeTimeProvider;
     }
 
     @Override
     protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
-        final long startTime = System.currentTimeMillis();
+        final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
-        if (autoCreateIndex.needToCheck()) {
+        if (needToCheck()) {
             // Keep track of all unique indices and all unique types per index for the create index requests:
             final Map<String, Set<String>> indicesAndTypes = new HashMap<>();
             for (ActionRequest request : bulkRequest.requests) {
@@ -112,7 +129,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             ClusterState state = clusterService.state();
             for (Map.Entry<String, Set<String>> entry : indicesAndTypes.entrySet()) {
                 final String index = entry.getKey();
-                if (autoCreateIndex.shouldAutoCreate(index, state)) {
+                if (shouldAutoCreate(index, state)) {
                     CreateIndexRequest createIndexRequest = new CreateIndexRequest();
                     createIndexRequest.index(index);
                     for (String type : entry.getValue()) {
@@ -163,6 +180,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
+    boolean needToCheck() {
+        return autoCreateIndex.needToCheck();
+    }
+
+    boolean shouldAutoCreate(String index, ClusterState state) {
+        return autoCreateIndex.shouldAutoCreate(index, state);
+    }
+
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, ActionRequest request, String index, Throwable e) {
         if (request instanceof IndexRequest) {
             IndexRequest indexRequest = (IndexRequest) request;
@@ -195,16 +220,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * @see #doExecute(BulkRequest, org.elasticsearch.action.ActionListener)
      */
     public void executeBulk(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
-        final long startTime = System.currentTimeMillis();
-        executeBulk(bulkRequest, startTime, listener, new AtomicArray<>(bulkRequest.requests.size()));
+        final long startTimeNanos = relativeTime();
+        executeBulk(bulkRequest, startTimeNanos, listener, new AtomicArray<>(bulkRequest.requests.size()));
     }
 
-    private long buildTookInMillis(long startTime) {
-        // protect ourselves against time going backwards
-        return Math.max(1, System.currentTimeMillis() - startTime);
+    private long buildTookInMillis(long startTimeNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
+    void executeBulk(final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
         final ClusterState clusterState = clusterService.state();
         // TODO use timeout to wait here if its blocked...
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
@@ -302,7 +326,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (requestsByShard.isEmpty()) {
-            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
+            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
             return;
         }
 
@@ -352,7 +376,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
+                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
                 }
             });
         }
@@ -398,7 +422,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return false;
     }
 
-
     private static class ConcreteIndices  {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -422,4 +445,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return concreteIndex;
         }
     }
+
+    private long relativeTime() {
+        return relativeTimeProvider.getAsLong();
+    }
+
 }

@@ -24,10 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -49,7 +50,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.util.NumericUtils.doubleToSortableLong;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeDoubleValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
@@ -118,7 +118,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
     public static final class DoubleFieldType extends NumberFieldType {
 
         public DoubleFieldType() {
-            super(NumericType.DOUBLE);
+            super(LegacyNumericType.DOUBLE);
         }
 
         protected DoubleFieldType(DoubleFieldType ref) {
@@ -158,13 +158,13 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         public BytesRef indexedValueForSearch(Object value) {
             long longValue = NumericUtils.doubleToSortableLong(parseDoubleValue(value));
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            NumericUtils.longToPrefixCoded(longValue, 0, bytesRef);   // 0 because of exact match
+            LegacyNumericUtils.longToPrefixCoded(longValue, 0, bytesRef);   // 0 because of exact match
             return bytesRef.get();
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
@@ -174,7 +174,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             double iValue = parseDoubleValue(value);
             double iSim = fuzziness.asDouble();
-            return NumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -182,8 +182,8 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            double minValue = NumericUtils.sortableLongToDouble(NumericUtils.getMinLong(terms));
-            double maxValue = NumericUtils.sortableLongToDouble(NumericUtils.getMaxLong(terms));
+            double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
+            double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));
             return new FieldStats.Double(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
@@ -244,7 +244,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
                     context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Double objValue = fieldType().nullValue();
@@ -278,11 +278,13 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomDoubleNumericField field = new CustomDoubleNumericField(value, fieldType());
-            field.setBoost(boost);
+            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                field.setBoost(boost);
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, doubleToSortableLong(value));
+            addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
         }
     }
 

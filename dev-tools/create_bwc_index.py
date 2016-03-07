@@ -247,6 +247,15 @@ def generate_index(client, version, index_name):
       }
     }
 
+  mappings['doc'] = {
+    'properties': {
+      'string': {
+        'type': 'string',
+        'boost': 4
+      }
+    }
+  }
+
   settings = {
     'number_of_shards': 1,
     'number_of_replicas': 0,

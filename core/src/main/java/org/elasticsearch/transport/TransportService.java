@@ -332,9 +332,18 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 // callback that an exception happened, but on a different thread since we don't
                 // want handlers to worry about stack overflows
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
                     @Override
-                    public void run() {
+                    public void onRejection(Throwable t) {
+                        // if we get rejected during node shutdown we don't wanna bubble it up
+                        logger.debug("failed to notify response handler on rejection", t);
+                    }
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("failed to notify response handler on exception", t);
+                    }
+                    @Override
+                    protected void doRun() throws Exception {
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });

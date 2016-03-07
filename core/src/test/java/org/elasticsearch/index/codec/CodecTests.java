@@ -20,18 +20,12 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene40.Lucene40Codec;
-import org.apache.lucene.codecs.lucene41.Lucene41Codec;
-import org.apache.lucene.codecs.lucene410.Lucene410Codec;
-import org.apache.lucene.codecs.lucene42.Lucene42Codec;
-import org.apache.lucene.codecs.lucene45.Lucene45Codec;
-import org.apache.lucene.codecs.lucene46.Lucene46Codec;
-import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.lucene53.Lucene53Codec;
 import org.apache.lucene.codecs.lucene54.Lucene54Codec;
+import org.apache.lucene.codecs.lucene60.Lucene60Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -64,16 +58,10 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene54Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene60Codec.class));
+        assertThat(codecService.codec("Lucene54"), instanceOf(Lucene54Codec.class));
         assertThat(codecService.codec("Lucene53"), instanceOf(Lucene53Codec.class));
         assertThat(codecService.codec("Lucene50"), instanceOf(Lucene50Codec.class));
-        assertThat(codecService.codec("Lucene410"), instanceOf(Lucene410Codec.class));
-        assertThat(codecService.codec("Lucene49"), instanceOf(Lucene49Codec.class));
-        assertThat(codecService.codec("Lucene46"), instanceOf(Lucene46Codec.class));
-        assertThat(codecService.codec("Lucene45"), instanceOf(Lucene45Codec.class));
-        assertThat(codecService.codec("Lucene40"), instanceOf(Lucene40Codec.class));
-        assertThat(codecService.codec("Lucene41"), instanceOf(Lucene41Codec.class));
-        assertThat(codecService.codec("Lucene42"), instanceOf(Lucene42Codec.class));
     }
 
     public void testDefault() throws Exception {

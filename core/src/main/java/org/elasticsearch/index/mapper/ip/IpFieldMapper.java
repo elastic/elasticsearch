@@ -19,14 +19,15 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -205,7 +206,7 @@ public class IpFieldMapper extends NumberFieldMapper {
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
+            LegacyNumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
             return bytesRef.get();
         }
 
@@ -241,7 +242,7 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -256,7 +257,7 @@ public class IpFieldMapper extends NumberFieldMapper {
             } catch (IllegalArgumentException e) {
                 iSim = fuzziness.asLong();
             }
-            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -305,7 +306,9 @@ public class IpFieldMapper extends NumberFieldMapper {
         final long value = ipToLong(ipAsString);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
-            field.setBoost(fieldType().boost());
+            if (fieldType.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                field.setBoost(fieldType().boost());
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
@@ -353,11 +356,11 @@ public class IpFieldMapper extends NumberFieldMapper {
     public static class NumericIpTokenizer extends NumericTokenizer {
 
         public NumericIpTokenizer(int precisionStep, char[] buffer) throws IOException {
-            super(new NumericTokenStream(precisionStep), buffer, null);
+            super(new LegacyNumericTokenStream(precisionStep), buffer, null);
         }
 
         @Override
-        protected void setValue(NumericTokenStream tokenStream, String value) {
+        protected void setValue(LegacyNumericTokenStream tokenStream, String value) {
             tokenStream.setLongValue(ipToLong(value));
         }
     }

@@ -296,10 +296,23 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
             if (entry.getValue().match(key)) {
+                assert assertMatcher(key, 1);
                 return entry.getValue().getConcreteSetting(key);
             }
         }
         return null;
+    }
+
+    private boolean assertMatcher(String key, int numComplexMatchers) {
+        List<Setting<?>> list = new ArrayList<>();
+        for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
+            if (entry.getValue().match(key)) {
+                list.add(entry.getValue().getConcreteSetting(key));
+            }
+        }
+        assert list.size() == numComplexMatchers : "Expected " + numComplexMatchers + " complex matchers to match key [" +
+            key + "] but got: "  + list.toString();
+        return true;
     }
 
     /**

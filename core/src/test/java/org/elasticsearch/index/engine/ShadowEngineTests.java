@@ -276,8 +276,8 @@ public class ShadowEngineTests extends ESTestCase {
         primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
         List<Segment> segments = primaryEngine.segments(false);
         assertThat(segments.isEmpty(), equalTo(true));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(0L));
-        assertThat(primaryEngine.segmentsStats().getMemoryInBytes(), equalTo(0L));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(0L));
+        assertThat(primaryEngine.segmentsStats(false).getMemoryInBytes(), equalTo(0L));
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -289,7 +289,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
-        SegmentsStats stats = primaryEngine.segmentsStats();
+        SegmentsStats stats = primaryEngine.segmentsStats(false);
         assertThat(stats.getCount(), equalTo(1L));
         assertThat(stats.getTermsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
@@ -306,7 +306,7 @@ public class ShadowEngineTests extends ESTestCase {
         // Check that the replica sees nothing
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(0));
-        stats = replicaEngine.segmentsStats();
+        stats = replicaEngine.segmentsStats(false);
         assertThat(stats.getCount(), equalTo(0L));
         assertThat(stats.getTermsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getStoredFieldsMemoryInBytes(), equalTo(0L));
@@ -323,7 +323,7 @@ public class ShadowEngineTests extends ESTestCase {
         // Check that the primary AND replica sees segments now
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(1L));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(1L));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
@@ -332,7 +332,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
-        assertThat(replicaEngine.segmentsStats().getCount(), equalTo(1L));
+        assertThat(replicaEngine.segmentsStats(false).getCount(), equalTo(1L));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
@@ -346,12 +346,12 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(2));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(2L));
-        assertThat(primaryEngine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-        assertThat(primaryEngine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-        assertThat(primaryEngine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0L));
-        assertThat(primaryEngine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(primaryEngine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(2L));
+        assertThat(primaryEngine.segmentsStats(false).getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
+        assertThat(primaryEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -370,12 +370,12 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(2));
-        assertThat(replicaEngine.segmentsStats().getCount(), equalTo(2L));
-        assertThat(replicaEngine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-        assertThat(replicaEngine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-        assertThat(replicaEngine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0L));
-        assertThat(replicaEngine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(replicaEngine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getCount(), equalTo(2L));
+        assertThat(replicaEngine.segmentsStats(false).getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
+        assertThat(replicaEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -393,7 +393,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(2));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(2L));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(2L));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -416,7 +416,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(3));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(3L));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(3L));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));

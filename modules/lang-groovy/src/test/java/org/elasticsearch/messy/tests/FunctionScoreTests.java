@@ -169,14 +169,21 @@ public class FunctionScoreTests extends ESIntegTestCase {
         }
     }
 
+    /** make sure min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253 */
     public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureYellow();
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 
-        // make sure that min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253
-        float termQueryScore = 0.19178301f;
+        SearchResponse termQuery = client().search(
+            searchRequest().source(
+                    searchSource().explain(true).query(
+                            termQuery("text", "text")))).get();
+        assertSearchResponse(termQuery);
+        assertThat(termQuery.getHits().totalHits(), equalTo(1L));
+        float termQueryScore = termQuery.getHits().getAt(0).getScore();
+
         for (CombineFunction combineFunction : CombineFunction.values()) {
             testMinScoreApplied(combineFunction, termQueryScore);
         }

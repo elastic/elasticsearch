@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.Attribute;
 import org.apache.lucene.util.AttributeFactory;
@@ -45,12 +45,12 @@ public abstract class NumericTokenizer extends Tokenizer {
         };
     }
 
-    private final NumericTokenStream numericTokenStream;
+    private final LegacyNumericTokenStream numericTokenStream;
     private final char[] buffer;
     protected final Object extra;
     private boolean started;
 
-    protected NumericTokenizer(NumericTokenStream numericTokenStream, char[] buffer, Object extra) throws IOException {
+    protected NumericTokenizer(LegacyNumericTokenStream numericTokenStream, char[] buffer, Object extra) throws IOException {
         super(delegatingAttributeFactory(numericTokenStream));
         this.numericTokenStream = numericTokenStream;
         // Add attributes from the numeric token stream, this works fine because the attribute factory delegates to numericTokenStream
@@ -95,5 +95,5 @@ public abstract class NumericTokenizer extends Tokenizer {
         numericTokenStream.close();
     }
 
-    protected abstract void setValue(NumericTokenStream tokenStream, String value);
+    protected abstract void setValue(LegacyNumericTokenStream tokenStream, String value);
 }

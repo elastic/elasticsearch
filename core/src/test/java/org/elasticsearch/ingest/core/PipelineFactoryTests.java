@@ -23,11 +23,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.processor.FailProcessor;
+import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.prefs.PreferencesFactory;
 
@@ -113,6 +116,15 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(1));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("compound"));
+    }
+
+    public void testFlattenProcessors() throws Exception {
+        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {});
+        CompoundProcessor processor1 = new CompoundProcessor(testProcessor, testProcessor);
+        CompoundProcessor processor2 = new CompoundProcessor(Collections.singletonList(testProcessor), Collections.singletonList(testProcessor));
+        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor1, processor2));
+        List<Processor> flattened = pipeline.flattenAllProcessors();
+        assertThat(flattened.size(), equalTo(4));
     }
 
     private ProcessorsRegistry createProcessorRegistry(Map<String, Processor.Factory> processorRegistry) {

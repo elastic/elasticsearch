@@ -125,7 +125,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             duelFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
             duelFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
 
-            DirectoryReader perSegment = DirectoryReader.open(writer, true);
+            DirectoryReader perSegment = DirectoryReader.open(writer);
             CompositeReaderContext composite = perSegment.getContext();
             List<LeafReaderContext> leaves = composite.leaves();
             for (LeafReaderContext atomicReaderContext : leaves) {
@@ -203,7 +203,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             duelFieldDataLong(random, context, leftFieldData, rightFieldData);
             duelFieldDataLong(random, context, rightFieldData, leftFieldData);
 
-            DirectoryReader perSegment = DirectoryReader.open(writer, true);
+            DirectoryReader perSegment = DirectoryReader.open(writer);
             CompositeReaderContext composite = perSegment.getContext();
             List<LeafReaderContext> leaves = composite.leaves();
             for (LeafReaderContext atomicReaderContext : leaves) {
@@ -283,7 +283,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             duelFieldDataDouble(random, context, leftFieldData, rightFieldData);
             duelFieldDataDouble(random, context, rightFieldData, leftFieldData);
 
-            DirectoryReader perSegment = DirectoryReader.open(writer, true);
+            DirectoryReader perSegment = DirectoryReader.open(writer);
             CompositeReaderContext composite = perSegment.getContext();
             List<LeafReaderContext> leaves = composite.leaves();
             for (LeafReaderContext atomicReaderContext : leaves) {
@@ -341,7 +341,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             duelFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
             duelFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
 
-            DirectoryReader perSegment = DirectoryReader.open(writer, true);
+            DirectoryReader perSegment = DirectoryReader.open(writer);
             CompositeReaderContext composite = perSegment.getContext();
             List<LeafReaderContext> leaves = composite.leaves();
             for (LeafReaderContext atomicReaderContext : leaves) {
@@ -449,7 +449,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             duelFieldDataGeoPoint(random, context, leftFieldData, rightFieldData, precision);
             duelFieldDataGeoPoint(random, context, rightFieldData, leftFieldData, precision);
 
-            DirectoryReader perSegment = DirectoryReader.open(writer, true);
+            DirectoryReader perSegment = DirectoryReader.open(writer);
             CompositeReaderContext composite = perSegment.getContext();
             List<LeafReaderContext> leaves = composite.leaves();
             for (LeafReaderContext atomicReaderContext : leaves) {

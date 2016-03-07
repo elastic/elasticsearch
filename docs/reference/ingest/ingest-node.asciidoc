@@ -1,8 +1,10 @@
 [[pipe-line]]
 == Pipeline Definition
 
-A pipeline is a definition of a series of processors that are to be 
-executed in the same sequential order as they are declared.
+A pipeline is a definition of  a series of <<ingest-processors, processors>> that are to be executed
+in the same order as they are declared. A pipeline consists of two main fields: a `description`
+and a list of `processors`:
+
 [source,js]
 --------------------------------------------------
 {
@@ -11,17 +13,26 @@ executed in the same sequential order as they are declared.
 }
 --------------------------------------------------
 
-The `description` is a special field to store a helpful description of 
-what the pipeline attempts to achieve.
+The `description` is a special field to store a helpful description of
+what the pipeline does.
 
-The `processors` parameter defines a list of processors to be executed in 
+The `processors` parameter defines a list of processors to be executed in
 order.
 
+[[ingest-apis]]
 == Ingest APIs
 
-=== Put pipeline API
+The following ingest APIs are available for managing pipelines:
 
-The put pipeline api adds pipelines and updates existing pipelines in the cluster.
+* <<put-pipeline-api>> to add or update a pipeline
+* <<get-pipeline-api>> to return a specific pipeline
+* <<delete-pipeline-api>> to delete a pipeline
+* <<simulate-pipeline-api>> to simulate a call to a pipeline
+
+[[put-pipeline-api]]
+=== Put Pipeline API
+
+The put pipeline API adds pipelines and updates existing pipelines in the cluster.
 
 [source,js]
 --------------------------------------------------
@@ -40,12 +51,13 @@ PUT _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
 // AUTOSENSE
 
-NOTE: The put pipeline api also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
-      pipeline changes take immediately in effect.
+NOTE: The put pipeline API also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
+      pipeline changes take effect immediately.
 
-=== Get pipeline API
+[[get-pipeline-api]]
+=== Get Pipeline API
 
-The get pipeline api returns pipelines based on id. This api always returns a local reference of the pipeline.
+The get pipeline API returns pipelines based on ID. This API always returns a local reference of the pipeline.
 
 [source,js]
 --------------------------------------------------
@@ -75,13 +87,14 @@ Example response:
 }
 --------------------------------------------------
 
-For each returned pipeline the source and the version is returned.
-The version is useful for knowing what version of the pipeline the node has.
-Multiple ids can be provided at the same time. Also wildcards are supported.
+For each returned pipeline, the source and the version are returned.
+The version is useful for knowing which version of the pipeline the node has.
+You can specify multiple IDs to return more than one pipeline. Wildcards are also supported.
 
-=== Delete pipeline API
+[[delete-pipeline-api]]
+=== Delete Pipeline API
 
-The delete pipeline api deletes pipelines by id.
+The delete pipeline API deletes pipelines by ID.
 
 [source,js]
 --------------------------------------------------
@@ -89,16 +102,18 @@ DELETE _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
 // AUTOSENSE
 
-=== Simulate pipeline API
+[[simulate-pipeline-api]]
+=== Simulate Pipeline API
 
-The simulate pipeline api executes a specific pipeline against
+The simulate pipeline API executes a specific pipeline against
 the set of documents provided in the body of the request.
 
-A simulate request may call upon an existing pipeline to be executed
+You can either specify an existing pipeline to execute
 against the provided documents, or supply a pipeline definition in
 the body of the request.
 
-Here is the structure of a simulate request with a provided pipeline:
+Here is the structure of a simulate request with a pipeline definition provided
+in the body of the request:
 
 [source,js]
 --------------------------------------------------
@@ -115,7 +130,7 @@ POST _ingest/pipeline/_simulate
 }
 --------------------------------------------------
 
-Here is the structure of a simulate request against a pre-existing pipeline:
+Here is the structure of a simulate request against an existing pipeline:
 
 [source,js]
 --------------------------------------------------
@@ -130,7 +145,8 @@ POST _ingest/pipeline/my-pipeline-id/_simulate
 --------------------------------------------------
 
 
-Here is an example simulate request with a provided pipeline and its response:
+Here is an example of a simulate request with a pipeline defined in the request
+and its response:
 
 [source,js]
 --------------------------------------------------
@@ -170,7 +186,7 @@ POST _ingest/pipeline/_simulate
 --------------------------------------------------
 // AUTOSENSE
 
-response:
+Response:
 
 [source,js]
 --------------------------------------------------
@@ -216,13 +232,14 @@ response:
 }
 --------------------------------------------------
 
-It is often useful to see how each processor affects the ingest document
-as it is passed through the pipeline. To see the intermediate results of
-each processor in the simulate request, a `verbose` parameter may be added
-to the request
+[[ingest-verbose-param]]
+==== Viewing Verbose Results
+You can use the simulate pipeline API to see how each processor affects the ingest document
+as it passes through the pipeline. To see the intermediate results of
+each processor in the simulate request, you can add the `verbose` parameter
+to the request.
 
-Here is an example verbose request and its response:
-
+Here is an example of a verbose request and its response:
 
 [source,js]
 --------------------------------------------------
@@ -268,7 +285,7 @@ POST _ingest/pipeline/_simulate?verbose
 --------------------------------------------------
 // AUTOSENSE
 
-response:
+Response:
 
 [source,js]
 --------------------------------------------------
@@ -364,12 +381,16 @@ response:
 }
 --------------------------------------------------
 
-== Accessing data in pipelines
+[[accessing-data-in-pipelines]]
+== Accessing Data in Pipelines
 
-Processors in pipelines have read and write access to documents that pass through the pipeline.
-The fields in the source of a document and its metadata fields are accessible.
+The processors in a pipeline have read and write access to documents that pass through the pipeline.
+The processors can access fields in the source of a document and the document's metadata fields.
 
-Accessing a field in the source is straightforward and one can refer to fields by
+[float]
+[[accessing-source-fields]]
+=== Accessing Fields in the Source
+Accessing a field in the source is straightforward. You simply refer to fields by
 their name. For example:
 
 [source,js]
@@ -382,7 +403,7 @@ their name. For example:
 }
 --------------------------------------------------
 
-On top of this fields from the source are always accessible via the `_source` prefix:
+On top of this, fields from the source are always accessible via the `_source` prefix:
 
 [source,js]
 --------------------------------------------------
@@ -394,11 +415,14 @@ On top of this fields from the source are always accessible via the `_source` pr
 }
 --------------------------------------------------
 
-Metadata fields can also be accessed in the same way as fields from the source. This
+[float]
+[[accessing-metadata-fields]]
+=== Accessing Metadata Fields
+You can access metadata fields in the same way that you access fields in the source. This
 is possible because Elasticsearch doesn't allow fields in the source that have the
 same name as metadata fields.
 
-The following example sets the id of a document to `1`:
+The following example sets the `_id` metadata field of a document to `1`:
 
 [source,js]
 --------------------------------------------------
@@ -411,15 +435,20 @@ The following example sets the id of a document to `1`:
 --------------------------------------------------
 
 The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
-`_timestamp` and `_ttl`.
+`_timestamp`, and `_ttl`.
 
-Beyond metadata fields and source fields, ingest also adds ingest metadata to documents being processed.
+[float]
+[[accessing-ingest-metadata]]
+=== Accessing Ingest Metadata Fields
+Beyond metadata fields and source fields, ingest also adds ingest metadata to the documents that it processes.
 These metadata properties are accessible under the `_ingest` key. Currently ingest adds the ingest timestamp
-under `_ingest.timestamp` key to the ingest metadata, which is the time ES received the index or bulk
-request to pre-process. But any processor is free to add more ingest related metadata to it. Ingest metadata is transient
-and is lost after a document has been processed by the pipeline and thus ingest metadata won't be indexed.
+under the `_ingest.timestamp` key of the ingest metadata. The ingest timestamp is the time when Elasticsearch
+received the index or bulk request to pre-process the document.
 
-The following example adds a field with the name `received` and the value is the ingest timestamp:
+Any processor can add ingest-related metadata during document processing. Ingest metadata is transient
+and is lost after a document has been processed by the pipeline. Therefore, ingest metadata won't be indexed.
+
+The following example adds a field with the name `received`. The value is the ingest timestamp:
 
 [source,js]
 --------------------------------------------------
@@ -431,15 +460,18 @@ The following example adds a field with the name `received` and the value is the
 }
 --------------------------------------------------
 
-As opposed to Elasticsearch metadata fields, the ingest metadata field name _ingest can be used as a valid field name
-in the source of a document. Use _source._ingest to refer to it, otherwise _ingest will be interpreted as ingest
-metadata fields.
+Unlike Elasticsearch metadata fields, the ingest metadata field name `_ingest` can be used as a valid field name
+in the source of a document. Use `_source._ingest` to refer to the field in the source document. Otherwise, `_ingest`
+will be interpreted as an ingest metadata field.
 
+[float]
+[[accessing-template-fields]]
+=== Accessing Fields and Metafields in Templates
 A number of processor settings also support templating. Settings that support templating can have zero or more
 template snippets. A template snippet begins with `{{` and ends with `}}`.
 Accessing fields and metafields in templates is exactly the same as via regular processor field settings.
 
-In this example a field by the name `field_c` is added and its value is a concatenation of
+The following example adds a field named `field_c`. Its value is a concatenation of
 the values of `field_a` and `field_b`.
 
 [source,js]
@@ -452,8 +484,8 @@ the values of `field_a` and `field_b`.
 }
 --------------------------------------------------
 
-The following example changes the index a document is going to be indexed into. The index a document will be redirected
-to depends on the field in the source with name `geoip.country_iso_code`.
+The following example uses the value of the `geoip.country_iso_code` field in the source
+to set the index that the document will be indexed into:
 
 [source,js]
 --------------------------------------------------
@@ -466,25 +498,25 @@ to depends on the field in the source with name `geoip.country_iso_code`.
 --------------------------------------------------
 
 [[handling-failure-in-pipelines]]
-=== Handling Failure in Pipelines
+== Handling Failures in Pipelines
 
-In its simplest case, pipelines describe a list of processors which 
-are executed sequentially and processing halts at the first exception. This 
-may not be desirable when failures are expected. For example, not all your logs 
-may match a certain grok expression and you may wish to index such documents into 
-a separate index.
+In its simplest use case, a pipeline defines a list of processors that
+are executed sequentially, and processing halts at the first exception. This
+behavior may not be desirable when failures are expected. For example, you may have logs
+that don't match the specified grok expression. Instead of halting execution, you may
+want to index such documents into a separate index.
 
-To enable this behavior, you can utilize the `on_failure` parameter. `on_failure` 
+To enable this behavior, you can use the `on_failure` parameter. The `on_failure` parameter
 defines a list of processors to be executed immediately following the failed processor.
-This parameter can be supplied at the pipeline level, as well as at the processor 
-level. If a processor has an `on_failure` configuration option provided, whether 
-it is empty or not, any exceptions that are thrown by it will be caught and the 
-pipeline will continue executing the proceeding processors defined. Since further processors
-are defined within the scope of an `on_failure` statement, failure handling can be nested.
+You can specify this parameter at the pipeline level, as well as at the processor
+level. If a processor specifies an `on_failure` configuration, whether
+it is empty or not, any exceptions that are thrown by the processor are caught, and the
+pipeline continues executing the remaining processors. Because you can define further processors
+within the scope of an `on_failure` statement, you can nest failure handling.
 
-Example: In the following example we define a pipeline that hopes to rename documents with 
-a field named `foo` to `bar`. If the document does not contain the `foo` field, we 
-go ahead and attach an error message within the document for later analysis within 
+The following example defines a pipeline that renames the `foo` field in
+the processed document to `bar`. If the document does not contain the `foo` field, the processor
+attaches an error message to the document for later analysis within
 Elasticsearch.
 
 [source,js]
@@ -510,8 +542,8 @@ Elasticsearch.
 }
 --------------------------------------------------
 
-Example: Here we define an `on_failure` block on a whole pipeline to change 
-the index for which failed documents get sent.
+The following example defines an `on_failure` block on a whole pipeline to change
+the index to which failed documents get sent.
 
 [source,js]
 --------------------------------------------------
@@ -529,15 +561,18 @@ the index for which failed documents get sent.
 }
 --------------------------------------------------
 
+[float]
+[[accessing-error-metadata]]
+=== Accessing Error Metadata From Processors Handling Exceptions
 
-==== Accessing Error Metadata From Processors Handling Exceptions
+You may want to retrieve the actual error message that was thrown
+by a failed processor. To do so you can access metadata fields called
+`on_failure_message`, `on_failure_processor_type`, and `on_failure_processor_tag`. These fields are only accessible
+from within the context of an `on_failure` block.
 
-Sometimes you may want to retrieve the actual error message that was thrown 
-by a failed processor. To do so you can access metadata fields called 
-`on_failure_message`, `on_failure_processor_type`, `on_failure_processor_tag`. These fields are only accessible 
-from within the context of an `on_failure` block. Here is an updated version of 
-our first example which leverages these fields to provide the error message instead 
-of manually setting it.
+Here is an updated version of the example that you
+saw earlier. But instead of setting the error message manually, the example leverages the `on_failure_message`
+metadata field to provide the error message.
 
 [source,js]
 --------------------------------------------------
@@ -562,6 +597,7 @@ of manually setting it.
 }
 --------------------------------------------------
 
+[[ingest-processors]]
 == Processors
 
 All processors are defined in the following way within a pipeline definition:
@@ -575,19 +611,34 @@ All processors are defined in the following way within a pipeline definition:
 }
 --------------------------------------------------
 
-Each processor defines its own configuration parameters, but all processors have 
+Each processor defines its own configuration parameters, but all processors have
 the ability to declare `tag` and `on_failure` fields. These fields are optional.
 
 A `tag` is simply a string identifier of the specific instantiation of a certain
-processor in a pipeline. The `tag` field does not affect any processor's behavior,
+processor in a pipeline. The `tag` field does not affect the processor's behavior,
 but is very useful for bookkeeping and tracing errors to specific processors.
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
-=== Append processor
+The <<ingest-info,node info API>> can be used to figure out what processors are available in a cluster.
+The <<ingest-info,node info API>> will provide a per node list of what processors are available.
+
+Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
+doesn't exist on all nodes. If you rely on custom processor plugins make sure to mark these plugins as mandatory by adding
+`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for example:
+
+[source,yaml]
+--------------------------------------------------
+plugin.mandatory: ingest-attachment,ingest-geoip
+--------------------------------------------------
+
+A node will not start if either of these plugins are not available.
+
+[[append-procesesor]]
+=== Append Processor
 Appends one or more values to an existing array if the field already exists and it is an array.
 Converts a scalar to an array and appends one or more values to it if the field exists and it is a scalar.
-Creates an array containing the provided values if the fields doesn't exist.
+Creates an array containing the provided values if the field doesn't exist.
 Accepts a single value or an array of values.
 
 [[append-options]]
@@ -609,14 +660,15 @@ Accepts a single value or an array of values.
 }
 --------------------------------------------------
 
-=== Convert processor
-Converts an existing field's value to a different type, like turning a string to an integer.
+[[convert-processor]]
+=== Convert Processor
+Converts an existing field's value to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
 The supported types include: `integer`, `float`, `string`, and `boolean`.
 
-`boolean` will set the field to true if its string value is equal to `true` (ignore case), to
-false if its string value is equal to `false` (ignore case) and it will throw exception otherwise.
+Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to
+false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 [[convert-options]]
 .Convert Options
@@ -637,12 +689,14 @@ false if its string value is equal to `false` (ignore case) and it will throw ex
 }
 --------------------------------------------------
 
-=== Date processor
+[[date-processor]]
+=== Date Processor
 
-The date processor is used for parsing dates from fields, and then using that date or timestamp as the timestamp for that document.
-The date processor adds by default the parsed date as a new field called `@timestamp`, configurable by setting the `target_field`
-configuration parameter. Multiple date formats are supported as part of the same date processor definition. They will be used
-sequentially to attempt parsing the date field, in the same order they were defined as part of the processor definition.
+Parses dates from fields, and then uses the date or timestamp as the timestamp for the document.
+By default, the date processor adds the parsed date as a new field called `@timestamp`. You can specify a
+different field by setting the `target_field` configuration parameter. Multiple date formats are supported
+as part of the same date processor definition. They will be used sequentially to attempt parsing the date field,
+in the same order they were defined as part of the processor definition.
 
 [[date-options]]
 .Date options
@@ -651,12 +705,12 @@ sequentially to attempt parsing the date field, in the same order they were defi
 | Name                   | Required  | Default             | Description
 | `match_field`          | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
-| `match_formats`        | yes       | -                   | Array of the expected date formats. Can be a joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, TAI64N.
+| `match_formats`        | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
 | `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
 |======
 
-An example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
+Here is an example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
 
 [source,js]
 --------------------------------------------------
@@ -675,9 +729,10 @@ An example that adds the parsed date to the `timestamp` field based on the `init
 }
 --------------------------------------------------
 
-=== Fail processor
-The Fail Processor is used to raise an exception. This is useful for when
-a user expects a pipeline to fail and wishes to relay a specific message
+[[fail-processor]]
+=== Fail Processor
+Raises an exception. This is useful for when
+you expect a pipeline to fail and want to relay a specific message
 to the requester.
 
 [[fail-options]]
@@ -697,17 +752,20 @@ to the requester.
 }
 --------------------------------------------------
 
-=== Foreach processor
-All processors can operate on elements inside an array, but if all elements of an array need to
-be processed in the same way defining a processor for each element becomes cumbersome and tricky
-because it is likely that the number of elements in an array are unknown. For this reason the `foreach`
-processor is exists. By specifying the field holding array elements and a list of processors that
-define what should happen to each element, array field can easily be preprocessed.
+[[foreach-processor]]
+=== Foreach Processor
+Processes elements in an array of unknown length.
 
-Processors inside the foreach processor work in a different context and the only valid top level
+All processors can operate on elements inside an array, but if all elements of an array need to
+be processed in the same way, defining a processor for each element becomes cumbersome and tricky
+because it is likely that the number of elements in an array is unknown. For this reason the `foreach`
+processor exists. By specifying the field holding array elements and a list of processors that
+define what should happen to each element, array fields can easily be preprocessed.
+
+Processors inside the foreach processor work in a different context, and the only valid top-level
 field is `_value`, which holds the array element value. Under this field other fields may exist.
 
-If the `foreach` processor failed to process an element inside the array and no `on_failure` processor has been specified
+If the `foreach` processor fails to process an element inside the array, and no `on_failure` processor has been specified,
 then it aborts the execution and leaves the array unmodified.
 
 [[foreach-options]]
@@ -755,7 +813,7 @@ Then the document will look like this after preprocessing:
 }
 --------------------------------------------------
 
-Lets take a look at another example:
+Let's take a look at another example:
 
 [source,js]
 --------------------------------------------------
@@ -773,8 +831,8 @@ Lets take a look at another example:
 }
 --------------------------------------------------
 
-and in the case the `id` field needs to be removed
-then the following `foreach` processor can be used:
+In this case, the `id` field needs to be removed,
+so the following `foreach` processor is used:
 
 [source,js]
 --------------------------------------------------
@@ -808,12 +866,12 @@ After preprocessing the result is:
 }
 --------------------------------------------------
 
-Like on any processor `on_failure` processors can also be defined
-in processors that wrapped inside the `foreach` processor.
+As for any processor, you can define `on_failure` processors
+in processors that are wrapped inside the `foreach` processor.
 
-For example the `id` field may not exist on all person objects and
-instead of failing the index request, the document will be send to
-the 'failure_index' index for later inspection:
+For example, the `id` field may not exist on all person objects.
+Instead of failing the index request, you can use an `on_failure`
+block to send the document to the 'failure_index' index for later inspection:
 
 [source,js]
 --------------------------------------------------
@@ -839,14 +897,15 @@ the 'failure_index' index for later inspection:
 }
 --------------------------------------------------
 
-In this example if the `remove` processor does fail then
+In this example, if the `remove` processor does fail, then
 the array elements that have been processed thus far will
 be updated.
 
+[[grok-processor]]
 === Grok Processor
 
-The Grok Processor extracts structured fields out of a single text field within a document. You choose which field to
-extract matched fields from, as well as the Grok Pattern you expect will match. A Grok Pattern is like a regular
+Extracts structured fields out of a single text field within a document. You choose which field to
+extract matched fields from, as well as the grok pattern you expect will match. A grok pattern is like a regular
 expression that supports aliased expressions that can be reused.
 
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
@@ -858,6 +917,7 @@ Here, you can add your own custom grok pattern files with custom grok expression
 If you need help building patterns to match your logs, you will find the <http://grokdebug.herokuapp.com> and
 <http://grokconstructor.appspot.com/> applications quite useful!
 
+[[grok-basics]]
 ==== Grok Basics
 
 Grok sits on top of regular expressions, so any regular expressions are valid in grok as well.
@@ -867,7 +927,7 @@ https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Onigiruma site].
 Grok works by leveraging this regular expression language to allow naming existing patterns and combining them into more
 complex patterns that match your fields.
 
-The syntax for re-using a grok pattern comes in three forms: `%{SYNTAX:SEMANTIC}`, `%{SYNTAX}`, `%{SYNTAX:SEMANTIC:TYPE}`.
+The syntax for reusing a grok pattern comes in three forms: `%{SYNTAX:SEMANTIC}`, `%{SYNTAX}`, `%{SYNTAX:SEMANTIC:TYPE}`.
 
 The `SYNTAX` is the name of the pattern that will match your text. For example, `3.44` will be matched by the `NUMBER`
 pattern and `55.3.244.1` will be matched by the `IP` pattern. The syntax is how you match. `NUMBER` and `IP` are both
@@ -879,15 +939,14 @@ the `client` making a request.
 
 The `TYPE` is the type you wish to cast your named field. `int` and `float` are currently the only types supported for coercion.
 
-For example, here is a grok pattern that would match the above example given. We would like to match a text with the following
-contents:
+For example, you might want to match the following text:
 
 [source,js]
 --------------------------------------------------
 3.44 55.3.244.1
 --------------------------------------------------
 
-We may know that the above message is a number followed by an IP-address. We can match this text with the following
+You may know that the message in the example is a number followed by an IP address. You can match this text by using the following
 Grok expression.
 
 [source,js]
@@ -895,9 +954,10 @@ Grok expression.
 %{NUMBER:duration} %{IP:client}
 --------------------------------------------------
 
+[[custom-patterns]]
 ==== Custom Patterns and Pattern Files
 
-The Grok Processor comes pre-packaged with a base set of pattern files. These patterns may not always have
+The Grok processor comes pre-packaged with a base set of pattern files. These patterns may not always have
 what you are looking for. These pattern files have a very basic format. Each line describes a named pattern with
 the following format:
 
@@ -906,11 +966,11 @@ the following format:
 NAME ' '+ PATTERN '\n'
 --------------------------------------------------
 
-You can add this pattern to an existing file, or add your own file in the patterns directory here: `$ES_HOME/config/ingest/grok/patterns`.
-The Ingest Plugin will pick up files in this directory to be loaded into the grok processor's known patterns. These patterns are loaded
-at startup, so you will need to do a restart your ingest node if you wish to update these files while running.
+You can add new patterns to an existing file, or add your own file in the patterns directory here: `$ES_HOME/config/ingest/grok/patterns`.
+Ingest node picks up files in this directory and loads the patterns into the grok processor's known patterns.
+These patterns are loaded at startup, so you need to restart your ingest node if you want to update these files.
 
-Example snippet of pattern definitions found in the `grok-patterns` patterns file:
+Here is an example snippet of pattern definitions found in the `grok-patterns` patterns file:
 
 [source,js]
 --------------------------------------------------
@@ -921,7 +981,8 @@ SECOND (?:(?:[0-5]?[0-9]|60)(?:[:.,][0-9]+)?)
 TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
 --------------------------------------------------
 
-==== Using Grok Processor in a Pipeline
+[[using-grok]]
+==== Using the Grok Processor in a Pipeline
 
 [[grok-options]]
 .Grok Options
@@ -943,14 +1004,14 @@ a document.
 }
 --------------------------------------------------
 
-The pattern for this could be
+The pattern for this could be:
 
 [source,js]
 --------------------------------------------------
 %{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}
 --------------------------------------------------
 
-An example pipeline for processing the above document using Grok:
+Here is an example pipeline for processing the above document by using Grok:
 
 [source,js]
 --------------------------------------------------
@@ -981,7 +1042,7 @@ This pipeline will insert these named captures as new fields within the document
 }
 --------------------------------------------------
 
-An example of a pipeline specifying custom pattern definitions:
+Here is an example of a pipeline specifying custom pattern definitions:
 
 [source,js]
 --------------------------------------------------
@@ -1002,7 +1063,8 @@ An example of a pipeline specifying custom pattern definitions:
 }
 --------------------------------------------------
 
-=== Gsub processor
+[[gsub-processor]]
+=== Gsub Processor
 Converts a string field by applying a regular expression and a replacement.
 If the field is not a string, the processor will throw an exception.
 
@@ -1011,9 +1073,9 @@ If the field is not a string, the processor will throw an exception.
 [options="header"]
 |======
 | Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The field apply the replacement for
+| `field`       | yes       | -        | The field to apply the replacement to
 | `pattern`     | yes       | -        | The pattern to be replaced
-| `replacement` | yes       | -        | The string to replace the matching patterns with.
+| `replacement` | yes       | -        | The string to replace the matching patterns with
 |======
 
 [source,js]
@@ -1027,9 +1089,10 @@ If the field is not a string, the processor will throw an exception.
 }
 --------------------------------------------------
 
-=== Join processor
+[[join-processor]]
+=== Join Processor
 Joins each element of an array into a single string using a separator character between each element.
-Throws error when the field is not an array.
+Throws an error when the field is not an array.
 
 [[join-options]]
 .Join Options
@@ -1050,7 +1113,8 @@ Throws error when the field is not an array.
 }
 --------------------------------------------------
 
-=== Lowercase processor
+[[lowercase-processor]]
+=== Lowercase Processor
 Converts a string to its lowercase equivalent.
 
 [[lowercase-options]]
@@ -1058,7 +1122,7 @@ Converts a string to its lowercase equivalent.
 [options="header"]
 |======
 | Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to lowercase
+| `field`  | yes       | -        | The field to make lowercase
 |======
 
 [source,js]
@@ -1070,8 +1134,9 @@ Converts a string to its lowercase equivalent.
 }
 --------------------------------------------------
 
-=== Remove processor
-Removes an existing field. If the field doesn't exist, an exception will be thrown
+[[remove-processor]]
+=== Remove Processor
+Removes an existing field. If the field doesn't exist, an exception will be thrown.
 
 [[remove-options]]
 .Remove Options
@@ -1090,9 +1155,9 @@ Removes an existing field. If the field doesn't exist, an exception will be thro
 }
 --------------------------------------------------
 
-=== Rename processor
-Renames an existing field. If the field doesn't exist, an exception will be thrown. Also, the new field
-name must not exist.
+[[rename-processor]]
+=== Rename Processor
+Renames an existing field. If the field doesn't exist or the new name is already used, an exception will be thrown.
 
 [[rename-options]]
 .Rename Options
@@ -1113,7 +1178,8 @@ name must not exist.
 }
 --------------------------------------------------
 
-=== Set processor
+[[set-processor]]
+=== Set Processor
 Sets one field and associates it with the specified value. If the field already exists,
 its value will be replaced with the provided one.
 
@@ -1136,8 +1202,9 @@ its value will be replaced with the provided one.
 }
 --------------------------------------------------
 
-=== Split processor
-Split a field to an array using a separator character. Only works on string fields.
+[[split-processor]]
+=== Split Processor
+Splits a field into an array using a separator character. Only works on string fields.
 
 [[split-options]]
 .Split Options
@@ -1156,8 +1223,11 @@ Split a field to an array using a separator character. Only works on string fiel
 }
 --------------------------------------------------
 
-=== Trim processor
-Trims whitespace from field. NOTE: this only works on leading and trailing whitespaces.
+[[trim-processor]]
+=== Trim Processor
+Trims whitespace from field.
+
+NOTE: This only works on leading and trailing whitespace.
 
 [[trim-options]]
 .Trim Options
@@ -1176,7 +1246,8 @@ Trims whitespace from field. NOTE: this only works on leading and trailing white
 }
 --------------------------------------------------
 
-=== Uppercase processor
+[[uppercase-processor]]
+=== Uppercase Processor
 Converts a string to its uppercase equivalent.
 
 [[uppercase-options]]
@@ -1184,7 +1255,7 @@ Converts a string to its uppercase equivalent.
 [options="header"]
 |======
 | Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to uppercase
+| `field`  | yes       | -        | The field to make uppercase
 |======
 
 [source,js]

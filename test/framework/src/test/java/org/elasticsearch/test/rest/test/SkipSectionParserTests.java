@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SkipSectionParserTests extends AbstractParserTestCase {
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
-                "version:     \" - 0.90.2\"\n" +
+                "version:     \" - 2.1.0\"\n" +
                 "reason:      Delete ignores the parent param"
         );
 
@@ -44,7 +44,7 @@ public class SkipSectionParserTests extends AbstractParserTestCase {
 
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(skipSection.getUpperVersion(), equalTo(Version.V_0_90_2));
+        assertThat(skipSection.getUpperVersion(), equalTo(Version.V_2_1_0));
         assertThat(skipSection.getFeatures().size(), equalTo(0));
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }

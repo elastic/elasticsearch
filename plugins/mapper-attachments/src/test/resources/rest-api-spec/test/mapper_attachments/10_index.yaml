@@ -2,7 +2,7 @@
 #
 
 ---
-# https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/23
+# https://github.com/elastic/elasticsearch-mapper-attachments/issues/23
 "Index empty attachment":
 
     - do:
@@ -28,7 +28,7 @@
               file: { }
 
 ---
-# https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
+# https://github.com/elastic/elasticsearch-mapper-attachments/issues/18
 # Encoded content with https://www.base64encode.org/
 # File1
 #<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
@@ -102,7 +102,7 @@
 # See https://github.com/elastic/elasticsearch/pull/13077
 # See https://github.com/elastic/elasticsearch-mapper-attachments/pull/150#issuecomment-134247110
 #
-# https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
+# https://github.com/elastic/elasticsearch-mapper-attachments/issues/18
 # Encoded content with https://www.base64encode.org/
 # File1
 #<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"

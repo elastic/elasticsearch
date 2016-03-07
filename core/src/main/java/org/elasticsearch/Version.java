@@ -35,212 +35,10 @@ import java.io.IOException;
 @SuppressWarnings("deprecation")
 public class Version {
 
-    // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
-    // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
+    // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator
+    // AA values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
-    // NOTE: indexes created with 3.6 use this constant for e.g. analysis chain emulation (imperfect)
-    public static final org.apache.lucene.util.Version LUCENE_3_EMULATION_VERSION = org.apache.lucene.util.Version.LUCENE_4_0_0;
-
-    public static final int V_0_18_0_ID = /*00*/180099;
-    public static final Version V_0_18_0 = new Version(V_0_18_0_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_1_ID = /*00*/180199;
-    public static final Version V_0_18_1 = new Version(V_0_18_1_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_2_ID = /*00*/180299;
-    public static final Version V_0_18_2 = new Version(V_0_18_2_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_3_ID = /*00*/180399;
-    public static final Version V_0_18_3 = new Version(V_0_18_3_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_4_ID = /*00*/180499;
-    public static final Version V_0_18_4 = new Version(V_0_18_4_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_5_ID = /*00*/180599;
-    public static final Version V_0_18_5 = new Version(V_0_18_5_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_6_ID = /*00*/180699;
-    public static final Version V_0_18_6 = new Version(V_0_18_6_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_7_ID = /*00*/180799;
-    public static final Version V_0_18_7 = new Version(V_0_18_7_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_18_8_ID = /*00*/180899;
-    public static final Version V_0_18_8 = new Version(V_0_18_8_ID, LUCENE_3_EMULATION_VERSION);
-
-    public static final int V_0_19_0_RC1_ID = /*00*/190051;
-    public static final Version V_0_19_0_RC1 = new Version(V_0_19_0_RC1_ID, LUCENE_3_EMULATION_VERSION);
-
-    public static final int V_0_19_0_RC2_ID = /*00*/190052;
-    public static final Version V_0_19_0_RC2 = new Version(V_0_19_0_RC2_ID, LUCENE_3_EMULATION_VERSION);
-
-    public static final int V_0_19_0_RC3_ID = /*00*/190053;
-    public static final Version V_0_19_0_RC3 = new Version(V_0_19_0_RC3_ID, LUCENE_3_EMULATION_VERSION);
-
-    public static final int V_0_19_0_ID = /*00*/190099;
-    public static final Version V_0_19_0 = new Version(V_0_19_0_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_1_ID = /*00*/190199;
-    public static final Version V_0_19_1 = new Version(V_0_19_1_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_2_ID = /*00*/190299;
-    public static final Version V_0_19_2 = new Version(V_0_19_2_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_3_ID = /*00*/190399;
-    public static final Version V_0_19_3 = new Version(V_0_19_3_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_4_ID = /*00*/190499;
-    public static final Version V_0_19_4 = new Version(V_0_19_4_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_5_ID = /*00*/190599;
-    public static final Version V_0_19_5 = new Version(V_0_19_5_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_6_ID = /*00*/190699;
-    public static final Version V_0_19_6 = new Version(V_0_19_6_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_7_ID = /*00*/190799;
-    public static final Version V_0_19_7 = new Version(V_0_19_7_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_8_ID = /*00*/190899;
-    public static final Version V_0_19_8 = new Version(V_0_19_8_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_9_ID = /*00*/190999;
-    public static final Version V_0_19_9 = new Version(V_0_19_9_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_10_ID = /*00*/191099;
-    public static final Version V_0_19_10 = new Version(V_0_19_10_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_11_ID = /*00*/191199;
-    public static final Version V_0_19_11 = new Version(V_0_19_11_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_12_ID = /*00*/191299;
-    public static final Version V_0_19_12 = new Version(V_0_19_12_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_19_13_ID = /*00*/191399;
-    public static final Version V_0_19_13 = new Version(V_0_19_13_ID, LUCENE_3_EMULATION_VERSION);
-
-    public static final int V_0_20_0_RC1_ID = /*00*/200051;
-    public static final Version V_0_20_0_RC1 = new Version(V_0_20_0_RC1_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_0_ID = /*00*/200099;
-    public static final Version V_0_20_0 = new Version(V_0_20_0_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_1_ID = /*00*/200199;
-    public static final Version V_0_20_1 = new Version(V_0_20_1_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_2_ID = /*00*/200299;
-    public static final Version V_0_20_2 = new Version(V_0_20_2_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_3_ID = /*00*/200399;
-    public static final Version V_0_20_3 = new Version(V_0_20_3_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_4_ID = /*00*/200499;
-    public static final Version V_0_20_4 = new Version(V_0_20_4_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_5_ID = /*00*/200599;
-    public static final Version V_0_20_5 = new Version(V_0_20_5_ID, LUCENE_3_EMULATION_VERSION);
-    public static final int V_0_20_6_ID = /*00*/200699;
-    public static final Version V_0_20_6 = new Version(V_0_20_6_ID, LUCENE_3_EMULATION_VERSION);
-
-    public static final int V_0_90_0_Beta1_ID = /*00*/900001;
-    public static final Version V_0_90_0_Beta1 = new Version(V_0_90_0_Beta1_ID, org.apache.lucene.util.Version.LUCENE_4_1);
-    public static final int V_0_90_0_RC1_ID = /*00*/900051;
-    public static final Version V_0_90_0_RC1 = new Version(V_0_90_0_RC1_ID, org.apache.lucene.util.Version.LUCENE_4_1);
-    public static final int V_0_90_0_RC2_ID = /*00*/900052;
-    public static final Version V_0_90_0_RC2 = new Version(V_0_90_0_RC2_ID, org.apache.lucene.util.Version.LUCENE_4_2);
-    public static final int V_0_90_0_ID = /*00*/900099;
-    public static final Version V_0_90_0 = new Version(V_0_90_0_ID, org.apache.lucene.util.Version.LUCENE_4_2);
-    public static final int V_0_90_1_ID = /*00*/900199;
-    public static final Version V_0_90_1 = new Version(V_0_90_1_ID, org.apache.lucene.util.Version.LUCENE_4_3);
-    public static final int V_0_90_2_ID = /*00*/900299;
-    public static final Version V_0_90_2 = new Version(V_0_90_2_ID, org.apache.lucene.util.Version.LUCENE_4_3);
-    public static final int V_0_90_3_ID = /*00*/900399;
-    public static final Version V_0_90_3 = new Version(V_0_90_3_ID, org.apache.lucene.util.Version.LUCENE_4_4);
-    public static final int V_0_90_4_ID = /*00*/900499;
-    public static final Version V_0_90_4 = new Version(V_0_90_4_ID, org.apache.lucene.util.Version.LUCENE_4_4);
-    public static final int V_0_90_5_ID = /*00*/900599;
-    public static final Version V_0_90_5 = new Version(V_0_90_5_ID, org.apache.lucene.util.Version.LUCENE_4_4);
-    public static final int V_0_90_6_ID = /*00*/900699;
-    public static final Version V_0_90_6 = new Version(V_0_90_6_ID, org.apache.lucene.util.Version.LUCENE_4_5);
-    public static final int V_0_90_7_ID = /*00*/900799;
-    public static final Version V_0_90_7 = new Version(V_0_90_7_ID, org.apache.lucene.util.Version.LUCENE_4_5);
-    public static final int V_0_90_8_ID = /*00*/900899;
-    public static final Version V_0_90_8 = new Version(V_0_90_8_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_0_90_9_ID = /*00*/900999;
-    public static final Version V_0_90_9 = new Version(V_0_90_9_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_0_90_10_ID = /*00*/901099;
-    public static final Version V_0_90_10 = new Version(V_0_90_10_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_0_90_11_ID = /*00*/901199;
-    public static final Version V_0_90_11 = new Version(V_0_90_11_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_0_90_12_ID = /*00*/901299;
-    public static final Version V_0_90_12 = new Version(V_0_90_12_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_0_90_13_ID = /*00*/901399;
-    public static final Version V_0_90_13 = new Version(V_0_90_13_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-
-    public static final int V_1_0_0_Beta1_ID = 1000001;
-    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, org.apache.lucene.util.Version.LUCENE_4_5);
-    public static final int V_1_0_0_Beta2_ID = 1000002;
-    public static final Version V_1_0_0_Beta2 = new Version(V_1_0_0_Beta2_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_0_0_RC1_ID = 1000051;
-    public static final Version V_1_0_0_RC1 = new Version(V_1_0_0_RC1_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_0_0_RC2_ID = 1000052;
-    public static final Version V_1_0_0_RC2 = new Version(V_1_0_0_RC2_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_0_0_ID = 1000099;
-    public static final Version V_1_0_0 = new Version(V_1_0_0_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_0_1_ID = 1000199;
-    public static final Version V_1_0_1 = new Version(V_1_0_1_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_0_2_ID = 1000299;
-    public static final Version V_1_0_2 = new Version(V_1_0_2_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_0_3_ID = 1000399;
-    public static final Version V_1_0_3 = new Version(V_1_0_3_ID, org.apache.lucene.util.Version.LUCENE_4_6);
-    public static final int V_1_1_0_ID = 1010099;
-    public static final Version V_1_1_0 = new Version(V_1_1_0_ID, org.apache.lucene.util.Version.LUCENE_4_7);
-    public static final int V_1_1_1_ID = 1010199;
-    public static final Version V_1_1_1 = new Version(V_1_1_1_ID, org.apache.lucene.util.Version.LUCENE_4_7);
-    public static final int V_1_1_2_ID = 1010299;
-    public static final Version V_1_1_2 = new Version(V_1_1_2_ID, org.apache.lucene.util.Version.LUCENE_4_7);
-    public static final int V_1_2_0_ID = 1020099;
-    public static final Version V_1_2_0 = new Version(V_1_2_0_ID, org.apache.lucene.util.Version.LUCENE_4_8);
-    public static final int V_1_2_1_ID = 1020199;
-    public static final Version V_1_2_1 = new Version(V_1_2_1_ID, org.apache.lucene.util.Version.LUCENE_4_8);
-    public static final int V_1_2_2_ID = 1020299;
-    public static final Version V_1_2_2 = new Version(V_1_2_2_ID, org.apache.lucene.util.Version.LUCENE_4_8);
-    public static final int V_1_2_3_ID = 1020399;
-    public static final Version V_1_2_3 = new Version(V_1_2_3_ID, org.apache.lucene.util.Version.LUCENE_4_8);
-    public static final int V_1_2_4_ID = 1020499;
-    public static final Version V_1_2_4 = new Version(V_1_2_4_ID, org.apache.lucene.util.Version.LUCENE_4_8);
-    public static final int V_1_3_0_ID = 1030099;
-    public static final Version V_1_3_0 = new Version(V_1_3_0_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_1_ID = 1030199;
-    public static final Version V_1_3_1 = new Version(V_1_3_1_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_2_ID = 1030299;
-    public static final Version V_1_3_2 = new Version(V_1_3_2_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_3_ID = 1030399;
-    public static final Version V_1_3_3 = new Version(V_1_3_3_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_4_ID = 1030499;
-    public static final Version V_1_3_4 = new Version(V_1_3_4_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_5_ID = 1030599;
-    public static final Version V_1_3_5 = new Version(V_1_3_5_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_6_ID = 1030699;
-    public static final Version V_1_3_6 = new Version(V_1_3_6_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_7_ID = 1030799;
-    public static final Version V_1_3_7 = new Version(V_1_3_7_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_8_ID = 1030899;
-    public static final Version V_1_3_8 = new Version(V_1_3_8_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_3_9_ID = 1030999;
-    public static final Version V_1_3_9 = new Version(V_1_3_9_ID, org.apache.lucene.util.Version.LUCENE_4_9);
-    public static final int V_1_4_0_Beta1_ID = 1040001;
-    public static final Version V_1_4_0_Beta1 = new Version(V_1_4_0_Beta1_ID, org.apache.lucene.util.Version.LUCENE_4_10_1);
-    public static final int V_1_4_0_ID = 1040099;
-    public static final Version V_1_4_0 = new Version(V_1_4_0_ID, org.apache.lucene.util.Version.LUCENE_4_10_2);
-    public static final int V_1_4_1_ID = 1040199;
-    public static final Version V_1_4_1 = new Version(V_1_4_1_ID, org.apache.lucene.util.Version.LUCENE_4_10_2);
-    public static final int V_1_4_2_ID = 1040299;
-    public static final Version V_1_4_2 = new Version(V_1_4_2_ID, org.apache.lucene.util.Version.LUCENE_4_10_2);
-    public static final int V_1_4_3_ID = 1040399;
-    public static final Version V_1_4_3 = new Version(V_1_4_3_ID, org.apache.lucene.util.Version.LUCENE_4_10_3);
-    public static final int V_1_4_4_ID = 1040499;
-    public static final Version V_1_4_4 = new Version(V_1_4_4_ID, org.apache.lucene.util.Version.LUCENE_4_10_3);
-    public static final int V_1_4_5_ID = 1040599;
-    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_5_0_ID = 1050099;
-    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_5_1_ID = 1050199;
-    public static final Version V_1_5_1 = new Version(V_1_5_1_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_5_2_ID = 1050299;
-    public static final Version V_1_5_2 = new Version(V_1_5_2_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_6_0_ID = 1060099;
-    public static final Version V_1_6_0 = new Version(V_1_6_0_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_6_1_ID = 1060199;
-    public static final Version V_1_6_1 = new Version(V_1_6_1_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_6_2_ID = 1060299;
-    public static final Version V_1_6_2 = new Version(V_1_6_2_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_7_0_ID = 1070099;
-    public static final Version V_1_7_0 = new Version(V_1_7_0_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_7_1_ID = 1070199;
-    public static final Version V_1_7_1 = new Version(V_1_7_1_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_7_2_ID = 1070299;
-    public static final Version V_1_7_2 = new Version(V_1_7_2_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_7_3_ID = 1070399;
-    public static final Version V_1_7_3 = new Version(V_1_7_3_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_7_4_ID = 1070499;
-    public static final Version V_1_7_4 = new Version(V_1_7_4_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_1_7_5_ID = 1070599;
-    public static final Version V_1_7_5 = new Version(V_1_7_5_ID, org.apache.lucene.util.Version.LUCENE_4_10_4);
 
     public static final int V_2_0_0_beta1_ID = 2000001;
     public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_5_2_1);
@@ -264,9 +62,9 @@ public class Version {
     public static final Version V_2_2_0 = new Version(V_2_2_0_ID, org.apache.lucene.util.Version.LUCENE_5_4_1);
     public static final int V_2_3_0_ID = 2030099;
     public static final Version V_2_3_0 = new Version(V_2_3_0_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
-    public static final int V_3_0_0_ID = 3000099;
-    public static final Version V_3_0_0 = new Version(V_3_0_0_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
-    public static final Version CURRENT = V_3_0_0;
+    public static final int V_5_0_0_ID = 5000099;
+    public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
+    public static final Version CURRENT = V_5_0_0;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -279,8 +77,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_3_0_0_ID:
-                return V_3_0_0;
+            case V_5_0_0_ID:
+                return V_5_0_0;
             case V_2_3_0_ID:
                 return V_2_3_0;
             case V_2_2_0_ID:
@@ -303,198 +101,6 @@ public class Version {
                 return V_2_0_0_beta2;
             case V_2_0_0_beta1_ID:
                 return V_2_0_0_beta1;
-            case V_1_7_5_ID:
-                return V_1_7_5;
-            case V_1_7_4_ID:
-                return V_1_7_4;
-            case V_1_7_3_ID:
-                return V_1_7_3;
-            case V_1_7_2_ID:
-                return V_1_7_2;
-            case V_1_7_1_ID:
-                return V_1_7_1;
-            case V_1_7_0_ID:
-                return V_1_7_0;
-            case V_1_6_2_ID:
-                return V_1_6_2;
-            case V_1_6_1_ID:
-                return V_1_6_1;
-            case V_1_6_0_ID:
-                return V_1_6_0;
-            case V_1_5_2_ID:
-                return V_1_5_2;
-            case V_1_5_1_ID:
-                return V_1_5_1;
-            case V_1_5_0_ID:
-                return V_1_5_0;
-            case V_1_4_5_ID:
-                return V_1_4_5;
-            case V_1_4_4_ID:
-                return V_1_4_4;
-            case V_1_4_3_ID:
-                return V_1_4_3;
-            case V_1_4_2_ID:
-                return V_1_4_2;
-            case V_1_4_1_ID:
-                return V_1_4_1;
-            case V_1_4_0_ID:
-                return V_1_4_0;
-            case V_1_4_0_Beta1_ID:
-                return V_1_4_0_Beta1;
-            case V_1_3_9_ID:
-                return V_1_3_9;
-            case V_1_3_8_ID:
-                return V_1_3_8;
-            case V_1_3_7_ID:
-                return V_1_3_7;
-            case V_1_3_6_ID:
-                return V_1_3_6;
-            case V_1_3_5_ID:
-                return V_1_3_5;
-            case V_1_3_4_ID:
-                return V_1_3_4;
-            case V_1_3_3_ID:
-                return V_1_3_3;
-            case V_1_3_2_ID:
-                return V_1_3_2;
-            case V_1_3_1_ID:
-                return V_1_3_1;
-            case V_1_3_0_ID:
-                return V_1_3_0;
-            case V_1_2_4_ID:
-                return V_1_2_4;
-            case V_1_2_3_ID:
-                return V_1_2_3;
-            case V_1_2_2_ID:
-                return V_1_2_2;
-            case V_1_2_1_ID:
-                return V_1_2_1;
-            case V_1_2_0_ID:
-                return V_1_2_0;
-            case V_1_1_2_ID:
-                return V_1_1_2;
-            case V_1_1_1_ID:
-                return V_1_1_1;
-            case V_1_1_0_ID:
-                return V_1_1_0;
-            case V_1_0_3_ID:
-                return V_1_0_3;
-            case V_1_0_2_ID:
-                return V_1_0_2;
-            case V_1_0_1_ID:
-                return V_1_0_1;
-            case V_1_0_0_ID:
-                return V_1_0_0;
-            case V_1_0_0_RC2_ID:
-                return V_1_0_0_RC2;
-            case V_1_0_0_RC1_ID:
-                return V_1_0_0_RC1;
-            case V_1_0_0_Beta2_ID:
-                return V_1_0_0_Beta2;
-            case V_1_0_0_Beta1_ID:
-                return V_1_0_0_Beta1;
-            case V_0_90_13_ID:
-                return V_0_90_13;
-            case V_0_90_12_ID:
-                return V_0_90_12;
-            case V_0_90_11_ID:
-                return V_0_90_11;
-            case V_0_90_10_ID:
-                return V_0_90_10;
-            case V_0_90_9_ID:
-                return V_0_90_9;
-            case V_0_90_8_ID:
-                return V_0_90_8;
-            case V_0_90_7_ID:
-                return V_0_90_7;
-            case V_0_90_6_ID:
-                return V_0_90_6;
-            case V_0_90_5_ID:
-                return V_0_90_5;
-            case V_0_90_4_ID:
-                return V_0_90_4;
-            case V_0_90_3_ID:
-                return V_0_90_3;
-            case V_0_90_2_ID:
-                return V_0_90_2;
-            case V_0_90_1_ID:
-                return V_0_90_1;
-            case V_0_90_0_ID:
-                return V_0_90_0;
-            case V_0_90_0_RC2_ID:
-                return V_0_90_0_RC2;
-            case V_0_90_0_RC1_ID:
-                return V_0_90_0_RC1;
-            case V_0_90_0_Beta1_ID:
-                return V_0_90_0_Beta1;
-            case V_0_20_6_ID:
-                return V_0_20_6;
-            case V_0_20_5_ID:
-                return V_0_20_5;
-            case V_0_20_4_ID:
-                return V_0_20_4;
-            case V_0_20_3_ID:
-                return V_0_20_3;
-            case V_0_20_2_ID:
-                return V_0_20_2;
-            case V_0_20_1_ID:
-                return V_0_20_1;
-            case V_0_20_0_ID:
-                return V_0_20_0;
-            case V_0_20_0_RC1_ID:
-                return V_0_20_0_RC1;
-            case V_0_19_0_RC1_ID:
-                return V_0_19_0_RC1;
-            case V_0_19_0_RC2_ID:
-                return V_0_19_0_RC2;
-            case V_0_19_0_RC3_ID:
-                return V_0_19_0_RC3;
-            case V_0_19_0_ID:
-                return V_0_19_0;
-            case V_0_19_1_ID:
-                return V_0_19_1;
-            case V_0_19_2_ID:
-                return V_0_19_2;
-            case V_0_19_3_ID:
-                return V_0_19_3;
-            case V_0_19_4_ID:
-                return V_0_19_4;
-            case V_0_19_5_ID:
-                return V_0_19_5;
-            case V_0_19_6_ID:
-                return V_0_19_6;
-            case V_0_19_7_ID:
-                return V_0_19_7;
-            case V_0_19_8_ID:
-                return V_0_19_8;
-            case V_0_19_9_ID:
-                return V_0_19_9;
-            case V_0_19_10_ID:
-                return V_0_19_10;
-            case V_0_19_11_ID:
-                return V_0_19_11;
-            case V_0_19_12_ID:
-                return V_0_19_12;
-            case V_0_19_13_ID:
-                return V_0_19_13;
-            case V_0_18_0_ID:
-                return V_0_18_0;
-            case V_0_18_1_ID:
-                return V_0_18_1;
-            case V_0_18_2_ID:
-                return V_0_18_2;
-            case V_0_18_3_ID:
-                return V_0_18_3;
-            case V_0_18_4_ID:
-                return V_0_18_4;
-            case V_0_18_5_ID:
-                return V_0_18_5;
-            case V_0_18_6_ID:
-                return V_0_18_6;
-            case V_0_18_7_ID:
-                return V_0_18_7;
-            case V_0_18_8_ID:
-                return V_0_18_8;
             default:
                 return new Version(id, org.apache.lucene.util.Version.LATEST);
         }
@@ -531,15 +137,23 @@ public class Version {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
+        final boolean snapshot; // this is some BWC for 2.x and before indices
+        if (snapshot = version.endsWith("-SNAPSHOT")) {
+            version = version.substring(0, version.length() - 9);
+        }
         String[] parts = version.split("\\.|\\-");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor, and revision, and optionally the build: " + version);
         }
 
         try {
-
+            final int rawMajor = Integer.parseInt(parts[0]);
+            if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
+                throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
+            }
+            final int betaOffset = rawMajor < 5 ? 0 : 25;
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
-            final int major = Integer.parseInt(parts[0]) * 1000000;
+            final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
 
@@ -547,11 +161,17 @@ public class Version {
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
-                if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
-                    build = Integer.parseInt(buildStr.substring(4));
-                }
-                if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
+                if (buildStr.startsWith("alpha")) {
+                    assert rawMajor >= 5 : "major must be >= 5 but was " + major;
+                    build = Integer.parseInt(buildStr.substring(5));
+                    assert build < 25 : "expected a beta build but " + build + " >= 25";
+                } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
+                    build = betaOffset + Integer.parseInt(buildStr.substring(4));
+                    assert build < 50 : "expected a beta build but " + build + " >= 50";
+                } else if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
                     build = Integer.parseInt(buildStr.substring(2)) + 50;
+                } else {
+                    throw new IllegalArgumentException("unable to parse version " + version);
                 }
             }
 
@@ -614,13 +234,16 @@ public class Version {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
-        if (isBeta()) {
+        if (isAlpha()) {
+            sb.append("-alpha");
+            sb.append(build);
+        } else if (isBeta()) {
             if (major >= 2) {
                 sb.append("-beta");
             } else {
                 sb.append(".Beta");
             }
-            sb.append(build);
+            sb.append(major < 5 ? build : build-25);
         } else if (build < 99) {
             if (major >= 2) {
                 sb.append("-rc");
@@ -656,7 +279,16 @@ public class Version {
     }
 
     public boolean isBeta() {
-        return build < 50;
+        return major < 5 ? build < 50 : build >= 25 && build < 50;
+    }
+
+    /**
+     * Returns true iff this version is an alpha version
+     * Note: This has been introduced in elasticsearch version 5. Previous versions will never
+     * have an alpha version.
+     */
+    public boolean isAlpha() {
+        return major < 5 ? false :  build < 25;
     }
 
     public boolean isRC() {

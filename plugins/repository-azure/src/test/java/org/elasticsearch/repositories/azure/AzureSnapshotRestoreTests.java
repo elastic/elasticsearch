@@ -174,7 +174,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #51: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/51
+     * For issue #51: https://github.com/elastic/elasticsearch-cloud-azure/issues/51
      */
     public void testMultipleSnapshots() throws URISyntaxException, StorageException {
         final String indexName = "test-idx-1";
@@ -298,7 +298,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #26: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/26
+     * For issue #26: https://github.com/elastic/elasticsearch-cloud-azure/issues/26
      */
     public void testListBlobs_26() throws StorageException, URISyntaxException {
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -356,7 +356,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #28: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/28
+     * For issue #28: https://github.com/elastic/elasticsearch-cloud-azure/issues/28
      */
     public void testGetDeleteNonExistingSnapshot_28() throws StorageException, URISyntaxException {
         ClusterAdminClient client = client().admin().cluster();
@@ -383,7 +383,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
+     * For issue #21: https://github.com/elastic/elasticsearch-cloud-azure/issues/21
      */
     public void testForbiddenContainerName() throws Exception {
         checkContainerName("", false);
@@ -437,7 +437,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * Test case for issue #23: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/23
+     * Test case for issue #23: https://github.com/elastic/elasticsearch-cloud-azure/issues/23
      */
     public void testNonExistingRepo_23() {
         Client client = client();

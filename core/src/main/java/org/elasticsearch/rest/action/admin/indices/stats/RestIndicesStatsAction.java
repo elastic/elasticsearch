@@ -104,6 +104,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
         }
 
+        if (indicesStatsRequest.segments() && request.hasParam("include_segment_file_sizes")) {
+            indicesStatsRequest.includeSegmentFileSizes(true);
+        }
+
         client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.numeric;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
@@ -40,7 +40,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -111,10 +111,10 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
-        assertThat(mapper, instanceOf(StringFieldMapper.class));
+        assertThat(mapper, instanceOf(TextFieldMapper.class));
 
         mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
-        assertThat(mapper, instanceOf(StringFieldMapper.class));
+        assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testIgnoreMalformedOption() throws Exception {
@@ -623,8 +623,8 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         // check the tokenstream actually used by the indexer
         TokenStream ts = field.tokenStream(null, null);
-        assertThat(ts, instanceOf(NumericTokenStream.class));
-        assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
+        assertThat(ts, instanceOf(LegacyNumericTokenStream.class));
+        assertEquals(expected, ((LegacyNumericTokenStream)ts).getPrecisionStep());
     }
 
     public void testTermVectorsBackCompat() throws Exception {

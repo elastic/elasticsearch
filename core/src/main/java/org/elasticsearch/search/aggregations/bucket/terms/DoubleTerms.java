@@ -193,11 +193,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.docCountError = in.readLong();
-        } else {
-            this.docCountError = -1;
-        }
+        this.docCountError = in.readLong();
         this.order = InternalOrder.Streams.readOrder(in);
         this.formatter = ValueFormatterStreams.readOptional(in);
         this.requiredSize = readSize(in);
@@ -218,9 +214,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeLong(docCountError);
-        }
+        out.writeLong(docCountError);
         InternalOrder.Streams.writeOrder(order, out);
         ValueFormatterStreams.writeOptional(formatter, out);
         writeSize(requiredSize, out);

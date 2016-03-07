@@ -158,19 +158,13 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public void readOtherStatsFrom(StreamInput in) throws IOException {
         sumOfSqrs = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_1_4_3)) {
-            sigma = in.readDouble();
-        } else {
-            sigma = 2.0;
-        }
+        sigma = in.readDouble();
     }
 
     @Override
     protected void writeOtherStatsTo(StreamOutput out) throws IOException {
         out.writeDouble(sumOfSqrs);
-        if (out.getVersion().onOrAfter(Version.V_1_4_3)) {
-            out.writeDouble(sigma);
-        }
+        out.writeDouble(sigma);
     }
 
 

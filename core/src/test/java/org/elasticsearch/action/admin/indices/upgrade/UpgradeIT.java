@@ -98,13 +98,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             }
             indexRandom(true, docs);
             ensureGreen(indexName);
-            if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
-                // before 1.4 and the wait_if_ongoing flag, flushes could fail randomly, so we
-                // need to continue to try flushing until all shards succeed
-                assertTrue(awaitBusy(() -> flush(indexName).getFailedShards() == 0));
-            } else {
-                assertEquals(0, flush(indexName).getFailedShards());
-            }
+            assertEquals(0, flush(indexName).getFailedShards());
 
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);

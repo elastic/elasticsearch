@@ -446,7 +446,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
     void assertDeleteByQueryWorked(String indexName, Version version) throws Exception {
-        if (version.onOrBefore(Version.V_1_0_0_Beta2) || version.onOrAfter(Version.V_2_0_0_beta1)) {
+        if (version.onOrAfter(Version.V_2_0_0_beta1)) {
             // TODO: remove this once #10262 is fixed
             return;
         }

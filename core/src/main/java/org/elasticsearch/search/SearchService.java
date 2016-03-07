@@ -280,6 +280,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public QuerySearchResult executeScan(ShardSearchRequest request) {
         final SearchContext context = createAndPutContext(request);
         final int originalSize = context.size();
+        deprecationLogger.deprecated("[search_type=scan] is deprecated, please use a regular scroll that sorts on [_doc] instead");
         try {
             if (context.aggregations() != null) {
                 throw new IllegalArgumentException("aggregations are not supported with search_type=scan");

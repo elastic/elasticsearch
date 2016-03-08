@@ -134,7 +134,7 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
 fi
 
 cd "$ES_HOME" > /dev/null
-$JAVA $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.crypto.tool.SystemKeyTool "$@"
+"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.crypto.tool.SystemKeyTool "$@"
 status=$?
 cd - > /dev/null
 exit $status

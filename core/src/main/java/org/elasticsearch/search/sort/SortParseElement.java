@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
@@ -55,7 +54,6 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
-    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
     public static final String SCORE_FIELD_NAME = "_score";
@@ -156,12 +154,6 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                 } else if ("missing".equals(innerJsonName)) {
                                     missing = parser.textOrNull();
-                                } else if (context.parseFieldMatcher().match(innerJsonName, IGNORE_UNMAPPED)) {
-                                    // backward compatibility: ignore_unmapped has been replaced with unmapped_type
-                                    if (unmappedType == null // don't override if unmapped_type has been provided too
-                                            && parser.booleanValue()) {
-                                        unmappedType = LongFieldMapper.CONTENT_TYPE;
-                                    }
                                 } else if (context.parseFieldMatcher().match(innerJsonName, UNMAPPED_TYPE)) {
                                     unmappedType = parser.textOrNull();
                                 } else if ("mode".equals(innerJsonName)) {

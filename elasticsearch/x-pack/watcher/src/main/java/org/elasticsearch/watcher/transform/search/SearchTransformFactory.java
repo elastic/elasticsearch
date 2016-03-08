@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.transform.TransformFactory;
 
 import java.io.IOException;
@@ -23,14 +23,14 @@ import java.io.IOException;
  */
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
 
-    protected final ClientProxy client;
+    protected final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
     private IndicesQueriesRegistry queryRegistry;
     private AggregatorParsers aggParsers;
 
     @Inject
-    public SearchTransformFactory(Settings settings, ClientProxy client, IndicesQueriesRegistry queryRegistry,
-            AggregatorParsers aggParsers) {
+    public SearchTransformFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
+                                  AggregatorParsers aggParsers) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.queryRegistry = queryRegistry;

@@ -37,7 +37,7 @@ import org.elasticsearch.watcher.support.init.InitializingService;
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
  * needs to injected to be avoid circular dependencies issues.
  */
-public class ClientProxy implements InitializingService.Initializable {
+public class WatcherClientProxy implements InitializingService.Initializable {
 
     private final TimeValue defaultSearchTimeout;
     private final TimeValue defaultIndexTimeout;
@@ -45,7 +45,7 @@ public class ClientProxy implements InitializingService.Initializable {
     private InternalClient client;
 
     @Inject
-    public ClientProxy(Settings settings) {
+    public WatcherClientProxy(Settings settings) {
         defaultSearchTimeout = settings.getAsTime("watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         defaultIndexTimeout = settings.getAsTime("watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(60));
         defaultBulkTimeout = settings.getAsTime("watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
@@ -54,8 +54,8 @@ public class ClientProxy implements InitializingService.Initializable {
     /**
      * Creates a proxy to the given internal client (can be used for testing)
      */
-    public static ClientProxy of(Client client) {
-        ClientProxy proxy = new ClientProxy(Settings.EMPTY);
+    public static WatcherClientProxy of(Client client) {
+        WatcherClientProxy proxy = new WatcherClientProxy(Settings.EMPTY);
         proxy.client = client instanceof InternalClient ? (InternalClient) client : new InternalClient.Insecure(client);
         return proxy;
     }

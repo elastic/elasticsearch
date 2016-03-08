@@ -33,7 +33,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
@@ -53,13 +53,13 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
-    private ClientProxy clientProxy;
+    private WatcherClientProxy clientProxy;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
 
     @Before
     public void init() {
-        clientProxy = mock(ClientProxy.class);
+        clientProxy = mock(WatcherClientProxy.class);
         parser = mock(TriggeredWatch.Parser.class);
         triggeredWatchStore = new TriggeredWatchStore(Settings.EMPTY, clientProxy, parser);
         triggeredWatchStore.start();

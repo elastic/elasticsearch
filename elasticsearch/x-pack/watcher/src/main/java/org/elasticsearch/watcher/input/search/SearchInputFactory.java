@@ -15,7 +15,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
 
@@ -24,13 +24,14 @@ import java.io.IOException;
  */
 public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Result, ExecutableSearchInput> {
 
-    private final ClientProxy client;
+    private final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
     private IndicesQueriesRegistry queryRegistry;
     private AggregatorParsers aggParsers;
 
     @Inject
-    public SearchInputFactory(Settings settings, ClientProxy client, IndicesQueriesRegistry queryRegistry, AggregatorParsers aggParsers) {
+    public SearchInputFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
+                              AggregatorParsers aggParsers) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
         this.client = client;
         this.queryRegistry = queryRegistry;

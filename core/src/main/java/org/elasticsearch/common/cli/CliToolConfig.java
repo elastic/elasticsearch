@@ -33,10 +33,6 @@ import java.util.Map;
  */
 public class CliToolConfig {
 
-    public static Builder config(String name, Class<? extends CliTool> toolType) {
-        return new Builder(name, toolType);
-    }
-
     private final Class<? extends CliTool> toolType;
     private final String name;
     private final Map<String, Cmd> cmds;
@@ -80,55 +76,6 @@ public class CliToolConfig {
 
     public void printUsage(Terminal terminal) {
         helpPrinter.print(this, terminal);
-    }
-
-    public static class Builder {
-
-        public static Cmd.Builder cmd(String name, Class<? extends CliTool.Command> cmdType) {
-            return new Cmd.Builder(name, cmdType);
-        }
-
-        public static OptionBuilder option(String shortName, String longName) {
-            return new OptionBuilder(shortName, longName);
-        }
-
-        public static Option.Builder optionBuilder(String shortName, String longName) {
-            return Option.builder(shortName).argName(longName).longOpt(longName);
-        }
-
-        public static OptionGroupBuilder optionGroup(boolean required) {
-            return new OptionGroupBuilder(required);
-        }
-
-        private final Class<? extends CliTool> toolType;
-        private final String name;
-        private Cmd[] cmds;
-
-        private Builder(String name, Class<? extends CliTool> toolType) {
-            this.name = name;
-            this.toolType = toolType;
-        }
-
-        public Builder cmds(Cmd.Builder... cmds) {
-            this.cmds = new Cmd[cmds.length];
-            for (int i = 0; i < cmds.length; i++) {
-                this.cmds[i] = cmds[i].build();
-                this.cmds[i].toolName = name;
-            }
-            return this;
-        }
-
-        public Builder cmds(Cmd... cmds) {
-            for (int i = 0; i < cmds.length; i++) {
-                cmds[i].toolName = name;
-            }
-            this.cmds = cmds;
-            return this;
-        }
-
-        public CliToolConfig build() {
-            return new CliToolConfig(name, toolType, cmds);
-        }
     }
 
     public static class Cmd {

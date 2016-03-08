@@ -19,13 +19,40 @@
 
 package org.elasticsearch.plugins;
 
+import java.io.IOException;
+import java.nio.file.Path;
+
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-public class PluginCliTests extends CliToolTestCase {
+public class PluginCliTests extends CommandTestCase {
+
+    // the home dir for each test to use
+    Path homeDir;
+
+    // settings used to create an Environment for tools
+    Settings.Builder settingsBuilder;
+
+    @Before
+    public void setupHome() {
+        homeDir = createTempDir();
+        settingsBuilder = Settings.builder()
+            .put("path.home", homeDir);
+    }
+
+    @Override
+    protected Command newCommand() {
+        return new PluginCli(new Environment(settingsBuilder.build()));
+    }
+
     public void testHelpWorks() throws Exception {
         MockTerminal terminal = new MockTerminal();
         /* nocommit
@@ -48,4 +75,5 @@ public class PluginCliTests extends CliToolTestCase {
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
         */
     }
+
 }

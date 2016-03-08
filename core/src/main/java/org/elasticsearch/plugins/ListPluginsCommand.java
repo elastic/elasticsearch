@@ -44,7 +44,7 @@ class ListPluginsCommand extends Command {
     }
 
     @Override
-    public int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
@@ -55,7 +55,5 @@ class ListPluginsCommand extends Command {
                 terminal.println(plugin.getFileName().toString());
             }
         }
-
-        return ExitCodes.OK;
     }
 }

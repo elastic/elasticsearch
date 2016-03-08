@@ -53,14 +53,13 @@ class RemovePluginCommand extends Command {
     }
 
     @Override
-    public int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
             throw new UserError(ExitCodes.USAGE, "Must supply a single plugin id argument");
         }
         execute(terminal, args.get(0));
-        return ExitCodes.OK;
     }
 
     // pkg private for testing

@@ -27,8 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-import org.elasticsearch.common.cli.Terminal;
-
 /**
  * A terminal for tests which captures all output, and
  * can be plugged with fake input.

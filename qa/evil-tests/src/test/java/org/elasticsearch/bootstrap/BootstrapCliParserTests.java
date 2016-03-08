@@ -19,21 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import joptsimple.OptionException;
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.CommandTestCase;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool.ExitStatus;
-import org.elasticsearch.cli.UserError;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.junit.After;
-import org.junit.Before;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -41,12 +26,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
-import static org.hamcrest.Matchers.containsString;
+import joptsimple.OptionException;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.junit.After;
+import org.junit.Before;
+
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class BootstrapCliParserTests extends CommandTestCase {

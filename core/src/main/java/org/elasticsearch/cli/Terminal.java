@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cli;
+package org.elasticsearch.cli;
 
 import java.io.BufferedReader;
 import java.io.Console;

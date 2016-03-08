@@ -21,14 +21,12 @@ package org.elasticsearch.cli;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.Terminal;
 
 /**
  * An action to execute within a cli.

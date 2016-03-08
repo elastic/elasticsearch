@@ -17,28 +17,12 @@
  * under the License.
  */
 
+package org.elasticsearch.cli;
 
-package org.elasticsearch.common.logging;
-
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.spi.LoggingEvent;
-import org.elasticsearch.cli.Terminal;
-
-/**
- * TerminalAppender logs event to Terminal.DEFAULT. It is used for example by the PluginCli.
- * */
-public class TerminalAppender extends AppenderSkeleton {
-    @Override
-    protected void append(LoggingEvent event) {
-        Terminal.DEFAULT.println(event.getRenderedMessage());
-    }
+public class MultiCommandTests extends CommandTestCase {
 
     @Override
-    public void close() {
-    }
-
-    @Override
-    public boolean requiresLayout() {
-        return false;
+    protected Command newCommand() {
+        return null;
     }
 }

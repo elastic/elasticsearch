@@ -21,7 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import java.io.IOException;
 
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 
 /**
  * This class starts elasticsearch.

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cli;
 
-import joptsimple.OptionSet;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

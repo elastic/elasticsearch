@@ -27,8 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -59,7 +58,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**

@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cli;
+package org.elasticsearch.cli;
 
-import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.test.ESTestCase;
 
 public class TerminalTests extends ESTestCase {

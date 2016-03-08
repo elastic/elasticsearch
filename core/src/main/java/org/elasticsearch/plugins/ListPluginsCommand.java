@@ -26,9 +26,7 @@ import java.nio.file.Path;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
 /**

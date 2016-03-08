@@ -32,11 +32,10 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
-import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
@@ -68,7 +67,7 @@ class RemovePluginCommand extends Command {
 
         Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserError(CliTool.ExitStatus.USAGE.status(), "Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
+            throw new UserError(ExitCodes.USAGE, "Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
         }
 
         List<Path> pluginPaths = new ArrayList<>();
@@ -76,7 +75,7 @@ class RemovePluginCommand extends Command {
         Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
-                throw new UserError(CliTool.ExitStatus.IO_ERROR.status(), "Bin dir for " + pluginName + " is not a directory");
+                throw new UserError(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
             }
             pluginPaths.add(pluginBinDir);
             terminal.println(VERBOSE, "Removing: " + pluginBinDir);

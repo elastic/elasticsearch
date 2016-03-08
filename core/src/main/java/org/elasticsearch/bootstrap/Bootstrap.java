@@ -26,7 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;

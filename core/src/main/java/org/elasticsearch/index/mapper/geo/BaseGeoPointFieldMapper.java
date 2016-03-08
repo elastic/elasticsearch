@@ -216,9 +216,13 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("precision_step")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " precision_step parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {

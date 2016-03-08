@@ -48,7 +48,7 @@ public class InputModule extends AbstractModule {
         bind(NoneInputFactory.class).asEagerSingleton();
         parsersBinder.addBinding(NoneInput.TYPE).to(NoneInputFactory.class);
 
-        // no bind() needed, done in InitializingModule
+        // no bind() needed, done using the LazyInitializationModule
         parsersBinder.addBinding(ChainInput.TYPE).to(ChainInputFactory.class);
 
         for (Map.Entry<String, Class<? extends InputFactory>> entry : parsers.entrySet()) {

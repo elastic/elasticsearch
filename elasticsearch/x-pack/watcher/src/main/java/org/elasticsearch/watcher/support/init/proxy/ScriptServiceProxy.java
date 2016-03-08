@@ -13,7 +13,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.shield.SecurityContext;
 import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.InitializingService;
+import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 import java.util.Map;
 
@@ -23,7 +23,7 @@ import static java.util.Collections.emptyMap;
  *A lazily initialized proxy to the elasticsearch {@link ScriptService}. Inject this proxy whenever the script
  * service needs to be injected to avoid circular dependencies issues.
  */
-public class ScriptServiceProxy implements InitializingService.Initializable {
+public class ScriptServiceProxy implements LazyInitializable {
 
     private ScriptService service;
     private SecurityContext securityContext;

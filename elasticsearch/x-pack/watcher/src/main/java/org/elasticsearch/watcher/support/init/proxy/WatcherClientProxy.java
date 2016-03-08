@@ -23,26 +23,22 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.InternalClient;
-import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.watcher.support.init.InitializingService;
+import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
  * needs to injected to be avoid circular dependencies issues.
  */
-public class WatcherClientProxy implements InitializingService.Initializable {
+public class WatcherClientProxy extends ClientProxy {
 
     private final TimeValue defaultSearchTimeout;
     private final TimeValue defaultIndexTimeout;
     private final TimeValue defaultBulkTimeout;
-    private InternalClient client;
 
     @Inject
     public WatcherClientProxy(Settings settings) {
@@ -58,15 +54,6 @@ public class WatcherClientProxy implements InitializingService.Initializable {
         WatcherClientProxy proxy = new WatcherClientProxy(Settings.EMPTY);
         proxy.client = client instanceof InternalClient ? (InternalClient) client : new InternalClient.Insecure(client);
         return proxy;
-    }
-
-    @Override
-    public void init(Injector injector) {
-        this.client = injector.getInstance(InternalClient.class);
-    }
-
-    public AdminClient admin() {
-        return client.admin();
     }
 
     public IndexResponse index(IndexRequest request, TimeValue timeout) {
@@ -124,9 +111,5 @@ public class WatcherClientProxy implements InitializingService.Initializable {
     public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest request) {
         preProcess(request);
         return client.admin().indices().putTemplate(request).actionGet(defaultIndexTimeout);
-    }
-
-    <M extends TransportMessage> M preProcess(M message) {
-        return message;
     }
 }

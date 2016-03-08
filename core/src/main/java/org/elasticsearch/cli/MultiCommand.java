@@ -56,7 +56,7 @@ public class MultiCommand extends Command {
     }
 
     @Override
-    protected int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
@@ -68,6 +68,6 @@ public class MultiCommand extends Command {
         if (subcommand == null) {
             throw new UserError(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
         }
-        return subcommand.main(Arrays.copyOfRange(args, 1, args.length), terminal);
+        subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
     }
 }

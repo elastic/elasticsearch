@@ -19,11 +19,14 @@
 
 package org.elasticsearch.bootstrap;
 
+import joptsimple.OptionException;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
-import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -46,9 +49,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "modifies system properties intentionally")
-public class BootstrapCliParserTests extends CliToolTestCase {
+public class BootstrapCliParserTests extends CommandTestCase {
 
-    private MockTerminal terminal = new MockTerminal();
+    @Override
+    protected Command newCommand() {
+        return new BootstrapCliParser();
+    }
+
     private List<String> propertiesToClear = new ArrayList<>();
     private Map<Object, Object> properties;
 
@@ -66,195 +73,86 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertEquals("properties leaked", properties, new HashMap<>(System.getProperties()));
     }
 
-    public void testThatVersionIsReturned() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        ExitStatus status = parser.execute(args("version"));
-        assertStatus(status, OK_AND_EXIT);
-
-        String output = terminal.getOutput();
-        assertTrue(output, output.contains(Version.CURRENT.toString()));
-        assertTrue(output, output.contains(Build.CURRENT.shortHash()));
-        assertTrue(output, output.contains(Build.CURRENT.date()));
-        assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
+    void assertShouldRun(boolean shouldRun) {
+        BootstrapCliParser parser = (BootstrapCliParser)command;
+        assertEquals(shouldRun, parser.shouldRun());
     }
 
-    public void testThatVersionIsReturnedAsStartParameter() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        ExitStatus status = parser.execute(args("start -V"));
-        assertStatus(status, OK_AND_EXIT);
-
-        String output = terminal.getOutput();
+    public void testVersion() throws Exception {
+        String output = execute("-V");
         assertTrue(output, output.contains(Version.CURRENT.toString()));
         assertTrue(output, output.contains(Build.CURRENT.shortHash()));
         assertTrue(output, output.contains(Build.CURRENT.date()));
         assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
+        assertShouldRun(false);
 
         terminal.reset();
-        parser = new BootstrapCLIParser(terminal);
-        status = parser.execute(args("start --version"));
-        assertStatus(status, OK_AND_EXIT);
-
-        output = terminal.getOutput();
+        output = execute("--version");
         assertTrue(output, output.contains(Version.CURRENT.toString()));
         assertTrue(output, output.contains(Build.CURRENT.shortHash()));
         assertTrue(output, output.contains(Build.CURRENT.date()));
         assertTrue(output, output.contains(JvmInfo.jvmInfo().version()));
+        assertShouldRun(false);
     }
 
-    public void testThatPidFileCanBeConfigured() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
+    public void testPidfile() throws Exception {
         registerProperties("es.pidfile");
 
-        ExitStatus status = parser.execute(args("start --pidfile")); // missing pid file
-        assertStatus(status, USAGE);
+        // missing argument
+        OptionException e = expectThrows(OptionException.class, () -> {
+           execute("-p");
+        });
+        assertEquals("Option p/pidfile requires an argument", e.getMessage());
+        assertShouldRun(false);
 
         // good cases
-        status = parser.execute(args("start --pidfile /tmp/pid"));
-        assertStatus(status, OK);
+        terminal.reset();
+        execute("--pidfile", "/tmp/pid");
         assertSystemProperty("es.pidfile", "/tmp/pid");
+        assertShouldRun(true);
 
         System.clearProperty("es.pidfile");
-        status = parser.execute(args("start -p /tmp/pid"));
-        assertStatus(status, OK);
+        terminal.reset();
+        execute("-p", "/tmp/pid");
         assertSystemProperty("es.pidfile", "/tmp/pid");
+        assertShouldRun(true);
     }
 
-    public void testThatParsingDaemonizeWorks() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
+    public void testNoDaemonize() throws Exception {
         registerProperties("es.foreground");
 
-        ExitStatus status = parser.execute(args("start -d"));
-        assertStatus(status, OK);
-        assertThat(System.getProperty("es.foreground"), is("false"));
+        execute();
+        assertSystemProperty("es.foreground", null);
+        assertShouldRun(true);
     }
 
-    public void testThatNotDaemonizingDoesNotConfigureProperties() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
+    public void testDaemonize() throws Exception {
         registerProperties("es.foreground");
 
-        ExitStatus status = parser.execute(args("start"));
-        assertStatus(status, OK);
-        assertThat(System.getProperty("es.foreground"), is(nullValue()));
+        execute("-d");
+        assertSystemProperty("es.foreground", "false");
+        assertShouldRun(true);
+
+        System.clearProperty("es.foreground");
+        execute("--daemonize");
+        assertSystemProperty("es.foreground", "false");
+        assertShouldRun(true);
     }
 
-    public void testThatJavaPropertyStyleArgumentsCanBeParsed() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
+    public void testConfig() throws Exception {
         registerProperties("es.foo", "es.spam");
 
-        ExitStatus status = parser.execute(args("start -Dfoo=bar -Dspam=eggs"));
-        assertStatus(status, OK);
+        execute("-Efoo=bar", "-Espam=eggs");
         assertSystemProperty("es.foo", "bar");
         assertSystemProperty("es.spam", "eggs");
+        assertShouldRun(true);
     }
 
-    public void testThatJavaPropertyStyleArgumentsWithEsPrefixAreNotPrefixedTwice() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        registerProperties("es.spam", "es.pidfile");
-
-        ExitStatus status = parser.execute(args("start -Des.pidfile=/path/to/foo/elasticsearch/distribution/zip/target/integ-tests/es.pid -Dspam=eggs"));
-        assertStatus(status, OK);
-        assertThat(System.getProperty("es.es.pidfile"), is(nullValue()));
-        assertSystemProperty("es.pidfile", "/path/to/foo/elasticsearch/distribution/zip/target/integ-tests/es.pid");
-        assertSystemProperty("es.spam", "eggs");
-    }
-
-    public void testThatUnknownLongOptionsCanBeParsed() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        registerProperties("es.network.host", "es.my.option");
-
-        ExitStatus status = parser.execute(args("start --network.host 127.0.0.1 --my.option=true"));
-        assertStatus(status, OK);
-        assertSystemProperty("es.network.host", "127.0.0.1");
-        assertSystemProperty("es.my.option", "true");
-    }
-
-    public void testThatUnknownLongOptionsNeedAValue() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        registerProperties("es.network.host");
-
-        ExitStatus status = parser.execute(args("start --network.host"));
-        assertStatus(status, USAGE);
-        String output = terminal.getOutput();
-        assertTrue(output, output.contains("Parameter [network.host] needs value"));
-
-        terminal.reset();
-        status = parser.execute(args("start --network.host --foo"));
-        assertStatus(status, USAGE);
-        output = terminal.getOutput();
-        assertTrue(output, output.contains("Parameter [network.host] needs value"));
-    }
-
-    public void testParsingErrors() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-
-        // unknown params
-        ExitStatus status = parser.execute(args("version --unknown-param /tmp/pid"));
-        assertStatus(status, USAGE);
-        String output = terminal.getOutput();
-        assertTrue(output, output.contains("Unrecognized option: --unknown-param"));
-
-        // single dash in extra params
-        terminal.reset();
-        parser = new BootstrapCLIParser(terminal);
-        status = parser.execute(args("start -network.host 127.0.0.1"));
-        assertStatus(status, USAGE);
-        output = terminal.getOutput();
-        assertTrue(output, output.contains("Parameter [-network.host]does not start with --"));
-
-        // never ended parameter
-        terminal = new MockTerminal();
-        parser = new BootstrapCLIParser(terminal);
-        status = parser.execute(args("start --network.host"));
-        assertStatus(status, USAGE);
-        output = terminal.getOutput();
-        assertTrue(output, output.contains("Parameter [network.host] needs value"));
-
-        // free floating value
-        terminal = new MockTerminal();
-        parser = new BootstrapCLIParser(terminal);
-        status = parser.execute(args("start 127.0.0.1"));
-        assertStatus(status, USAGE);
-        output = terminal.getOutput();
-        assertTrue(output, output.contains("Parameter [127.0.0.1]does not start with --"));
-    }
-
-    public void testHelpWorks() throws Exception {
-        List<Tuple<String, String>> tuples = new ArrayList<>();
-        tuples.add(new Tuple<>("version --help", "elasticsearch-version.help"));
-        tuples.add(new Tuple<>("version -h", "elasticsearch-version.help"));
-        tuples.add(new Tuple<>("start --help", "elasticsearch-start.help"));
-        tuples.add(new Tuple<>("start -h", "elasticsearch-start.help"));
-        tuples.add(new Tuple<>("--help", "elasticsearch.help"));
-        tuples.add(new Tuple<>("-h", "elasticsearch.help"));
-
-        for (Tuple<String, String> tuple : tuples) {
-            terminal.reset();
-            BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-            ExitStatus status = parser.execute(args(tuple.v1()));
-            assertStatus(status, OK_AND_EXIT);
-            assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/bootstrap/" + tuple.v2());
-        }
-    }
-
-    public void testThatSpacesInParametersAreSupported() throws Exception {
-        // emulates: bin/elasticsearch --node.name "'my node with spaces'" --pidfile "'/tmp/my pid.pid'"
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        registerProperties("es.pidfile", "es.my.param");
-
-        ExitStatus status = parser.execute("start", "--pidfile", "foo with space", "--my.param", "my awesome neighbour");
-        assertStatus(status, OK);
-        assertSystemProperty("es.pidfile", "foo with space");
-        assertSystemProperty("es.my.param", "my awesome neighbour");
-
-    }
-
-    public void testThatHelpfulErrorMessageIsGivenWhenParametersAreOutOfOrder() throws Exception {
-        BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
+    public void testConfigMalformed() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-                parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
+            execute("-Efoo");
         });
-        assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
-        assertNull(System.getProperty("es.foo"));
+        assertTrue(e.getMessage(), e.getMessage().contains("Malformed elasticsearch setting"));
     }
 
     private void registerProperties(String ... systemProperties) {
@@ -264,9 +162,5 @@ public class BootstrapCliParserTests extends CliToolTestCase {
     private void assertSystemProperty(String name, String expectedValue) throws Exception {
         String msg = String.format(Locale.ROOT, "Expected property %s to be %s, terminal output was %s", name, expectedValue, terminal.getOutput());
         assertThat(msg, System.getProperty(name), is(expectedValue));
-    }
-
-    private void assertStatus(ExitStatus status, ExitStatus expectedStatus) throws Exception {
-        assertThat(String.format(Locale.ROOT, "Expected status to be [%s], but was [%s], terminal output was %s", expectedStatus, status, terminal.getOutput()), status, is(expectedStatus));
     }
 }

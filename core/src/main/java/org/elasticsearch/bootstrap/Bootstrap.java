@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -218,16 +217,9 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
-    static void init(String[] args) throws Throwable {
+    static void init() throws Throwable {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
-
-        BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
-        CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
-
-        if (CliTool.ExitStatus.OK != status) {
-            exit(status.status());
-        }
 
         INSTANCE = new Bootstrap();
 
@@ -305,14 +297,6 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#err")
     private static void closeSysError() {
         System.err.close();
-    }
-
-    @SuppressForbidden(reason = "System#err")
-    private static void sysError(String line, boolean flush) {
-        System.err.println(line);
-        if (flush) {
-            System.err.flush();
-        }
     }
 
     private static void checkForCustomConfFile() {

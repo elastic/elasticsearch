@@ -47,7 +47,7 @@ public class MockTerminal extends Terminal {
     @Override
     public String readText(String prompt) {
         if (textInput.isEmpty()) {
-            return null;
+            throw new IllegalStateException("No text input configured for prompt [" + prompt + "]");
         }
         return textInput.removeFirst();
     }
@@ -55,7 +55,7 @@ public class MockTerminal extends Terminal {
     @Override
     public char[] readSecret(String prompt) {
         if (secretInput.isEmpty()) {
-            return null;
+            throw new IllegalStateException("No secret input configured for prompt [" + prompt + "]");
         }
         return secretInput.removeFirst().toCharArray();
     }

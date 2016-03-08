@@ -21,6 +21,8 @@ package org.elasticsearch.bootstrap;
 
 import java.io.IOException;
 
+import org.elasticsearch.common.cli.Terminal;
+
 /**
  * This class starts elasticsearch.
  */
@@ -32,9 +34,16 @@ public final class Elasticsearch {
     /**
      * Main entry point for starting elasticsearch
      */
-    public static void main(String[] args) throws StartupError {
+    public static void main(String[] args) throws Exception {
+        BootstrapCliParser parser = new BootstrapCliParser();
+        parser.main(args, Terminal.DEFAULT);
+
+        if (parser.shouldRun() == false) {
+            return;
+        }
+
         try {
-            Bootstrap.init(args);
+            Bootstrap.init();
         } catch (Throwable t) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

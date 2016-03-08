@@ -144,8 +144,12 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             charFilters.add(parser.text());
                         }
                         analyzeRequest.charFilters(charFilters.toArray(new String[charFilters.size()]));
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN) && token == XContentParser.Token.VALUE_BOOLEAN) {
-                        analyzeRequest.explain(parser.booleanValue());
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN)) {
+                        if (parser.isBooleanValue()) {
+                            analyzeRequest.explain(parser.booleanValue());
+                        } else {
+                            throw new IllegalArgumentException(currentFieldName + " must be either 'true' or 'false'");
+                        }
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY){
                         List<String> attributes = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

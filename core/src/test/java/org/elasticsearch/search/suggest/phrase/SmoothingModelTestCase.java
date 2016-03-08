@@ -129,7 +129,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         Document doc = new Document();
         doc.add(new Field("field", "someText", TextField.TYPE_NOT_STORED));
         writer.addDocument(doc);
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
 
         WordScorer wordScorer = testModel.buildWordScorerFactory().newScorer(ir, MultiFields.getTerms(ir, "field"), "field", 0.9d,
                 BytesRefs.toBytesRef(" "));

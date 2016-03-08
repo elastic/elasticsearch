@@ -276,7 +276,7 @@ public class FunctionScoreTests extends ESTestCase {
         d.add(new TextField("_uid", "1", Field.Store.YES));
         w.addDocument(d);
         w.commit();
-        reader = DirectoryReader.open(w, true);
+        reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
     }
 
@@ -634,13 +634,11 @@ public class FunctionScoreTests extends ESTestCase {
         ScoreFunction otherFunciton = function == null ? new DummyScoreFunction(combineFunction) : null;
         FunctionScoreQuery diffFunction = new FunctionScoreQuery(q.getSubQuery(), otherFunciton, minScore, combineFunction, maxBoost);
         FunctionScoreQuery diffMaxBoost = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction, maxBoost == 1.0f ? 0.9f : 1.0f);
-        q1.setBoost(3.0f);
         FunctionScoreQuery[] queries = new FunctionScoreQuery[] {
             diffFunction,
             diffMinScore,
             diffQuery,
             q,
-            q1,
             diffMaxBoost
         };
         final int numIters = randomIntBetween(20, 100);
@@ -678,7 +676,6 @@ public class FunctionScoreTests extends ESTestCase {
         FiltersFunctionScoreQuery diffMinScore = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, new FilterFunction[] {function}, maxBoost, minScore == null ? 0.9f : null, combineFunction);
         FilterFunction otherFunc = new FilterFunction(new TermQuery(new Term("filter", "other_query")), scoreFunction);
         FiltersFunctionScoreQuery diffFunc = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode, randomBoolean() ? new FilterFunction[] {function, otherFunc} : new FilterFunction[] {otherFunc}, maxBoost, minScore, combineFunction);
-        q1.setBoost(3.0f);
 
         FiltersFunctionScoreQuery[] queries = new FiltersFunctionScoreQuery[] {
             diffQuery,
@@ -687,7 +684,6 @@ public class FunctionScoreTests extends ESTestCase {
             diffMode,
             diffFunc,
             q,
-            q1,
             diffCombineFunc
         };
         final int numIters = randomIntBetween(20, 100);

@@ -30,8 +30,8 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.LongsRef;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
@@ -459,7 +459,7 @@ public final class OrdinalsBuilder implements Closeable {
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
                 // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return NumericUtils.getPrefixCodedLongShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
+                return LegacyNumericUtils.getPrefixCodedLongShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
             }
         };
     }
@@ -475,7 +475,7 @@ public final class OrdinalsBuilder implements Closeable {
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
                 // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return NumericUtils.getPrefixCodedIntShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
+                return LegacyNumericUtils.getPrefixCodedIntShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
             }
         };
     }

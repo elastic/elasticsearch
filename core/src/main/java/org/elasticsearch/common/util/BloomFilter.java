@@ -388,7 +388,7 @@ public class BloomFilter {
         }
 
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_LONG * data.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16;
+            return Long.BYTES * data.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16;
         }
     }
 

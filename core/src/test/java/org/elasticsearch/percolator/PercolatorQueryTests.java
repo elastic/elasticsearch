@@ -147,7 +147,9 @@ public class PercolatorQueryTests extends ESTestCase {
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        // don't use newSearcher, which randomizes similarity. if it gets classic sim, the test eats it,
+        // as the score becomes 1 due to querynorm.
+        IndexSearcher shardSearcher = new IndexSearcher(directoryReader);
 
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());

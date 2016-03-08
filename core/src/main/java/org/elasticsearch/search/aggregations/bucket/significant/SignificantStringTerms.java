@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,7 +109,7 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
 
         @Override
         int compareTerm(SignificantTerms.Bucket other) {
-            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
+            return termBytes.compareTo(((Bucket) other).termBytes);
         }
 
         @Override

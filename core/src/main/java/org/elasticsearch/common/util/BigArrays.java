@@ -41,9 +41,9 @@ public class BigArrays {
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
-    public static final int BYTE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_BYTE;
-    public static final int INT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_INT;
-    public static final int LONG_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
+    public static final int BYTE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES;
+    public static final int INT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / Integer.BYTES;
+    public static final int LONG_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / Long.BYTES;
     public static final int OBJECT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     /** Returns the next size to grow when working with parallel arrays that may have different page sizes or number of bytes per element. */
@@ -490,7 +490,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, BYTE_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_BYTE);
+        final long newSize = overSize(minSize, BYTE_PAGE_SIZE, 1);
         return resize(array, newSize);
     }
 
@@ -573,7 +573,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, INT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_INT);
+        final long newSize = overSize(minSize, INT_PAGE_SIZE, Integer.BYTES);
         return resize(array, newSize);
     }
 
@@ -623,7 +623,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, LONG_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_LONG);
+        final long newSize = overSize(minSize, LONG_PAGE_SIZE, Long.BYTES);
         return resize(array, newSize);
     }
 
@@ -670,7 +670,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, LONG_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_LONG);
+        final long newSize = overSize(minSize, LONG_PAGE_SIZE, Long.BYTES);
         return resize(array, newSize);
     }
 
@@ -717,7 +717,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, INT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_FLOAT);
+        final long newSize = overSize(minSize, INT_PAGE_SIZE, Float.BYTES);
         return resize(array, newSize);
     }
 

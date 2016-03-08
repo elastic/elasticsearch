@@ -69,8 +69,6 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     /** Return an "upgraded" view of the reader. */
     static CodecReader filter(CodecReader reader) throws IOException {
-        // convert 0.90.x _uid payloads to _version docvalues if needed
-        reader = VersionFieldUpgrader.wrap(reader);
         // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid? 
         // the previous code never did this, so some indexes carry around trash.
         return reader;

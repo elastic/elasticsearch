@@ -173,8 +173,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         w.setCheckIndexOnClose(false); // we do this on the index level
         w.setPreventDoubleWrite(preventDoubleWrite);
         // TODO: make this test robust to virus scanner
-        w.setEnableVirusScanner(false);
-        w.setNoDeleteOpenFile(noDeleteOpenFile);
+        w.setAssertNoDeleteOpenFile(false);
         w.setUseSlowOpenClosers(false);
         LuceneTestCase.closeAfterSuite(new CloseableDirectory(w));
         return w;

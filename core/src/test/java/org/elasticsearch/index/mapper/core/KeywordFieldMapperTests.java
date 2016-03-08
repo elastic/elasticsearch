@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -199,5 +200,36 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+    }
+
+    public void testIndexOptions() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "keyword")
+                .field("index_options", "freqs").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "1234")
+                .endObject()
+                .bytes());
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(IndexOptions.DOCS_AND_FREQS, fields[0].fieldType().indexOptions());
+
+        for (String indexOptions : Arrays.asList("positions", "offsets")) {
+            final String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
+                    .startObject("properties").startObject("field").field("type", "keyword")
+                    .field("index_options", indexOptions).endObject().endObject()
+                    .endObject().endObject().string();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> parser.parse("type", new CompressedXContent(mapping2)));
+            assertEquals("The [keyword] field does not support positions, got [index_options]=" + indexOptions, e.getMessage());
+        }
     }
 }

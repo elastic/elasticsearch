@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.numeric;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
@@ -623,8 +623,8 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         // check the tokenstream actually used by the indexer
         TokenStream ts = field.tokenStream(null, null);
-        assertThat(ts, instanceOf(NumericTokenStream.class));
-        assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
+        assertThat(ts, instanceOf(LegacyNumericTokenStream.class));
+        assertEquals(expected, ((LegacyNumericTokenStream)ts).getPrecisionStep());
     }
 
     public void testTermVectorsBackCompat() throws Exception {

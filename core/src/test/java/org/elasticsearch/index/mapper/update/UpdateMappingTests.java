@@ -256,7 +256,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testTimestampParsing() throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
+        IndexService indexService = createIndex("test");
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
         boolean enabled = randomBoolean();
         indexMapping.startObject()

@@ -1,5 +1,11 @@
 "Ingest plugin installed":
     - do:
-        cluster.stats: {}
+        cluster.state: {}
 
-    - match:  { nodes.plugins.0.name: ingest-geoip  }
+    - set: {master_node: master}
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: ingest-geoip  }
+    - match:  { nodes.$master.ingest.processors.3.type: geoip }

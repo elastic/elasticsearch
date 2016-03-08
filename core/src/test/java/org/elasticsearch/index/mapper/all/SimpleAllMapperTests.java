@@ -433,19 +433,6 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
         }
 
-
-        mapping = jsonBuilder().startObject().startObject("type")
-            .startObject("_all")
-                .startObject("fielddata")
-                    .field("format", "doc_values")
-            .endObject().endObject().endObject().endObject().string();
-        Settings legacySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        try {
-            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
-        }
     }
 
     public void testAutoBoost() throws Exception {

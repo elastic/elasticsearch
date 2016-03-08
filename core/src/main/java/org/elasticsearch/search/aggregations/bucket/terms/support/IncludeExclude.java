@@ -518,13 +518,13 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
                 double dval=Double.parseDouble(val.utf8ToString());
-                result.addAccept( NumericUtils.doubleToSortableLong(dval));
+                result.addAccept(NumericUtils.doubleToSortableLong(dval));
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
                 double dval=Double.parseDouble(val.utf8ToString());
-                result.addReject( NumericUtils.doubleToSortableLong(dval));
+                result.addReject(NumericUtils.doubleToSortableLong(dval));
             }
         }
         return result;

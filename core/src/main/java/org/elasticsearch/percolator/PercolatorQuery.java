@@ -115,10 +115,6 @@ final class PercolatorQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        if (getBoost() != 1f) {
-            return super.rewrite(reader);
-        }
-
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
             return new PercolatorQuery(rewritten, percolatorIndexSearcher, percolatorQueries);

@@ -36,7 +36,7 @@ import java.util.Objects;
  */
 public class StoreFileMetaData implements Writeable {
 
-    public static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8_0;
+    public static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_5_0_0;
 
     private final String name;
 

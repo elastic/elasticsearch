@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
@@ -62,14 +63,9 @@ public class EsExecutors {
 
     public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, ThreadContext contextHolder) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        // we force the execution, since we might run into concurrency issues in offer for ScalingBlockingQueue
         EsThreadPoolExecutor executor = new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
         queue.executor = executor;
         return executor;
-    }
-
-    public static EsThreadPoolExecutor newCached(String name, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, ThreadContext contextHolder) {
-        return new EsThreadPoolExecutor(name, 0, Integer.MAX_VALUE, keepAliveTime, unit, new SynchronousQueue<Runnable>(), threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
     public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity, ThreadFactory threadFactory, ThreadContext contextHolder) {
@@ -151,9 +147,17 @@ public class EsExecutors {
 
         @Override
         public boolean offer(E e) {
+            // first try to transfer to a waiting worker thread
             if (!tryTransfer(e)) {
+                // check if there might be spare capacity in the thread
+                // pool executor
                 int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
                 if (left > 0) {
+                    // reject queuing the task to force the thread pool
+                    // executor to add a worker if it can; combined
+                    // with ForceQueuePolicy, this causes the thread
+                    // pool to always scale up to max pool size and we
+                    // only queue when there is no spare capacity
                     return false;
                 } else {
                     return super.offer(e);

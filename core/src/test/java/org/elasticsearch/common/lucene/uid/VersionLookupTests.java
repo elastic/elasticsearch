@@ -51,7 +51,7 @@ public class VersionLookupTests extends ESTestCase {
         doc.add(new Field(UidFieldMapper.NAME, "6", UidFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         writer.addDocument(doc);
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
         PerThreadIDAndVersionLookup lookup = new PerThreadIDAndVersionLookup(segment.reader());
         // found doc
@@ -79,7 +79,7 @@ public class VersionLookupTests extends ESTestCase {
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         writer.addDocument(doc);
         writer.addDocument(doc);
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
         PerThreadIDAndVersionLookup lookup = new PerThreadIDAndVersionLookup(segment.reader());
         // return the last doc when there are duplicates

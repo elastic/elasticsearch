@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;

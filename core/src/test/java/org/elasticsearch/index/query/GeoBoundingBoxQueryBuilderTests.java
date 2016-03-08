@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.io.GeohashUtils;
-import com.spatial4j.core.shape.Rectangle;
+import org.locationtech.spatial4j.io.GeohashUtils;
+import org.locationtech.spatial4j.shape.Rectangle;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.Version;
@@ -251,7 +251,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 ConstantScoreQuery result = (ConstantScoreQuery) query;
                 BooleanQuery bboxFilter = (BooleanQuery) result.getQuery();
                 for (BooleanClause clause : bboxFilter.clauses()) {
-                    NumericRangeQuery boundary = (NumericRangeQuery) clause.getQuery();
+                    LegacyNumericRangeQuery boundary = (LegacyNumericRangeQuery) clause.getQuery();
                     if (boundary.getMax() != null) {
                         assertTrue("If defined, non of the maximum range values should be larger than 180", boundary.getMax().intValue() <= 180);
                     }

@@ -20,9 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -44,14 +42,8 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
     }
 
-    @SuppressWarnings("deprecation")
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version version = this.version == Version.LUCENE_4_3 ? Version.LUCENE_4_4 : this.version; // we supported it since 4.3
-        if (version.onOrAfter(Version.LUCENE_4_3)) {
-            return new NGramTokenFilter(tokenStream, minGram, maxGram);
-        } else {
-            return new Lucene43NGramTokenFilter(tokenStream, minGram, maxGram);
-        }
+        return new NGramTokenFilter(tokenStream, minGram, maxGram);
     }
 }

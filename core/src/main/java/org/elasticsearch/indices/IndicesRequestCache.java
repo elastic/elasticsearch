@@ -228,7 +228,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_LONG + value.length();
+            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + Long.BYTES + value.length();
         }
 
         @Override

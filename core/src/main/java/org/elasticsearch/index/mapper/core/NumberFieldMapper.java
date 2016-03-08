@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -129,7 +129,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
 
     public static abstract class NumberFieldType extends MappedFieldType {
 
-        public NumberFieldType(NumericType numericType) {
+        public NumberFieldType(LegacyNumericType numericType) {
             setTokenized(false);
             setOmitNorms(true);
             setIndexOptions(IndexOptions.DOCS);
@@ -295,38 +295,38 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     // used to we can use a numeric field in a document that is then parsed twice!
     public abstract static class CustomNumericField extends Field {
 
-        private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
+        private ThreadLocal<LegacyNumericTokenStream> tokenStream = new ThreadLocal<LegacyNumericTokenStream>() {
             @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(fieldType().numericPrecisionStep());
+            protected LegacyNumericTokenStream initialValue() {
+                return new LegacyNumericTokenStream(fieldType().numericPrecisionStep());
             }
         };
 
-        private static ThreadLocal<NumericTokenStream> tokenStream4 = new ThreadLocal<NumericTokenStream>() {
+        private static ThreadLocal<LegacyNumericTokenStream> tokenStream4 = new ThreadLocal<LegacyNumericTokenStream>() {
             @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(4);
+            protected LegacyNumericTokenStream initialValue() {
+                return new LegacyNumericTokenStream(4);
             }
         };
 
-        private static ThreadLocal<NumericTokenStream> tokenStream8 = new ThreadLocal<NumericTokenStream>() {
+        private static ThreadLocal<LegacyNumericTokenStream> tokenStream8 = new ThreadLocal<LegacyNumericTokenStream>() {
             @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(8);
+            protected LegacyNumericTokenStream initialValue() {
+                return new LegacyNumericTokenStream(8);
             }
         };
 
-        private static ThreadLocal<NumericTokenStream> tokenStream16 = new ThreadLocal<NumericTokenStream>() {
+        private static ThreadLocal<LegacyNumericTokenStream> tokenStream16 = new ThreadLocal<LegacyNumericTokenStream>() {
             @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(16);
+            protected LegacyNumericTokenStream initialValue() {
+                return new LegacyNumericTokenStream(16);
             }
         };
 
-        private static ThreadLocal<NumericTokenStream> tokenStreamMax = new ThreadLocal<NumericTokenStream>() {
+        private static ThreadLocal<LegacyNumericTokenStream> tokenStreamMax = new ThreadLocal<LegacyNumericTokenStream>() {
             @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(Integer.MAX_VALUE);
+            protected LegacyNumericTokenStream initialValue() {
+                return new LegacyNumericTokenStream(Integer.MAX_VALUE);
             }
         };
 
@@ -337,7 +337,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             }
         }
 
-        protected NumericTokenStream getCachedStream() {
+        protected LegacyNumericTokenStream getCachedStream() {
             if (fieldType().numericPrecisionStep() == 4) {
                 return tokenStream4.get();
             } else if (fieldType().numericPrecisionStep() == 8) {

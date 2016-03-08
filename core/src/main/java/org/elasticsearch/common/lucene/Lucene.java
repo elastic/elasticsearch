@@ -88,7 +88,7 @@ import java.util.Objects;
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene54";
+    public static final String LATEST_CODEC = "Lucene60";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -236,13 +236,8 @@ public class Lucene {
             protected Object doBody(String segmentFileName) throws IOException {
                 try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
                     final int format = input.readInt();
-                    final int actualFormat;
                     if (format == CodecUtil.CODEC_MAGIC) {
-                        // 4.0+
-                        actualFormat = CodecUtil.checkHeaderNoMagic(input, "segments", SegmentInfos.VERSION_40, Integer.MAX_VALUE);
-                        if (actualFormat >= SegmentInfos.VERSION_48) {
-                            CodecUtil.checksumEntireFile(input);
-                        }
+                        CodecUtil.checksumEntireFile(input);
                     }
                     // legacy....
                 }
@@ -382,7 +377,7 @@ public class Lucene {
                     writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
                 } else {
                     writeSortType(out, sortField.getType());
-                    writeMissingValue(out, sortField.missingValue);
+                    writeMissingValue(out, sortField.getMissingValue());
                 }
                 out.writeBoolean(sortField.getReverse());
             }
@@ -684,7 +679,7 @@ public class Lucene {
             segmentsFileName = infos.getSegmentsFileName();
             this.dir = dir;
             userData = infos.getUserData();
-            files = Collections.unmodifiableCollection(infos.files(dir, true));
+            files = Collections.unmodifiableCollection(infos.files(true));
             generation = infos.getGeneration();
             segmentCount = infos.size();
         }

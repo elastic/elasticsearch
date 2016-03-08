@@ -35,8 +35,6 @@ public class FieldSortBuilder extends SortBuilder {
 
     private Object missing;
 
-    private Boolean ignoreUnmapped;
-
     private String unmappedType;
 
     private String sortMode;
@@ -73,17 +71,6 @@ public class FieldSortBuilder extends SortBuilder {
     @Override
     public FieldSortBuilder missing(Object missing) {
         this.missing = missing;
-        return this;
-    }
-
-    /**
-     * Sets if the field does not exists in the index, it should be ignored and not sorted by or not. Defaults
-     * to <tt>false</tt> (not ignoring).
-     * @deprecated Use {@link #unmappedType(String)} instead.
-     */
-    @Deprecated
-    public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
-        this.ignoreUnmapped = ignoreUnmapped;
         return this;
     }
 
@@ -137,9 +124,6 @@ public class FieldSortBuilder extends SortBuilder {
         }
         if (missing != null) {
             builder.field("missing", missing);
-        }
-        if (ignoreUnmapped != null) {
-            builder.field(SortParseElement.IGNORE_UNMAPPED.getPreferredName(), ignoreUnmapped);
         }
         if (unmappedType != null) {
             builder.field(SortParseElement.UNMAPPED_TYPE.getPreferredName(), unmappedType);

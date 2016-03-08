@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,7 +44,6 @@ import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.node.service.NodeService;
 
 import java.util.HashSet;
 import java.util.Queue;
@@ -82,11 +80,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
-    }
-
-    @Override
-    public void setNodeService(@Nullable NodeService nodeService) {
-        // nothing to do here
     }
 
     @Override

@@ -50,13 +50,15 @@ public class RestListTasksAction extends BaseRestHandler {
         TaskId taskId = new TaskId(request.param("taskId"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
+        boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.taskId(taskId);
-        listTasksRequest.nodesIds(nodesIds);
-        listTasksRequest.detailed(detailed);
-        listTasksRequest.actions(actions);
-        listTasksRequest.parentTaskId(parentTaskId);
+        listTasksRequest.setTaskId(taskId);
+        listTasksRequest.setNodesIds(nodesIds);
+        listTasksRequest.setDetailed(detailed);
+        listTasksRequest.setActions(actions);
+        listTasksRequest.setParentTaskId(parentTaskId);
+        listTasksRequest.setWaitForCompletion(waitForCompletion);
         client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<>(channel));
     }
 }

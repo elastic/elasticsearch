@@ -345,7 +345,10 @@ public class TestTaskPlugin extends Plugin {
 
 
     public static class UnblockTestTasksRequest extends BaseTasksRequest<UnblockTestTasksRequest> {
-
+        @Override
+        public boolean match(Task task) {
+            return task instanceof TestTask && super.match(task);
+        }
     }
 
     public static class UnblockTestTasksResponse extends BaseTasksResponse {

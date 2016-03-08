@@ -42,6 +42,7 @@ dependencies {
   compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
+  compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
@@ -72,7 +73,7 @@ dependencies {
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
 
   // lucene spatial
-  compile "com.spatial4j:spatial4j:${versions.spatial4j}", optional
+  compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
   compile "com.vividsolutions:jts:${versions.jts}", optional
 
   // logging
@@ -169,11 +170,6 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.logging.Log', 
   'org.apache.commons.logging.LogFactory',
 
-  // from org.apache.lucene.sandbox.queries.regex.JakartaRegexpCapabilities$JakartaRegexMatcher (lucene-sandbox)
-  'org.apache.regexp.CharacterIterator', 
-  'org.apache.regexp.RE', 
-  'org.apache.regexp.REProgram', 
-
   // from org.jboss.netty.handler.ssl.OpenSslEngine (netty)
   'org.apache.tomcat.jni.Buffer', 
   'org.apache.tomcat.jni.Library', 
@@ -211,7 +207,7 @@ thirdPartyAudit.excludes = [
   'org.jboss.marshalling.MarshallingConfiguration', 
   'org.jboss.marshalling.Unmarshaller', 
 
-  // from com.spatial4j.core.io.GeoJSONReader (spatial4j)
+  // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser', 
 
   // from org.jboss.netty.container.osgi.NettyBundleActivator (netty)

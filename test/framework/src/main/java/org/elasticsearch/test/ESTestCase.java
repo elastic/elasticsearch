@@ -631,27 +631,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 
-    /** A runnable that can throw any checked exception. */
-    @FunctionalInterface
-    public interface ThrowingRunnable {
-        void run() throws Throwable;
-    }
-
-    /** Checks a specific exception class is thrown by the given runnable, and returns it. */
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
-        try {
-            runnable.run();
-        } catch (Throwable e) {
-            if (expectedType.isInstance(e)) {
-                return expectedType.cast(e);
-            }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName());
-            assertion.initCause(e);
-            throw assertion;
-        }
-        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
-    }
-
     protected static long spinForAtLeastOneMillisecond() {
         long nanosecondsInMillisecond = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
         // force at least one millisecond to elapse, but ensure the

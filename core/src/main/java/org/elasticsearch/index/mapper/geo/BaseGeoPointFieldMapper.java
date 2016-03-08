@@ -21,13 +21,15 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.spatial.util.GeoHashUtils;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,6 +58,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  */
 public abstract class BaseGeoPointFieldMapper extends FieldMapper implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
+    protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BaseGeoPointFieldMapper.class));
     public static class Names {
         public static final String LAT = "lat";
         public static final String LAT_SUFFIX = "." + LAT;
@@ -194,9 +197,13 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.enableLatLon(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("precision_step")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " precision_step parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {
@@ -483,7 +490,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         if (includeDefaults || fieldType().isLatLonEnabled() != GeoPointFieldMapper.Defaults.ENABLE_LATLON) {
             builder.field("lat_lon", fieldType().isLatLonEnabled());
         }
-        if (fieldType().isLatLonEnabled() && (includeDefaults || fieldType().latFieldType().numericPrecisionStep() != NumericUtils.PRECISION_STEP_DEFAULT)) {
+        if (fieldType().isLatLonEnabled() && (includeDefaults || fieldType().latFieldType().numericPrecisionStep() != LegacyNumericUtils.PRECISION_STEP_DEFAULT)) {
             builder.field("precision_step", fieldType().latFieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().isGeoHashEnabled() != Defaults.ENABLE_GEOHASH) {

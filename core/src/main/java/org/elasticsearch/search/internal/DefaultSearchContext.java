@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
@@ -233,9 +232,6 @@ public class DefaultSearchContext extends SearchContext {
         Query result;
         if (Queries.isConstantMatchAllQuery(query())) {
             result = new ConstantScoreQuery(searchFilter);
-            if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                result = new BoostQuery(result, query().getBoost());
-            }
         } else {
             result = new BooleanQuery.Builder()
                     .add(query, Occur.MUST)

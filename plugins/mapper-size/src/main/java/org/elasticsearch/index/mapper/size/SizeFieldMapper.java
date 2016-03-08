@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.Field;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
 
@@ -93,9 +91,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
-                    iterator.remove();
-                } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.store(parseStore(fieldName, fieldNode.toString(), parserContext));
                     iterator.remove();
                 }
             }

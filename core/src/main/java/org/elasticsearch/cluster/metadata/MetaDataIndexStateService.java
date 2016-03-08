@@ -19,12 +19,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,11 +39,14 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service responsible for submitting open/close index requests
@@ -78,7 +83,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<String> indicesToClose = new ArrayList<>();
+                Set<String> indicesToClose = new HashSet<>();
                 for (String index : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -92,6 +97,28 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 if (indicesToClose.isEmpty()) {
                     return currentState;
+                }
+
+                // Check if any of the indices to be closed are currently being restored from a snapshot and fail closing if such an index
+                // is found as closing an index that is being restored makes the index unusable (it cannot be recovered).
+                RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
+                if (restore != null) {
+                    Set<String> indicesToFail = null;
+                    for (RestoreInProgress.Entry entry : restore.entries()) {
+                        for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
+                            if (!shard.value.state().completed()) {
+                                if (indicesToClose.contains(shard.key.getIndexName())) {
+                                    if (indicesToFail == null) {
+                                        indicesToFail = new HashSet<>();
+                                    }
+                                    indicesToFail.add(shard.key.getIndexName());
+                                }
+                            }
+                        }
+                    }
+                    if (indicesToFail != null) {
+                        throw new IllegalArgumentException("Cannot close indices that are being restored: " + indicesToFail);
+                    }
                 }
 
                 logger.info("closing indices [{}]", indicesAsString);

@@ -64,7 +64,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         writer.addDocument(doc.rootDoc());
         writer.addDocument(doc.rootDoc());
 
-        IndexReader reader = DirectoryReader.open(writer, true);
+        IndexReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field1").fieldType().termQuery("value1", null), 10);

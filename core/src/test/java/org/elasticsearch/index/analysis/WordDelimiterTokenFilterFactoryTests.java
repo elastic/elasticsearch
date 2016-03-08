@@ -146,23 +146,4 @@ public class WordDelimiterTokenFilterFactoryTests extends ESTokenStreamTestCase 
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-
-    /** Back compat:
-     * old offset order when doing both parts and concatenation: PowerShot is a synonym of Shot */
-    public void testDeprecatedPartsAndCatenate() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
-                .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
-                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
-                .put("index.analysis.filter.my_word_delimiter.version", "4.7")
-                .build());
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
-        String source = "PowerShot";
-        String[] expected = new String[]{"Power", "Shot", "PowerShot" };
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader(source));
-        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
-    }
-
 }

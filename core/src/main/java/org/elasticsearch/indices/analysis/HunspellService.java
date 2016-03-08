@@ -19,6 +19,8 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -183,7 +185,9 @@ public class HunspellService extends AbstractComponent {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            return new Dictionary(affixStream, dicStreams, ignoreCase);
+            try (Directory tmp = new SimpleFSDirectory(env.tmpFile())) {
+                return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
+            }
 
         } catch (Exception e) {
             logger.error("Could not load hunspell dictionary [{}]", e, locale);

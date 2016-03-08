@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Circle;
+import org.locationtech.spatial4j.shape.Circle;
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;

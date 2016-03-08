@@ -70,7 +70,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
         String yaml =
                 "\"First test section\": \n" +
                         "  - skip:\n" +
-                        "      version:  \"0.90.0 - 0.90.7\"\n" +
+                        "      version:  \"2.0.0 - 2.2.0\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
                         "  - do :\n" +
                         "      catch: missing\n" +
@@ -87,8 +87,8 @@ public class TestSectionParserTests extends AbstractParserTestCase {
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.V_0_90_0));
-        assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(Version.V_0_90_7));
+        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
+        assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(Version.V_2_2_0));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);

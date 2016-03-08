@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -45,12 +46,12 @@ public final class SuggestParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.fieldData(),
-                context.shardTarget().index(), context.shardTarget().shardId());
+            context.shardTarget().shardId());
         context.suggest(suggestionSearchContext);
     }
 
-    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
-                                                 String index, int shardId) throws IOException {
+    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService,
+                                                 IndexFieldDataService fieldDataService, ShardId shardId) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
 
         BytesRef globalText = null;
@@ -119,7 +120,6 @@ public final class SuggestParseElement implements SearchParseElement {
             SuggestionContext suggestionContext = entry.getValue();
 
             suggestionContext.setShard(shardId);
-            suggestionContext.setIndex(index);
             SuggestUtils.verifySuggestion(mapperService, globalText, suggestionContext);
             suggestionSearchContext.addSuggestion(suggestionName, suggestionContext);
         }

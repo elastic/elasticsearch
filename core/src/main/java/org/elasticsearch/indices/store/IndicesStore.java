@@ -348,7 +348,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 return null;
             }
             ShardId shardId = request.shardId;
-            IndexService indexService = indicesService.indexService(shardId.getIndexName());
+            IndexService indexService = indicesService.indexService(shardId.getIndex());
             if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
                 return indexService.getShardOrNull(shardId.id());
             }

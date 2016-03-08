@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -42,8 +43,8 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     protected TimeValue timeout = DEFAULT_TIMEOUT;
 
     protected String index;
-    // -1 means its not set, allows to explicitly direct a request to a specific shard
-    protected int shardId = -1;
+    // null means its not set, allows to explicitly direct a request to a specific shard
+    protected ShardId shardId = null;
 
     private String concreteIndex;
 
@@ -115,7 +116,11 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readString();
-        shardId = in.readInt();
+        if (in.readBoolean()) {
+            shardId = ShardId.readShardId(in);
+        } else {
+            shardId = null;
+        }
         timeout = TimeValue.readTimeValue(in);
         concreteIndex = in.readOptionalString();
     }
@@ -124,7 +129,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        out.writeInt(shardId);
+        out.writeOptionalStreamable(shardId);
         timeout.writeTo(out);
         out.writeOptionalString(concreteIndex);
     }

@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.mapper.date;
 
-import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
+import org.apache.lucene.analysis.LegacyNumericTokenStream.LegacyNumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -48,11 +47,10 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -106,11 +104,11 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
 
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testParseLocal() {
@@ -156,7 +154,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .startObject()
                   .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
                   .field("date_field_de", "Mi, 06 Dez 2000 02:55:00 -0800")
-                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a successs!
+                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a success!
                 .endObject()
                 .bytes());
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");
@@ -191,7 +189,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         TokenStream tokenStream = doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.mappers().indexAnalyzer(), null);
         tokenStream.reset();
-        NumericTermAttribute nta = tokenStream.addAttribute(NumericTermAttribute.class);
+        LegacyNumericTermAttribute nta = tokenStream.addAttribute(LegacyNumericTermAttribute.class);
         List<Long> values = new ArrayList<>();
         while(tokenStream.incrementToken()) {
             values.add(nta.getRawValue());
@@ -199,7 +197,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         tokenStream = doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.mappers().indexAnalyzer(), null);
         tokenStream.reset();
-        nta = tokenStream.addAttribute(NumericTermAttribute.class);
+        nta = tokenStream.addAttribute(LegacyNumericTermAttribute.class);
         int pos = 0;
         while(tokenStream.incrementToken()) {
             assertThat(values.get(pos++), equalTo(nta.getRawValue()));
@@ -258,10 +256,10 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
             .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
-        NumericRangeQuery<Long> rangeQuery;
+        LegacyNumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext(null));
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true).rewrite(null);
+            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true).rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }
@@ -284,10 +282,10 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
-        NumericRangeQuery<Long> rangeQuery;
+        LegacyNumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext(null));
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true).rewrite(null);
+            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true).rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }

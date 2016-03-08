@@ -204,13 +204,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
 
-        // test if we still write it even if the shard is not active
-        ShardRouting inactiveRouting = TestShardRouting.newShardRouting(shard.shardRouting.index(), shard.shardRouting.shardId().id(), shard.shardRouting.currentNodeId(), null, null, true, ShardRoutingState.INITIALIZING);
-        shard.persistMetadata(inactiveRouting, shard.shardRouting);
-        shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, getShardStateMetadata(shard));
-        assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
-
+        // check that we don't write shard state metadata if persist == false
         ShardRouting updatedRouting = new ShardRouting(shard.shardRouting);
         TestShardRouting.relocate(updatedRouting, "some node", 42L);
         shard.updateRoutingEntry(updatedRouting, false);
@@ -218,39 +212,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertFalse("shard state persisted despite of persist=false", shardStateMetaData.equals(getShardStateMetadata(shard)));
         assertEquals("shard state persisted despite of persist=false", shardStateMetaData, new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
 
+        // check that we write shard state metadata if persist == true
         shard.updateRoutingEntry(routing, false); // move back state in IndexShard
         routing = new ShardRouting(updatedRouting);
         shard.updateRoutingEntry(routing, true);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
-    }
-
-    public void testDeleteShardState() throws IOException {
-        createIndex("test");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        IndexService test = indicesService.indexService("test");
-        IndexShard shard = test.getShardOrNull(0);
-        try {
-            shard.deleteShardState();
-            fail("shard is active metadata delete must fail");
-        } catch (IllegalStateException ex) {
-            // fine - only delete if non-active
-        }
-
-        ShardRouting routing = shard.routingEntry();
-        ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertEquals(shardStateMetaData, getShardStateMetadata(shard));
-
-        routing = TestShardRouting.newShardRouting(shard.shardId.getIndex(), shard.shardId.id(), routing.currentNodeId(), null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId());
-        shard.updateRoutingEntry(routing, true);
-        shard.deleteShardState();
-
-        assertNull("no shard state expected after delete on initializing", load(logger, env.availableShardPaths(shard.shardId)));
-
-
     }
 
     public void testFailShard() throws Exception {
@@ -973,7 +941,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch().get(), 1);
     }
 
-    public void testRecoveryFailsAfterMovingToRelocatedState() throws InterruptedException {
+    public void testRecoveryFailsAfterMovingToRelocatedState() throws InterruptedException, IOException {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -1206,7 +1174,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             .startObject("testtype")
             .startObject("properties")
             .startObject("foo")
-            .field("type", "string")
+            .field("type", "text")
             .endObject()
             .endObject().endObject().endObject()).get();
         ensureGreen();
@@ -1233,7 +1201,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 .startObject("testtype")
                 .startObject("properties")
                 .startObject("foo")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()).get();
         ensureGreen();
@@ -1262,7 +1230,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 .startObject("testtype")
                 .startObject("properties")
                 .startObject("foo")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()).get();
         ensureGreen();

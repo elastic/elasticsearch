@@ -19,15 +19,8 @@
 package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.core.IsNull;
 
@@ -158,7 +151,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-                .setType("document").setSource("simple", "type=string,analyzer=simple").get();
+                .setType("document").setSource("simple", "type=text,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
@@ -196,59 +189,12 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-    public void testParseXContentForAnalyzeReuqest() throws Exception {
-        BytesReference content =  XContentFactory.jsonBuilder()
-            .startObject()
-            .field("text", "THIS IS A TEST")
-            .field("tokenizer", "keyword")
-            .array("filters", "lowercase")
-            .endObject().bytes();
-
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-
-        RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
-
-        assertThat(analyzeRequest.text().length, equalTo(1));
-        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
-        assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
-        assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
-    }
-
-    public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-
-        try {
-            RestAnalyzeAction.buildFromContent(new BytesArray("{invalid_json}"), analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
-            fail("shouldn't get here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-        BytesReference invalidContent =XContentFactory.jsonBuilder()
-            .startObject()
-            .field("text", "THIS IS A TEST")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-
-        try {
-            RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
-            fail("shouldn't get here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
     public void testAnalyzerWithMultiValues() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=string,analyzer=simple,position_increment_gap=100").get();
+            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
 
@@ -401,7 +347,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=string,analyzer=simple,position_increment_gap=100").get();
+            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
@@ -437,7 +383,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=string,analyzer=simple,position_increment_gap=100").get();
+            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         //only analyzer =
         String[] texts = new String[]{"this is a PHISH", "the troubled text"};

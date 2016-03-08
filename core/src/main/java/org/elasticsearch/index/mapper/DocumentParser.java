@@ -35,9 +35,13 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
@@ -71,120 +75,149 @@ class DocumentParser implements Closeable {
         this.docMapper = docMapper;
     }
 
-    public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    final ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+        validateType(source);
+
+        source.type(docMapper.type());
+        final Mapping mapping = docMapper.mapping();
+        final ParseContext.InternalParseContext context = cache.get();
+        XContentParser parser = null;
+        try {
+            parser = parser(source);
+            context.reset(parser, new ParseContext.Document(), source);
+            validateStart(parser);
+            internalParseDocument(mapping, context, parser);
+            validateEnd(source, parser);
+        } catch (Throwable t) {
+            throw wrapInMapperParsingException(source, t);
+        } finally {
+            // only close the parser when its not provided externally
+            if (internalParser(source, parser)) {
+                parser.close();
+            }
+        }
+
+        reverseOrder(context);
+
+        ParsedDocument doc = parsedDocument(source, context, update(context, mapping));
+        // reset the context to free up memory
+        context.reset(null, null, null);
+        return doc;
+    }
+
+    private static void internalParseDocument(Mapping mapping, ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
+        final boolean emptyDoc = isEmptyDoc(mapping, parser);
+
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+            metadataMapper.preParse(context);
+        }
+
+        if (mapping.root.isEnabled() == false) {
+            // entire type is disabled
+            parser.skipChildren();
+        } else if (emptyDoc == false) {
+            Mapper update = parseObject(context, mapping.root, true);
+            if (update != null) {
+                context.addDynamicMappingsUpdate(update);
+            }
+        }
+
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+            metadataMapper.postParse(context);
+        }
+    }
+
+    private void validateType(SourceToParse source) {
         if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        ParseContext.InternalParseContext context = cache.get();
-
-        final Mapping mapping = docMapper.mapping();
         if (source.type() != null && !source.type().equals(docMapper.type())) {
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + docMapper.type() + "]");
         }
-        source.type(docMapper.type());
+    }
 
-        XContentParser parser = source.parser();
-        try {
-            if (parser == null) {
-                parser = XContentHelper.createParser(source.source());
-            }
-            context.reset(parser, new ParseContext.Document(), source);
+    private static XContentParser parser(SourceToParse source) throws IOException {
+        return source.parser() == null ? XContentHelper.createParser(source.source()) : source.parser();
+    }
 
-            // will result in START_OBJECT
-            XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new MapperParsingException("Malformed content, must start with an object");
-            }
+    private static boolean internalParser(SourceToParse source, XContentParser parser) {
+        return source.parser() == null && parser != null;
+    }
 
-            boolean emptyDoc = false;
-            if (mapping.root.isEnabled()) {
-                token = parser.nextToken();
-                if (token == XContentParser.Token.END_OBJECT) {
-                    // empty doc, we can handle it...
-                    emptyDoc = true;
-                } else if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
-                }
-            }
+    private static void validateStart(XContentParser parser) throws IOException {
+        // will result in START_OBJECT
+        XContentParser.Token token = parser.nextToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new MapperParsingException("Malformed content, must start with an object");
+        }
+    }
 
-            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                metadataMapper.preParse(context);
-            }
-
-            if (mapping.root.isEnabled() == false) {
-                // entire type is disabled
-                parser.skipChildren();
-            } else if (emptyDoc == false) {
-                Mapper update = parseObject(context, mapping.root, true);
-                if (update != null) {
-                    context.addDynamicMappingsUpdate(update);
-                }
-            }
-
-            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                metadataMapper.postParse(context);
-            }
-
+    private static void validateEnd(SourceToParse source, XContentParser parser) throws IOException {
+        XContentParser.Token token;// only check for end of tokens if we created the parser here
+        if (internalParser(source, parser)) {
             // try to parse the next token, this should be null if the object is ended properly
             // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
-            if (source.parser() == null && parser != null) {
-                // only check for end of tokens if we created the parser here
-                token = parser.nextToken();
-                if (token != null) {
-                    throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
-                }
-            }
-
-        } catch (Throwable e) {
-            // if its already a mapper parsing exception, no need to wrap it...
-            if (e instanceof MapperParsingException) {
-                throw (MapperParsingException) e;
-            }
-
-            // Throw a more meaningful message if the document is empty.
-            if (source.source() != null && source.source().length() == 0) {
-                throw new MapperParsingException("failed to parse, document is empty");
-            }
-
-            throw new MapperParsingException("failed to parse", e);
-        } finally {
-            // only close the parser when its not provided externally
-            if (source.parser() == null && parser != null) {
-                parser.close();
+            token = parser.nextToken();
+            if (token != null) {
+                throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
             }
         }
+    }
+
+    private static boolean isEmptyDoc(Mapping mapping, XContentParser parser) throws IOException {
+        if (mapping.root.isEnabled()) {
+            final XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.END_OBJECT) {
+                // empty doc, we can handle it...
+                return true;
+            } else if (token != XContentParser.Token.FIELD_NAME) {
+                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
+            }
+        }
+        return false;
+    }
+
+    private static void reverseOrder(ParseContext.InternalParseContext context) {
         // reverse the order of docs for nested docs support, parent should be last
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
         }
-        // apply doc boost
-        if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = new HashSet<>();
-            for (ParseContext.Document doc : context.docs()) {
-                encounteredFields.clear();
-                for (IndexableField field : doc) {
-                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
-                        if (!encounteredFields.contains(field.name())) {
-                            ((Field) field).setBoost(context.docBoost() * field.boost());
-                            encounteredFields.add(field.name());
-                        }
-                    }
-                }
-            }
-        }
+    }
 
+    private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
+        return new ParsedDocument(
+            context.uid(),
+            context.version(),
+            context.id(),
+            context.type(),
+            source.routing(),
+            source.timestamp(),
+            source.ttl(),
+            context.docs(),
+            context.source(),
+            update
+        ).parent(source.parent());
+    }
+
+
+    private static Mapping update(ParseContext.InternalParseContext context, Mapping mapping) {
         Mapper rootDynamicUpdate = context.dynamicMappingsUpdate();
-        Mapping update = null;
-        if (rootDynamicUpdate != null) {
-            update = mapping.mappingUpdate(rootDynamicUpdate);
+        return rootDynamicUpdate != null ? mapping.mappingUpdate(rootDynamicUpdate) : null;
+    }
+
+    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Throwable e) {
+        // if its already a mapper parsing exception, no need to wrap it...
+        if (e instanceof MapperParsingException) {
+            return (MapperParsingException) e;
         }
 
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
-            context.source(), update).parent(source.parent());
-        // reset the context to free up memory
-        context.reset(null, null, null);
-        return doc;
+        // Throw a more meaningful message if the document is empty.
+        if (source.source() != null && source.source().length() == 0) {
+            return new MapperParsingException("failed to parse, document is empty");
+        }
+
+        return new MapperParsingException("failed to parse", e);
     }
 
     static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
@@ -210,22 +243,7 @@ class DocumentParser implements Closeable {
 
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
-            context = context.createNestedContext(mapper.fullPath());
-            ParseContext.Document nestedDoc = context.doc();
-            ParseContext.Document parentDoc = nestedDoc.getParent();
-            // pre add the uid field if possible (id was already provided)
-            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
-            if (uidField != null) {
-                // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                // we also rely on this for UidField#loadVersion
-
-                // this is a deeply nested field
-                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            }
-            // the type of the nested doc starts with __, so we can identify that its a nested one in filters
-            // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
-            // across types (for example, with similar nested objects)
-            nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
+            context = nestedContext(context, mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -238,6 +256,15 @@ class DocumentParser implements Closeable {
         }
 
         ObjectMapper update = null;
+        update = innerParseObject(context, mapper, parser, currentFieldName, token, update);
+        // restore the enable path flag
+        if (nested.isNested()) {
+            nested(context, nested);
+        }
+        return update;
+    }
+
+    private static ObjectMapper innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser, String currentFieldName, XContentParser.Token token, ObjectMapper update) throws IOException {
         while (token != XContentParser.Token.END_OBJECT) {
             ObjectMapper newUpdate = null;
             if (token == XContentParser.Token.START_OBJECT) {
@@ -262,34 +289,50 @@ class DocumentParser implements Closeable {
                 }
             }
         }
-        // restore the enable path flag
-        if (nested.isNested()) {
-            ParseContext.Document nestedDoc = context.doc();
-            ParseContext.Document parentDoc = nestedDoc.getParent();
-            if (nested.isIncludeInParent()) {
-                for (IndexableField field : nestedDoc.getFields()) {
-                    if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
-                        continue;
-                    } else {
-                        parentDoc.add(field);
-                    }
-                }
-            }
-            if (nested.isIncludeInRoot()) {
-                ParseContext.Document rootDoc = context.rootDoc();
-                // don't add it twice, if its included in parent, and we are handling the master doc...
-                if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
-                    for (IndexableField field : nestedDoc.getFields()) {
-                        if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
-                            continue;
-                        } else {
-                            rootDoc.add(field);
-                        }
-                    }
-                }
+        return update;
+    }
+
+    private static void nested(ParseContext context, ObjectMapper.Nested nested) {
+        ParseContext.Document nestedDoc = context.doc();
+        ParseContext.Document parentDoc = nestedDoc.getParent();
+        if (nested.isIncludeInParent()) {
+            addFields(nestedDoc, parentDoc);
+        }
+        if (nested.isIncludeInRoot()) {
+            ParseContext.Document rootDoc = context.rootDoc();
+            // don't add it twice, if its included in parent, and we are handling the master doc...
+            if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
+                addFields(nestedDoc, rootDoc);
             }
         }
-        return update;
+    }
+
+    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+        for (IndexableField field : nestedDoc.getFields()) {
+            if (!field.name().equals(UidFieldMapper.NAME) && !field.name().equals(TypeFieldMapper.NAME)) {
+                rootDoc.add(field);
+            }
+        }
+    }
+
+    private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
+        context = context.createNestedContext(mapper.fullPath());
+        ParseContext.Document nestedDoc = context.doc();
+        ParseContext.Document parentDoc = nestedDoc.getParent();
+        // pre add the uid field if possible (id was already provided)
+        IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
+        if (uidField != null) {
+            // we don't need to add it as a full uid field in nested docs, since we don't need versioning
+            // we also rely on this for UidField#loadVersion
+
+            // this is a deeply nested field
+            nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        }
+        // the type of the nested doc starts with __, so we can identify that its a nested one in filters
+        // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
+        // across types (for example, with similar nested objects)
+        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
+        return context;
     }
 
     private static Mapper parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
@@ -448,9 +491,19 @@ class DocumentParser implements Closeable {
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", "string");
             if (builder == null) {
                 builder = new StringFieldMapper.Builder(currentFieldName);
+            }
+        } else if (fieldType instanceof TextFieldType) {
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
+            if (builder == null) {
+                builder = new TextFieldMapper.Builder(currentFieldName);
+            }
+        } else if (fieldType instanceof KeywordFieldType) {
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
+            if (builder == null) {
+                builder = new KeywordFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof DateFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
@@ -496,7 +549,7 @@ class DocumentParser implements Closeable {
             // we need to do it here so we can handle things like attachment templates, where calling
             // text (to see if its a date) causes the binary value to be cleared
             {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "text", null);
                 if (builder != null) {
                     return builder;
                 }
@@ -545,7 +598,7 @@ class DocumentParser implements Closeable {
             }
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
-                builder = new StringFieldMapper.Builder(currentFieldName);
+                builder = new TextFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {

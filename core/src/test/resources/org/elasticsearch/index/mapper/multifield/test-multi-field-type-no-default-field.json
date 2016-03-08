@@ -5,11 +5,10 @@
         "type": "multi_field",
         "fields": {
           "indexed": {
-            "type": "string",
-            "index": "analyzed"
+            "type": "text"
           },
           "not_indexed": {
-            "type": "string",
+            "type": "text",
             "index": "no",
             "store": true
           }

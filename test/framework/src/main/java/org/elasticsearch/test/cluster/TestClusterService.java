@@ -143,7 +143,11 @@ public class TestClusterService implements ClusterService {
     @Override
     public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         throw new UnsupportedOperationException();
+    }
 
+    @Override
+    public void removeInitialStateBlock(int blockId) throws IllegalStateException {
+        throw new UnsupportedOperationException();
     }
 
     @Override

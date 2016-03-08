@@ -73,6 +73,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             };
             transportService = new TransportService(Settings.EMPTY, transport, threadPool, new NamedWriteableRegistry());
             transportService.start();
+            transportService.acceptIncomingRequests();
             transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);
 
             nodesCount = randomIntBetween(1, 10);

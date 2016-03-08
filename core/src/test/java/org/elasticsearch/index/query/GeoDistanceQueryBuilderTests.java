@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.util.GeoEncodingUtils;
@@ -410,5 +410,11 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
     }
 }

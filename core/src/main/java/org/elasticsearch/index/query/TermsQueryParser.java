@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;

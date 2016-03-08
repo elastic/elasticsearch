@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,9 +38,10 @@ import java.util.function.BiFunction;
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
-public final class PipelineConfiguration implements Writeable<PipelineConfiguration>, ToXContent {
+public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration>
+        implements Writeable<PipelineConfiguration>, ToXContent {
 
-    private final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
+    final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
 
     public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
@@ -113,4 +115,22 @@ public final class PipelineConfiguration implements Writeable<PipelineConfigurat
         out.writeBytesReference(config);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PipelineConfiguration that = (PipelineConfiguration) o;
+
+        if (!id.equals(that.id)) return false;
+        return config.equals(that.config);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = id.hashCode();
+        result = 31 * result + config.hashCode();
+        return result;
+    }
 }

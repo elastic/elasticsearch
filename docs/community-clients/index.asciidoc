@@ -214,6 +214,9 @@ The following projects appear to be abandoned:
 * https://github.com/gphat/wabisabi[wabisabi]:
   Asynchronous REST API Scala client.
 
+* https://github.com/SumoLogic/elasticsearch-client[elasticsearch-client]:
+  Scala DSL that uses the REST API. Akka and AWS helpers included.
+
 The following project appears to be abandoned:
 
 * https://github.com/bsadeh/scalastic[scalastic]:

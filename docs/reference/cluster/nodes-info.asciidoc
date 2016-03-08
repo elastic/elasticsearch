@@ -17,7 +17,7 @@ The second command selectively retrieves nodes information of only
 
 By default, it just returns all attributes and core settings for a node.
 It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `transport`, `http` and `plugins`:
+`thread_pool`, `transport`, `http`, `plugins` and `ingest`:
 
 [source,js]
 --------------------------------------------------
@@ -118,6 +118,74 @@ The result will look similar to:
         "site" : false,
         "jvm" : true
       } ]
+    }
+  }
+}
+--------------------------------------------------
+
+[float]
+[[ingest-info]]
+==== Ingest information
+
+`ingest` - if set, the result will contain details about the available
+processors per node:
+
+* `type`: the processor type
+
+The result will look similar to:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster_name": "elasticsearch",
+  "nodes": {
+    "O70_wBv6S9aPPcAKdSUBtw": {
+      "ingest": {
+        "processors": [
+          {
+            "type": "date"
+          },
+          {
+            "type": "uppercase"
+          },
+          {
+            "type": "set"
+          },
+          {
+            "type": "lowercase"
+          },
+          {
+            "type": "gsub"
+          },
+          {
+            "type": "convert"
+          },
+          {
+            "type": "remove"
+          },
+          {
+            "type": "fail"
+          },
+          {
+            "type": "foreach"
+          },
+          {
+            "type": "split"
+          },
+          {
+            "type": "trim"
+          },
+          {
+            "type": "rename"
+          },
+          {
+            "type": "join"
+          },
+          {
+            "type": "append"
+          }
+        ]
+      }
     }
   }
 }

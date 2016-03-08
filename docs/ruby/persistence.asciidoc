@@ -80,11 +80,11 @@ The repository module provides a number of features and facilities to configure 
 as well as support for extending your own, custom repository class.
 
 Please refer to the
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#the-repository-pattern[documentation]
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#the-repository-pattern[documentation]
 for more information.
 
 Also, check out the
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application[example application] which demonstrates the usage patterns of the _repository_ approach to persistence.
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application[example application] which demonstrates the usage patterns of the _repository_ approach to persistence.
 
 === Active Record
 
@@ -219,8 +219,8 @@ article.save
 ------------------------------------
 
 Please see the extensive documentation in the library
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#the-activerecord-pattern[README]
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#the-activerecord-pattern[README]
 for detailed information.
 
 Also, check out the
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application-1[example application] which demonstrates the usage patterns of the _active record_ approach to persistence.
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application-1[example application] which demonstrates the usage patterns of the _active record_ approach to persistence.

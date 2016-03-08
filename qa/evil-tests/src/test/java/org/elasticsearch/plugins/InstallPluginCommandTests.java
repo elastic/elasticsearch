@@ -46,11 +46,13 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.MockTerminal;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.BeforeClass;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -61,24 +63,6 @@ public class InstallPluginCommandTests extends ESTestCase {
     @BeforeClass
     public static void checkPosix() throws IOException {
         isPosix = Files.getFileAttributeView(createTempFile(), PosixFileAttributeView.class) != null;
-    }
-
-    /** Stores the posix attributes for a path and resets them on close. */
-    static class PosixPermissionsResetter implements AutoCloseable {
-        private final PosixFileAttributeView attributeView;
-        final Set<PosixFilePermission> permissions;
-        public PosixPermissionsResetter(Path path) throws IOException {
-            attributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
-            assertNotNull(attributeView);
-            permissions = attributeView.readAttributes().permissions();
-        }
-        @Override
-        public void close() throws IOException {
-            attributeView.setPermissions(permissions);
-        }
-        public void setPermissions(Set<PosixFilePermission> newPermissions) throws IOException {
-            attributeView.setPermissions(newPermissions);
-        }
     }
 
     /** Creates a test environment with bin, config and plugins directories. */
@@ -103,7 +87,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             }
         }
     }
-    
+
     static String writeZip(Path structure, String prefix) throws IOException {
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
@@ -133,8 +117,8 @@ public class InstallPluginCommandTests extends ESTestCase {
         return writeZip(structure, "elasticsearch");
     }
 
-    static CliToolTestCase.CaptureOutputTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+    static MockTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
+        MockTerminal terminal = new MockTerminal();
         CliTool.ExitStatus status = new InstallPluginCommand(terminal, pluginUrl, true).execute(env.settings(), env);
         assertEquals(CliTool.ExitStatus.OK, status);
         return terminal;
@@ -382,7 +366,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.createFile(binDir.resolve("somescript"));
         String pluginZip = createPlugin("fake", pluginDir);
         try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(env.binFile())) {
-            Set<PosixFilePermission> perms = new HashSet<>(binAttrs.permissions);
+            Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
             // make sure at least one execute perm is missing, so we know we forced it during installation
             perms.remove(PosixFilePermission.GROUP_EXECUTE);
             binAttrs.setPermissions(perms);

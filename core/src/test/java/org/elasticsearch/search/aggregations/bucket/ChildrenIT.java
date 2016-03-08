@@ -134,7 +134,8 @@ public class ChildrenIT extends ESIntegTestCase {
                 .setQuery(matchQuery("randomized", true))
                 .addAggregation(
                         terms("category").field("category").size(0).subAggregation(
-                                children("to_comment").childType("comment").subAggregation(
+children("to_comment", "comment")
+                                .subAggregation(
                                         terms("commenters").field("commenter").size(0).subAggregation(
                                                 topHits("top_comments")
                                         ))
@@ -175,7 +176,7 @@ public class ChildrenIT extends ESIntegTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(0).subAggregation(
-                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").addSort("_uid", SortOrder.ASC))
+                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_uid", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
@@ -250,7 +251,7 @@ public class ChildrenIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch(indexName)
-                    .addAggregation(children("children").childType("child").subAggregation(sum("counts").field("count")))
+                    .addAggregation(children("children", "child").subAggregation(sum("counts").field("count")))
                     .get();
 
             assertNoFailures(searchResponse);
@@ -279,7 +280,7 @@ public class ChildrenIT extends ESIntegTestCase {
     public void testNonExistingChildType() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .addAggregation(
-                        children("non-existing").childType("xyz")
+children("non-existing", "xyz")
                 ).get();
         assertSearchResponse(searchResponse);
 
@@ -294,8 +295,8 @@ public class ChildrenIT extends ESIntegTestCase {
         String childType = "variantsku";
         assertAcked(
                 prepareCreate(indexName)
-                        .addMapping(masterType, "brand", "type=string", "name", "type=string", "material", "type=string")
-                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=string", "size", "type=string")
+                        .addMapping(masterType, "brand", "type=text", "name", "type=text", "material", "type=text")
+                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=text", "size", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -319,8 +320,7 @@ public class ChildrenIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch(indexName).setTypes(masterType)
                 .setQuery(hasChildQuery(childType, termQuery("color", "orange")))
-                .addAggregation(children("my-refinements")
-                                .childType(childType)
+.addAggregation(children("my-refinements", childType)
                                 .subAggregation(terms("my-colors").field("color"))
                                 .subAggregation(terms("my-sizes").field("size"))
                 ).get();
@@ -371,8 +371,7 @@ public class ChildrenIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(indexName)
                 .setQuery(matchQuery("name", "europe"))
                 .addAggregation(
-                        children(parentType).childType(parentType).subAggregation(
-                                children(childType).childType(childType).subAggregation(
+                children(parentType, parentType).subAggregation(children(childType, childType).subAggregation(
                                         terms("name").field("name")
                                 )
                         )
@@ -420,7 +419,7 @@ public class ChildrenIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(AggregationBuilders.terms("towns").field("town")
                 .subAggregation(AggregationBuilders.terms("parent_names").field("name")
-                    .subAggregation(AggregationBuilders.children("child_docs").childType("childType"))
+.subAggregation(AggregationBuilders.children("child_docs", "childType"))
                 )
             )
             .get();

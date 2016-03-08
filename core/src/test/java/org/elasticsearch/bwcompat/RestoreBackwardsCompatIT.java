@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -98,7 +99,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         for (java.lang.reflect.Field field : Version.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version) field.get(Version.class);
-                if (v.snapshot()) continue;
+                if (VersionUtils.isSnapshot(v)) continue;
                 if (v.onOrBefore(Version.V_2_0_0_beta1)) continue;
                 if (v.equals(Version.CURRENT)) continue;
                 expectedVersions.add(v.toString());
@@ -193,14 +194,11 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
         assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));
-        if (Version.fromString(version).onOrAfter(Version.V_1_1_0)) {
-            // Support for aliases in templates was added in v1.1.0
-            assertThat(template.aliases().size(), equalTo(3));
-            assertThat(template.aliases().get("alias1"), notNullValue());
-            assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
-            assertThat(template.aliases().get("alias2").indexRouting(), equalTo("kimchy"));
-            assertThat(template.aliases().get("{index}-alias"), notNullValue());
-        }
+        assertThat(template.aliases().size(), equalTo(3));
+        assertThat(template.aliases().get("alias1"), notNullValue());
+        assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
+        assertThat(template.aliases().get("alias2").indexRouting(), equalTo("kimchy"));
+        assertThat(template.aliases().get("{index}-alias"), notNullValue());
 
         logger.info("--> cleanup");
         cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));

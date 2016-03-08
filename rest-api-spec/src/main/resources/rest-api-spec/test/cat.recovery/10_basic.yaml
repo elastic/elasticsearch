@@ -27,7 +27,7 @@
               (
                 index1      \s+
                 \d          \s+                                 # shard
-                \d+         \s+                                 # time
+                \d+ms       \s+                                 # time
                 (store|replica|snapshot|relocating)     \s+     # type
                 (init|index|verify_index|translog|finalize|done) \s+ # stage
                 [-\w./]+    \s+                                 # source_host

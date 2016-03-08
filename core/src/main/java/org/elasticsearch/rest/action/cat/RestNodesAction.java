@@ -33,8 +33,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -64,6 +67,7 @@ import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -91,7 +95,7 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true).process(true);
+                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
@@ -115,9 +119,9 @@ public class RestNodesAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
-        table.addCell("host", "alias:h;desc:host name");
         table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
+        table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
@@ -242,15 +246,25 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
-            table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
             if (node.address() instanceof InetSocketTransportAddress) {
                 table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
             } else {
                 table.addCell("-");
             }
+            final HttpInfo httpInfo = info == null ? null : info.getHttp();
+            if (httpInfo != null) {
+                TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
+                if (transportAddress instanceof InetSocketTransportAddress) {
+                    table.addCell(NetworkAddress.formatAddress(((InetSocketTransportAddress)transportAddress).address()));
+                } else {
+                    table.addCell(transportAddress.toString());
+                }
+            } else {
+                table.addCell("-");
+            }
 
-            table.addCell(node.getVersion().number());
+            table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().shortHash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
             table.addCell(fsInfo == null ? null : fsInfo.getTotal().getAvailable());

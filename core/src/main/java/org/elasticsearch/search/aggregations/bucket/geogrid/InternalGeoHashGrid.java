@@ -193,6 +193,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public List<GeoHashGrid.Bucket> getBuckets() {
         Object o = buckets;

@@ -20,15 +20,12 @@
 package org.elasticsearch.search.innerhits;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.plugins.Plugin;
@@ -75,7 +72,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class InnerHitsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockScriptEngine.TestPlugin.class, InternalSettingsPlugin.class);
+        return pluginList(MockScriptEngine.TestPlugin.class);
     }
 
     public void testSimpleNested() throws Exception {
@@ -84,12 +81,12 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .field("type", "nested")
                     .startObject("properties")
                         .startObject("message")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                     .endObject()
                 .endObject()
                 .startObject("title")
-                    .field("type", "string")
+                    .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()));
 
@@ -285,8 +282,8 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testSimpleParentChild() throws Exception {
         assertAcked(prepareCreate("articles")
-                .addMapping("article", "title", "type=string")
-                .addMapping("comment", "_parent", "type=article", "message", "type=string")
+                .addMapping("article", "title", "type=text")
+                .addMapping("comment", "_parent", "type=article", "message", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -506,8 +503,8 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsOnHasParent() throws Exception {
         assertAcked(prepareCreate("stack")
-                        .addMapping("question", "body", "type=string")
-                        .addMapping("answer", "_parent", "type=question", "body", "type=string")
+                        .addMapping("question", "body", "type=text")
+                        .addMapping("answer", "_parent", "type=question", "body", "type=text")
         );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("stack", "question", "1").setSource("body", "I'm using HTTPS + Basic authentication to protect a resource. How can I throttle authentication attempts to protect against brute force attacks?"));
@@ -544,9 +541,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles")
-                        .addMapping("article", "title", "type=string")
-                        .addMapping("comment", "_parent", "type=article", "message", "type=string")
-                        .addMapping("remark", "_parent", "type=comment", "message", "type=string")
+                        .addMapping("article", "title", "type=text")
+                        .addMapping("comment", "_parent", "type=article", "message", "type=text")
+                        .addMapping("remark", "_parent", "type=comment", "message", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -617,18 +614,18 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .field("type", "nested")
                     .startObject("properties")
                         .startObject("message")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                         .startObject("remarks")
                             .field("type", "nested")
                             .startObject("properties")
-                                .startObject("message").field("type", "string").endObject()
+                                .startObject("message").field("type", "text").endObject()
                             .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .startObject("title")
-                    .field("type", "string")
+                    .field("type", "text")
                 .endObject()
                 .endObject().endObject().endObject()));
 
@@ -731,7 +728,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     // Issue #9723
     public void testNestedDefinedAsObject() throws Exception {
-        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=string"));
+        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
@@ -751,160 +748,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-    }
-
-    public void testNestedInnerHitsWithStoredFieldsAndNoSourceBackcompat() throws Exception {
-        assertAcked(prepareCreate("articles")
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
-                .addMapping("article", jsonBuilder().startObject()
-                                .startObject("_source").field("enabled", false).endObject()
-                                .startObject("properties")
-                                    .startObject("comments")
-                                        .field("type", "nested")
-                                        .startObject("properties")
-                                            .startObject("message").field("type", "string").field("store", true).endObject()
-                                        .endObject()
-                                    .endObject()
-                                    .endObject()
-                                .endObject()
-                )
-        );
-
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
-                .field("title", "quick brown fox")
-                .startObject("comments").field("message", "fox eat quick").endObject()
-                .endObject()));
-        indexRandom(true, requests);
-
-        SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, new InnerHitsBuilder.InnerHit().field("comments.message"))))
-                        .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue(), equalTo("fox eat quick"));
-    }
-
-    public void testNestedInnerHitsWithHighlightOnStoredFieldBackcompat() throws Exception {
-        assertAcked(prepareCreate("articles")
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
-                        .addMapping("article", jsonBuilder().startObject()
-                                        .startObject("_source").field("enabled", false).endObject()
-                                            .startObject("properties")
-                                                .startObject("comments")
-                                                    .field("type", "nested")
-                                                    .startObject("properties")
-                                                        .startObject("message").field("type", "string").field("store", true).endObject()
-                                                    .endObject()
-                                                .endObject()
-                                            .endObject()
-                                        .endObject()
-                        )
-        );
-
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
-                .field("title", "quick brown fox")
-                .startObject("comments").field("message", "fox eat quick").endObject()
-                .endObject()));
-        indexRandom(true, requests);
-        InnerHitsBuilder.InnerHit builder = new InnerHitsBuilder.InnerHit();
-        builder.highlighter(new HighlightBuilder().field("comments.message"));
-        SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, builder)))
-                .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).highlightFields().get("comments.message").getFragments()[0]), equalTo("<em>fox</em> eat quick"));
-    }
-
-    public void testNestedInnerHitsWithExcludeSourceBackcompat() throws Exception {
-        assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
-                        .addMapping("article", jsonBuilder().startObject()
-                                        .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
-                                        .startObject("properties")
-                                        .startObject("comments")
-                                        .field("type", "nested")
-                                        .startObject("properties")
-                                        .startObject("message").field("type", "string").field("store", true).endObject()
-                                        .endObject()
-                                        .endObject()
-                                        .endObject()
-                                        .endObject()
-                        )
-        );
-
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
-                .field("title", "quick brown fox")
-                .startObject("comments").field("message", "fox eat quick").endObject()
-                .endObject()));
-        indexRandom(true, requests);
-        InnerHitsBuilder.InnerHit builder = new InnerHitsBuilder.InnerHit();
-        builder.field("comments.message");
-        builder.setFetchSource(true);
-        SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, builder)))
-                .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue(), equalTo("fox eat quick"));
-    }
-
-    public void testNestedInnerHitsHiglightWithExcludeSourceBackcompat() throws Exception {
-        assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
-                        .addMapping("article", jsonBuilder().startObject()
-                                        .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
-                                        .startObject("properties")
-                                        .startObject("comments")
-                                        .field("type", "nested")
-                                        .startObject("properties")
-                                        .startObject("message").field("type", "string").field("store", true).endObject()
-                                        .endObject()
-                                        .endObject()
-                                        .endObject()
-                                        .endObject()
-                        )
-        );
-
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
-                .field("title", "quick brown fox")
-                .startObject("comments").field("message", "fox eat quick").endObject()
-                .endObject()));
-        indexRandom(true, requests);
-        InnerHitsBuilder.InnerHit builder = new InnerHitsBuilder.InnerHit();
-        builder.highlighter(new HighlightBuilder().field("comments.message"));
-        SearchResponse response = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHits(null, builder)))
-                        .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).highlightFields().get("comments.message").getFragments()[0]), equalTo("<em>fox</em> eat quick"));
     }
 
     public void testInnerHitsWithObjectFieldThatHasANestedField() throws Exception {

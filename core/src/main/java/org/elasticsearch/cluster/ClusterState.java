@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
@@ -70,7 +69,7 @@ import java.util.Set;
  * and cluster state {@link #status}, which is updated during cluster state publishing and applying
  * processing.  The cluster state can be updated only on the master node. All updates are performed by on a
  * single thread and controlled by the {@link InternalClusterService}. After every update the
- * {@link DiscoveryService#publish} method publishes new version of the cluster state to all other nodes in the
+ * {@link Discovery#publish} method publishes new version of the cluster state to all other nodes in the
  * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
  * the type of discovery. For example, for local discovery it is implemented by the {@link LocalDiscovery#publish}
  * method. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The

@@ -77,7 +77,7 @@ public class AggregationPhase implements SearchPhase {
             Aggregator[] aggregators;
             try {
                 AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators(aggregationContext);
+                aggregators = factories.createTopLevelAggregators();
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);

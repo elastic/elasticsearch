@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -48,7 +48,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         DocumentMapper docMapper = new DocumentMapper.Builder(
                 new RootObjectMapper.Builder("person")
-                        .add(new ObjectMapper.Builder("name").add(new StringFieldMapper.Builder("first").store(true).index(false))),
+                        .add(new ObjectMapper.Builder("name").add(new TextFieldMapper.Builder("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
@@ -108,7 +108,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         DocumentMapper docMapper = new DocumentMapper.Builder(
                 new RootObjectMapper.Builder("person")
-                        .add(new ObjectMapper.Builder("name").add(new StringFieldMapper.Builder("first").store(true).index(false))),
+                        .add(new ObjectMapper.Builder("name").add(new TextFieldMapper.Builder("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));
@@ -124,7 +124,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo.bar").field("type", "string").endObject()
+            .startObject("foo.bar").field("type", "text").endObject()
             .endObject().endObject().string();
         try {
             mapperParser.parse("type", new CompressedXContent(mapping));

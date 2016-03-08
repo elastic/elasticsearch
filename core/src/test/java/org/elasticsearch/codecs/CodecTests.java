@@ -48,7 +48,7 @@ public class CodecTests extends ESSingleNodeTestCase {
 
     public void testAcceptPostingsFormat() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "keyword").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
@@ -75,7 +75,7 @@ public class CodecTests extends ESSingleNodeTestCase {
 
     public void testAcceptDocValuesFormat() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "keyword").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {

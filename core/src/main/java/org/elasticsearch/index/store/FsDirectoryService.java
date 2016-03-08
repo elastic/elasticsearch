@@ -29,8 +29,10 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.RateLimitedFSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
+import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -86,9 +88,11 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         final Path location = path.resolveIndex();
         Files.createDirectories(location);
         Directory wrapped = newFSDirectory(location, indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING));
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings.getSettings())) {
+            wrapped = new SleepingLockWrapper(wrapped, 5000);
+        }
         return new RateLimitedFSDirectory(wrapped, this, this) ;
     }
-
 
     @Override
     public void onPause(long nanos) {

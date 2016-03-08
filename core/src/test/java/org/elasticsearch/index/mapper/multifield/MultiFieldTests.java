@@ -35,7 +35,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -94,25 +96,25 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("2010-01-01"));
 
         assertThat(docMapper.mappers().getMapper("name"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("name"), instanceOf(TextFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name").fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name").fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("name.indexed"), instanceOf(TextFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name.indexed").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("name.indexed").fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("name.not_indexed"), instanceOf(TextFieldMapper.class));
         assertEquals(IndexOptions.NONE, docMapper.mappers().getMapper("name.not_indexed").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.not_indexed").fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name.not_indexed").fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().getMapper("name.test1"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.test1"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("name.test1"), instanceOf(TextFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name.test1").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().tokenized(), equalTo(true));
@@ -129,7 +131,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("object1.multi1"), notNullValue());
         assertThat(docMapper.mappers().getMapper("object1.multi1"), instanceOf(DateFieldMapper.class));
         assertThat(docMapper.mappers().getMapper("object1.multi1.string"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("object1.multi1.string"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("object1.multi1.string"), instanceOf(KeywordFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("object1.multi1.string").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("object1.multi1.string").fieldType().tokenized(), equalTo(false));
     }
@@ -138,9 +140,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
 
         DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
-                new StringFieldMapper.Builder("name").store(true)
-                        .addMultiField(new StringFieldMapper.Builder("indexed").index(true).tokenized(true))
-                        .addMultiField(new StringFieldMapper.Builder("not_indexed").index(false).store(true))
+                new TextFieldMapper.Builder("name").store(true)
+                        .addMultiField(new TextFieldMapper.Builder("indexed").index(true).tokenized(true))
+                        .addMultiField(new TextFieldMapper.Builder("not_indexed").index(false).store(true))
         ), indexService.mapperService()).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();
@@ -181,9 +183,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         }
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("my_field").field("type", "string").startObject("fields");
+                .startObject("my_field").field("type", "text").startObject("fields");
         for (String multiFieldName : multiFieldNames) {
-            builder = builder.startObject(multiFieldName).field("type", "string").endObject();
+            builder = builder.startObject(multiFieldName).field("type", "text").endObject();
         }
         builder = builder.endObject().endObject().endObject().endObject().endObject();
         String mapping = builder.string();
@@ -218,8 +220,8 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         // Generate a mapping with the a random subset of possible fielddata settings
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
-            .field("type", "string").startObject("fielddata");
+            .startObject("my_field").field("type", "text").startObject("fields").startObject(MY_MULTI_FIELD)
+            .field("type", "text").startObject("fielddata");
         String[] keys = possibleSettings.keySet().toArray(new String[]{});
         Collections.shuffle(Arrays.asList(keys), random());
         for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
@@ -235,7 +237,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testObjectFieldNotAllowed() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
-            .field("type", "string").startObject("fields").startObject("multi").field("type", "object").endObject().endObject()
+            .field("type", "text").startObject("fields").startObject("multi").field("type", "object").endObject().endObject()
             .endObject().endObject().endObject().endObject().string();
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
@@ -248,7 +250,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testNestedFieldNotAllowed() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
-            .field("type", "string").startObject("fields").startObject("multi").field("type", "nested").endObject().endObject()
+            .field("type", "text").startObject("fields").startObject("multi").field("type", "nested").endObject().endObject()
             .endObject().endObject().endObject().endObject().string();
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
@@ -265,10 +267,10 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
                 .startObject("my_type")
                 .startObject("properties")
                 .startObject("city")
-                .field("type", "string")
+                .field("type", "text")
                 .startObject("fields")
                 .startObject("raw.foo")
-                .field("type", "string")
+                .field("type", "text")
                 .field("index", "not_analyzed")
                 .endObject()
                 .endObject()

@@ -25,7 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.IndicesQueryCache;
 
 /**
  * The index-level query cache. This class mostly delegates to the node-level

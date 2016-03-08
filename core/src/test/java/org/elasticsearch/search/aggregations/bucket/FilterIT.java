@@ -93,7 +93,7 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("tag1").filter(termQuery("tag", "tag1")))
+                .addAggregation(filter("tag1", termQuery("tag", "tag1")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -106,10 +106,10 @@ public class FilterIT extends ESIntegTestCase {
     }
 
     // See NullPointer issue when filters are empty:
-    // https://github.com/elasticsearch/elasticsearch/issues/8438
+    // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
-        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1").filter(emptyFilter)).execute().actionGet();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -120,8 +120,7 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("tag1")
-                        .filter(termQuery("tag", "tag1"))
+                .addAggregation(filter("tag1", termQuery("tag", "tag1"))
                         .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
@@ -150,7 +149,7 @@ public class FilterIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field("value").interval(2L).subAggregation(
-                                filter("filter").filter(matchAllQuery()))).get();
+                                filter("filter", matchAllQuery()))).get();
 
         assertSearchResponse(response);
 
@@ -168,8 +167,7 @@ public class FilterIT extends ESIntegTestCase {
     public void testWithContextBasedSubAggregation() throws Exception {
         try {
             client().prepareSearch("idx")
-                    .addAggregation(filter("tag1")
-                            .filter(termQuery("tag", "tag1"))
+                    .addAggregation(filter("tag1", termQuery("tag", "tag1"))
                             .subAggregation(avg("avg_value")))
                     .execute().actionGet();
 
@@ -185,7 +183,7 @@ public class FilterIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(filter("filter").filter(matchAllQuery())))
+                        .subAggregation(filter("filter", matchAllQuery())))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));

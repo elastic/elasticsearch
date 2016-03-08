@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -109,11 +110,8 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        filters("tags")
-                                .filter("tag1", termQuery("tag", "tag1"))
-                                .filter("tag2", termQuery("tag", "tag2")))
+        SearchResponse response = client().prepareSearch("idx").addAggregation(
+                filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2"))))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -134,12 +132,12 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     // See NullPointer issue when filters are empty:
-    // https://github.com/elasticsearch/elasticsearch/issues/8438
+    // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
-        QueryBuilder emptyFilter = new BoolQueryBuilder();
+        QueryBuilder<?> emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags").filter("all", emptyFilter).filter("tag1", termQuery("tag", "tag1"))).execute()
-                .actionGet();
+                .addAggregation(filters("tags", new KeyedFilter("all", emptyFilter), new KeyedFilter("tag1", termQuery("tag", "tag1"))))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -155,11 +153,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        filters("tags")
-                                .filter("tag1", termQuery("tag", "tag1"))
-                                .filter("tag2", termQuery("tag", "tag2"))
-                                .subAggregation(avg("avg_value").field("value")))
+                .addAggregation(filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2"))).subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -210,7 +205,7 @@ public class FiltersIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field("value").interval(2L).subAggregation(
-                                filters("filters").filter(matchAllQuery()))).get();
+                                filters("filters", matchAllQuery()))).get();
 
         assertSearchResponse(response);
 
@@ -232,9 +227,7 @@ public class FiltersIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                     .addAggregation(
-                            filters("tags")
-                                    .filter("tag1", termQuery("tag", "tag1"))
-                                    .filter("tag2", termQuery("tag", "tag2"))
+                    filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
                                     .subAggregation(avg("avg_value"))
                     )
                     .execute().actionGet();
@@ -251,7 +244,7 @@ public class FiltersIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(filters("filters").filter("all", matchAllQuery())))
+                        .subAggregation(filters("filters", new KeyedFilter("all", matchAllQuery()))))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
@@ -270,11 +263,7 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testSimpleNonKeyed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        filters("tags")
-                                .filter(termQuery("tag", "tag1"))
-                                .filter(termQuery("tag", "tag2")))
-                .execute().actionGet();
+                .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -297,12 +286,9 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     public void testOtherBucket() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        filters("tags").otherBucket(true)
-                        .filter("tag1", termQuery("tag", "tag1"))
-                        .filter("tag2", termQuery("tag", "tag2")))
+        SearchResponse response = client().prepareSearch("idx").addAggregation(
+                filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                        .otherBucket(true))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -327,12 +313,9 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     public void testOtherNamedBucket() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        filters("tags").otherBucketKey("foobar")
-                        .filter("tag1", termQuery("tag", "tag1"))
-                        .filter("tag2", termQuery("tag", "tag2")))
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2"))).otherBucket(true).otherBucketKey("foobar"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -358,11 +341,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testOtherNonKeyed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        filters("tags").otherBucket(true)
-                                .filter(termQuery("tag", "tag1"))
-                                .filter(termQuery("tag", "tag2")))
-                .execute().actionGet();
+                .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2")).otherBucket(true)).execute()
+                .actionGet();
 
         assertSearchResponse(response);
 
@@ -390,10 +370,8 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testOtherWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        filters("tags").otherBucket(true)
-                                .filter("tag1", termQuery("tag", "tag1"))
-                                .filter("tag2", termQuery("tag", "tag2"))
+                .addAggregation(filters("tags", new KeyedFilter("tag1", termQuery("tag", "tag1")),
+                        new KeyedFilter("tag2", termQuery("tag", "tag2"))).otherBucket(true)
                                 .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 

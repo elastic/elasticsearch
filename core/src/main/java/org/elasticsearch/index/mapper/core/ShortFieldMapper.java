@@ -24,11 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -121,7 +121,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
     static final class ShortFieldType extends NumberFieldType {
 
         public ShortFieldType() {
-            super(NumericType.INT);
+            super(LegacyNumericType.INT);
         }
 
         protected ShortFieldType(ShortFieldType ref) {
@@ -160,13 +160,13 @@ public class ShortFieldMapper extends NumberFieldMapper {
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            NumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef);  // 0 because of exact match
+            LegacyNumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef);  // 0 because of exact match
             return bytesRef.get();
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : (int)parseValue(lowerTerm),
                 upperTerm == null ? null : (int)parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -176,7 +176,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             short iValue = parseValue(value);
             short iSim = fuzziness.asShort();
-            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -184,8 +184,8 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            long minValue = NumericUtils.getMinInt(terms);
-            long maxValue = NumericUtils.getMaxInt(terms);
+            long minValue = LegacyNumericUtils.getMinInt(terms);
+            long maxValue = LegacyNumericUtils.getMaxInt(terms);
             return new FieldStats.Long(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
@@ -257,7 +257,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
                     context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Short objValue = fieldType().nullValue();
@@ -290,7 +290,9 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomShortNumericField field = new CustomShortNumericField(value, fieldType());
-            field.setBoost(boost);
+            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                field.setBoost(boost);
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {

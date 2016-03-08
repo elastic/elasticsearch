@@ -65,13 +65,6 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         return Collections.singleton(AssertingLocalTransport.TestPlugin.class);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(AssertingLocalTransport.ASSERTING_TRANSPORT_MIN_VERSION_KEY.getKey(), Version.V_1_4_0_Beta1).build();
-    }
-
     @Before
     public void beforeEachTest() throws IOException {
         prepareCreate("idx2").addMapping("type", "date", "type=date").execute().actionGet();
@@ -100,7 +93,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .field("date")
                         .offset("2h")
                         .format(DATE_FORMAT)
-                        .interval(DateHistogramInterval.DAY))
+                        .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits(), equalTo(5L));
@@ -122,7 +115,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .field("date")
                         .offset("-2h")
                         .format(DATE_FORMAT)
-                        .interval(DateHistogramInterval.DAY))
+                        .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits(), equalTo(5L));
@@ -149,7 +142,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .offset("6h")
                         .minDocCount(0)
                         .format(DATE_FORMAT)
-                        .interval(DateHistogramInterval.DAY))
+                        .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits(), equalTo(24L));

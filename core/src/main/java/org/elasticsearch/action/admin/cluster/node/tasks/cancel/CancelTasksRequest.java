@@ -36,14 +36,6 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     private String reason = DEFAULT_REASON;
 
-    /**
-     * Cancel tasks on the specified nodes. If none are passed, all cancellable tasks on
-     * all nodes will be cancelled.
-     */
-    public CancelTasksRequest(String... nodesIds) {
-        super(nodesIds);
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -54,7 +46,6 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(reason);
-
     }
 
     @Override

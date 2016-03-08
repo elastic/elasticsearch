@@ -420,7 +420,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via {@link QueryShardContext#setTypes(String...)}
      */
     public QueryShardContext newQueryShardContext() {
-        return new QueryShardContext(indexSettings, nodeServicesProvider.getClient(), indexCache.bitsetFilterCache(), indexFieldData, mapperService(), similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry());
+        return new QueryShardContext(indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(), similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry());
     }
 
     ThreadPool getThreadPool() {

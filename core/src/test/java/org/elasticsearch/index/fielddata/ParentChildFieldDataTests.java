@@ -165,7 +165,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
 
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(parentType);
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
 
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, false)));
@@ -211,7 +211,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
 
     public void testThreads() throws Exception {
         final ParentChildIndexFieldData indexFieldData = getForField(childType);
-        final DirectoryReader reader = DirectoryReader.open(writer, true);
+        final DirectoryReader reader = DirectoryReader.open(writer);
         final IndexParentChildFieldData global = indexFieldData.loadGlobal(reader);
         final AtomicReference<Exception> error = new AtomicReference<>();
         final int numThreads = scaledRandomIntBetween(3, 8);

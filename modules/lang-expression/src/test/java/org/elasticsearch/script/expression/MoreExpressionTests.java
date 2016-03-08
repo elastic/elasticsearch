@@ -530,9 +530,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("twoSum").field("two"))
                                 .subAggregation(sum("threeSum").field("three"))
                                 .subAggregation(sum("fourSum").field("four"))
-                                .subAggregation(
-                                        bucketScript("totalSum").setBucketsPaths("twoSum", "threeSum", "fourSum").script(
-                                                new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))).execute().actionGet();
+                                .subAggregation(bucketScript("totalSum",
+                                    new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null),
+                                    "twoSum", "threeSum", "fourSum")))
+                .execute().actionGet();
 
         InternalHistogram<Bucket> histogram = response.getAggregations().get("histogram");
         assertThat(histogram, notNullValue());

@@ -22,7 +22,6 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.Channels;
 
 import java.io.IOException;
@@ -36,9 +35,9 @@ import java.nio.file.Path;
  */
 class Checkpoint {
 
-   static final int BUFFER_SIZE = RamUsageEstimator.NUM_BYTES_INT  // ops
-            + RamUsageEstimator.NUM_BYTES_LONG // offset
-            + RamUsageEstimator.NUM_BYTES_LONG;// generation
+   static final int BUFFER_SIZE = Integer.BYTES  // ops
+            + Long.BYTES // offset
+            + Long.BYTES;// generation
     final long offset;
     final int numOps;
     final long generation;

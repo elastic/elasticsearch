@@ -24,6 +24,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -84,11 +85,13 @@ public class PercolateDocumentParserTests extends ESTestCase {
         Map<String, QueryParser<?>> parsers = singletonMap("term", new TermQueryParser());
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers);
 
-        queryShardContext = new QueryShardContext(indexSettings, null, null, null, mapperService, null, null, indicesQueriesRegistry);
+        queryShardContext = new QueryShardContext(indexSettings, null, null, mapperService, null, null, indicesQueriesRegistry);
 
         HighlightPhase highlightPhase = new HighlightPhase(Settings.EMPTY, new Highlighters());
-        AggregatorParsers aggregatorParsers = new AggregatorParsers(Collections.emptySet(), Collections.emptySet());
-        AggregationPhase aggregationPhase = new AggregationPhase(new AggregationParseElement(aggregatorParsers), new AggregationBinaryParseElement(aggregatorParsers));
+        AggregatorParsers aggregatorParsers = new AggregatorParsers(Collections.emptySet(), Collections.emptySet(),
+                new NamedWriteableRegistry());
+        AggregationPhase aggregationPhase = new AggregationPhase(new AggregationParseElement(aggregatorParsers, indicesQueriesRegistry),
+                new AggregationBinaryParseElement(aggregatorParsers, indicesQueriesRegistry));
         parser = new PercolateDocumentParser(highlightPhase, new SortParseElement(), aggregationPhase);
 
         request = Mockito.mock(PercolateShardRequest.class);

@@ -81,10 +81,10 @@ public class RestMainAction extends BaseRestHandler {
         builder.field("name", Node.NODE_NAME_SETTING.get(settings));
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
-                .field("number", version.number())
+                .field("number", version.toString())
                 .field("build_hash", Build.CURRENT.shortHash())
                 .field("build_date", Build.CURRENT.date())
-                .field("build_snapshot", version.snapshot)
+                .field("build_snapshot", Build.CURRENT.isSnapshot())
                 .field("lucene_version", version.luceneVersion.toString())
                 .endObject();
         builder.field("tagline", "You Know, for Search");

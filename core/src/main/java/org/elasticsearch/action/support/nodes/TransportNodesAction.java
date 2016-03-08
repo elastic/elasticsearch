@@ -110,7 +110,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     }
 
 
-    private class AsyncAction {
+    class AsyncAction {
 
         private final NodesRequest request;
         private final String[] nodesIds;
@@ -120,7 +120,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
 
-        private AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
             this.task = task;
             this.request = request;
             this.listener = listener;
@@ -135,7 +135,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }
 
-        private void start() {
+        void start() {
             if (nodesIds.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(new Runnable() {
@@ -158,11 +158,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 try {
                     if (node == null) {
                         onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
-                    } else if (!clusterService.localNode().shouldConnectTo(node) && !clusterService.localNode().equals(node)) {
-                        // the check "!clusterService.localNode().equals(node)" is to maintain backward comp. where before
-                        // we allowed to connect from "local" client node to itself, certain tests rely on it, if we remove it, we need to fix
-                        // those (and they randomize the client node usage, so tricky to find when)
-                        onFailure(idx, nodeId, new NodeShouldNotConnectException(clusterService.localNode(), node));
                     } else {
                         ChildTaskRequest nodeRequest = newNodeRequest(nodeId, request);
                         if (task != null) {

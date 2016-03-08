@@ -108,7 +108,7 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.index.IndexWarmer;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;

@@ -68,6 +68,10 @@ do {
     scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet();
 } while(scrollResp.getHits().getHits().length != 0); // Zero hits mark the end of the scroll and the while loop.
 --------------------------------------------------
+[NOTE]
+====
+The size-parameter is per shard, so if you run a query against multiple indices (leading to many shards being involved in the query) the result might be more documents per execution of the scroll than you would expect!
+====
 
 [[java-search-msearch]]
 === MultiSearch API
@@ -111,7 +115,7 @@ SearchResponse sr = node.client().prepareSearch()
     .addAggregation(
             AggregationBuilders.dateHistogram("agg2")
                     .field("birth")
-                    .interval(DateHistogramInterval.YEAR)
+                    .dateHistogramInterval(DateHistogramInterval.YEAR)
     )
     .execute().actionGet();
 

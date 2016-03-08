@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -64,7 +65,6 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -76,7 +76,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -84,6 +86,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -97,9 +100,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     public static final Setting<TimeValue> CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING = Setting.positiveTimeSetting("cluster.service.reconnect_interval",  TimeValue.timeValueSeconds(10), false, Setting.Scope.CLUSTER);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
+    public static final Setting<Long> NODE_ID_SEED_SETTING =
+            // don't use node.id.seed so it won't be seen as an attribute
+            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, false, Setting.Scope.CLUSTER);
     private final ThreadPool threadPool;
 
-    private final DiscoveryService discoveryService;
+    private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;
 
     private final OperationRouting operationRouting;
 
@@ -139,12 +145,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private volatile ScheduledFuture reconnectToNodes;
 
     @Inject
-    public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
+    public InternalClusterService(Settings settings, OperationRouting operationRouting, TransportService transportService,
                                   ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
-        this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
         this.discoveryNodeService = discoveryNodeService;
@@ -161,13 +166,17 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
-        initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
+        initialBlocks = ClusterBlocks.builder();
 
         taskManager = transportService.getTaskManager();
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
         this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
+    }
+
+    public void setClusterStatePublisher(BiConsumer<ClusterChangedEvent, Discovery.AckListener> publisher) {
+        clusterStatePublisher = publisher;
     }
 
     @Override
@@ -180,14 +189,20 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
+        removeInitialStateBlock(block.id());
+    }
+
+    @Override
+    public void removeInitialStateBlock(int blockId) throws IllegalStateException {
         if (lifecycle.started()) {
             throw new IllegalStateException("can't set initial block when started");
         }
-        initialBlocks.removeGlobalBlock(block);
+        initialBlocks.removeGlobalBlock(blockId);
     }
 
     @Override
     protected void doStart() {
+        Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         add(localNodeMasterListeners);
         add(taskManager);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
@@ -195,7 +210,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
-        final String nodeId = DiscoveryService.generateNodeId(settings);
+        final String nodeId = generateNodeId(settings);
         final TransportAddress publishAddress = transportService.boundAddress().publishAddress();
         DiscoveryNode localNode = new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, nodeAttributes, version);
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id());
@@ -556,9 +571,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
             // TODO, do this in parallel (and wait)
             for (DiscoveryNode node : nodesDelta.addedNodes()) {
-                if (!nodeRequiresConnection(node)) {
-                    continue;
-                }
                 try {
                     transportService.connectToNode(node);
                 } catch (Throwable e) {
@@ -573,7 +585,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             if (newClusterState.nodes().localNodeMaster()) {
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 try {
-                    discoveryService.publish(clusterChangedEvent, ackListener);
+                    clusterStatePublisher.accept(clusterChangedEvent, ackListener);
                 } catch (Discovery.FailedToCommitClusterStateException t) {
                     logger.warn("failing [{}]: failed to commit cluster state version [{}]", t, source, newClusterState.version());
                     proccessedListeners.forEach(task -> task.listener.onFailure(task.source, t));
@@ -810,9 +822,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (lifecycle.stoppedOrClosed()) {
                     return;
                 }
-                if (!nodeRequiresConnection(node)) {
-                    continue;
-                }
                 if (clusterState.nodes().nodeExists(node.id())) { // we double check existence of node since connectToNode might take time...
                     if (!transportService.nodeConnected(node)) {
                         try {
@@ -854,8 +863,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    private boolean nodeRequiresConnection(DiscoveryNode node) {
-        return localNode().shouldConnectTo(node);
+    public static String generateNodeId(Settings settings) {
+        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
+        return Strings.randomBase64UUID(random);
     }
 
     private static class LocalNodeMasterListeners implements ClusterStateListener {

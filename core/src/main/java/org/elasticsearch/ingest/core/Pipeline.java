@@ -83,6 +83,14 @@ public final class Pipeline {
         return compoundProcessor.getOnFailureProcessors();
     }
 
+    /**
+     * Flattens the normal and on failure processors into a single list. The original order is lost.
+     * This can be useful for pipeline validation purposes.
+     */
+    public List<Processor> flattenAllProcessors() {
+        return compoundProcessor.flattenProcessors();
+    }
+
     public final static class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, ProcessorsRegistry processorRegistry) throws Exception {

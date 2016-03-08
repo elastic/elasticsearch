@@ -102,7 +102,7 @@ public class SettingsModule extends AbstractModule {
     }
 
     public void registerSettingsFilterIfMissing(String filter) {
-        if (settingsFilterPattern.contains(filter)) {
+        if (settingsFilterPattern.contains(filter) == false) {
             registerSettingsFilter(filter);
         }
     }

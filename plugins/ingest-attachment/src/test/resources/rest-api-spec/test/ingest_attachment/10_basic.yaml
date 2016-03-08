@@ -1,5 +1,11 @@
 "Ingest attachment plugin installed":
     - do:
-        cluster.stats: {}
+        cluster.state: {}
 
-    - match:  { nodes.plugins.0.name: ingest-attachment }
+    - set: {master_node: master}
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: ingest-attachment  }
+    - match:  { nodes.$master.ingest.processors.11.type: attachment }

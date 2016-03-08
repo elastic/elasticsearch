@@ -113,7 +113,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             final boolean enoughAllocationsFound;
 
             if (lastActiveAllocationIds.isEmpty()) {
-                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
+                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_5_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
                 // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
@@ -123,7 +123,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 } else {
                     enoughAllocationsFound = isEnoughVersionBasedAllocationsFound(indexMetaData, nodeShardsResult);
                 }
-                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_3_0_0, nodeShardsResult.allocationsFound, shard);
+                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_5_0_0, nodeShardsResult.allocationsFound, shard);
             } else {
                 assert lastActiveAllocationIds.isEmpty() == false;
                 // use allocation ids to select nodes
@@ -187,12 +187,14 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             }
 
             if (nodeShardState.storeException() == null) {
-                if (allocationId == null && nodeShardState.legacyVersion() != ShardStateMetaData.NO_VERSION) {
-                    // old shard with no allocation id, assign dummy value so that it gets added below in case of matchAnyShard
-                    allocationId = "_n/a_";
+                if (allocationId == null && nodeShardState.legacyVersion() == ShardStateMetaData.NO_VERSION) {
+                    logger.trace("[{}] on node [{}] has no shard state information", shard, nodeShardState.getNode());
+                } else if (allocationId != null) {
+                    assert nodeShardState.legacyVersion() == ShardStateMetaData.NO_VERSION : "Allocation id and legacy version cannot be both present";
+                    logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), allocationId);
+                } else {
+                    logger.trace("[{}] on node [{}] has no allocation id, out-dated shard (shard state version: [{}])", shard, nodeShardState.getNode(), nodeShardState.legacyVersion());
                 }
-
-                logger.trace("[{}] on node [{}] has allocation id [{}] of shard", shard, nodeShardState.getNode(), allocationId);
             } else {
                 logger.trace("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", nodeShardState.storeException(), shard, nodeShardState.getNode(), allocationId);
                 allocationId = null;
@@ -299,9 +301,20 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            // no version means it does not exists, which is what the API returns, and what we expect to
             if (nodeShardState.storeException() == null) {
-                logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                if (version == ShardStateMetaData.NO_VERSION && nodeShardState.allocationId() == null) {
+                    logger.trace("[{}] on node [{}] has no shard state information", shard, nodeShardState.getNode());
+                } else if (version != ShardStateMetaData.NO_VERSION) {
+                    assert nodeShardState.allocationId() == null : "Allocation id and legacy version cannot be both present";
+                    logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                } else {
+                    // shard was already selected in a 5.x cluster as primary for recovery, was initialized (and wrote a new state file) but
+                    // did not make it to STARTED state before the cluster crashed (otherwise list of active allocation ids would be
+                    // non-empty and allocation id - based allocation mode would be chosen).
+                    // Prefer this shard copy again.
+                    version = Long.MAX_VALUE;
+                    logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), nodeShardState.allocationId());
+                }
             } else {
                 // when there is an store exception, we disregard the reported version and assign it as no version (same as shard does not exist)
                 logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);

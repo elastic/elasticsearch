@@ -86,7 +86,7 @@ public class FieldSortIT extends ESIntegTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
@@ -178,41 +178,6 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         }
 
-    }
-
-    public void testIssue6639() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("$index")
-                .addMapping(
-                        "$type",
-                        "{\"$type\": "
-                        + " {\"properties\": "
-                        + "     {\"grantee\": "
-                        + "         {   \"index\": \"not_analyzed\", "
-                        + "             \"term_vector\": \"with_positions_offsets\", "
-                        + "             \"type\": \"string\", "
-                        + "             \"analyzer\": \"snowball\", "
-                        + "             \"boost\": 1.0, "
-                        + "             \"store\": true}}}}"));
-        indexRandom(true,
-                client().prepareIndex(
-                        "$index",
-                        "$type",
-                        "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
-                client().prepareIndex(
-                        "$index",
-                        "$type",
-                        "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
-        ensureYellow();
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("grantee", SortOrder.ASC)
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "data.activity.5", "data.activity.6");
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("grantee", SortOrder.DESC)
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
     }
 
     public void testTrackScores() throws Exception {
@@ -928,7 +893,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(SortBuilders.fieldSort("kkk").unmappedType("string"))
+                .addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword"))
                 .execute().actionGet();
         assertNoFailures(searchResponse);
     }
@@ -1417,7 +1382,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     /**
-     * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
+     * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
@@ -1430,7 +1395,7 @@ public class FieldSortIT extends ESIntegTestCase {
                                                 .field("type", "nested")
                                                 .startObject("properties")
                                                     .startObject("foo")
-                                                        .field("type", "string")
+                                                        .field("type", "text")
                                                         .startObject("fields")
                                                             .startObject("sub")
                                                                 .field("type", "keyword")

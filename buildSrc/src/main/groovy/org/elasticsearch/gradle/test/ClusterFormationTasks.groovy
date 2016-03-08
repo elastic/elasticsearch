@@ -245,7 +245,8 @@ class ClusterFormationTasks {
             return setup
         }
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
-        copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
+        File configDir = new File(node.homeDir, 'config')
+        copyConfig.into(configDir) // copy must always have a general dest dir, even though we don't use it
         for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
             copyConfig.doFirst {
                 // make sure the copy won't be a no-op or act on a directory
@@ -258,9 +259,12 @@ class ClusterFormationTasks {
                 }
             }
             File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
-            copyConfig.into(destConfigFile.canonicalFile.parentFile)
-                      .from({ extraConfigFile.getValue() }) // wrap in closure to delay resolution to execution time
-                      .rename { destConfigFile.name }
+            // wrap source file in closure to delay resolution to execution time
+            copyConfig.from({ extraConfigFile.getValue() }) {
+                // this must be in a closure so it is only applied to the single file specified in from above
+                into(configDir.toPath().relativize(destConfigFile.canonicalFile.parentFile.toPath()).toFile())
+                rename { destConfigFile.name }
+            }
         }
         return copyConfig
     }

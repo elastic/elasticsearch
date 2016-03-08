@@ -116,7 +116,7 @@ public abstract class MetaDataStateFormat<T> {
         final Path finalStatePath = stateLocation.resolve(fileName);
         try {
             final String resourceDesc = "MetaDataStateFormat.write(path=\"" + tmpStatePath + "\")";
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 out.writeLong(version);
@@ -313,7 +313,7 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 return state;
             } catch (Throwable e) {
-                exceptions.add(e);
+                exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
             }
         }

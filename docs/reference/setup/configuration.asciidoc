@@ -35,17 +35,20 @@ Make sure to increase the number of open files descriptors on the
 machine (or for the user running elasticsearch). Setting it to 32k or
 even 64k is recommended.
 
-In order to test how many open files the process can open, start it with
-`-Des.max-open-files` set to `true`. This will print the number of open
-files the process can open on startup.
-
-Alternatively, you can retrieve the `max_file_descriptors` for each node
+You can retrieve the `max_file_descriptors` for each node
 using the <<cluster-nodes-info>> API, with:
 
 [source,js]
 --------------------------------------------------
 curl localhost:9200/_nodes/stats/process?pretty
 --------------------------------------------------
+
+[float]
+[[max-number-of-threads]]
+==== Number of threads
+
+Make sure that the number of threads that the Elasticsearch user can
+create is at least 2048.
 
 [float]
 [[vm-max-map-count]]
@@ -303,8 +306,8 @@ is used in the settings and the process is run as a service or in the background
 === Index Settings
 
 Indices created within the cluster can provide their own settings. For
-example, the following creates an index with memory based storage
-instead of the default file system based one (the format can be either
+example, the following creates an index with a refresh interval of 5
+seconds instead of the default refresh interval (the format can be either
 YAML or JSON):
 
 [source,sh]
@@ -326,10 +329,10 @@ index :
 --------------------------------------------------
 
 This means that every index that gets created on the specific node
-started with the mentioned configuration will store the index in memory
-*unless the index explicitly sets it*. In other words, any index level
-settings override what is set in the node configuration. Of course, the
-above can also be set as a "collapsed" setting, for example:
+started with the mentioned configuration will use a refresh interval of
+5 seconds *unless the index explicitly sets it*. In other words, any
+index level settings override what is set in the node configuration. Of
+course, the above can also be set as a "collapsed" setting, for example:
 
 [source,sh]
 --------------------------------------------------

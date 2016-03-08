@@ -20,8 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -300,7 +300,7 @@ public class Analysis {
      * <p>Although most analyzers generate character terms (CharTermAttribute),
      * some token only contain binary terms (BinaryTermAttribute,
      * CharTermAttribute being a special type of BinaryTermAttribute), such as
-     * {@link NumericTokenStream} and unsuitable for highlighting and
+     * {@link LegacyNumericTokenStream} and unsuitable for highlighting and
      * more-like-this queries which expect character terms.</p>
      */
     public static boolean isCharacterTokenStream(TokenStream tokenStream) {

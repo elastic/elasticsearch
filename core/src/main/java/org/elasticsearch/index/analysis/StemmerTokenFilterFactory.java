@@ -122,11 +122,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
             // English stemmers
         } else if ("english".equalsIgnoreCase(language)) {
-            if (indexVersion.onOrAfter(Version.V_1_3_0)) {
-                return new PorterStemFilter(tokenStream);
-            } else {
-                return new SnowballFilter(tokenStream, new EnglishStemmer());
-            }
+            return new PorterStemFilter(tokenStream);
         } else if ("light_english".equalsIgnoreCase(language) || "lightEnglish".equalsIgnoreCase(language)
                 || "kstem".equalsIgnoreCase(language)) {
             return new KStemFilter(tokenStream);
@@ -135,11 +131,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("porter".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);
         } else if ("porter2".equalsIgnoreCase(language)) {
-            if (indexVersion.onOrAfter(Version.V_1_3_0)) {
-                return new SnowballFilter(tokenStream, new EnglishStemmer());
-            } else {
-                return new SnowballFilter(tokenStream, new PorterStemmer());
-            }
+            return new SnowballFilter(tokenStream, new EnglishStemmer());
         } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
             return new EnglishMinimalStemFilter(tokenStream);
         } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {

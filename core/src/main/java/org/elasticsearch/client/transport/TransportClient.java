@@ -39,7 +39,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
@@ -155,7 +154,10 @@ public class TransportClient extends AbstractClient {
                 pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();
-                injector.getInstance(TransportService.class).start();
+                final TransportService transportService = injector.getInstance(TransportService.class);
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
                 TransportClient transportClient = new TransportClient(injector);
                 success = true;
                 return transportClient;

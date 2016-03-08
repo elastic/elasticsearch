@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -56,7 +56,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
@@ -101,12 +101,12 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
-        mapperParsers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         mapperParsers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
@@ -119,7 +119,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("store", true)
                             .startObject("fields")
                                 .startObject("raw")
@@ -159,13 +159,13 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL_BIS, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "bar"));
-        mapperParsers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
@@ -177,18 +177,18 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
-                            .field("type", "string")
+                            .field("type", "text")
                             .startObject("fields")
                                 .startObject("generated")
                                     .field("type", ExternalMapperPlugin.EXTERNAL_BIS)
                                 .endObject()
                                 .startObject("raw")
-                                    .field("type", "string")
+                                    .field("type", "text")
                                 .endObject()
                             .endObject()
                         .endObject()
                         .startObject("raw")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                     .endObject()
                 .endObject()

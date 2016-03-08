@@ -60,7 +60,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             return false;
         }
         @Override
-        public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        public boolean moveShards(RoutingAllocation allocation) {
             return false;
         }
     }

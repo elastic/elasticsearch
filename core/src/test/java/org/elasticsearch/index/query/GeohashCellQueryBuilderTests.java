@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -144,5 +144,11 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
         GeohashCellQuery.Builder parsed = (GeohashCellQuery.Builder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 3, parsed.precision().intValue());
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
     }
 }

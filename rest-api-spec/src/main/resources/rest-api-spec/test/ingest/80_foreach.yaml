@@ -29,9 +29,10 @@
         type: test
         id: 1
         pipeline: "my_pipeline"
-        body: {
-          values: ["foo", "bar", "baz"]
-        }
+        body: >
+          {
+            values: ["foo", "bar", "baz"]
+          }
 
   - do:
       get:

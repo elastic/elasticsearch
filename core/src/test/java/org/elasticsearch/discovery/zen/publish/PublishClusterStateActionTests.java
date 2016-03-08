@@ -43,7 +43,6 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -134,11 +133,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
             return clusterState.nodes();
         }
 
-        @Override
-        public NodeService nodeService() {
-            assert false;
-            throw new UnsupportedOperationException("Shouldn't be here");
-        }
     }
 
     public MockNode createMockNode(final String name) throws Exception {
@@ -232,6 +226,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     protected MockTransportService buildTransportService(Settings settings, Version version) {
         MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool);
         transportService.start();
+        transportService.acceptIncomingRequests();
         return transportService;
     }
 

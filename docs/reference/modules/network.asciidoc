@@ -20,8 +20,9 @@ Never expose an unprotected node to the public internet.
 `network.host`::
 
 The node will bind to this hostname or IP address and _publish_ (advertise)
-this host to other nodes in the cluster. Accepts an IP address, hostname, or a
-<<network-interface-values,special value>>.
+this host to other nodes in the cluster. Accepts an IP address, hostname, a
+<<network-interface-values,special value>>, or an array of any combination
+of these.
 +
 Defaults to `_local_`.
 
@@ -162,9 +163,8 @@ settings, but may be further configured independently:
 
 TCP Transport::
 
-Used for communication between nodes in the cluster and by the Java
-{javaclient}/node-client.html[Node client],
-{javaclient}/transport-client.html[Transport client], and by the
+Used for communication between nodes in the cluster, by the Java
+{javaclient}/transport-client.html[Transport client] and by the
 <<modules-tribe,Tribe node>>.  See the <<modules-transport,Transport module>>
 for more information.
 

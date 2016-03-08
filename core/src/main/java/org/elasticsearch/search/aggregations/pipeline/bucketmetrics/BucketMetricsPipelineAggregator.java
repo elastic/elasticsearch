@@ -67,7 +67,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         for (Aggregation aggregation : aggregations) {
             if (aggregation.getName().equals(bucketsPath.get(0))) {
                 bucketsPath = bucketsPath.subList(1, bucketsPath.size());
-                InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
+                InternalMultiBucketAggregation<?, ?> multiBucketsAgg = (InternalMultiBucketAggregation<?, ?>) aggregation;
                 List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
                 for (int i = 0; i < buckets.size(); i++) {
                     Bucket bucket = buckets.get(i);

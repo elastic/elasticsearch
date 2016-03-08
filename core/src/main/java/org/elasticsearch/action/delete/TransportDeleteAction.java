@@ -96,23 +96,27 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
 
     @Override
     protected void resolveRequest(final MetaData metaData, String concreteIndex, DeleteRequest request) {
+        resolveAndValidateRouting(metaData, concreteIndex, request);
+        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(), concreteIndex, request.id(), request.routing());
+        request.setShardId(shardId);
+    }
+
+    public static void resolveAndValidateRouting(final MetaData metaData, String concreteIndex, DeleteRequest request) {
         request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
         if (metaData.hasIndex(concreteIndex)) {
-            // check if routing is required, if so, do a broadcast delete
+            // check if routing is required, if so, throw error if routing wasn't specified
             MappingMetaData mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());
             if (mappingMd != null && mappingMd.routing().required()) {
                 if (request.routing() == null) {
                     if (request.versionType() != VersionType.INTERNAL) {
                         // TODO: implement this feature
                         throw new IllegalArgumentException("routing value is required for deleting documents of type [" + request.type()
-                                + "] while using version_type [" + request.versionType() + "]");
+                            + "] while using version_type [" + request.versionType() + "]");
                     }
                     throw new RoutingMissingException(concreteIndex, request.type(), request.id());
                 }
             }
         }
-        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(), concreteIndex, request.id(), request.routing());
-        request.setShardId(shardId);
     }
 
     private void innerExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {

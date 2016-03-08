@@ -57,7 +57,7 @@ public class SetupSectionParserTests extends AbstractParserTestCase {
     public void testParseSetupAndSkipSectionNoSkip() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "  - skip:\n" +
-                        "      version:  \"0.90.0 - 0.90.7\"\n" +
+                        "      version:  \"2.0.0 - 2.3.0\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
                         "  - do:\n" +
                         "      index1:\n" +
@@ -79,8 +79,8 @@ public class SetupSectionParserTests extends AbstractParserTestCase {
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
         assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.V_0_90_0));
-        assertThat(setupSection.getSkipSection().getUpperVersion(), equalTo(Version.V_0_90_7));
+        assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
+        assertThat(setupSection.getSkipSection().getUpperVersion(), equalTo(Version.V_2_3_0));
         assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getDoSections().size(), equalTo(2));
         assertThat(setupSection.getDoSections().get(0).getApiCallSection().getApi(), equalTo("index1"));

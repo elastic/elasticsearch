@@ -185,7 +185,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
     }
 
-    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    // https://github.com/elastic/elasticsearch/issues/7240
     public void testEmptyBooleanQuery() throws Exception {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         BytesReference query = contentBuilder.startObject().startObject("bool").endObject().endObject().bytes();
@@ -342,5 +342,71 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, 42, queryBuilder.boost, 0.00001);
         assertEquals(query, "23", queryBuilder.minimumShouldMatch());
         assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
+    }
+
+    public void testRewrite() throws IOException {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolean mustRewrite = false;
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.must(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "must").toString()));
+        }
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.should(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "should").toString()));
+        }
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.filter(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "filter").toString()));
+        }
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.mustNot(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "must_not").toString()));
+        }
+        if (mustRewrite == false && randomBoolean()) {
+            boolQueryBuilder.must(new TermsQueryBuilder("foo", "no_rewrite"));
+        }
+        QueryBuilder<?> rewritten = boolQueryBuilder.rewrite(queryShardContext());
+        if (mustRewrite == false && boolQueryBuilder.must().isEmpty()) {
+            // if it's empty we rewrite to match all
+            assertEquals(rewritten, new MatchAllQueryBuilder());
+        } else {
+            BoolQueryBuilder rewrite = (BoolQueryBuilder) rewritten;
+            if (mustRewrite) {
+                assertNotSame(rewrite, boolQueryBuilder);
+                if (boolQueryBuilder.must().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "must"), rewrite.must().get(0));
+                }
+                if (boolQueryBuilder.should().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "should"), rewrite.should().get(0));
+                }
+                if (boolQueryBuilder.mustNot().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "must_not"), rewrite.mustNot().get(0));
+                }
+                if (boolQueryBuilder.filter().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "filter"), rewrite.filter().get(0));
+                }
+            } else {
+                assertSame(rewrite, boolQueryBuilder);
+                if (boolQueryBuilder.must().isEmpty() == false) {
+                    assertSame(boolQueryBuilder.must().get(0), rewrite.must().get(0));
+                }
+            }
+        }
+    }
+
+    public void testRewriteMultipleTimes() throws IOException {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+        QueryBuilder<?> rewritten = boolQueryBuilder.rewrite(queryShardContext());
+        BoolQueryBuilder expected = new BoolQueryBuilder();
+        expected.must(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()));
+        assertEquals(expected, rewritten);
+
+        expected = new BoolQueryBuilder();
+        expected.must(new MatchAllQueryBuilder());
+        QueryBuilder<?> rewrittenAgain = rewritten.rewrite(queryShardContext());
+        assertEquals(rewrittenAgain, expected);
+        assertEquals(QueryBuilder.rewriteQuery(boolQueryBuilder, queryShardContext()), expected);
     }
 }

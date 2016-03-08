@@ -22,16 +22,13 @@ package org.elasticsearch.search.aggregations.pipeline.derivative;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -150,43 +147,5 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         if (hasXAxisUnitsValue) {
             out.writeDouble(xAxisUnits);
         }
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private Long xAxisUnits;
-
-        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
-            this.gapPolicy = gapPolicy;
-            this.xAxisUnits = xAxisUnits;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new DerivativePipelineAggregator(name, bucketsPaths, formatter, gapPolicy, xAxisUnits, metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-            if (!(parent instanceof HistogramAggregator.Factory)) {
-                throw new IllegalStateException("derivative aggregation [" + name
-                        + "] must have a histogram or date_histogram as parent");
-            } else {
-                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
-                if (histoParent.minDocCount() != 0) {
-                    throw new IllegalStateException("parent histogram of derivative aggregation [" + name
-                            + "] must have min_doc_count of 0");
-                }
-            }
-        }
-
     }
 }

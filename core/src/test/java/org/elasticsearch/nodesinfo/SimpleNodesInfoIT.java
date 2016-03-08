@@ -38,13 +38,8 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes =0)
+@ClusterScope(scope= Scope.TEST, numDataNodes = 0)
 public class SimpleNodesInfoIT extends ESIntegTestCase {
-    static final class Fields {
-        static final String SITE_PLUGIN = "dummy";
-        static final String SITE_PLUGIN_DESCRIPTION = "This is a description for a dummy test site plugin.";
-        static final String SITE_PLUGIN_VERSION = "0.0.7-BOND-SITE";
-    }
 
     public void testNodesInfos() throws Exception {
         List<String> nodesIds = internalCluster().startNodesAsync(2).get();

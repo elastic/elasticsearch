@@ -29,8 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -79,25 +77,6 @@ public class MissingAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
-
-        public Factory(String name, ValuesSourceConfig valueSourceConfig) {
-            super(name, InternalMissing.TYPE.name(), valueSourceConfig);
-        }
-
-        @Override
-        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new MissingAggregator(name, factories, null, aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, pipelineAggregators, metaData);
-        }
     }
 
 }

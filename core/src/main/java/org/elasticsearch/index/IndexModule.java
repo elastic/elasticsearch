@@ -37,7 +37,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
@@ -154,7 +154,7 @@ public final class IndexModule {
      */
     public void addIndexStore(String type, BiFunction<IndexSettings, IndexStoreConfig, IndexStore> provider) {
         if (storeTypes.containsKey(type)) {
-            throw new IllegalArgumentException("key [" + type +"] already registerd");
+            throw new IllegalArgumentException("key [" + type +"] already registered");
         }
         storeTypes.put(type, provider);
     }

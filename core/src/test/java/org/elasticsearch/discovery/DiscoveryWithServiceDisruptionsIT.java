@@ -210,7 +210,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
 
     /**
-     * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
+     * Test that no split brain occurs under partial network partition. See https://github.com/elastic/elasticsearch/issues/2488
      */
     public void testFailWithMinimumMasterNodesConfigured() throws Exception {
         List<String> nodes = startCluster(3);
@@ -595,9 +595,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
-        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()),
-                false,
-                oldNonMasterNodes.get(0));
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()), false, oldNonMasterNodes.get(0));
 
         // make sure all nodes agree on master
         String newMaster = internalCluster().getMasterName();
@@ -989,7 +987,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
                 Settings.builder()
-                        .put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
                         .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 
@@ -1105,8 +1103,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertTrue(client().prepareGet("index", "doc", "1").get().isExists());
     }
 
-    // tests if indices are really deleted even if a master transition inbetween
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11665")
+    /**
+     * Tests that indices are properly deleted even if there is a master transition in between.
+     * Test for https://github.com/elastic/elasticsearch/issues/11665
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16890")
     public void testIndicesDeleted() throws Exception {
         configureUnicastCluster(3, null, 2);
         InternalTestCluster.Async<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(2);

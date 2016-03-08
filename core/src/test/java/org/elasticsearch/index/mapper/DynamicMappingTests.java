@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.LongFieldType;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "true")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -75,7 +75,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "false")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -96,7 +96,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "strict")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -130,7 +130,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .field("dynamic", "false")
                 .startObject("properties")
                 .startObject("obj1").startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject().endObject()
                 .endObject()
                 .endObject().endObject().string();
@@ -153,7 +153,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .field("dynamic", "strict")
                 .startObject("properties")
                 .startObject("obj1").startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject().endObject()
                 .endObject()
                 .endObject().endObject().string();
@@ -218,7 +218,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("foo").field("type", "string").endObject().endObject()
+                .startObject("properties").startObject("foo").field("type", "text").endObject().endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -242,7 +242,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // original mapping not modified
         assertEquals(mapping, serialize(mapper));
         // but we have an update
-        assertEquals("{\"type\":{\"properties\":{\"foo\":{\"type\":\"string\"}}}}", serialize(update));
+        assertEquals("{\"type\":{\"properties\":{\"foo\":{\"type\":\"text\"}}}}", serialize(update));
     }
 
     public void testIncremental() throws Exception {
@@ -251,7 +251,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // Make sure that mapping updates are incremental, this is important for performance otherwise
         // every new field introduction runs in linear time with the total number of fields
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("foo").field("type", "string").endObject().endObject()
+                .startObject("properties").startObject("foo").field("type", "text").endObject().endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -264,7 +264,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 // foo is NOT in the update
-                .startObject("bar").field("type", "string").endObject()
+                .startObject("bar").field("type", "text").endObject()
                 .endObject().endObject().string(), serialize(update));
     }
 
@@ -284,8 +284,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("bar").field("type", "string").endObject()
-                .startObject("foo").field("type", "string").endObject()
+                .startObject("bar").field("type", "text").endObject()
+                .startObject("foo").field("type", "text").endObject()
                 .endObject().endObject().string(), serialize(update));
     }
 
@@ -305,7 +305,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "string").endObject().endObject().endObject().endObject().endObject()
+                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "text").endObject().endObject().endObject().endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
     }
 
@@ -325,7 +325,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo").field("type", "string").endObject()
+                .startObject("foo").field("type", "text").endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
     }
 
@@ -345,7 +345,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "string").endObject().endObject().endObject().endObject().endObject()
+                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "text").endObject().endObject().endObject().endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
     }
 
@@ -366,7 +366,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("foo").startObject("properties")
-                .startObject("bar").field("type", "string").endObject()
+                .startObject("bar").field("type", "text").endObject()
                 .startObject("baz").field("type", "long").endObject()
                 .endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
@@ -374,7 +374,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     public void testReuseExistingMappings() throws IOException, Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY, "type",
-                "my_field1", "type=string,store=true",
+                "my_field1", "type=text,store=true",
                 "my_field2", "type=integer,precision_step=10",
                 "my_field3", "type=long,doc_values=false",
                 "my_field4", "type=float,index_options=freqs",
@@ -423,9 +423,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         }
         assertNotNull(myField1Mapper);
         // same type
-        assertTrue(myField1Mapper instanceof StringFieldMapper);
+        assertTrue(myField1Mapper instanceof TextFieldMapper);
         // and same option
-        assertTrue(((StringFieldMapper) myField1Mapper).fieldType().stored());
+        assertTrue(((TextFieldMapper) myField1Mapper).fieldType().stored());
 
         // Even if dynamic mappings would map a numeric field as a long, here it should map it as a integer
         // since we already have a mapping of type integer
@@ -470,7 +470,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                             .startObject("template1")
                                 .field("match_mapping_type", "string")
                                 .startObject("mapping")
-                                    .field("type", "string")
+                                    .field("type", "text")
                                     .startObject("fields")
                                         .startObject("raw")
                                             .field("type", "keyword")
@@ -486,7 +486,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .startObject("type2")
                     .startObject("properties")
                         .startObject("field")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                     .endObject()
                 .endObject().endObject();

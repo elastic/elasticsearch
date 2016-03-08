@@ -46,7 +46,7 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -105,7 +105,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         String mapping = jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("location").field("type", "geo_shape").endObject()
-            .startObject("name").field("type", "string").endObject()
+            .startObject("name").field("type", "text").endObject()
             .endObject()
             .endObject().endObject().string();
 

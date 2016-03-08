@@ -18,22 +18,45 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class StatsParser extends NumericValuesSourceMetricsAggregatorParser<InternalStats> {
+public class StatsParser extends NumericValuesSourceParser {
 
     public StatsParser() {
-        super(InternalStats.TYPE);
+        super(true, true, false);
     }
 
     @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config) {
-        return new StatsAggregator.Factory(aggregationName, config);
+    public String type() {
+        return InternalStats.TYPE.name();
+    }
+
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
+
+    @Override
+    protected StatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new StatsAggregatorBuilder(aggregationName);
+    }
+
+    @Override
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return StatsAggregatorBuilder.PROTOTYPE;
     }
 }

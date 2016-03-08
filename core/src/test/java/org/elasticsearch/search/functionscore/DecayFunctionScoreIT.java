@@ -31,8 +31,10 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHits;
@@ -50,6 +52,7 @@ import java.util.Locale;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -74,10 +77,12 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         return pluginList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
+    private final QueryBuilder baseQuery = constantScoreQuery(termQuery("test", "value"));
+
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
@@ -117,7 +122,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(baseQuery)));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
@@ -125,7 +130,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km")))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
@@ -136,7 +141,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
@@ -144,7 +149,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("loc", lonlat, "1000km")))));
+                                functionScoreQuery(baseQuery, linearDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
@@ -155,7 +160,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
@@ -163,7 +168,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), exponentialDecayFunction("loc", lonlat, "1000km")))));
+                                functionScoreQuery(baseQuery, exponentialDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
@@ -175,7 +180,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
@@ -249,7 +254,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testBoostModeSettingWorks() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
@@ -303,7 +308,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testParseGeoPoint() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
@@ -314,60 +319,59 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 20).field("lon", 11).endObject()
                                 .endObject()).setRefresh(true).get();
-
+        FunctionScoreQueryBuilder baseQuery = functionScoreQuery(constantScoreQuery(termQuery("test", "value")), ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10)));
         GeoPoint point = new GeoPoint(20, 11);
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", point, "1000km")).boostMode(
-                                        CombineFunction.MULTIPLY))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("loc", point, "1000km")).boostMode(
+                                        CombineFunction.REPLACE))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
+        // this is equivalent to new GeoPoint(20, 11); just flipped so scores must be same
         float[] coords = { 11, 20 };
-
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", coords, "1000km")).boostMode(
-                                        CombineFunction.MULTIPLY))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("loc", coords, "1000km")).boostMode(
+                                        CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(1.0f, 1.e-5));
     }
 
     public void testCombineModes() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
         client().prepareIndex().setType("type1").setId("1").setIndex("test")
-                .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()).setRefresh(true).get();
-
-        // function score should return 0.5 for this function
-
+                .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject()).setRefresh(true).get();
+        FunctionScoreQueryBuilder baseQuery = functionScoreQuery(constantScoreQuery(termQuery("test", "value")), ScoreFunctionBuilders.weightFactorFunction(2));
+        // decay score should return 0.5 for this function and baseQuery should return 2.0f as it's score
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.MULTIPLY))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5))
+                                    .boostMode(CombineFunction.MULTIPLY))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(0.153426408, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.REPLACE))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5))
+                                    .boostMode(CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
@@ -377,54 +381,54 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.SUM))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5))
+                                    .boostMode(CombineFunction.SUM))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282 + 0.5, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(2.0 + 0.5, 1.e-5));
         logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.AVG))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5))
+                                    .boostMode(CombineFunction.AVG))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo((0.30685282 + 0.5) / 2, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo((2.0 + 0.5) / 2, 1.e-5));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.MIN))));
-        sr = response.actionGet();
-        sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
-        assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
-
-        response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.MAX))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5))
+                                    .boostMode(CombineFunction.MIN))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(0.5, 1.e-5));
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().query(
+                                functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5))
+                                    .boostMode(CombineFunction.MAX))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(2.0, 1.e-5));
 
     }
 
     public void testExceptionThrownIfScaleLE0() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
@@ -450,7 +454,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testParseDateMath() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").field("format", "epoch_millis").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
@@ -482,7 +486,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testValueMissingLin() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().startObject("num2").field("type", "double")
                         .endObject().endObject().endObject().endObject())
         );
@@ -509,7 +513,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                functionScoreQuery(baseQuery, new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
                                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(linearDecayFunction("num1", "2013-05-28", "+3d")),
                                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(linearDecayFunction("num2", "0.0", "1"))
                                 }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
@@ -533,7 +537,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
@@ -581,7 +585,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("test").field("type", "string").endObject().startObject("date").field("type", "date")
+                .startObject("test").field("type", "text").endObject().startObject("date").field("type", "date")
                 .field("doc_values", true).endObject().startObject("num").field("type", "double")
                 .field("doc_values", true).endObject().startObject("geo").field("type", "geo_point")
                 .field("ignore_malformed", true);
@@ -638,7 +642,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
         int numDocs = 2;
@@ -667,8 +671,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num").field("type", "string").endObject().endObject().endObject().endObject()));
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+                        .endObject().startObject("num").field("type", "text").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
                 indexRequest("test").type("type").source(
@@ -690,7 +694,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testNoQueryGiven() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
@@ -709,7 +713,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testMultiFieldOptions() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().startObject("num").field("type", "float").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
@@ -733,7 +737,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().source(
-                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(baseQuery)));
         SearchResponse sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         SearchHits sh = sr.getHits();
@@ -745,7 +749,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MIN)))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MIN)))));
         sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
@@ -755,7 +759,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MAX)))));
+                                functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MAX)))));
         sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
@@ -784,7 +788,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.SUM)))));
+                                functionScoreQuery(baseQuery, linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.SUM)))));
         sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
@@ -795,7 +799,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.AVG)))));
+                                functionScoreQuery(baseQuery, linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.AVG)))));
         sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         sh = sr.getHits();

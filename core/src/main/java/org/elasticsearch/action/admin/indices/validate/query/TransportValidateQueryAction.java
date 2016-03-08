@@ -49,6 +49,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -76,17 +77,20 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     private final BigArrays bigArrays;
 
+    private final FetchPhase fetchPhase;
+
     @Inject
     public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                        TransportService transportService, IndicesService indicesService,
-                                        ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                        BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+            TransportService transportService, IndicesService indicesService, ScriptService scriptService,
+            PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver, FetchPhase fetchPhase) {
         super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
+        this.fetchPhase = fetchPhase;
     }
 
     @Override
@@ -173,11 +177,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         Engine.Searcher searcher = indexShard.acquireSearcher("validate_query");
 
         DefaultSearchContext searchContext = new DefaultSearchContext(0,
-                new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
-                null, searcher, indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
-                SearchService.NO_TIMEOUT
-        );
+                new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()), null, searcher,
+                indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(),
+                parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
         SearchContext.setCurrent(searchContext);
         try {
             searchContext.parsedQuery(queryShardContext.toQuery(request.query()));

@@ -35,10 +35,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
@@ -91,11 +89,11 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     protected ClusterBlockException checkRequestBlock(ClusterState state, Request request) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
     }
+
     /**
-     * Resolves the request. If the resolve means a different execution, then return false
-     * here to indicate not to continue and execute this request.
+     * Resolves the request. Throws an exception if the request cannot be resolved.
      */
-    protected abstract boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener);
+    protected abstract void resolveRequest(ClusterState state, Request request);
 
     protected boolean retryOnFailure(Throwable e) {
         return false;
@@ -141,11 +139,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                     }
                 }
                 request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request));
-                // check if we need to execute, and if not, return
-                if (!resolveRequest(observer.observedState(), request, listener)) {
-                    listener.onFailure(new IllegalStateException(LoggerMessageFormat.format("[{}][{}] request {} could not be resolved",request.index, request.shardId, actionName)));
-                    return;
-                }
+                resolveRequest(observer.observedState(), request);
                 blockException = checkRequestBlock(observer.observedState(), request);
                 if (blockException != null) {
                     if (blockException.retryable()) {

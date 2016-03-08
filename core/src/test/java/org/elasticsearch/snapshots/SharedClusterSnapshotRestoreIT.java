@@ -1813,19 +1813,31 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
-    public void testDeleteIndexDuringSnapshot() throws Exception {
+    public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {
         Client client = client();
 
         boolean allowPartial = randomBoolean();
-
         logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+
+        // only block on repo init if we have partial snapshot or we run into deadlock when acquiring shard locks for index deletion/closing
+        boolean initBlocking = allowPartial || randomBoolean();
+        if (initBlocking) {
+            assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(Settings.settingsBuilder()
-                        .put("location", randomRepoPath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                        .put("block_on_init", true)
+                    .put("location", randomRepoPath())
+                    .put("compress", randomBoolean())
+                    .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                    .put("block_on_init", true)
                 ));
+        } else {
+            assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("mock").setSettings(Settings.settingsBuilder()
+                    .put("location", randomRepoPath())
+                    .put("compress", randomBoolean())
+                    .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                    .put("block_on_data", true)
+                ));
+        }
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -1843,25 +1855,61 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot allow partial {}", allowPartial);
         ListenableActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setIndices("test-idx-*").setWaitForCompletion(true).setPartial(allowPartial).execute();
+            .setIndices("test-idx-*").setWaitForCompletion(true).setPartial(allowPartial).execute();
         logger.info("--> wait for block to kick in");
-        waitForBlock(internalCluster().getMasterName(), "test-repo", TimeValue.timeValueMinutes(1));
-        logger.info("--> delete some indices while snapshot is running");
-        client.admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
-        logger.info("--> unblock running master node");
-        unblockNode(internalCluster().getMasterName());
+        if (initBlocking) {
+            waitForBlock(internalCluster().getMasterName(), "test-repo", TimeValue.timeValueMinutes(1));
+        } else {
+            waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
+        }
+        if (allowPartial) {
+            // partial snapshots allow close / delete operations
+            if (randomBoolean()) {
+                logger.info("--> delete index while partial snapshot is running");
+                client.admin().indices().prepareDelete("test-idx-1").get();
+            } else {
+                logger.info("--> close index while partial snapshot is running");
+                client.admin().indices().prepareClose("test-idx-1").get();
+            }
+        } else {
+            // non-partial snapshots do not allow close / delete operations on indices where snapshot has not been completed
+            if (randomBoolean()) {
+                try {
+                    logger.info("--> delete index while non-partial snapshot is running");
+                    client.admin().indices().prepareDelete("test-idx-1").get();
+                    fail("Expected deleting index to fail during snapshot");
+                } catch (IllegalArgumentException e) {
+                    assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [test-idx-1]"));
+                }
+            } else {
+                try {
+                    logger.info("--> close index while non-partial snapshot is running");
+                    client.admin().indices().prepareClose("test-idx-1").get();
+                    fail("Expected closing index to fail during snapshot");
+                } catch (IllegalArgumentException e) {
+                    assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [test-idx-1]"));
+                }
+            }
+        }
+        if (initBlocking) {
+            logger.info("--> unblock running master node");
+            unblockNode(internalCluster().getMasterName());
+        } else {
+            logger.info("--> unblock all data nodes");
+            unblockAllDataNodes("test-repo");
+        }
         logger.info("--> waiting for snapshot to finish");
         CreateSnapshotResponse createSnapshotResponse = future.get();
 
         if (allowPartial) {
-            logger.info("Deleted index during snapshot, but allow partial");
+            logger.info("Deleted/Closed index during snapshot, but allow partial");
             assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.PARTIAL)));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
             assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), greaterThan(0));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(createSnapshotResponse.getSnapshotInfo().totalShards()));
         } else {
-            logger.info("Deleted index during snapshot and doesn't allow partial");
-            assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.FAILED)));
+            logger.info("Snapshot successfully completed");
+            assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.SUCCESS)));
         }
     }
 
@@ -1960,7 +2008,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 shards.put(new ShardId("test-idx", "_na_", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED));
                 shards.put(new ShardId("test-idx", "_na_", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED));
                 List<Entry> entries = new ArrayList<>();
-                entries.add(new Entry(new SnapshotId("test-repo", "test-snap"), true, State.ABORTED, Collections.singletonList("test-idx"), System.currentTimeMillis(), shards.build()));
+                entries.add(new Entry(new SnapshotId("test-repo", "test-snap"), true, false, State.ABORTED, Collections.singletonList("test-idx"), System.currentTimeMillis(), shards.build()));
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries))).build();
             }
 

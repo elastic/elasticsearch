@@ -639,6 +639,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         return new SnapshotsInProgress(new SnapshotsInProgress.Entry(
                                 new SnapshotId(randomName("repo"), randomName("snap")),
                                 randomBoolean(),
+                                randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
                                 Collections.<String>emptyList(),
                                 Math.abs(randomLong()),

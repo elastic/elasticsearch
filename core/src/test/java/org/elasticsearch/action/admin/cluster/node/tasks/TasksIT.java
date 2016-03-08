@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +58,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -383,7 +385,8 @@ public class TasksIT extends ESIntegTestCase {
                 if (timeoutException.getCause() != null) {
                     timeoutException = timeoutException.getCause();
                 }
-                assertThat(failure.getCause().getCause(), instanceOf(ElasticsearchTimeoutException.class));
+                assertThat(timeoutException,
+                        either(instanceOf(ElasticsearchTimeoutException.class)).or(instanceOf(ReceiveTimeoutTransportException.class)));
             }
         } finally {
             // Now we can unblock those requests

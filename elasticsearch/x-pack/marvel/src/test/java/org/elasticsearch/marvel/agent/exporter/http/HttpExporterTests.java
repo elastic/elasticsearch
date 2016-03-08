@@ -292,7 +292,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> starting node");
 
         // returning an unsupported cluster version
-        enqueueGetClusterVersionResponse(randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0));
+        enqueueGetClusterVersionResponse(randomFrom(Version.fromString("0.18.0"), Version.fromString("1.0.0"),
+                Version.fromString("1.4.0")));
 
         String agentNode = internalCluster().startNode(builder);
 
@@ -431,8 +432,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         Version resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(Version.CURRENT));
 
-        final Version expected = randomFrom(Version.CURRENT, Version.V_0_18_0, Version.V_1_1_0, Version.V_1_2_4,
-                Version.V_1_4_5, Version.V_1_6_0);
+        final Version expected = randomFrom(Version.CURRENT, Version.V_2_0_0_beta1, Version.V_2_0_0_beta2, Version.V_2_0_0_rc1,
+                Version.V_2_0_0, Version.V_2_1_0, Version.V_2_2_0, Version.V_2_3_0);
         enqueueGetClusterVersionResponse(expected);
         resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(expected));

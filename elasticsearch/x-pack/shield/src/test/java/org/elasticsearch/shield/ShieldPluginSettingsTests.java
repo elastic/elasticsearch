@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.shield;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 
 public class ShieldPluginSettingsTests extends ESTestCase {
@@ -105,5 +108,28 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(TRIBE_T1_SHIELD_ENABLED));
         }
+    }
+
+    public void testShieldSettingsCopiedForTribeNodes() {
+        Settings settings = Settings.builder()
+                .put("tribe.t1.cluster.name", "non_existing")
+                .put("tribe.t2.cluster.name", "non_existing")
+                .put("shield.foo", "bar")
+                .put("shield.bar", "foo")
+                .putArray("shield.something.else.here", new String[] { "foo", "bar" })
+                .build();
+
+        Shield shield = new Shield(settings);
+        Settings additionalSettings = shield.additionalSettings();
+
+        assertThat(additionalSettings.get("shield.foo"), nullValue());
+        assertThat(additionalSettings.get("shield.bar"), nullValue());
+        assertThat(additionalSettings.getAsArray("shield.something.else.here"), is(Strings.EMPTY_ARRAY));
+        assertThat(additionalSettings.get("tribe.t1.shield.foo"), is("bar"));
+        assertThat(additionalSettings.get("tribe.t1.shield.bar"), is("foo"));
+        assertThat(additionalSettings.getAsArray("tribe.t1.shield.something.else.here"), arrayContaining("foo", "bar"));
+        assertThat(additionalSettings.get("tribe.t2.shield.foo"), is("bar"));
+        assertThat(additionalSettings.get("tribe.t2.shield.bar"), is("foo"));
+        assertThat(additionalSettings.getAsArray("tribe.t2.shield.something.else.here"), arrayContaining("foo", "bar"));
     }
 }

@@ -17,10 +17,8 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class DataAttachmentTests extends ESTestCase {
+
     public void testCreateJson() throws Exception {
         Map<String, Object> data = singletonMap("key", "value");
         Attachment attachment = DataAttachment.JSON.create("data", data);

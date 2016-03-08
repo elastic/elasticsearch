@@ -94,7 +94,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                 if (response.hasContent()) {
                     String contentType = attachment.getContentType();
                     String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
-                    return new Attachment.Bytes(attachment.getId(), response.body().toBytes(), attachmentContentType);
+                    return new Attachment.Bytes(attachment.id(), response.body().toBytes(), attachmentContentType);
                 } else {
                     logger.error("Empty response body: [host[{}], port[{}], method[{}], path[{}]: response status [{}]", httpRequest.host(),
                             httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
@@ -109,6 +109,6 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
         }
 
         throw new ElasticsearchException("Unable to get attachment of type [{}] with id [{}] in watch [{}] aborting watch execution",
-                type(), attachment.getId(), context.watch().id());
+                type(), attachment.id(), context.watch().id());
     }
 }

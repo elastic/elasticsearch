@@ -22,6 +22,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.common.init.LazyInitializationModule;
+import org.elasticsearch.xpack.common.init.LazyInitializationService;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -89,6 +91,7 @@ public class XPackPlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
+        modules.add(new LazyInitializationModule());
         modules.addAll(licensing.nodeModules());
         modules.addAll(shield.nodeModules());
         modules.addAll(watcher.nodeModules());
@@ -99,6 +102,10 @@ public class XPackPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        // the initialization service must be first in the list
+        // as other services may depend on one of the initialized
+        // constructs
+        services.add(LazyInitializationService.class);
         services.addAll(licensing.nodeServices());
         services.addAll(shield.nodeServices());
         services.addAll(watcher.nodeServices());
@@ -143,6 +150,10 @@ public class XPackPlugin extends Plugin {
 
     public void onIndexModule(IndexModule module) {
         shield.onIndexModule(module);
+    }
+
+    public void onModule(LazyInitializationModule module) {
+        watcher.onModule(module);
     }
 
     public static boolean transportClientMode(Settings settings) {

@@ -76,7 +76,7 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
@@ -141,7 +141,7 @@ import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
     private ScriptServiceProxy scriptService;
-    private ClientProxy client;
+    private WatcherClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
     private TextTemplateEngine templateEngine;
@@ -155,7 +155,7 @@ public class WatchTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         scriptService = mock(ScriptServiceProxy.class);
-        client = mock(ClientProxy.class);
+        client = mock(WatcherClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
         templateEngine = mock(TextTemplateEngine.class);

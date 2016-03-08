@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;
@@ -112,7 +113,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                 Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
-                new PluginsAndModules());
+                new PluginsAndModules(), new IngestInfo());
 
     }
 

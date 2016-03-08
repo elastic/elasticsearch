@@ -17,7 +17,7 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPrivateKey;
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPublicKey;
@@ -49,11 +49,10 @@ public class KeyPairGeneratorTool extends Command {
     }
 
     @Override
-    protected int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         File publicKeyPath = publicKeyPathOption.value(options);
         File privateKeyPath = privateKeyPathOption.value(options);
         execute(terminal, publicKeyPath.toPath(), privateKeyPath.toPath());
-        return ExitCodes.OK;
     }
 
     // pkg private for tests

@@ -19,14 +19,13 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.elasticsearch.shield.support.FileAttributesChecker;
 
 public class SystemKeyTool extends Command {
 
@@ -48,7 +47,7 @@ public class SystemKeyTool extends Command {
     }
 
     @Override
-    protected int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         Path keyPath = null;
         List<String> args = arguments.values(options);
         if (args.size() > 1) {
@@ -57,7 +56,6 @@ public class SystemKeyTool extends Command {
             keyPath = PathUtils.get(args.get(0));
         }
         execute(terminal, keyPath);
-        return ExitCodes.OK;
     }
 
     // pkg private for tests

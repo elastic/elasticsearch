@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
 import org.elasticsearch.test.ESTestCase;

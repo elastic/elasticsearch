@@ -10,25 +10,15 @@ import java.util.List;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.watcher.trigger.schedule.Cron;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-import static org.elasticsearch.common.cli.CliToolConfig.config;
 
 public class CronEvalTool extends Command {
 
@@ -52,14 +42,13 @@ public class CronEvalTool extends Command {
     }
 
     @Override
-    protected int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         int count = Integer.parseInt(countOption.value(options));
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
             throw new UserError(ExitCodes.USAGE, "expecting a single argument that is the cron expression to evaluate");
         }
         execute(terminal, args.get(0), count);
-        return ExitCodes.OK;
     }
 
     void execute(Terminal terminal, String expression, int count) throws Exception {

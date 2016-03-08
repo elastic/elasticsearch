@@ -5,34 +5,22 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-import static org.elasticsearch.common.cli.CliToolConfig.config;
 
 public class LicenseVerificationTool extends Command {
 
@@ -57,7 +45,7 @@ public class LicenseVerificationTool extends Command {
     }
 
     @Override
-    protected int execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         Path publicKeyPath = PathUtils.get(publicKeyPathOption.value(options));
         String licenseSpecString = null;
         if (options.has(licenseOption)) {
@@ -68,7 +56,6 @@ public class LicenseVerificationTool extends Command {
             licenseSpecPath = PathUtils.get(licenseFileOption.value(options));
         }
         execute(terminal, publicKeyPath, licenseSpecString, licenseSpecPath);
-        return ExitCodes.OK;
     }
 
     // pkg private for tests

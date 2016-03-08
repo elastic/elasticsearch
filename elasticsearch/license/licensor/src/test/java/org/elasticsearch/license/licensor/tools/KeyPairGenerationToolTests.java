@@ -10,7 +10,7 @@ import java.nio.file.Path;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.containsString;

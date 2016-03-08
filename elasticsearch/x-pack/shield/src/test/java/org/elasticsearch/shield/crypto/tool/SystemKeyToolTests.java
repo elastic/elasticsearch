@@ -12,7 +12,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.crypto.InternalCryptoService;

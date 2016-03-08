@@ -101,7 +101,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
+        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
         final Allocation enable;
         if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
             enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());
@@ -136,7 +136,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "rebalance disabling is ignored");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).getSettings();
+        Settings indexSettings = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index()).getSettings();
         final Rebalance enable;
         if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
             enable = INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexSettings);

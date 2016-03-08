@@ -137,7 +137,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                     .execute().actionGet();
             fail("can't change number of replicas on a closed index");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Can't update [index.number_of_replicas] on closed indices [[test]] - can leave index in an unopenable state");
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("Can't update [index.number_of_replicas] on closed indices [[test/"));
+            assertTrue(ex.getMessage(), ex.getMessage().endsWith("]] - can leave index in an unopenable state"));
             // expected
         }
         client().admin().indices().prepareUpdateSettings("test")

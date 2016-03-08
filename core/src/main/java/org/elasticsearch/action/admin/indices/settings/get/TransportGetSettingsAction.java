@@ -34,6 +34,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,7 +62,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected ClusterBlockException checkBlock(GetSettingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 
@@ -72,9 +73,9 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
-        for (String concreteIndex : concreteIndices) {
+        for (Index concreteIndex : concreteIndices) {
             IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
             if (indexMetaData == null) {
                 continue;
@@ -93,7 +94,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
                 }
                 settings = settingsBuilder.build();
             }
-            indexToSettingsBuilder.put(concreteIndex, settings);
+            indexToSettingsBuilder.put(concreteIndex.getName(), settings);
         }
         listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build()));
     }

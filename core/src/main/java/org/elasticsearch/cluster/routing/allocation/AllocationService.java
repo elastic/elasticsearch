@@ -320,7 +320,7 @@ public class AllocationService extends AbstractComponent {
     public static void updateLeftDelayOfUnassignedShards(RoutingAllocation allocation, Settings settings) {
         for (ShardRouting shardRouting : allocation.routingNodes().unassigned()) {
             final MetaData metaData = allocation.metaData();
-            final IndexMetaData indexMetaData = metaData.index(shardRouting.index());
+            final IndexMetaData indexMetaData = metaData.getIndexSafe(shardRouting.index());
             shardRouting.unassignedInfo().updateDelay(allocation.getCurrentNanoTime(), settings, indexMetaData.getSettings());
         }
     }
@@ -340,7 +340,6 @@ public class AllocationService extends AbstractComponent {
                 changed |= failReplicasForUnassignedPrimary(allocation, shardEntry);
                 ShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
                 if (candidate != null) {
-                    IndexMetaData index = allocation.metaData().index(candidate.index());
                     routingNodes.swapPrimaryFlag(shardEntry, candidate);
                     if (candidate.relocatingNodeId() != null) {
                         changed = true;
@@ -355,6 +354,7 @@ public class AllocationService extends AbstractComponent {
                             }
                         }
                     }
+                    IndexMetaData index = allocation.metaData().getIndexSafe(candidate.index());
                     if (IndexMetaData.isIndexUsingShadowReplicas(index.getSettings())) {
                         routingNodes.reinitShadowPrimary(candidate);
                         changed = true;

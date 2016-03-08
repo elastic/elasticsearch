@@ -195,7 +195,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     public void afterIndexClosed(Index index, Settings indexSettings) {
         // once an index is closed we can just clean up all the pending search context information
         // to release memory and let references to the filesystem go etc.
-        IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index.getName());
+        IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index);
         if (idxMeta != null && idxMeta.getState() == IndexMetaData.State.CLOSE) {
             // we need to check if it's really closed
             // since sometimes due to a relocation we already closed the shard and that causes the index to be closed

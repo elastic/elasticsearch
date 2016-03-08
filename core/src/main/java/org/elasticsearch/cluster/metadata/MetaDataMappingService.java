@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -216,31 +217,23 @@ public class MetaDataMappingService extends AbstractComponent {
             try {
                 // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
-                    final List<Index> indices = new ArrayList<>(request.indices().length);
                     try {
-                        for (String index : request.indices()) {
-                            final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                            if (indexMetaData != null) {
-                                if (indicesService.hasIndex(indexMetaData.getIndex()) == false) {
-                                    // if the index does not exists we create it once, add all types to the mapper service and
-                                    // close it later once we are done with mapping update
-                                    indicesToClose.add(indexMetaData.getIndex());
-                                    IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData,
-                                        Collections.emptyList());
-                                    // add mappings for all types, we need them for cross-type validation
-                                    for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                        indexService.mapperService().merge(mapping.value.type(), mapping.value.source(),
-                                            MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
-                                    }
+                        for (Index index : request.indices()) {
+                            final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+                            if (indicesService.hasIndex(indexMetaData.getIndex()) == false) {
+                                // if the index does not exists we create it once, add all types to the mapper service and
+                                // close it later once we are done with mapping update
+                                indicesToClose.add(indexMetaData.getIndex());
+                                IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData,
+                                    Collections.emptyList());
+                                // add mappings for all types, we need them for cross-type validation
+                                for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
+                                    indexService.mapperService().merge(mapping.value.type(), mapping.value.source(),
+                                        MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
                                 }
-                                indices.add(indexMetaData.getIndex());
-                            } else {
-                                // we didn't find the index in the clusterstate - maybe it was deleted
-                                // NOTE: this doesn't fail the entire batch only the current PutMapping request we are processing
-                                throw new IndexNotFoundException(index);
                             }
                         }
-                        currentState = applyRequest(currentState, request, indices);
+                        currentState = applyRequest(currentState, request);
                         builder.success(request);
                     } catch (Throwable t) {
                         builder.failure(request, t);
@@ -254,13 +247,20 @@ public class MetaDataMappingService extends AbstractComponent {
             }
         }
 
-        private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
-                                          List<Index> indices) throws IOException {
+        private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request) throws IOException {
             String mappingType = request.type();
             CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
             final MetaData metaData = currentState.metaData();
-            for (Index index : indices) {
+            final List<Tuple<IndexService, IndexMetaData>> updateList = new ArrayList<>();
+            for (Index index : request.indices()) {
                 IndexService indexService = indicesService.indexServiceSafe(index);
+                // IMPORTANT: always get the metadata from the state since it get's batched
+                // and if we pull it from the indexService we might miss an update etc.
+                final IndexMetaData indexMetaData = currentState.getMetaData().getIndexSafe(index);
+
+                // this is paranoia... just to be sure we use the exact same indexService and metadata tuple on the update that
+                // we used for the validation, it makes this mechanism little less scary (a little)
+                updateList.add(new Tuple<>(indexService, indexMetaData));
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
                 DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
@@ -281,7 +281,6 @@ public class MetaDataMappingService extends AbstractComponent {
                         // and a put mapping api call, so we don't which type did exist before.
                         // Also the order of the mappings may be backwards.
                         if (newMapper.parentFieldMapper().active()) {
-                            IndexMetaData indexMetaData = metaData.index(index);
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                 if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
                                     throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
@@ -302,13 +301,12 @@ public class MetaDataMappingService extends AbstractComponent {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
             MetaData.Builder builder = MetaData.builder(metaData);
-            for (Index index : indices) {
+            for (Tuple<IndexService, IndexMetaData> toUpdate : updateList) {
                 // do the actual merge here on the master, and update the mapping source
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) { // TODO this seems impossible given we use indexServiceSafe above
-                    continue;
-                }
-
+                // we use the exact same indexService and metadata we used to validate above here to actually apply the update
+                final IndexService indexService = toUpdate.v1();
+                final IndexMetaData indexMetaData = toUpdate.v2();
+                final Index index = indexMetaData.getIndex();
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = indexService.mapperService().documentMapper(mappingType);
                 if (existingMapper != null) {
@@ -323,24 +321,20 @@ public class MetaDataMappingService extends AbstractComponent {
                     } else {
                         // use the merged mapping source
                         if (logger.isDebugEnabled()) {
-                            logger.debug("[{}] update_mapping [{}] with source [{}]", index, mergedMapper.type(), updatedSource);
+                            logger.debug("{} update_mapping [{}] with source [{}]", index, mergedMapper.type(), updatedSource);
                         } else if (logger.isInfoEnabled()) {
-                            logger.info("[{}] update_mapping [{}]", index, mergedMapper.type());
+                            logger.info("{} update_mapping [{}]", index, mergedMapper.type());
                         }
 
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
+                        logger.debug("{} create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
                     } else if (logger.isInfoEnabled()) {
-                        logger.info("[{}] create_mapping [{}]", index, mappingType);
+                        logger.info("{} create_mapping [{}]", index, mappingType);
                     }
                 }
 
-                IndexMetaData indexMetaData = metaData.index(index);
-                if (indexMetaData == null) {
-                    throw new IndexNotFoundException(index);
-                }
                 IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types

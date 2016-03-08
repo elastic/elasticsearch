@@ -218,7 +218,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             metaData = routingNodes.metaData();
-            avgShardsPerNode = ((float) metaData.totalNumberOfShards()) / routingNodes.size();
+            avgShardsPerNode = ((float) metaData.getTotalNumberOfShards()) / routingNodes.size();
             buildModelFromAssigned();
         }
 

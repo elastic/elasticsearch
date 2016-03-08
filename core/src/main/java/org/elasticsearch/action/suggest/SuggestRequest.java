@@ -54,7 +54,7 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
     @Nullable
     private String preference;
 
-    private SuggestBuilder suggestSource;
+    private SuggestBuilder suggest;
 
     public SuggestRequest() {
     }
@@ -74,18 +74,18 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
     }
 
     /**
-     * The Phrase to get correction suggestions for
+     * The suggestion query to get correction suggestions for
      */
     public SuggestBuilder suggest() {
-        return suggestSource;
+        return suggest;
     }
 
     /**
      * set a new source for the suggest query
      */
-    public SuggestRequest suggest(SuggestBuilder suggestSource) {
-        Objects.requireNonNull(suggestSource, "suggestSource must not be null");
-        this.suggestSource = suggestSource;
+    public SuggestRequest suggest(SuggestBuilder suggest) {
+        Objects.requireNonNull(suggest, "suggest must not be null");
+        this.suggest = suggest;
         return this;
     }
 
@@ -126,29 +126,29 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
         super.readFrom(in);
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        suggest(SuggestBuilder.PROTOTYPE.readFrom(in));
+        suggest = SuggestBuilder.PROTOTYPE.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Objects.requireNonNull(suggestSource, "suggestSource must not be null");
+        Objects.requireNonNull(suggest, "suggest must not be null");
         super.writeTo(out);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        suggestSource.writeTo(out);
+        suggest.writeTo(out);
     }
 
     @Override
     public String toString() {
-        Objects.requireNonNull(suggestSource, "suggestSource must not be null");
+        Objects.requireNonNull(suggest, "suggest must not be null");
         String sSource = "_na_";
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            builder = suggestSource.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder = suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
             sSource = builder.string();
         } catch (Exception e) {
             // ignore
         }
-        return "[" + Arrays.toString(indices) + "]" + ", suggestSource[" + sSource + "]";
+        return "[" + Arrays.toString(indices) + "]" + ", suggest[" + sSource + "]";
     }
 }

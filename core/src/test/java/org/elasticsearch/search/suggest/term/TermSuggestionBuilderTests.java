@@ -19,14 +19,17 @@
 
 package org.elasticsearch.search.suggest.term;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_ACCURACY;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MAX_EDITS;
@@ -35,6 +38,7 @@ import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAUL
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_DOC_FREQ;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_WORD_LENGTH;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_PREFIX_LENGTH;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Test the {@link TermSuggestionBuilder} class.
@@ -278,6 +282,24 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         assertEquals(SortBy.SCORE, builder.sort());
         assertEquals(StringDistanceImpl.INTERNAL, builder.stringDistance());
         assertEquals(SuggestMode.MISSING, builder.suggestMode());
+    }
+
+    public void testMalformedJson() {
+        final String field = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+        String suggest = "{\n" +
+                         "  \"bad-payload\" : {\n" +
+                         "    \"text\" : \"the amsterdma meetpu\",\n" +
+                         "    \"term\" : {\n" +
+                         "      \"field\" : { \"" + field + "\" : \"bad-object\" }\n" +
+                         "    }\n" +
+                         "  }\n" +
+                         "}";
+        try {
+            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(suggest), suggesters);
+            fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
+        } catch (Exception e) {
+            assertThat(e.getMessage(), containsString("parsing failed"));
+        }
     }
 
     @Override

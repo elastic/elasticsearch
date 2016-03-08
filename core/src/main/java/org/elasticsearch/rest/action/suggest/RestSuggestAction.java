@@ -81,7 +81,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 final QueryParseContext context = new QueryParseContext(queryRegistry);
                 context.reset(parser);
                 context.parseFieldMatcher(parseFieldMatcher);
-                suggestRequest.suggest(SuggestBuilder.fromXContent(context, suggesters, true));
+                suggestRequest.suggest(SuggestBuilder.fromXContent(context, suggesters));
             }
         } else {
             throw new IllegalArgumentException("no content or source provided to execute suggestion");

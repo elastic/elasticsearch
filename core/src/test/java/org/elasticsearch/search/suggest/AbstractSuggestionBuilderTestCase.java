@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -54,6 +55,7 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -78,7 +80,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     protected static NamedWriteableRegistry namedWriteableRegistry;
-    private static Suggesters suggesters;
+    protected static IndicesQueriesRegistry queriesRegistry;
+    protected static ParseFieldMatcher parseFieldMatcher;
+    protected static Suggesters suggesters;
     private static ScriptService scriptService;
     private static SuggestParseElement parseElement;
 
@@ -111,11 +115,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
+        queriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
+        parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        suggesters = null;
+        queriesRegistry = null;
     }
 
     /**
@@ -359,5 +367,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 return (SB) in.readSuggestion();
             }
         }
+    }
+
+    protected static QueryParseContext newParseContext(final String xcontent) throws IOException {
+        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
+        parseContext.reset(XContentFactory.xContent(xcontent).createParser(xcontent));
+        parseContext.parseFieldMatcher(parseFieldMatcher);
+        return parseContext;
     }
 }

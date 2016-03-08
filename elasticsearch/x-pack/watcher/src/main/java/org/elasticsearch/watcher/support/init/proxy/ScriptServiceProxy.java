@@ -65,7 +65,7 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
                 service.executable(script, WatcherScriptContext.CTX, emptyMap()));
     }
 
-    public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("elasticsearch-watcher", "watch");
+    public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("xpack", "watch");
 
     private static class WatcherScriptContext implements ScriptContext {
 

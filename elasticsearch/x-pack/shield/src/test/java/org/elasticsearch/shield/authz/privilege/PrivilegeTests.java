@@ -5,15 +5,10 @@
  */
 package org.elasticsearch.shield.authz.privilege;
 
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.action.search.MultiSearchAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.test.ESTestCase;
@@ -261,28 +256,5 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("cluster:admin/whatever"), is(false));
         assertThat(predicate.test("indices:admin/mapping/put"), is(false));
         assertThat(predicate.test("indices:admin/mapping/whatever"), is(false));
-    }
-
-    public void testSearchPrivilege() throws Exception {
-        Predicate<String> predicate = IndexPrivilege.SEARCH.predicate();
-        assertThat(predicate.test(SearchAction.NAME), is(true));
-        assertThat(predicate.test(SearchAction.NAME + "/whatever"), is(true));
-        assertThat(predicate.test(MultiSearchAction.NAME), is(true));
-        assertThat(predicate.test(MultiSearchAction.NAME + "/whatever"), is(true));
-        assertThat(predicate.test(SuggestAction.NAME), is(true));
-        assertThat(predicate.test(SuggestAction.NAME + "/whatever"), is(true));
-
-        assertThat(predicate.test(GetAction.NAME), is(false));
-        assertThat(predicate.test(GetAction.NAME + "/whatever"), is(false));
-        assertThat(predicate.test(MultiGetAction.NAME), is(false));
-        assertThat(predicate.test(MultiGetAction.NAME + "/whatever"), is(false));
-    }
-
-    public void testGetPrivilege() throws Exception {
-        Predicate<String> predicate = IndexPrivilege.GET.predicate();
-        assertThat(predicate.test(GetAction.NAME), is(true));
-        assertThat(predicate.test(GetAction.NAME + "/whatever"), is(true));
-        assertThat(predicate.test(MultiGetAction.NAME), is(true));
-        assertThat(predicate.test(MultiGetAction.NAME + "/whatever"), is(true));
     }
 }

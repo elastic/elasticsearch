@@ -82,7 +82,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("idx3"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege(), is(IndexPrivilege.CRUD));
+        assertThat(group.privilege().implies(IndexPrivilege.READ), is(true));
+        assertThat(group.privilege().implies(IndexPrivilege.WRITE),is(true));
 
         role = roles.get("role1.ab");
         assertThat(role, notNullValue());
@@ -228,21 +229,21 @@ public class FileRolesStoreTests extends ESTestCase {
      * This test is mainly to make sure we can read the default roles.yml config
      */
     public void testDefaultRolesFile() throws Exception {
+        // TODO we should add the config dir to the resources so we don't copy this stuff around...
         Path path = getDataPath("default_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(10));
+        assertThat(roles.size(), is(9));
 
         assertThat(roles, hasKey("admin"));
         assertThat(roles, hasKey("power_user"));
         assertThat(roles, hasKey("user"));
-        assertThat(roles, hasKey("kibana4"));
+        assertThat(roles, hasKey("transport_client"));
         assertThat(roles, hasKey("kibana4_server"));
         assertThat(roles, hasKey("logstash"));
         assertThat(roles, hasKey("monitoring_user"));
         assertThat(roles, hasKey("remote_monitoring_agent"));
         assertThat(roles, hasKey("ingest_admin"));
-        assertThat(roles, hasKey("transport_client"));
     }
 
     public void testAutoReload() throws Exception {

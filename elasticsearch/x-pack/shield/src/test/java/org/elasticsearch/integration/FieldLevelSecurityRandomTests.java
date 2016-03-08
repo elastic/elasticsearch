@@ -86,10 +86,12 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
                 "      privileges: [ ALL ]\n" +
                 "      fields:\n" +roleFields.toString() +
                 "role2:\n" +
-                "  cluster: [ all ]\n" +
+                "  cluster:\n" +
+                "    - all\n" +
                 "  indices:\n" +
                 "    - names: test\n" +
-                "      privileges: [ ALL ]\n" +
+                "      privileges:\n" +
+                "        - all\n" +
                 "      fields:\n" +
                 "        - field1\n" +
                 "role3:\n" +

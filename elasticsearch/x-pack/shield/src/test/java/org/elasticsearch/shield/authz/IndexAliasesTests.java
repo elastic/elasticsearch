@@ -60,30 +60,30 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ create_index ]\n" +
-                //role that has create index and managa aliases on test_*, not enough to manage aliases outside of test_* namespace
+                //role that has create index and manage_aliases on test_*, not enough to manage_aliases aliases outside of test_* namespace
                 "create_test_aliases_test:\n" +
                 "  indices:\n" +
                 "    - names: 'test_*'\n" +
-                "      privileges: [ create_index, manage_aliases ]\n" +
-                //role that has create index on test_* and manage aliases on alias_*, can't create aliases pointing to test_* though
+                "      privileges: [ create_index, 'indices:admin/aliases*' ]\n" +
+                //role that has create index on test_* and manage_aliases on alias_*, can't create aliases pointing to test_* though
                 "create_test_aliases_alias:\n" +
                 "  indices:\n" +
                 "    - names: 'test_*'\n" +
                 "      privileges: [ create_index ]\n" +
                 "    - names: 'alias_*'\n" +
-                "      privileges: [ manage_aliases ]\n" +
+                "      privileges: [ 'indices:admin/aliases*' ]\n" +
                 //role that has create index on test_* and manage_aliases on both alias_* and test_*
                 "create_test_aliases_test_alias:\n" +
                 "  indices:\n" +
                 "    - names: 'test_*'\n" +
                 "      privileges: [ create_index ]\n" +
                 "    - names: [ 'alias_*', 'test_*' ]\n" +
-                "      privileges: [ manage_aliases ]\n" +
+                "      privileges: [ 'indices:admin/aliases*' ]\n" +
                 //role that has manage_aliases only on both test_* and alias_*
                 "aliases_only:\n" +
                 "  indices:\n" +
                 "    - names: [ 'alias_*', 'test_*']\n" +
-                "      privileges: [ manage_aliases ]\n";
+                "      privileges: [ 'indices:admin/aliases*' ]\n";
     }
 
     @Before
@@ -368,7 +368,7 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
         try {
-            //fails: user doesn't have manage aliases on test_1
+            //fails: user doesn't have manage_aliases aliases on test_1
             client.admin().indices().prepareAliases().addAlias("test_1", "test_alias").get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
         } catch(ElasticsearchSecurityException e) {
@@ -377,7 +377,7 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
 
         try {
-            //fails: user doesn't have manage aliases on test_1
+            //fails: user doesn't have manage_aliases aliases on test_1
             client.admin().indices().prepareAliases().addAlias("test_1", "alias_1").get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_1");
         } catch(ElasticsearchSecurityException e) {
@@ -386,7 +386,7 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
 
         try {
-            //fails: user doesn't have manage aliases on test_*, no matching indices to replace wildcards
+            //fails: user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
             client.admin().indices().prepareAliases().addAlias("test_*", "alias_1").get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_1");
         } catch(IndexNotFoundException e) {
@@ -465,7 +465,7 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
         try {
-            //fails: user doesn't have manage aliases on test_1, nor test_alias
+            //fails: user doesn't have manage_aliases aliases on test_1, nor test_alias
             client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1").get();
             fail("get alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
         } catch(ElasticsearchSecurityException e) {
@@ -474,7 +474,7 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
         }
 
         try {
-            //fails: user doesn't have manage aliases on test_*, no matching indices to replace wildcards
+            //fails: user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
             client.admin().indices().prepareGetAliases().setIndices("test_*").setAliases("test_alias").get();
             fail("get alias should have failed due to missing manage_aliases privileges on test_*");
         } catch(IndexNotFoundException e) {

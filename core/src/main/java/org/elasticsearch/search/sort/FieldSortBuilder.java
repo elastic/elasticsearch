@@ -27,11 +27,9 @@ import java.io.IOException;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder {
+public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private final String fieldName;
-
-    private SortOrder order;
 
     private Object missing;
 
@@ -53,15 +51,6 @@ public class FieldSortBuilder extends SortBuilder {
             throw new IllegalArgumentException("fieldName must not be null");
         }
         this.fieldName = fieldName;
-    }
-
-    /**
-     * The order of sorting. Defaults to {@link SortOrder#ASC}.
-     */
-    @Override
-    public FieldSortBuilder order(SortOrder order) {
-        this.order = order;
-        return this;
     }
 
     /**
@@ -118,9 +107,7 @@ public class FieldSortBuilder extends SortBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
-        if (order != null) {
-            builder.field("order", order.toString());
-        }
+        builder.field(ORDER_FIELD.getPreferredName(), order);
         if (missing != null) {
             builder.field("missing", missing);
         }

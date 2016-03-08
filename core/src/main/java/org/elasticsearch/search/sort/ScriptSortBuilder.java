@@ -28,13 +28,11 @@ import java.io.IOException;
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
-public class ScriptSortBuilder extends SortBuilder {
+public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private Script script;
 
     private final String type;
-
-    private SortOrder order;
 
     private String sortMode;
 
@@ -54,15 +52,6 @@ public class ScriptSortBuilder extends SortBuilder {
     }
 
     /**
-     * Sets the sort order.
-     */
-    @Override
-    public ScriptSortBuilder order(SortOrder order) {
-        this.order = order;
-        return this;
-    }
-
-    /**
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */
@@ -75,7 +64,7 @@ public class ScriptSortBuilder extends SortBuilder {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+    public ScriptSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -94,9 +83,7 @@ public class ScriptSortBuilder extends SortBuilder {
         builder.startObject("_script");
         builder.field("script", script);
         builder.field("type", type);
-        if (order == SortOrder.DESC) {
-            builder.field("reverse", true);
-        }
+        builder.field(ORDER_FIELD.getPreferredName(), order);
         if (sortMode != null) {
             builder.field("mode", sortMode);
         }

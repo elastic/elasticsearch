@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -519,7 +521,16 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public String getRaw(Settings settings) {
-                throw new UnsupportedOperationException("group settings don't support raw values");
+                Settings subSettings = get(settings);
+                try {
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    subSettings.toXContent(builder, EMPTY_PARAMS);
+                    builder.endObject();
+                    return builder.string();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override

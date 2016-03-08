@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.common.init.proxy;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -34,6 +35,10 @@ public class ClientProxy implements LazyInitializable {
 
     public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
         client.bulk(preProcess(request), listener);
+    }
+
+    public BulkRequestBuilder prepareBulk() {
+        return client.prepareBulk();
     }
 
     protected <M extends TransportMessage> M preProcess(M message) {

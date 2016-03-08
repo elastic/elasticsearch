@@ -16,9 +16,12 @@ import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.cleaner.CleanerService;
+import org.elasticsearch.marvel.client.MonitoringClientModule;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +55,7 @@ public class Marvel {
             modules.add(new LicenseModule());
             modules.add(new CollectorModule());
             modules.add(new ExporterModule(settings));
+            modules.add(new MonitoringClientModule());
         }
         return Collections.unmodifiableList(modules);
     }
@@ -75,5 +79,11 @@ public class Marvel {
 
     public void onModule(SettingsModule module) {
         MarvelSettings.register(module);
+    }
+
+    public void onModule(LazyInitializationModule module) {
+        if (enabled) {
+            module.registerLazyInitializable(MonitoringClientProxy.class);
+        }
     }
 }

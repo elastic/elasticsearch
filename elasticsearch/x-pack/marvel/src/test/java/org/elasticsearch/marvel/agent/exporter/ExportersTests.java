@@ -17,7 +17,7 @@ import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -67,7 +67,7 @@ public class ExportersTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService,
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(MonitoringClientProxy.of(client), clusterService,
                 mock(CleanerService.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS,
                 MarvelSettings.INTERVAL, MarvelSettings.EXPORTERS_SETTINGS)));

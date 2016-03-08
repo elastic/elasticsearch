@@ -10,13 +10,13 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
+import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,13 +28,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LocalBulk extends ExportBulk {
 
     private final ESLogger logger;
-    private final Client client;
+    private final MonitoringClientProxy client;
     private final ResolversRegistry resolvers;
 
     BulkRequestBuilder requestBuilder;
     AtomicReference<State> state = new AtomicReference<>();
 
-    public LocalBulk(String name, ESLogger logger, Client client, ResolversRegistry resolvers) {
+    public LocalBulk(String name, ESLogger logger, MonitoringClientProxy client, ResolversRegistry resolvers) {
         super(name);
         this.logger = logger;
         this.client = client;

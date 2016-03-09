@@ -18,6 +18,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPrivateKey;
@@ -51,8 +52,8 @@ public class KeyPairGeneratorTool extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        Path publicKeyPath = PathUtils.get(publicKeyPathOption.value(options));
-        Path privateKeyPath = PathUtils.get(privateKeyPathOption.value(options));
+        Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
+        Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath)) {
             throw new UserError(ExitCodes.USAGE, privateKeyPath + " already exists");
         } else if (Files.exists(publicKeyPath)) {
@@ -69,5 +70,10 @@ public class KeyPairGeneratorTool extends Command {
 
         terminal.println(Terminal.Verbosity.VERBOSE, "generating key pair [public key: " + publicKeyPath + ", private key: "
             + privateKeyPath + "]");
+    }
+
+    @SuppressForbidden(reason = "Parsing command line path")
+    private static Path parsePath(String path) {
+        return PathUtils.get(path);
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -48,19 +49,14 @@ public class SystemKeyTool extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        Path keyPath = null;
-        List<String> args = arguments.values(options);
-        if (args.size() > 1) {
-            throw new UserError(ExitCodes.USAGE, "No more than one key path can be supplied");
-        } else if (args.size() == 1) {
-            keyPath = PathUtils.get(args.get(0));
-        }
-        execute(terminal, keyPath);
-    }
-
-    // pkg private for tests
-    void execute(Terminal terminal, Path keyPath) throws Exception {
-        if (keyPath == null) {
+        final Path keyPath;
+        if (options.has(arguments)) {
+            List<String> args = arguments.values(options);
+            if (args.size() > 1) {
+                throw new UserError(ExitCodes.USAGE, "No more than one key path can be supplied");
+            }
+            keyPath = parsePath(args.get(0));
+        } else {
             keyPath = InternalCryptoService.resolveSystemKey(env.settings(), env);
         }
 
@@ -79,4 +75,8 @@ public class SystemKeyTool extends Command {
         }
     }
 
+    @SuppressForbidden(reason = "Parsing command line path")
+    private static Path parsePath(String path) {
+        return PathUtils.get(path);
+    }
 }

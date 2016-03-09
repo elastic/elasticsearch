@@ -14,6 +14,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,22 +59,8 @@ public class LicenseGeneratorTool extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        Path publicKeyPath = PathUtils.get(publicKeyPathOption.value(options));
-        Path privateKeyPath = PathUtils.get(privateKeyPathOption.value(options));
-        String licenseSpecString = null;
-        if (options.has(licenseOption)) {
-            licenseSpecString = licenseOption.value(options);
-        }
-        Path licenseSpecPath = null;
-        if (options.has(licenseFileOption)) {
-            licenseSpecPath = PathUtils.get(licenseFileOption.value(options));
-        }
-        execute(terminal, publicKeyPath, privateKeyPath, licenseSpecString, licenseSpecPath);
-    }
-
-    // pkg private for testing
-    void execute(Terminal terminal, Path publicKeyPath, Path privateKeyPath,
-                 String licenseSpecString, Path licenseSpecPath) throws Exception {
+        Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
+        Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath) == false) {
             throw new UserError(ExitCodes.USAGE, privateKeyPath + " does not exist");
         } else if (Files.exists(publicKeyPath) == false) {
@@ -81,9 +68,10 @@ public class LicenseGeneratorTool extends Command {
         }
 
         final License licenseSpec;
-        if (licenseSpecString != null) {
-            licenseSpec = License.fromSource(licenseSpecString);
-        } else if (licenseSpecPath != null) {
+        if (options.has(licenseOption)) {
+            licenseSpec = License.fromSource(licenseOption.value(options));
+        } else if (options.has(licenseFileOption)) {
+            Path licenseSpecPath = parsePath(licenseFileOption.value(options));
             if (Files.exists(licenseSpecPath) == false) {
                 throw new UserError(ExitCodes.USAGE, licenseSpecPath + " does not exist");
             }
@@ -104,5 +92,10 @@ public class LicenseGeneratorTool extends Command {
         builder.endObject();
         builder.flush();
         terminal.println(builder.string());
+    }
+
+    @SuppressForbidden(reason = "Parsing command line path")
+    private static Path parsePath(String path) {
+        return PathUtils.get(path);
     }
 }

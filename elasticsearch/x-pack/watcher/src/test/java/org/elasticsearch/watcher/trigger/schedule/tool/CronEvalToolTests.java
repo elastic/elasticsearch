@@ -18,6 +18,6 @@ public class CronEvalToolTests extends CommandTestCase {
         String countOption = randomBoolean() ? "-c" : "--count";
         int count = randomIntBetween(1, 100);
         String output = execute(countOption, Integer.toString(count), "0 0 0 1-6 * ?");
-        assertTrue(output, output.contains("Here are the next 60 times this cron expression will trigger"));
+        assertTrue(output, output.contains("Here are the next " + count + " times this cron expression will trigger"));
     }
 }

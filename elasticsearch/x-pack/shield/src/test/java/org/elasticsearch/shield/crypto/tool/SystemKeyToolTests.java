@@ -11,6 +11,8 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
@@ -20,22 +22,27 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.Before;
 
-public class SystemKeyToolTests extends ESTestCase {
-    private Terminal terminal;
-    private Environment env;
+// TODO: use jimfs in these tests so they actually run!
+public class SystemKeyToolTests extends CommandTestCase {
+    Settings.Builder settingsBuilder;
+    Path homeDir;
 
     @Before
     public void init() throws Exception {
-        terminal = new MockTerminal();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        env = new Environment(settings);
+        homeDir = createTempDir();
+        settingsBuilder = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir);
+    }
+
+    @Override
+    protected Command newCommand() {
+        return new SystemKeyTool(new Environment(settingsBuilder.build()));
     }
 
     public void testGenerate() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path path = createTempDir().resolve("key");
-        new SystemKeyTool(env).execute(terminal, path);
+        execute(path.toString());
         byte[] bytes = Files.readAllBytes(path);
         // TODO: maybe we should actually check the key is...i dunno...valid?
         assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
@@ -49,19 +56,17 @@ public class SystemKeyToolTests extends ESTestCase {
     public void testGeneratePathInSettings() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path path = createTempDir().resolve("key");
-        Settings settings = Settings.builder().put(env.settings())
-            .put("shield.system_key.file", path.toAbsolutePath().toString()).build();
-        env = new Environment(settings);
-        new SystemKeyTool(env).execute(terminal, (Path) null);
+        settingsBuilder.put("shield.system_key.file", path.toAbsolutePath().toString());
+        execute();
         byte[] bytes = Files.readAllBytes(path);
         assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
     }
 
     public void testGenerateDefaultPath() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path keyPath = XPackPlugin.resolveConfigFile(env, "system_key");
+        Path keyPath = homeDir.resolve("config/xpack/system_key");
         Files.createDirectories(keyPath.getParent());
-        new SystemKeyTool(env).execute(terminal, (Path) null);
+        execute();
         byte[] bytes = Files.readAllBytes(keyPath);
         assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
     }
@@ -72,7 +77,7 @@ public class SystemKeyToolTests extends ESTestCase {
         boolean isPosix = Files.getFileAttributeView(path.getParent(), PosixFileAttributeView.class) != null;
         assumeTrue("posix filesystem", isPosix);
 
-        new SystemKeyTool(env).execute(terminal, path);
+        execute(path.toString());
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(path);
         assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_READ));
         assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));

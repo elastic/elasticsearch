@@ -31,11 +31,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,8 +53,9 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexResponse, TransportReindexAction> {
     @Inject
     public RestReindexAction(Settings settings, RestController controller, Client client, ClusterService clusterService,
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
             TransportReindexAction action) {
-        super(settings, controller, client, clusterService, action);
+        super(settings, controller, client, clusterService, indicesQueriesRegistry, aggParsers, suggesters, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 

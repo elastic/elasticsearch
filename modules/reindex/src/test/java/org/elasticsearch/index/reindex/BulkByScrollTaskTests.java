@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkByScrollTaskTests extends ESTestCase {
@@ -103,43 +105,44 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     public void testStatusHatesNegatives() {
+        TimeValue throttle = parseTimeValue(randomPositiveTimeValue(), null, "test");
         try {
-            new BulkByScrollTask.Status(-1, 0, 0, 0, 0, 0, 0, 0, null);
+            new BulkByScrollTask.Status(-1, 0, 0, 0, 0, 0, 0, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("total must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, -1, 0, 0, 0, 0, 0, 0, null);
+            new BulkByScrollTask.Status(0, -1, 0, 0, 0, 0, 0, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("updated must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, 0, -1, 0, 0, 0, 0, 0, null);
+            new BulkByScrollTask.Status(0, 0, -1, 0, 0, 0, 0, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("created must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, 0, 0, -1, 0, 0, 0, 0, null);
+            new BulkByScrollTask.Status(0, 0, 0, -1, 0, 0, 0, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("deleted must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, 0, 0, 0, -1, 0, 0, 0, null);
+            new BulkByScrollTask.Status(0, 0, 0, 0, -1, 0, 0, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("batches must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, 0, 0, 0, 0, -1, 0, 0, null);
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, -1, 0, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("versionConflicts must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, -1, 0, null);
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, -1, 0, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("noops must be greater than 0 but was [-1]"));
         }
         try {
-            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, -1, null);
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, -1, throttle, null);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("retries must be greater than 0 but was [-1]"));
         }

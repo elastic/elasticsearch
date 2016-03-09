@@ -100,6 +100,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int maxRetries = 11;
 
+    /**
+     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default. Throttling is done between
+     * batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure that it contains any time
+     * that we might wait.
+     */
+    private float requestsPerSecond = 0;
+
     public AbstractBulkByScrollRequest() {
     }
 
@@ -279,6 +286,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return self();
     }
 
+    /**
+     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     */
+    public float getRequestsPerSecond() {
+        return requestsPerSecond;
+    }
+
+    /**
+     * Set the throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     */
+    public Self setRequestsPerSecond(float requestsPerSecond) {
+        this.requestsPerSecond = requestsPerSecond;
+        return self();
+    }
+
     @Override
     public Task createTask(long id, String type, String action) {
         return new BulkByScrollTask(id, type, action, getDescription());
@@ -296,6 +318,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         consistency = WriteConsistencyLevel.fromId(in.readByte());
         retryBackoffInitialTime = TimeValue.readTimeValue(in);
         maxRetries = in.readVInt();
+        requestsPerSecond = in.readFloat();
     }
 
     @Override
@@ -309,6 +332,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeByte(consistency.id());
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
+        out.writeFloat(requestsPerSecond);
     }
 
     /**

@@ -30,12 +30,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,10 +48,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateByQueryAction extends
         AbstractBaseReindexRestHandler<UpdateByQueryRequest, BulkIndexByScrollResponse, TransportUpdateByQueryAction> {
+
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client, ClusterService clusterService,
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
             TransportUpdateByQueryAction action) {
-        super(settings, controller, client, clusterService, action);
+        super(settings, controller, client, clusterService, indicesQueriesRegistry, aggParsers, suggesters, action);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }

@@ -160,13 +160,13 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
 
     // these settings should be passed through to each tribe client, if they are not set explicitly
-    private static final List<String> PASS_THROUGH_SETTINGS = Arrays.asList(
-        NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey(),
-        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.getKey(),
-        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.getKey(),
-        TransportSettings.HOST.getKey(),
-        TransportSettings.BIND_HOST.getKey(),
-        TransportSettings.PUBLISH_HOST.getKey()
+    private static final List<Setting<?>> PASS_THROUGH_SETTINGS = Arrays.asList(
+        NetworkService.GLOBAL_NETWORK_HOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
+        TransportSettings.HOST,
+        TransportSettings.BIND_HOST,
+        TransportSettings.PUBLISH_HOST
     );
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
@@ -224,9 +224,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
         }
-        for (String passthrough : PASS_THROUGH_SETTINGS) {
-            if (sb.get(passthrough) == null && globalSettings.get(passthrough) != null) {
-                sb.put(passthrough, globalSettings.get(passthrough));
+        if (Environment.PATH_SCRIPTS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_SCRIPTS_SETTING.getKey(), Environment.PATH_SCRIPTS_SETTING.get(globalSettings));
+        }
+        for (Setting<?> passthrough : PASS_THROUGH_SETTINGS) {
+            if (passthrough.exists(tribeSettings) == false && passthrough.exists(globalSettings)) {
+                sb.put(passthrough.getKey(), globalSettings.get(passthrough.getKey()));
             }
         }
         sb.put(TRIBE_NAME_SETTING.getKey(), tribeName);

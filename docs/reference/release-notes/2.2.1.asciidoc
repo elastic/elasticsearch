@@ -1,0 +1,99 @@
+[[release-notes-2.2.1]]
+== 2.2.1 Release Notes
+
+[[enhancement-2.2.1]]
+[float]
+=== Enhancements
+
+Cluster::
+* Shard state action request logging {pull}16396[#16396]
+
+Core::
+* Avoid cloning MessageDigest instances {pull}16479[#16479]
+
+Exceptions::
+* Add Exception class name to message in `NotSerializableExceptionWrapper` {pull}16325[#16325]
+
+Network::
+* Add additional fallback to http.publish_port and restrict fallback to transport.publish_port {pull}16626[#16626] (issue: {issue}14535[#14535])
+
+Packaging::
+* Windows service: Use JAVA_HOME environment variable in registry {pull}16552[#16552] (issue: {issue}13521[#13521])
+
+Scripting::
+* Class permission for Groovy references {pull}16660[#16660] (issue: {issue}16657[#16657])
+
+Settings::
+* Log warning if max file descriptors too low {pull}16506[#16506]
+
+
+
+[[bug-2.2.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Set meta data for pipeline aggregations {pull}16516[#16516] (issue: {issue}16484[#16484])
+
+Aliases::
+* Fix _aliases filter and null parameters {pull}16553[#16553] (issues: {issue}16547[#16547], {issue}16549[#16549])
+
+Bulk::
+* Bulk api: fail deletes when routing is required but not specified {pull}16675[#16675] (issues: {issue}10136[#10136], {issue}16645[#16645])
+
+Inner Hits::
+* Query and top level inner hit definitions shouldn't overwrite each other {pull}16222[#16222] (issue: {issue}16218[#16218])
+
+Logging::
+* Add missing index name to indexing slow log {pull}17026[#17026] (issue: {issue}17025[#17025])
+
+Parent/Child::
+* Check that parent_type in Has Parent Query has child types {pull}16923[#16923] (issue: {issue}16692[#16692])
+* Has child query forces default similarity {pull}16611[#16611] (issues: {issue}16550[#16550], {issue}4977[#4977])
+
+Percolator::
+* Don't replace found fields if map unmapped fields as string is enabled {pull}16043[#16043] (issue: {issue}10500[#10500])
+
+Plugin Cloud Azure::
+* Fix calling ensureOpen() on the wrong directory {pull}16383[#16383]
+
+Plugin Discovery GCE::
+* Add setFactory permission to GceDiscoveryPlugin {pull}16860[#16860] (issue: {issue}16485[#16485])
+
+Query DSL::
+* Use MappedFieldType.termQuery to generate simple_query_string queries {pull}16686[#16686] (issue: {issue}16577[#16577])
+
+REST::
+* Remove detect_noop from REST spec {pull}16386[#16386]
+
+Scripting::
+* Add permission to access sun.reflect.MethodAccessorImpl from Groovy scripts {pull}16540[#16540] (issue: {issue}16536[#16536])
+
+Snapshot/Restore::
+* Add node version check to shard allocation during restore {pull}16520[#16520] (issue: {issue}16519[#16519])
+
+Stats::
+* Fix recovery translog stats totals when recovering from store {pull}16493[#16493] (issue: {issue}15974[#15974])
+
+Tribe Node::
+* Passthrough environment and network settings to tribe client nodes {pull}16893[#16893]
+
+
+
+[[regression-2.2.1]]
+[float]
+=== Regressions
+
+Plugin Cloud Azure::
+* Fix Unknown [repository] type [azure] error with 2.2.0 {pull}16747[#16747] (issues: {issue}13779[#13779], {issue}16734[#16734])
+
+
+
+[[upgrade-2.2.1]]
+[float]
+=== Upgrades
+
+Plugin Repository Azure::
+* Upgrade Azure Storage client to 4.0.0 {pull}16084[#16084] (issues: {issue}12567[#12567], {issue}15080[#15080], {issue}15976[#15976])
+
+

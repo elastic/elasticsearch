@@ -42,6 +42,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
@@ -77,6 +78,7 @@ public class RoundTripTests extends ESTestCase {
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
         request.setConsistency(randomFrom(WriteConsistencyLevel.values()));
         request.setScript(random().nextBoolean() ? null : randomScript());
+        request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
@@ -90,6 +92,7 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getScript(), tripped.getScript());
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
+        assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
     }
 
     public void testBulkByTaskStatus() throws IOException {
@@ -119,7 +122,7 @@ public class RoundTripTests extends ESTestCase {
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
                 randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                random().nextBoolean() ? null : randomSimpleString(random()));
+                parseTimeValue(randomPositiveTimeValue(), "test"), random().nextBoolean() ? null : randomSimpleString(random()));
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -194,5 +197,7 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
         assertEquals(expected.getNoops(), actual.getNoops());
         assertEquals(expected.getRetries(), actual.getRetries());
+        assertEquals(expected.getThrottled(), actual.getThrottled());
+        assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
     }
 }

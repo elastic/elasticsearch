@@ -21,6 +21,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
+  - match: {throttled_millis: 0}
   - is_true: took
   - is_false: task
 
@@ -53,6 +54,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
+  - match: {throttled_millis: 0}
   - is_true: took
   - is_false: task
 
@@ -84,6 +86,7 @@
   - is_false: failures
   - is_false: noops
   - is_false: took
+  - is_false: throttled_millis
   - is_false: created
 
   - do:
@@ -163,6 +166,7 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures: []}
+  - match: {throttled_millis: 0}
   - is_true: took
 
 ---

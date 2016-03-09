@@ -58,6 +58,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -402,6 +403,18 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
 
         ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
+        if (lastSeenClusterState != null && lastSeenClusterState.supersedes(incomingState)) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "received older cluster state version [%s] with uuid [%s] than last seen cluster state [%s] with uuid [%s]",
+                    incomingState.version(),
+                    incomingState.stateUUID(),
+                    lastSeenClusterState.version(),
+                    lastSeenClusterState.stateUUID()
+            );
+            logger.warn(message);
+            throw new IllegalStateException(message);
+        }
     }
 
     protected void handleCommitRequest(CommitClusterStateRequest request, final TransportChannel channel) {

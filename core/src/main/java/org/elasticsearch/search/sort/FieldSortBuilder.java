@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -31,8 +28,6 @@ import java.io.IOException;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder {
-    private static ESLogger logger = ESLoggerFactory.getLogger("discovery");
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final String fieldName;
 
@@ -88,8 +83,6 @@ public class FieldSortBuilder extends SortBuilder {
      */
     @Deprecated
     public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
-        deprecationLogger.deprecated("[ignoreUnmapped]  parameter will be removed"
-                + "in the next major version. Use unmapped_type instead.");
         this.ignoreUnmapped = ignoreUnmapped;
         return this;
     }

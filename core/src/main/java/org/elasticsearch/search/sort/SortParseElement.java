@@ -27,9 +27,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -56,14 +53,11 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
-    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
+    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped").withAllDeprecated("unmapped_type");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
-
-    private static ESLogger logger = ESLoggerFactory.getLogger("discovery");
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final ImmutableMap<String, SortParser> parsers;
 
@@ -162,8 +156,6 @@ public class SortParseElement implements SearchParseElement {
                                     missing = parser.textOrNull();
                                 } else if (context.parseFieldMatcher().match(innerJsonName, IGNORE_UNMAPPED)) {
                                     // backward compatibility: ignore_unmapped has been replaced with unmapped_type
-                                    deprecationLogger.deprecated("[" + IGNORE_UNMAPPED.getPreferredName() + "]  parameter will be removed"
-                                            + "in the next major version. Use unmapped_type instead.");
                                     if (unmappedType == null // don't override if unmapped_type has been provided too
                                             && parser.booleanValue()) {
                                         unmappedType = LongFieldMapper.CONTENT_TYPE;

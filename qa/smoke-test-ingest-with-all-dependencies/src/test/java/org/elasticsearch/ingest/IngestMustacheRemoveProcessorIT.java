@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IngestMustacheRemoveProcessorIT extends AbstractMustacheTests {
+public class IngestMustacheRemoveProcessorIT extends AbstractMustacheTestCase {
 
     public void testRemoveProcessorMustacheExpression() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory(templateService);

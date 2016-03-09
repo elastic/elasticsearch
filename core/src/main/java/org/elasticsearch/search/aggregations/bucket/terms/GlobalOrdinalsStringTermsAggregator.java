@@ -26,7 +26,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -136,7 +135,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     protected static void copy(BytesRef from, BytesRef to) {
         if (to.bytes.length < from.length) {
-            to.bytes = new byte[ArrayUtil.oversize(from.length, RamUsageEstimator.NUM_BYTES_BYTE)];
+            to.bytes = new byte[ArrayUtil.oversize(from.length, 1)];
         }
         to.offset = 0;
         to.length = from.length;

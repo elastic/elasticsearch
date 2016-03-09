@@ -21,8 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
-import org.apache.lucene.analysis.miscellaneous.Lucene43LengthFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -34,28 +32,21 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int min;
     private final int max;
-    private final boolean enablePositionIncrements;
+    
+    // ancient unsupported option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
     public LengthTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);
-        if (version.onOrAfter(Version.LUCENE_4_4) && settings.get(ENABLE_POS_INC_KEY) != null) {
-            throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain or use"
-                    + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
+        if (settings.get(ENABLE_POS_INC_KEY) != null) {
+            throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
         }
-        enablePositionIncrements = version.onOrAfter(Version.LUCENE_4_4) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_4_4)) {
-            return new LengthFilter(tokenStream, min, max);
-        } else {
-            @SuppressWarnings("deprecation")
-            final TokenStream filter = new Lucene43LengthFilter(enablePositionIncrements, tokenStream, min, max);
-            return filter;
-        }
+        return new LengthFilter(tokenStream, min, max);
     }
 }

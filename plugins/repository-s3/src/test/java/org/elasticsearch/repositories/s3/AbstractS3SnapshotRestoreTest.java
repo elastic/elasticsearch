@@ -352,7 +352,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
     }
 
     /**
-     * Test case for issue #86: https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/86
+     * Test case for issue #86: https://github.com/elastic/elasticsearch-cloud-aws/issues/86
      */
     public void testNonExistingRepo86() {
         Client client = client();
@@ -373,7 +373,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
     }
 
     /**
-     * For issue #86: https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/86
+     * For issue #86: https://github.com/elastic/elasticsearch-cloud-aws/issues/86
      */
     public void testGetDeleteNonExistingSnapshot86() {
         ClusterAdminClient client = client().admin().cluster();

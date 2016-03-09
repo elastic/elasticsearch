@@ -23,12 +23,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.ToStringUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -243,7 +242,6 @@ public class DateFieldMapper extends NumberFieldMapper {
                     .append(" TO ")
                     .append((upperTerm == null) ? "*" : upperTerm.toString())
                     .append(includeUpper ? ']' : '}')
-                    .append(ToStringUtils.boost(getBoost()))
                     .toString();
             }
         }
@@ -253,7 +251,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         protected DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
         public DateFieldType() {
-            super(NumericType.LONG);
+            super(LegacyNumericType.LONG);
             setFieldDataType(new FieldDataType("long"));
         }
 
@@ -360,7 +358,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
+            LegacyNumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
             return bytesRef.get();
         }
 
@@ -392,7 +390,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                 // not a time format
                 iSim =  fuzziness.asLong();
             }
-            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -400,8 +398,8 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            long minValue = NumericUtils.getMinLong(terms);
-            long maxValue = NumericUtils.getMaxLong(terms);
+            long minValue = LegacyNumericUtils.getMinLong(terms);
+            long maxValue = LegacyNumericUtils.getMaxLong(terms);
             return new FieldStats.Date(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue, dateTimeFormatter()
             );
@@ -412,7 +410,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
-            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 upperTerm == null ? null : parseToMilliseconds(upperTerm, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 includeLower, includeUpper);
@@ -478,7 +476,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 dateAsString = parser.text();
             } else if (token == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -513,7 +511,9 @@ public class DateFieldMapper extends NumberFieldMapper {
         if (value != null) {
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
-                field.setBoost(boost);
+                if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                    field.setBoost(boost);
+                }
                 fields.add(field);
             }
             if (fieldType().hasDocValues()) {

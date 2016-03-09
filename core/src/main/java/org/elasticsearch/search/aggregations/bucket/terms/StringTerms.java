@@ -105,7 +105,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
+            return termBytes.compareTo(((Bucket) other).termBytes);
         }
 
         @Override

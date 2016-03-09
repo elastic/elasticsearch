@@ -76,8 +76,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
-
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     // last time this status was accessed
@@ -143,10 +141,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     public RecoveryState.Stage stage() {
         return state().getStage();
-    }
-
-    public Store.LegacyChecksums legacyChecksums() {
-        return legacyChecksums;
     }
 
     /** renames all temporary files to their true name, potentially overriding existing files */
@@ -281,7 +275,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             logger.trace("cleaning temporary file [{}]", file);
             store.deleteQuiet(file);
         }
-        legacyChecksums.clear();
     }
 
     @Override
@@ -342,12 +335,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // first, we go and move files that were created with the recovery id suffix to
         // the actual names, its ok if we have a corrupted index here, since we have replicas
         // to recover from in case of a full cluster shutdown just when this code executes...
-        indexShard().deleteShardState(); // we have to delete it first since even if we fail to rename the shard
-        // might be invalid
         renameAllTempFiles();
         final Store store = store();
-        // now write checksums
-        legacyChecksums().write(store);
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
@@ -401,8 +390,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 // we are done
                 indexOutput.close();
             }
-            // write the checksum
-            legacyChecksums().add(fileMetaData);
             final String temporaryFileName = getTempNameForFile(name);
             assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
             store.directory().sync(Collections.singleton(temporaryFileName));

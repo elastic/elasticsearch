@@ -9,8 +9,12 @@ cluster, or individual indices.
 % curl 192.168.56.10:9200/_cat/indices
 green wiki1 3 0 10000 331 168.5mb 168.5mb
 green wiki2 3 0   428   0     8mb     8mb
+
 % curl 192.168.56.10:9200/_cat/count
 1384314124582 19:42:04 10428
+
 % curl 192.168.56.10:9200/_cat/count/wiki2
 1384314139815 19:42:19 428
 --------------------------------------------------
+
+NOTE: The document count indicates the number of live documents and does not include deleted documents which have not yet been cleaned up by the merge process.

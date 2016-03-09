@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.index.mapper.geo;
 
-import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -57,7 +58,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenien
 
 
 /**
- * FieldMapper for indexing {@link com.spatial4j.core.shape.Shape}s.
+ * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
  * <p>
  * Currently Shapes can only be indexed and can only be queried using
  * {@link org.elasticsearch.index.query.GeoShapeQueryParser}, consequently
@@ -452,7 +453,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 return null;
             }
             for (Field field : fields) {
-                if (!customBoost()) {
+                if (!customBoost() &&
+                    fieldType.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

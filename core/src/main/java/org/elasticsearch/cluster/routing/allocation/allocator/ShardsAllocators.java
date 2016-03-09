@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
@@ -96,7 +94,7 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
     }
 
     @Override
-    public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allocator.move(shardRouting, node, allocation);
+    public boolean moveShards(RoutingAllocation allocation) {
+        return allocator.moveShards(allocation);
     }
 }

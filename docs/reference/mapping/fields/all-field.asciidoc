@@ -161,7 +161,7 @@ Individual fields can be included or excluded from the `_all` field with the
 [[all-field-and-boosting]]
 ==== Index boosting and the `_all` field
 
-Individual fields can be _boosted_ at index time, with the <<index-boost,`boost`>>
+Individual fields can be _boosted_ at index time, with the <<mapping-boost,`boost`>>
 parameter. The `_all` field takes these boosts into account:
 
 [source,js]

@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -30,16 +31,19 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -66,7 +70,7 @@ import java.util.stream.Collectors;
  * </pre>
  */
 public class Setting<T> extends ToXContentToBytes {
-    private final String key;
+    private final Key key;
     protected final Function<Settings, String> defaultValue;
     private final Function<String, T> parser;
     private final boolean dynamic;
@@ -80,13 +84,25 @@ public class Setting<T> extends ToXContentToBytes {
      * @param dynamic true iff this setting can be dynamically updateable
      * @param scope the scope of this setting
      */
-    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+    public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
         assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
         this.dynamic = dynamic;
         this.scope = scope;
+    }
+
+    /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param dynamic true iff this setting can be dynamically updateable
+     * @param scope the scope of this setting
+     */
+    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        this(new SimpleKey(key), defaultValue, parser, dynamic, scope);
     }
 
     /**
@@ -109,6 +125,13 @@ public class Setting<T> extends ToXContentToBytes {
      * @see #isGroupSetting()
      */
     public final String getKey() {
+        return key.toString();
+    }
+
+    /**
+     * Returns the original representation of a setting key.
+     */
+    public final Key getRawKey() {
         return key;
     }
 
@@ -158,8 +181,8 @@ public class Setting<T> extends ToXContentToBytes {
     /**
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
-    public final boolean exists(Settings settings) {
-        return settings.get(key) != null;
+    public boolean exists(Settings settings) {
+        return settings.get(getKey()) != null;
     }
 
     /**
@@ -186,7 +209,7 @@ public class Setting<T> extends ToXContentToBytes {
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
     public String getRaw(Settings settings) {
-        return settings.get(key, defaultValue.apply(settings));
+        return settings.get(getKey(), defaultValue.apply(settings));
     }
 
     /**
@@ -194,14 +217,14 @@ public class Setting<T> extends ToXContentToBytes {
      * given key is part of the settings group.
      * @see #isGroupSetting()
      */
-    public boolean match(String toTest) {
-        return key.equals(toTest);
+    public final boolean match(String toTest) {
+        return key.match(toTest);
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("key", key);
+        builder.field("key", key.toString());
         builder.field("type", scope.name());
         builder.field("dynamic", dynamic);
         builder.field("is_group_setting", isGroupSetting());
@@ -387,6 +410,14 @@ public class Setting<T> extends ToXContentToBytes {
         return value;
     }
 
+    public static TimeValue parseTimeValue(String s, TimeValue minValue, String key) {
+        TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
+        if (timeValue.millis() < minValue.millis()) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        return timeValue;
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, boolean dynamic, Scope scope) {
         return intSetting(key, defaultValue, Integer.MIN_VALUE, dynamic, scope);
     }
@@ -431,17 +462,11 @@ public class Setting<T> extends ToXContentToBytes {
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
-        return new Setting<List<T>>(key, (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
-            private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
+        return new Setting<List<T>>(new ListKey(key), (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
             @Override
             public String getRaw(Settings settings) {
-                String[] array = settings.getAsArray(key, null);
+                String[] array = settings.getAsArray(getKey(), null);
                 return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
-            }
-
-            @Override
-            public boolean match(String toTest) {
-                return pattern.matcher(toTest).matches();
             }
 
             @Override
@@ -484,26 +509,45 @@ public class Setting<T> extends ToXContentToBytes {
             throw new ElasticsearchException(ex);
         }
     }
-
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
-        if (key.endsWith(".") == false) {
-            throw new IllegalArgumentException("key must end with a '.'");
-        }
-        return new Setting<Settings>(key, "", (s) -> null, dynamic, scope) {
-
+        return groupSetting(key, dynamic, scope, (s) -> {});
+    }
+    public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope, Consumer<Settings> validator) {
+        return new Setting<Settings>(new GroupKey(key), (s) -> "", (s) -> null, dynamic, scope) {
             @Override
             public boolean isGroupSetting() {
                 return true;
             }
 
             @Override
-            public Settings get(Settings settings) {
-                return settings.getByPrefix(key);
+            public String getRaw(Settings settings) {
+                Settings subSettings = get(settings);
+                try {
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    subSettings.toXContent(builder, EMPTY_PARAMS);
+                    builder.endObject();
+                    return builder.string();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
-            public boolean match(String toTest) {
-                return Regex.simpleMatch(key + "*", toTest);
+            public Settings get(Settings settings) {
+                Settings byPrefix = settings.getByPrefix(getKey());
+                validator.accept(byPrefix);
+                return byPrefix;
+            }
+
+            @Override
+            public boolean exists(Settings settings) {
+                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                    if (entry.getKey().startsWith(key)) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             @Override
@@ -549,13 +593,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, defaultValue, (s) -> {
-            TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
-            if (timeValue.millis() < minValue.millis()) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
-            }
-            return timeValue;
-        }, dynamic, scope);
+        return new Setting<>(key, defaultValue, (s) -> parseTimeValue(s, minValue, key), dynamic, scope);
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, boolean dynamic, Scope scope) {
@@ -595,10 +633,27 @@ public class Setting<T> extends ToXContentToBytes {
 
     /**
      * This setting type allows to validate settings that have the same type and a common prefix. For instance feature.${type}=[true|false]
-     * can easily be added with this setting. Yet, dynamic key settings don't support updaters our of the box unless {@link #getConcreteSetting(String)}
-     * is used to pull the updater.
+     * can easily be added with this setting. Yet, prefix key settings don't support updaters out of the box unless
+     * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+    public static <T> Setting<T> prefixKeySetting(String prefix, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        return affixKeySetting(AffixKey.withPrefix(prefix), (s) -> defaultValue, parser, dynamic, scope);
+    }
+
+    /**
+     * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
+     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, adfix key settings don't support updaters
+     * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
+     */
+    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, dynamic, scope);
+    }
+
+    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, dynamic, scope);
+    }
+
+    public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
         return new Setting<T>(key, defaultValue, parser, dynamic, scope) {
 
             @Override
@@ -607,13 +662,8 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public boolean match(String toTest) {
-                return toTest.startsWith(getKey());
-            }
-
-            @Override
             AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
-                throw new UnsupportedOperationException("dynamic settings can't be updated use #getConcreteSetting for updating");
+                throw new UnsupportedOperationException("Affix settings can't be updated. Use #getConcreteSetting for updating.");
             }
 
             @Override
@@ -621,9 +671,145 @@ public class Setting<T> extends ToXContentToBytes {
                 if (match(key)) {
                     return new Setting<>(key, defaultValue, parser, dynamic, scope);
                 } else {
-                    throw new IllegalArgumentException("key must match setting but didn't ["+key +"]");
+                    throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
                 }
             }
         };
+    }
+
+
+    public interface Key {
+        boolean match(String key);
+    }
+
+    public static class SimpleKey implements Key {
+        protected final String key;
+
+        public SimpleKey(String key) {
+            this.key = key;
+        }
+
+        @Override
+        public boolean match(String key) {
+            return this.key.equals(key);
+        }
+
+        @Override
+        public String toString() {
+            return key;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SimpleKey simpleKey = (SimpleKey) o;
+            return Objects.equals(key, simpleKey.key);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key);
+        }
+    }
+
+    public static final class GroupKey extends SimpleKey {
+        public GroupKey(String key) {
+            super(key);
+            if (key.endsWith(".") == false) {
+                throw new IllegalArgumentException("key must end with a '.'");
+            }
+        }
+
+        @Override
+        public boolean match(String toTest) {
+            return Regex.simpleMatch(key + "*", toTest);
+        }
+    }
+
+    public static final class ListKey extends SimpleKey {
+        private final Pattern pattern;
+
+        public ListKey(String key) {
+            super(key);
+            this.pattern = Pattern.compile(Pattern.quote(key) + "(\\.\\d+)?");
+        }
+
+        @Override
+        public boolean match(String toTest) {
+            return pattern.matcher(toTest).matches();
+        }
+    }
+
+    public static final class AffixKey implements Key {
+        public static AffixKey withPrefix(String prefix) {
+            return new AffixKey(prefix, null);
+        }
+
+        public static AffixKey withAdfix(String prefix, String suffix) {
+            return new AffixKey(prefix, suffix);
+        }
+
+        private final String prefix;
+        private final String suffix;
+
+        public AffixKey(String prefix, String suffix) {
+            assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        @Override
+        public boolean match(String key) {
+            boolean match = true;
+            if (prefix != null) {
+                match = key.startsWith(prefix);
+            }
+            if (suffix != null) {
+                match = match && key.endsWith(suffix);
+            }
+            return match;
+        }
+
+        public SimpleKey toConcreteKey(String missingPart) {
+            StringBuilder key = new StringBuilder();
+            if (prefix != null) {
+                key.append(prefix);
+            }
+            key.append(missingPart);
+            if (suffix != null) {
+                key.append(".");
+                key.append(suffix);
+            }
+            return new SimpleKey(key.toString());
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            if (prefix != null) {
+                sb.append(prefix);
+            }
+            if (suffix != null) {
+                sb.append("*");
+                sb.append(suffix);
+                sb.append(".");
+            }
+            return sb.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AffixKey that = (AffixKey) o;
+            return Objects.equals(prefix, that.prefix) &&
+                Objects.equals(suffix, that.suffix);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(prefix, suffix);
+        }
     }
 }

@@ -275,7 +275,7 @@ public class InternalEngine extends Engine {
         SearcherManager searcherManager = null;
         try {
             try {
-                final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter, true), shardId);
+                final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 searcherManager = new SearcherManager(directoryReader, searcherFactory);
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                 success = true;
@@ -928,12 +928,6 @@ public class InternalEngine extends Engine {
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
             iwc.setCodec(engineConfig.getCodec());
-            /* We set this timeout to a highish value to work around
-             * the default poll interval in the Lucene lock that is
-             * 1000ms by default. We might need to poll multiple times
-             * here but with 1s poll this is only executed twice at most
-             * in combination with the default writelock timeout*/
-            iwc.setWriteLockTimeout(5000);
             iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh

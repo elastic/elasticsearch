@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 public class SegmentsStats implements Streamable, ToXContent {
 
@@ -42,6 +47,33 @@ public class SegmentsStats implements Streamable, ToXContent {
     private long indexWriterMaxMemoryInBytes;
     private long versionMapMemoryInBytes;
     private long bitsetMemoryInBytes;
+    private ImmutableOpenMap<String, Long> fileSizes = ImmutableOpenMap.of();
+
+    /*
+     * A map to provide a best-effort approach describing Lucene index files.
+     *
+     * Ideally this should be in sync to what the current version of Lucene is using, but it's harmless to leave extensions out,
+     * they'll just miss a proper description in the stats
+     */
+    private static ImmutableOpenMap<String, String> fileDescriptions = ImmutableOpenMap.<String, String>builder()
+            .fPut("si", "Segment Info")
+            .fPut("fnm", "Fields")
+            .fPut("fdx", "Field Index")
+            .fPut("fdt", "Field Data")
+            .fPut("tim", "Term Dictionary")
+            .fPut("tip", "Term Index")
+            .fPut("doc", "Frequencies")
+            .fPut("pos", "Positions")
+            .fPut("pay", "Payloads")
+            .fPut("nvd", "Norms")
+            .fPut("nvm", "Norms")
+            .fPut("dvd", "DocValues")
+            .fPut("dvm", "DocValues")
+            .fPut("tvx", "Term Vector Index")
+            .fPut("tvd", "Term Vector Documents")
+            .fPut("tvf", "Term Vector Fields")
+            .fPut("liv", "Live Documents")
+            .build();
 
     public SegmentsStats() {}
 
@@ -49,7 +81,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.count += count;
         this.memoryInBytes += memoryInBytes;
     }
-    
+
     public void addTermsMemoryInBytes(long termsMemoryInBytes) {
         this.termsMemoryInBytes += termsMemoryInBytes;
     }
@@ -86,6 +118,22 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
 
+    public void addFileSizes(ImmutableOpenMap<String, Long> fileSizes) {
+        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(this.fileSizes);
+
+        for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
+            ObjectObjectCursor<String, Long> entry = it.next();
+            if (map.containsKey(entry.key)) {
+                Long oldValue = map.get(entry.key);
+                map.put(entry.key, oldValue + entry.value);
+            } else {
+                map.put(entry.key, entry.value);
+            }
+        }
+
+        this.fileSizes = map.build();
+    }
+
     public void add(SegmentsStats mergeStats) {
         if (mergeStats == null) {
             return;
@@ -100,6 +148,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         addIndexWriterMaxMemoryInBytes(mergeStats.indexWriterMaxMemoryInBytes);
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
         addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
+        addFileSizes(mergeStats.fileSizes);
     }
 
     /**
@@ -219,6 +268,10 @@ public class SegmentsStats implements Streamable, ToXContent {
         return new ByteSizeValue(bitsetMemoryInBytes);
     }
 
+    public ImmutableOpenMap<String, Long> getFileSizes() {
+        return fileSizes;
+    }
+
     public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {
         SegmentsStats stats = new SegmentsStats();
         stats.readFrom(in);
@@ -239,6 +292,15 @@ public class SegmentsStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.INDEX_WRITER_MAX_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MAX_MEMORY, indexWriterMaxMemoryInBytes);
         builder.byteSizeField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, versionMapMemoryInBytes);
         builder.byteSizeField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, bitsetMemoryInBytes);
+        builder.startObject(Fields.FILE_SIZES);
+        for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
+            ObjectObjectCursor<String, Long> entry = it.next();
+            builder.startObject(entry.key);
+            builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, entry.value);
+            builder.field(Fields.DESCRIPTION, fileDescriptions.getOrDefault(entry.key, "Others"));
+            builder.endObject();
+        }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -266,6 +328,10 @@ public class SegmentsStats implements Streamable, ToXContent {
         static final XContentBuilderString VERSION_MAP_MEMORY_IN_BYTES = new XContentBuilderString("version_map_memory_in_bytes");
         static final XContentBuilderString FIXED_BIT_SET = new XContentBuilderString("fixed_bit_set");
         static final XContentBuilderString FIXED_BIT_SET_MEMORY_IN_BYTES = new XContentBuilderString("fixed_bit_set_memory_in_bytes");
+        static final XContentBuilderString FILE_SIZES = new XContentBuilderString("file_sizes");
+        static final XContentBuilderString SIZE = new XContentBuilderString("size");
+        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
+        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
     }
 
     @Override
@@ -281,6 +347,19 @@ public class SegmentsStats implements Streamable, ToXContent {
         versionMapMemoryInBytes = in.readLong();
         indexWriterMaxMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
+
+        if (in.getVersion().onOrAfter(Version.V_5_0_0)) {
+            int size = in.readVInt();
+            ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
+            for (int i = 0; i < size; i++) {
+                String key = in.readString();
+                Long value = in.readLong();
+                map.put(key, value);
+            }
+            fileSizes = map.build();
+        } else {
+            fileSizes = ImmutableOpenMap.of();
+        }
     }
 
     @Override
@@ -296,5 +375,14 @@ public class SegmentsStats implements Streamable, ToXContent {
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(indexWriterMaxMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
+
+        if (out.getVersion().onOrAfter(Version.V_5_0_0)) {
+            out.writeVInt(fileSizes.size());
+            for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
+                ObjectObjectCursor<String, Long> entry = it.next();
+                out.writeString(entry.key);
+                out.writeLong(entry.value);
+            }
+        }
     }
 }

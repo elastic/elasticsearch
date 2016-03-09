@@ -188,10 +188,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
                 docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
             }
             indexRandom(true, docs);
-            if (compatibilityVersion().before(Version.V_1_3_0)) {
-                // issue another refresh through a new node to side step issue #6545
-                assertNoFailures(backwardsCluster().internalCluster().dataNodeClient().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
-            }
             numDocs *= 2;
         }
 

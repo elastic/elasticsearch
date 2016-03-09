@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public final class IngestActionFilter extends AbstractComponent implements ActionFilter {
 
@@ -101,6 +102,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
+        long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, throwable) -> {
             logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", throwable, indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id());
@@ -110,8 +112,9 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 logger.error("failed to execute pipeline for a bulk request", throwable);
                 listener.onFailure(throwable);
             } else {
+                long ingestTookInMillis = TimeUnit.MILLISECONDS.convert(System.nanoTime() - ingestStartTimeInNanos, TimeUnit.NANOSECONDS);
                 BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
+                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
                 if (bulkRequest.requests().isEmpty()) {
                     // at this stage, the transport bulk action can't deal with a bulk request with no requests,
                     // so we stop and send an empty response back to the client.
@@ -176,11 +179,21 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             }
         }
 
-        ActionListener<BulkResponse> wrapActionListenerIfNeeded(ActionListener<BulkResponse> actionListener) {
+        ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
-                return actionListener;
+                return new ActionListener<BulkResponse>() {
+                    @Override
+                    public void onResponse(BulkResponse response) {
+                        actionListener.onResponse(new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis));
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        actionListener.onFailure(e);
+                    }
+                };
             } else {
-                return new IngestBulkResponseListener(originalSlots, itemResponses, actionListener);
+                return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
         }
 
@@ -197,24 +210,26 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     }
 
-    private final static class IngestBulkResponseListener implements ActionListener<BulkResponse> {
+    final static class IngestBulkResponseListener implements ActionListener<BulkResponse> {
 
+        private final long ingestTookInMillis;
         private final int[] originalSlots;
         private final List<BulkItemResponse> itemResponses;
         private final ActionListener<BulkResponse> actionListener;
 
-        IngestBulkResponseListener(int[] originalSlots, List<BulkItemResponse> itemResponses, ActionListener<BulkResponse> actionListener) {
+        IngestBulkResponseListener(long ingestTookInMillis, int[] originalSlots, List<BulkItemResponse> itemResponses, ActionListener<BulkResponse> actionListener) {
+            this.ingestTookInMillis = ingestTookInMillis;
             this.itemResponses = itemResponses;
             this.actionListener = actionListener;
             this.originalSlots = originalSlots;
         }
 
         @Override
-        public void onResponse(BulkResponse bulkItemResponses) {
-            for (int i = 0; i < bulkItemResponses.getItems().length; i++) {
-                itemResponses.add(originalSlots[i], bulkItemResponses.getItems()[i]);
+        public void onResponse(BulkResponse response) {
+            for (int i = 0; i < response.getItems().length; i++) {
+                itemResponses.add(originalSlots[i], response.getItems()[i]);
             }
-            actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), bulkItemResponses.getTookInMillis()));
+            actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), response.getTookInMillis(), ingestTookInMillis));
         }
 
         @Override

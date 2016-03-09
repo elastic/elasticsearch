@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -81,9 +81,9 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
      * this normally isn't allowed.
      */
     protected final boolean multiPolygonMayOverlap = false;
-    /** @see com.spatial4j.core.shape.jts.JtsGeometry#validate() */
+    /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#validate() */
     protected final boolean autoValidateJtsGeometry = true;
-    /** @see com.spatial4j.core.shape.jts.JtsGeometry#index() */
+    /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#index() */
     protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
     protected ShapeBuilder() {

@@ -156,7 +156,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(queryStringQuery("")).get(), 0L); // return no docs
     }
 
-    // see https://github.com/elasticsearch/elasticsearch/issues/3177
+    // see https://github.com/elastic/elasticsearch/issues/3177
     public void testIssue3177() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
@@ -375,9 +375,9 @@ public class SearchQueryIT extends ESIntegTestCase {
         // try the same with multi match query
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("3")); // better score due to different query stats
-        assertSecondHit(searchResponse, hasId("1"));
-        assertThirdHit(searchResponse, hasId("2"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
     }
 
     public void testCommonTermsQueryStackedTokens() throws Exception {
@@ -467,9 +467,9 @@ public class SearchQueryIT extends ESIntegTestCase {
         // try the same with multi match query
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("3")); // better score due to different query stats
-        assertSecondHit(searchResponse, hasId("1"));
-        assertThirdHit(searchResponse, hasId("2"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
     }
 
     public void testQueryStringAnalyzedWildcard() throws Exception {

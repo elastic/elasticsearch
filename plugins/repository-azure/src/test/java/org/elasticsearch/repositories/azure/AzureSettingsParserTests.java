@@ -23,6 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 
 import java.util.Map;
 
@@ -73,14 +74,12 @@ public class AzureSettingsParserTests extends LuceneTestCase {
                 .put("cloud.azure.storage.azure2.key", "mykey2")
                 .build();
 
-        Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(settings);
-        assertThat(tuple.v1(), notNullValue());
-        assertThat(tuple.v1().getAccount(), is("myaccount1"));
-        assertThat(tuple.v1().getKey(), is("mykey1"));
-        assertThat(tuple.v2().keySet(), hasSize(1));
-        assertThat(tuple.v2().get("azure2"), notNullValue());
-        assertThat(tuple.v2().get("azure2").getAccount(), is("myaccount2"));
-        assertThat(tuple.v2().get("azure2").getKey(), is("mykey2"));
+        try {
+            AzureStorageSettings.parse(settings);
+            fail("Should have failed with a SettingsException (no default data store)");
+        } catch (SettingsException ex) {
+            assertEquals(ex.getMessage(), "No default Azure data store configured");
+        }
     }
 
     public void testParseTwoSettingsTooManyDefaultSet() {
@@ -93,14 +92,13 @@ public class AzureSettingsParserTests extends LuceneTestCase {
                 .put("cloud.azure.storage.azure2.default", true)
                 .build();
 
-        Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(settings);
-        assertThat(tuple.v1(), notNullValue());
-        assertThat(tuple.v1().getAccount(), is("myaccount1"));
-        assertThat(tuple.v1().getKey(), is("mykey1"));
-        assertThat(tuple.v2().keySet(), hasSize(1));
-        assertThat(tuple.v2().get("azure2"), notNullValue());
-        assertThat(tuple.v2().get("azure2").getAccount(), is("myaccount2"));
-        assertThat(tuple.v2().get("azure2").getKey(), is("mykey2"));
+        try {
+            AzureStorageSettings.parse(settings);
+            fail("Should have failed with a SettingsException (multiple default data stores)");
+        } catch (SettingsException ex) {
+            assertEquals(ex.getMessage(), "Multiple default Azure data stores configured: [azure1] and [azure2]");
+        }
+
     }
 
     public void testParseEmptySettings() {

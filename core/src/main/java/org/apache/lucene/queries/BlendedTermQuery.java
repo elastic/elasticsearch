@@ -33,7 +33,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -247,14 +246,15 @@ public abstract class BlendedTermQuery extends Query {
             if (boosts != null) {
                 boost = boosts[i];
             }
-            builder.append(ToStringUtils.boost(boost));
+            if (boost != 1f) {
+                builder.append('^').append(boost);
+            }
             builder.append(", ");
         }
         if (terms.length > 0) {
             builder.setLength(builder.length() - 2);
         }
         builder.append("])");
-        builder.append(ToStringUtils.boost(getBoost()));
         return builder.toString();
     }
 

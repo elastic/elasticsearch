@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -60,7 +60,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (isNumericFieldName(queryBuilder.fieldName()) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            assertThat(query, instanceOf(NumericRangeQuery.class));
+            assertThat(query, instanceOf(LegacyNumericRangeQuery.class));
         } else {
             assertThat(query, instanceOf(FuzzyQuery.class));
         }
@@ -139,8 +139,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "    }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery fuzzyQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
+        LegacyNumericRangeQuery fuzzyQuery = (LegacyNumericRangeQuery) parsedQuery;
         assertThat(fuzzyQuery.getMin().longValue(), equalTo(7L));
         assertThat(fuzzyQuery.getMax().longValue(), equalTo(17L));
     }

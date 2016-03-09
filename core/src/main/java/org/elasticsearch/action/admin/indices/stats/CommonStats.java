@@ -166,7 +166,7 @@ public class CommonStats implements Streamable, ToXContent {
                     completion = indexShard.completionStats(flags.completionDataFields());
                     break;
                 case Segments:
-                    segments = indexShard.segmentStats();
+                    segments = indexShard.segmentStats(flags.includeSegmentFileSizes());
                     break;
                 case Percolate:
                     percolate = indexShard.percolateStats();

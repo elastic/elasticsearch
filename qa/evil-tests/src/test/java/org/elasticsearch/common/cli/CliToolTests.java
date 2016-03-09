@@ -20,7 +20,6 @@
 package org.elasticsearch.common.cli;
 
 import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -133,7 +132,7 @@ public class CliToolTests extends CliToolTestCase {
     }
 
     public void testSingleCommandToolHelp() throws Exception {
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd1", terminal) {
             @Override
@@ -145,12 +144,11 @@ public class CliToolTests extends CliToolTestCase {
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
         CliTool.ExitStatus status = tool.execute(args("-h"));
         assertStatus(status, CliTool.ExitStatus.OK_AND_EXIT);
-        assertThat(terminal.getTerminalOutput(), hasSize(3));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
+        assertThat(terminal.getOutput(), containsString("cmd1 help"));
     }
 
     public void testMultiCommandToolHelp() throws Exception {
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
             @Override
@@ -167,12 +165,11 @@ public class CliToolTests extends CliToolTestCase {
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         CliTool.ExitStatus status = tool.execute(args("-h"));
         assertStatus(status, CliTool.ExitStatus.OK_AND_EXIT);
-        assertThat(terminal.getTerminalOutput(), hasSize(3));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("tool help")));
+        assertThat(terminal.getOutput(), containsString("tool help"));
     }
 
     public void testMultiCommandCmdHelp() throws Exception {
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
             @Override
@@ -189,12 +186,11 @@ public class CliToolTests extends CliToolTestCase {
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         CliTool.ExitStatus status = tool.execute(args("cmd1 -h"));
         assertStatus(status, CliTool.ExitStatus.OK_AND_EXIT);
-        assertThat(terminal.getTerminalOutput(), hasSize(3));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
+        assertThat(terminal.getOutput(), containsString("cmd1 help"));
     }
 
     public void testNonUserErrorPropagates() throws Exception {
-        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
@@ -225,22 +221,11 @@ public class CliToolTests extends CliToolTestCase {
     }
 
     public void testPromptForSetting() throws Exception {
-        final AtomicInteger counter = new AtomicInteger();
         final AtomicReference<String> promptedSecretValue = new AtomicReference<>(null);
         final AtomicReference<String> promptedTextValue = new AtomicReference<>(null);
-        final Terminal terminal = new MockTerminal() {
-            @Override
-            public char[] readSecret(String text) {
-                counter.incrementAndGet();
-                return "changeit".toCharArray();
-            }
-
-            @Override
-            public String readText(String text) {
-                counter.incrementAndGet();
-                return "replaced";
-            }
-        };
+        final MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("replaced");
+        terminal.addSecretInput("changeit");
         final NamedCommand cmd = new NamedCommand("noop", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) {
@@ -259,7 +244,6 @@ public class CliToolTests extends CliToolTestCase {
             System.clearProperty("es.replace");
         }
 
-        assertThat(counter.intValue(), is(2));
         assertThat(promptedSecretValue.get(), is("changeit"));
         assertThat(promptedTextValue.get(), is("replaced"));
     }
@@ -269,7 +253,7 @@ public class CliToolTests extends CliToolTestCase {
         final CliToolConfig.Cmd strictCommand = cmd("strict", CliTool.Command.Exit.class).stopAtNonOption(false).build();
         final CliToolConfig config = CliToolConfig.config("elasticsearch", CliTool.class).cmds(lenientCommand, strictCommand).build();
 
-        final CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        MockTerminal terminal = new MockTerminal();
         final CliTool cliTool = new CliTool(config, terminal) {
             @Override
             protected Command parse(String cmdName, CommandLine cli) throws Exception {
@@ -292,11 +276,11 @@ public class CliToolTests extends CliToolTestCase {
 
         // unknown parameters, error
         assertStatus(cliTool.execute(args("strict --unknown")), USAGE);
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Unrecognized option: --unknown")));
+        assertThat(terminal.getOutput(), containsString("Unrecognized option: --unknown"));
 
-        terminal.getTerminalOutput().clear();
+        terminal.resetOutput();
         assertStatus(cliTool.execute(args("strict -u")), USAGE);
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Unrecognized option: -u")));
+        assertThat(terminal.getOutput(), containsString("Unrecognized option: -u"));
     }
 
     private void assertStatus(CliTool.ExitStatus status, CliTool.ExitStatus expectedStatus) {

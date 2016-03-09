@@ -131,7 +131,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceDiscovery.TAGS_SETTING.getKey(), "elasticsearch")
+                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
         mock = new GceComputeServiceMock(nodeSettings, networkService);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
@@ -143,7 +143,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceDiscovery.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
         mock = new GceComputeServiceMock(nodeSettings, networkService);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
@@ -165,7 +165,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceDiscovery.TAGS_SETTING.getKey(), "elasticsearch")
+                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
         mock = new GceComputeServiceMock(nodeSettings, networkService);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
@@ -176,7 +176,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceDiscovery.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
         mock = new GceComputeServiceMock(nodeSettings, networkService);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);

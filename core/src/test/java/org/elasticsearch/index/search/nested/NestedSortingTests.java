@@ -87,13 +87,13 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             docs.add(parent);
             writer.addDocuments(docs);
             if (rarely()) { // we need to have a bit more segments than what RandomIndexWriter would do by default
-                DirectoryReader.open(writer, false).close();
+                DirectoryReader.open(writer).close();
             }
         }
         writer.commit();
 
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
@@ -278,7 +278,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         writer.addDocument(document);
 
         MultiValueMode sortMode = MultiValueMode.MIN;
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");

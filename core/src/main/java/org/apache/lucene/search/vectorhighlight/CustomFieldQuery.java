@@ -87,7 +87,7 @@ public class CustomFieldQuery extends FieldQuery {
             if (numTerms > 16) {
                 for (Term[] currentPosTerm : terms) {
                     for (Term term : currentPosTerm) {
-                        super.flatten(new TermQuery(term), reader, flatQueries, orig.getBoost());
+                        super.flatten(new TermQuery(term), reader, flatQueries, 1F);
                     }
                 }
                 return;
@@ -104,7 +104,7 @@ public class CustomFieldQuery extends FieldQuery {
                 queryBuilder.add(terms.get(i)[termsIdx[i]], pos[i]);
             }
             Query query = queryBuilder.build();
-            this.flatten(query, reader, flatQueries, orig.getBoost());
+            this.flatten(query, reader, flatQueries, 1F);
         } else {
             Term[] t = terms.get(currentPos);
             for (int i = 0; i < t.length; i++) {

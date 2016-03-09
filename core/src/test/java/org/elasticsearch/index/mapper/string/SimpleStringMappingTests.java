@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -75,7 +74,9 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
 
     @Before
     public void before() {
-        indexService = createIndex("test");
+        indexService = createIndex("test",
+                // we need 2.x since string is deprecated in 5.0
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build());
         parser = indexService.mapperService().documentMapperParser();
     }
 

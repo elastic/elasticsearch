@@ -224,6 +224,13 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
+     * The content type that will be used when generating a document from user provided objects like Maps.
+     */
+    public XContentType getContentType() {
+        return contentType;
+    }
+
+    /**
      * Sets the content type that will be used when generating a document from user provided objects (like Map).
      */
     public IndexRequest contentType(XContentType contentType) {
@@ -294,6 +301,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         return this;
     }
 
+    @Override
     public String parent() {
         return this.parent;
     }
@@ -645,7 +653,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -663,7 +671,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.NumericTokenStream;
-import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream.LegacyNumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.test.ESTestCase;
@@ -37,10 +37,10 @@ public class NumericAnalyzerTests extends ESTestCase {
         NumericDoubleAnalyzer analyzer = new NumericDoubleAnalyzer(precisionStep);
 
         final TokenStream ts1 = analyzer.tokenStream("dummy", String.valueOf(value));
-        final NumericTokenStream ts2 = new NumericTokenStream(precisionStep);
+        final LegacyNumericTokenStream ts2 = new LegacyNumericTokenStream(precisionStep);
         ts2.setDoubleValue(value);
-        final NumericTermAttribute numTerm1 = ts1.addAttribute(NumericTermAttribute.class);
-        final NumericTermAttribute numTerm2 = ts1.addAttribute(NumericTermAttribute.class);
+        final LegacyNumericTermAttribute numTerm1 = ts1.addAttribute(LegacyNumericTermAttribute.class);
+        final LegacyNumericTermAttribute numTerm2 = ts1.addAttribute(LegacyNumericTermAttribute.class);
         final PositionIncrementAttribute posInc1 = ts1.addAttribute(PositionIncrementAttribute.class);
         final PositionIncrementAttribute posInc2 = ts1.addAttribute(PositionIncrementAttribute.class);
         ts1.reset();

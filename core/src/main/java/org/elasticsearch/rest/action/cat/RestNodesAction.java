@@ -33,8 +33,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -92,7 +95,7 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true).process(true);
+                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
@@ -118,7 +121,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
-        table.addCell("http_address", "default:false;alias:http;desc:bound http adress");
+        table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
@@ -249,9 +252,14 @@ public class RestNodesAction extends AbstractCatAction {
             } else {
                 table.addCell("-");
             }
-            final Map<String, String> serviceAttributes = info.getServiceAttributes();
-            if (serviceAttributes != null) {
-                table.addCell(serviceAttributes.getOrDefault("http_address", "-"));
+            final HttpInfo httpInfo = info == null ? null : info.getHttp();
+            if (httpInfo != null) {
+                TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
+                if (transportAddress instanceof InetSocketTransportAddress) {
+                    table.addCell(NetworkAddress.formatAddress(((InetSocketTransportAddress)transportAddress).address()));
+                } else {
+                    table.addCell(transportAddress.toString());
+                }
             } else {
                 table.addCell("-");
             }

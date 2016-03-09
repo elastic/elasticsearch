@@ -100,7 +100,6 @@ final class DocumentParser implements Closeable {
         }
 
         reverseOrder(context);
-        applyDocBoost(context);
 
         ParsedDocument doc = parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
         // reset the context to free up memory
@@ -182,24 +181,6 @@ final class DocumentParser implements Closeable {
         // reverse the order of docs for nested docs support, parent should be last
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
-        }
-    }
-
-    private static void applyDocBoost(ParseContext.InternalParseContext context) {
-        // apply doc boost
-        if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = new HashSet<>();
-            for (ParseContext.Document doc : context.docs()) {
-                encounteredFields.clear();
-                for (IndexableField field : doc) {
-                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
-                        if (!encounteredFields.contains(field.name())) {
-                            ((Field) field).setBoost(context.docBoost() * field.boost());
-                            encounteredFields.add(field.name());
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -563,17 +544,17 @@ final class DocumentParser implements Closeable {
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", "string");
             if (builder == null) {
                 builder = new StringFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof TextFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName);
             }
         } else if (fieldType instanceof KeywordFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
             if (builder == null) {
                 builder = new KeywordFieldMapper.Builder(currentFieldName);
             }
@@ -621,7 +602,7 @@ final class DocumentParser implements Closeable {
             // we need to do it here so we can handle things like attachment templates, where calling
             // text (to see if its a date) causes the binary value to be cleared
             {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "text", null);
                 if (builder != null) {
                     return builder;
                 }
@@ -670,7 +651,7 @@ final class DocumentParser implements Closeable {
             }
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
-                builder = new StringFieldMapper.Builder(currentFieldName);
+                builder = new TextFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {

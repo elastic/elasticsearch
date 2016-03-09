@@ -85,9 +85,9 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
 
         @Override
         public Builder indexOptions(IndexOptions indexOptions) {
-            if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
+            if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
                 throw new IllegalArgumentException("The [keyword] field does not support positions, got [index_options]="
-                        + indexOptionToString(fieldType.indexOptions()));
+                        + indexOptionToString(indexOptions));
             }
             return super.indexOptions(indexOptions);
         }

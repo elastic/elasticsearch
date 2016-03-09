@@ -194,14 +194,11 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
         assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));
-        if (Version.fromString(version).onOrAfter(Version.V_1_1_0)) {
-            // Support for aliases in templates was added in v1.1.0
-            assertThat(template.aliases().size(), equalTo(3));
-            assertThat(template.aliases().get("alias1"), notNullValue());
-            assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
-            assertThat(template.aliases().get("alias2").indexRouting(), equalTo("kimchy"));
-            assertThat(template.aliases().get("{index}-alias"), notNullValue());
-        }
+        assertThat(template.aliases().size(), equalTo(3));
+        assertThat(template.aliases().get("alias1"), notNullValue());
+        assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
+        assertThat(template.aliases().get("alias2").indexRouting(), equalTo("kimchy"));
+        assertThat(template.aliases().get("{index}-alias"), notNullValue());
 
         logger.info("--> cleanup");
         cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));

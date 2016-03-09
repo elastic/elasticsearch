@@ -45,10 +45,4 @@ public abstract class SortBuilder implements ToXContent {
      * The order of sorting. Defaults to {@link SortOrder#ASC}.
      */
     public abstract SortBuilder order(SortOrder order);
-
-    /**
-     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
-     * <tt>_first</tt> to sort missing last or first respectively.
-     */
-    public abstract SortBuilder missing(Object missing);
 }

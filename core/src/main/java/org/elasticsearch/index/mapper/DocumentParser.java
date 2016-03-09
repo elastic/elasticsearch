@@ -502,7 +502,6 @@ final class DocumentParser implements Closeable {
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
                 if (builder == null) {
-                    // TODO: shouldn't this create a default object mapper builder?
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                     return;
                 }

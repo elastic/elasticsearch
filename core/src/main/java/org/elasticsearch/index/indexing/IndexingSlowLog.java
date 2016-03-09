@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -64,9 +65,9 @@ public final class IndexingSlowLog {
     public static final String INDEX_INDEXING_SLOWLOG_LEVEL = INDEX_INDEXING_SLOWLOG_PREFIX +".level";
     public static final String INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG = INDEX_INDEXING_SLOWLOG_PREFIX + ".source";
 
-    IndexingSlowLog(Settings indexSettings) {
-        this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index"),
-                Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".delete"));
+    IndexingSlowLog(ShardId shardId, Settings indexSettings) {
+        this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings, shardId),
+                Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".delete",  indexSettings, shardId));
     }
 
     /**
@@ -75,7 +76,6 @@ public final class IndexingSlowLog {
     IndexingSlowLog(Settings indexSettings, ESLogger indexLogger, ESLogger deleteLogger) {
         this.indexLogger = indexLogger;
         this.deleteLogger = deleteLogger;
-
         this.reformat = indexSettings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, true);
         this.indexWarnThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(-1)).nanos();
         this.indexInfoThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(-1)).nanos();

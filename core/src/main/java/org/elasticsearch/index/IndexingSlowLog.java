@@ -52,7 +52,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     private SlowLogLevel level;
 
     private final ESLogger indexLogger;
-    private final ESLogger deleteLogger;
 
     private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
@@ -76,16 +75,14 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }, true, Setting.Scope.INDEX);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index"),
-                Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".delete"));
+        this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings()));
     }
 
     /**
      * Build with the specified loggers. Only used to testing.
      */
-    IndexingSlowLog(IndexSettings indexSettings, ESLogger indexLogger, ESLogger deleteLogger) {
+    IndexingSlowLog(IndexSettings indexSettings, ESLogger indexLogger) {
         this.indexLogger = indexLogger;
-        this.deleteLogger = deleteLogger;
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -111,7 +108,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     private void setLevel(SlowLogLevel level) {
         this.level = level;
         this.indexLogger.setLevel(level.name());
-        this.deleteLogger.setLevel(level.name());
     }
 
     private void setWarnThreshold(TimeValue warnThreshold) {

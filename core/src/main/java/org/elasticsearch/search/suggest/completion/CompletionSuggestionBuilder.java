@@ -63,10 +63,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
 
-    private static ObjectParser<CompletionSuggestionBuilder, Void> TLP_PARSER =
+    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> TLP_PARSER =
         new ObjectParser<>(SUGGESTION_NAME, null);
     static {
-        TLP_PARSER.declareStringArray(CompletionSuggestionBuilder::payload, PAYLOAD_FIELD);
+        TLP_PARSER.declareStringArray(CompletionSuggestionBuilder.InnerBuilder::payload, PAYLOAD_FIELD);
         TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
                 if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                     if (parser.booleanValue()) {
@@ -80,10 +80,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
             completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
             RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder::field, SuggestUtils.Fields.FIELD);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder::analyzer, SuggestUtils.Fields.ANALYZER);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder::size, SuggestUtils.Fields.SIZE);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder::shardSize, SuggestUtils.Fields.SHARD_SIZE);
+        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, SuggestUtils.Fields.FIELD);
+        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, SuggestUtils.Fields.ANALYZER);
+        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SuggestUtils.Fields.SIZE);
+        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SuggestUtils.Fields.SHARD_SIZE);
         TLP_PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -93,10 +93,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
     }
 
-    private FuzzyOptions fuzzyOptions;
-    private RegexOptions regexOptions;
-    private BytesReference contextBytes = null;
-    private List<String> payloadFields = Collections.emptyList();
+    protected FuzzyOptions fuzzyOptions;
+    protected RegexOptions regexOptions;
+    protected BytesReference contextBytes = null;
+    protected List<String> payloadFields = Collections.emptyList();
 
     public CompletionSuggestionBuilder(String fieldname) {
         super(fieldname);
@@ -167,6 +167,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      * Note: Only doc values enabled fields are supported
      */
     public CompletionSuggestionBuilder payload(List<String> fields) {
+        Objects.requireNonNull(fields, "payload must not be null");
         this.payloadFields = fields;
         return this;
     }
@@ -178,6 +179,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *                      and {@link org.elasticsearch.search.suggest.completion.context.GeoQueryContext}
      */
     public CompletionSuggestionBuilder contexts(Map<String, List<? extends QueryContext>> queryContexts) {
+        Objects.requireNonNull(queryContexts, "contexts must not be null");
         try {
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
             contentBuilder.startObject();
@@ -196,10 +198,17 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         }
     }
 
-    private String field;
-    private CompletionSuggestionBuilder field(String fieldName) {
-        this.field = fieldName;
-        return this;
+    private static class InnerBuilder extends CompletionSuggestionBuilder {
+        private String field;
+
+        public InnerBuilder() {
+            super("_na_");
+        }
+
+        private InnerBuilder field(String fieldName) {
+            this.field = fieldName;
+            return this;
+        }
     }
 
     @Override
@@ -227,7 +236,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        CompletionSuggestionBuilder builder = new CompletionSuggestionBuilder("_na_");
+        CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
         TLP_PARSER.parse(parseContext.parser(), builder);
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return

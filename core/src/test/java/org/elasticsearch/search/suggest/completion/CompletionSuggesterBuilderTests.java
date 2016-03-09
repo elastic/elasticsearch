@@ -140,8 +140,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 return type;
             }
         };
-        final CompletionSuggestionBuilder builder = builderAndInfo.builder;
-        return new Tuple<>(mapperService, builder);
+        return new Tuple<>(mapperService, builderAndInfo.builder);
     }
 
     @Override

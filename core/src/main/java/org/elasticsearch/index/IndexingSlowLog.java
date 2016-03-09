@@ -75,14 +75,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }, true, Setting.Scope.INDEX);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings()));
-    }
-
-    /**
-     * Build with the specified loggers. Only used to testing.
-     */
-    IndexingSlowLog(IndexSettings indexSettings, ESLogger indexLogger) {
-        this.indexLogger = indexLogger;
+        this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings());
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);

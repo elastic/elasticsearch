@@ -51,7 +51,7 @@ final class BootstrapCliParser extends Command {
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
             .withRequiredArg();
-        propertyOption = parser.accepts("E", "Configures an Elasticsearch setting")
+        propertyOption = parser.accepts("D", "Configures an Elasticsearch setting")
             .withRequiredArg();
     }
 
@@ -80,7 +80,11 @@ final class BootstrapCliParser extends Command {
             if (keyValue.length != 2) {
                 throw new UserError(ExitCodes.USAGE, "Malformed elasticsearch setting, must be of the form key=value");
             }
-            System.setProperty("es." + keyValue[0], keyValue[1]);
+            String key = keyValue[0];
+            if (key.startsWith("es.") == false) {
+                key = "es." + key;
+            }
+            System.setProperty(key, keyValue[1]);
         }
         shouldRun = true;
     }

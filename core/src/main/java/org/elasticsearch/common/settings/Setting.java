@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -30,16 +31,19 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -177,7 +181,7 @@ public class Setting<T> extends ToXContentToBytes {
     /**
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
-    public final boolean exists(Settings settings) {
+    public boolean exists(Settings settings) {
         return settings.get(getKey()) != null;
     }
 
@@ -505,8 +509,10 @@ public class Setting<T> extends ToXContentToBytes {
             throw new ElasticsearchException(ex);
         }
     }
-
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
+        return groupSetting(key, dynamic, scope, (s) -> {});
+    }
+    public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope, Consumer<Settings> validator) {
         return new Setting<Settings>(new GroupKey(key), (s) -> "", (s) -> null, dynamic, scope) {
             @Override
             public boolean isGroupSetting() {
@@ -514,8 +520,34 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
+            public String getRaw(Settings settings) {
+                Settings subSettings = get(settings);
+                try {
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    subSettings.toXContent(builder, EMPTY_PARAMS);
+                    builder.endObject();
+                    return builder.string();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
             public Settings get(Settings settings) {
-                return settings.getByPrefix(getKey());
+                Settings byPrefix = settings.getByPrefix(getKey());
+                validator.accept(byPrefix);
+                return byPrefix;
+            }
+
+            @Override
+            public boolean exists(Settings settings) {
+                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                    if (entry.getKey().startsWith(key)) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             @Override

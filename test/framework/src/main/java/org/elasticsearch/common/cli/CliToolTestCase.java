@@ -28,6 +28,10 @@ import org.elasticsearch.test.StreamsUtils;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.not;
+
 public abstract class CliToolTestCase extends ESTestCase {
 
     @Before
@@ -51,8 +55,10 @@ public abstract class CliToolTestCase extends ESTestCase {
 
     public static void assertTerminalOutputContainsHelpFile(MockTerminal terminal, String classPath) throws IOException {
         String output = terminal.getOutput();
-        assertFalse(output, output.isEmpty());
+        assertThat(output, not(isEmptyString()));
         String expectedDocs = StreamsUtils.copyToStringFromClasspath(classPath);
-        assertTrue(output, output.contains(expectedDocs));
+        // convert to *nix newlines as MockTerminal used for tests also uses *nix newlines
+        expectedDocs = expectedDocs.replace("\r\n", "\n");
+        assertThat(output, containsString(expectedDocs));
     }
 }

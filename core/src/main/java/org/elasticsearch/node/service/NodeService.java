@@ -84,7 +84,6 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.discovery = discovery;
-        discovery.setNodeService(this);
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;

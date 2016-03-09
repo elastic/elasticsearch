@@ -58,8 +58,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
 
-    private String index;
-    private int shardId;
+    private ShardId shardId;
     private int numberOfShards;
     private SearchType searchType;
     private Scroll scroll;
@@ -97,8 +96,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
             Boolean requestCache) {
-        this.index = shardId.getIndexName();
-        this.shardId = shardId.id();
+        this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
@@ -106,13 +104,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.requestCache = requestCache;
     }
 
-    @Override
-    public String index() {
-        return index;
-    }
 
     @Override
-    public int shardId() {
+    public ShardId shardId() {
         return shardId;
     }
 
@@ -177,8 +171,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         if (in.readBoolean()) {
@@ -195,8 +188,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (!asKey) {
             out.writeVInt(numberOfShards);

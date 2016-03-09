@@ -156,10 +156,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         refresh();
-
+        Index index = resolveIndex("foo-copy");
         for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (service.hasIndex("foo-copy")) {
-                IndexShard shard = service.indexServiceSafe("foo-copy").getShardOrNull(0);
+
+            if (service.hasIndex(index)) {
+                IndexShard shard = service.indexServiceSafe(index).getShardOrNull(0);
                 if (shard.routingEntry().primary()) {
                     assertFalse(shard instanceof ShadowIndexShard);
                 } else {
@@ -201,8 +202,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(IDX).clear().setTranslog(true).get();
         assertEquals(2, indicesStatsResponse.getIndex(IDX).getPrimaries().getTranslog().estimatedNumberOfOperations());
         assertEquals(2, indicesStatsResponse.getIndex(IDX).getTotal().getTranslog().estimatedNumberOfOperations());
+        Index index = resolveIndex(IDX);
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
-            IndexService indexService = service.indexService(IDX);
+            IndexService indexService = service.indexService(index);
             if (indexService != null) {
                 IndexShard shard = indexService.getShard(0);
                 TranslogStats translogStats = shard.translogStats();

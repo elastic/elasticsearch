@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -34,9 +35,7 @@ import java.io.IOException;
  */
 public interface ShardSearchRequest {
 
-    String index();
-
-    int shardId();
+    ShardId shardId();
 
     String[] types();
 

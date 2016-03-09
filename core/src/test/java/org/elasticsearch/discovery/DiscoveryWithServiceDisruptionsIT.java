@@ -435,6 +435,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,"
             + "indices.recovery:TRACE,indices.cluster:TRACE")
+    @AwaitsFix(bugUrl = "needs primary terms")
     public void testAckedIndexing() throws Exception {
         // TODO: add node count randomizaion
         final List<String> nodes = startCluster(3);

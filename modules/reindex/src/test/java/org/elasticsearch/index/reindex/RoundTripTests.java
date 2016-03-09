@@ -150,14 +150,6 @@ public class RoundTripTests extends ESTestCase {
                 emptyMap()); // Params
     }
 
-    private long randomPositiveLong() {
-        long l;
-        do {
-            l = randomLong();
-        } while (l < 0);
-        return l;
-    }
-
     private int randomPositiveInt() {
         return randomInt(Integer.MAX_VALUE);
     }

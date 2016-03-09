@@ -346,7 +346,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         private void assertClusterStateThread() {
-            assert clusterService instanceof InternalClusterService == false || ((InternalClusterService) clusterService).assertClusterStateThread();
+            assert clusterService instanceof InternalClusterService == false || InternalClusterService.assertClusterStateThread();
         }
     }
 

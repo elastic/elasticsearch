@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.PersistedIndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -60,9 +61,10 @@ public class MetaStateService extends AbstractComponent {
             metaDataBuilder = MetaData.builder();
         }
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
-            if (indexMetaData != null) {
-                metaDataBuilder.put(indexMetaData, false);
+            PersistedIndexMetaData persistedIndex =
+                PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            if (persistedIndex != null) {
+                metaDataBuilder.put(persistedIndex.getIndexMetaData(), false);
             } else {
                 logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
             }
@@ -74,25 +76,44 @@ public class MetaStateService extends AbstractComponent {
      * Loads the index state for the provided index name, returning null if doesn't exists.
      */
     @Nullable
-    IndexMetaData loadIndexState(Index index) throws IOException {
-        return IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
+    PersistedIndexMetaData loadIndexState(Index index) throws IOException {
+        return PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
+    }
+
+    /**
+     * Loads all indices states available on disk, without checking if the index folder name is correct.
+     * This should only be used if loading indices states on initialization prior to the index folder name upgrade
+     * taking place through {@link org.elasticsearch.common.util.IndexFolderUpgrader#upgradeIndicesIfNeeded(Settings, NodeEnvironment)}.
+     */
+    List<PersistedIndexMetaData> loadIndicesStatesNoFolderNameValidation() throws IOException {
+        List<PersistedIndexMetaData> indexMetaDataList = new ArrayList<>();
+        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
+            PersistedIndexMetaData persistedIndex =
+                PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            if (persistedIndex != null) {
+                indexMetaDataList.add(persistedIndex);
+            } else {
+                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
+            }
+        }
+        return indexMetaDataList;
     }
 
     /**
      * Loads all indices states available on disk
      */
-    List<IndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
-        List<IndexMetaData> indexMetaDataList = new ArrayList<>();
+    List<PersistedIndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
+        List<PersistedIndexMetaData> indexMetaDataList = new ArrayList<>();
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             if (excludeIndexPathIdsPredicate.test(indexFolderName)) {
                 continue;
             }
-            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger,
-                nodeEnv.resolveIndexFolder(indexFolderName));
-            if (indexMetaData != null) {
-                final String indexPathId = indexMetaData.getIndex().getUUID();
+            PersistedIndexMetaData persistedIndex =
+                PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            if (persistedIndex != null) {
+                final String indexPathId = persistedIndex.getIndexMetaData().getIndex().getUUID();
                 if (indexFolderName.equals(indexPathId)) {
-                    indexMetaDataList.add(indexMetaData);
+                    indexMetaDataList.add(persistedIndex);
                 } else {
                     throw new IllegalStateException("[" + indexFolderName+ "] invalid index folder name, rename to [" + indexPathId + "]");
                 }
@@ -120,19 +141,20 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Writes the index state.
      */
-    void writeIndex(String reason, IndexMetaData indexMetaData) throws IOException {
-        writeIndex(reason, indexMetaData, nodeEnv.indexPaths(indexMetaData.getIndex()));
+    void writeIndex(String reason, PersistedIndexMetaData persistedIndex) throws IOException {
+        writeIndex(reason, persistedIndex, nodeEnv.indexPaths(persistedIndex.getIndexMetaData().getIndex()));
     }
 
     /**
      * Writes the index state in <code>locations</code>, use {@link #writeGlobalState(String, MetaData)}
      * to write index state in index paths
      */
-    void writeIndex(String reason, IndexMetaData indexMetaData, Path[] locations) throws IOException {
+    void writeIndex(String reason, PersistedIndexMetaData persistedIndex, Path[] locations) throws IOException {
+        final IndexMetaData indexMetaData = persistedIndex.getIndexMetaData();
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            IndexMetaData.FORMAT.write(indexMetaData, indexMetaData.getVersion(), locations);
+            PersistedIndexMetaData.FORMAT.write(persistedIndex, indexMetaData.getVersion(), locations);
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, index);
             throw new IOException("failed to write state for [" + index + "]", ex);
@@ -151,4 +173,5 @@ public class MetaStateService extends AbstractComponent {
             throw new IOException("failed to write global state", ex);
         }
     }
+
 }

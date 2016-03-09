@@ -21,15 +21,11 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.PersistedIndexMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 
@@ -89,8 +85,9 @@ public class IndexFolderUpgrader {
     void upgrade(final String indexFolderName) throws IOException {
         for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
             final Path indexFolderPath = nodePath.indicesPath.resolve(indexFolderName);
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolderPath);
-            if (indexMetaData != null) {
+            final PersistedIndexMetaData persistedIndex = PersistedIndexMetaData.FORMAT.loadLatestState(logger, indexFolderPath);
+            if (persistedIndex != null) {
+                final IndexMetaData indexMetaData = persistedIndex.getIndexMetaData();
                 final Index index = indexMetaData.getIndex();
                 if (needsUpgrade(index, indexFolderName)) {
                     logger.info("{} upgrading [{}] to new naming convention", index, indexFolderPath);

@@ -327,7 +327,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     private IndexMetaData.Builder indexBuilder(String index) throws IOException {
         return IndexMetaData.builder(index)
-                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
+                .settings(settings(Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
     }
 
 

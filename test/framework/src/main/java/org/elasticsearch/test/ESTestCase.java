@@ -318,6 +318,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextLong();
     }
 
+    public static long randomPositiveLong() {
+        long result;
+        do {
+            result = randomLong();
+        } while (result < 0L);
+        return result;
+    }
+
     /** A random integer from 0..max (inclusive). */
     public static int randomInt(int max) {
         return RandomizedTest.randomInt(max);

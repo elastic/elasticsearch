@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.util.HashMap;
@@ -54,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class GatewayMetaStateTests extends ESAllocationTestCase {
 
-    ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
+    ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean clusterChanged, boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
@@ -63,7 +64,9 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
                 .build());
         ClusterState newClusterState, previousClusterState;
+        final String clusterUUID = Strings.randomBase64UUID();
         MetaData metaDataOldClusterState = MetaData.builder()
+                .clusterUUID(clusterUUID)
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
                 .build();
 
@@ -90,10 +93,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
 
         // create new meta data either with version changed or not
+        IndexMetaData newIndexMetaData = init.metaData().index("test");
         MetaData metaDataNewClusterState = MetaData.builder()
-                .put(init.metaData().index("test"), versionChanged)
+                .put(newIndexMetaData, versionChanged)
                 .build();
-
 
         // create the cluster states with meta data and routing tables as computed before
         previousClusterState = ClusterState.builder(init)
@@ -184,7 +187,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().getIndex().getName(), equalTo("test"));
+            assertThat(indices.next().getPersistedIndexMetaData().getIndexMetaData().getIndex().getName(), equalTo("test"));
             assertThat(indices.hasNext(), equalTo(false));
         } else {
             assertThat(indices.hasNext(), equalTo(false));
@@ -195,10 +198,11 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         // test that version changes are always written
         boolean initializing = randomBoolean();
         boolean versionChanged = true;
+        boolean clusterChanged = randomBoolean();
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = true;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged, clusterChanged, masterEligible);
         assertState(event, stateInMemory, expectMetaData);
     }
 
@@ -206,10 +210,11 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         // make sure new shards on data only node always written
         boolean initializing = true;
         boolean versionChanged = randomBoolean();
+        boolean clusterChanged = randomBoolean();
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = false;
         boolean expectMetaData = true;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged, clusterChanged, masterEligible);
         assertState(event, stateInMemory, expectMetaData);
     }
 
@@ -217,20 +222,22 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
         boolean versionChanged = false;
+        boolean clusterChanged = false;
         boolean stateInMemory = true;
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = false;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged, clusterChanged, masterEligible);
         assertState(event, stateInMemory, expectMetaData);
     }
 
     public void testNoWriteIfNothingChanged() throws Exception {
         boolean initializing = false;
         boolean versionChanged = false;
+        boolean clusterChanged = false;
         boolean stateInMemory = true;
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = false;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged, clusterChanged, masterEligible);
         ClusterChangedEvent newEventWithNothingChanged = new ClusterChangedEvent("test cluster state", event.state(), event.state());
         assertState(newEventWithNothingChanged, stateInMemory, expectMetaData);
     }

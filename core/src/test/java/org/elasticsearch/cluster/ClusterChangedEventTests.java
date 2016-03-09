@@ -30,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -136,8 +135,10 @@ public class ClusterChangedEventTests extends ESTestCase {
         final IndexMetaData originalIndexMeta = originalState.metaData().index(indexId);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetaData for " + indexId + " should exist on the cluster state", originalIndexMeta);
-        IndexMetaData newIndexMeta = createIndexMetadata(indexId, originalIndexMeta.getVersion() + 1);
+        IndexMetaData newIndexMeta = createIndexMetadata(indexId, originalIndexMeta.getVersion() + 1, INITIAL_CLUSTER_ID);
         assertTrue("IndexMetaData with different version numbers must be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        newIndexMeta = createIndexMetadata(indexId, originalIndexMeta.getVersion(), Strings.randomBase64UUID());
+        assertTrue("IndexMetaData with different clusterUUIDs must be considered changed", event.indexMetaDataChanged(newIndexMeta));
 
         // test when it doesn't exist
         newIndexMeta = createIndexMetadata("doesntexist");
@@ -333,11 +334,11 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create the index metadata for a given index.
     private static IndexMetaData createIndexMetadata(final String index) {
-        return createIndexMetadata(index, 1);
+        return createIndexMetadata(index, 1, INITIAL_CLUSTER_ID);
     }
 
     // Create the index metadata for a given index, with the specified version.
-    private static IndexMetaData createIndexMetadata(final String index, final long version) {
+    private static IndexMetaData createIndexMetadata(final String index, final long version, final String clusterUUID) {
         return IndexMetaData.builder(index)
                             .settings(settings)
                             .numberOfShards(1)

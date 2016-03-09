@@ -22,10 +22,17 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +44,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -274,6 +285,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         internalCluster().stopRandomNonMasterNode();
 
+        // reset the cluster state to a different cluster UUID to trigger dangling indices importing
+        resetClusterUUID(internalCluster().clusterService(internalCluster().getMasterName()));
+
         // wait for master to processed node left (so delete won't timeout waiting for it)
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut());
 
@@ -363,5 +377,65 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+    }
+
+    private static void resetClusterUUID(ClusterService clusterService) throws Exception {
+        final AtomicBoolean failure = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch processedLatch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onAckTimeout() {
+                latch.countDown();
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                processedLatch.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                // change the cluster UUID, keep everything else in the cluster state the same
+                final MetaData.Builder newMetaData = MetaData.builder(clusterService.state().metaData()).clusterUUID(Strings.randomBase64UUID());
+                return ClusterState.builder(clusterService.state()).metaData(newMetaData).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                failure.set(true);
+                latch.countDown();
+            }
+        });
+
+        // timeout if cluster state isn't updated in 5 seconds
+        assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
+        assertThat(processedLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        assertFalse("publishing new cluster state failed", failure.get());
     }
 }

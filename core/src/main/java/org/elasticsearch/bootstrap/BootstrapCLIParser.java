@@ -29,6 +29,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 final class BootstrapCliParser extends Command {
@@ -54,6 +55,8 @@ final class BootstrapCliParser extends Command {
             .withRequiredArg();
     }
 
+    // TODO: don't use system properties as a way to do this, its horrible...
+    @SuppressForbidden(reason = "Sets system properties passed as CLI parameters")
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         if (options.has(versionOption)) {

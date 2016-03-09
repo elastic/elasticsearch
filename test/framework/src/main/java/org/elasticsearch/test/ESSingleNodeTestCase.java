@@ -108,7 +108,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
-        // only the cluster name. This allows us to have overriden properties for plugins and the version to use.
+        // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
         if (NODE == null) {
             startNode();
         }
@@ -153,7 +153,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     /** Helper method to create list of plugins without specifying generic types. */
     @SafeVarargs
-    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which causes this warning
     protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
         return Arrays.asList(plugins);
     }

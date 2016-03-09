@@ -19,6 +19,13 @@
 
 package org.elasticsearch.tribe;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
@@ -51,12 +58,6 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
-
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
@@ -117,6 +118,17 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private final String[] blockIndicesMetadata;
 
     private static final String ON_CONFLICT_ANY = "any", ON_CONFLICT_DROP = "drop", ON_CONFLICT_PREFER = "prefer_";
+
+    // these settings should be passed through to each tribe client, if they are not set explicitly
+    private static final List<String> PASS_THROUGH_SETTINGS = Arrays.asList(
+        "network.host",
+        "network.bind_host",
+        "network.publish_host",
+        "transport.host",
+        "transport.bind_host",
+        "transport.publish_host"
+    );
+
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
@@ -130,19 +142,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings.Builder sb = Settings.builder().put(entry.getValue());
-            sb.put("name", settings.get("name") + "/" + entry.getKey());
-            sb.put("path.home", settings.get("path.home")); // pass through ES home dir
-            String confDir = settings.get("path.conf");
-            if (Strings.isEmpty(confDir) == false) {
-                sb.put("path.conf", confDir);
-            }
-            sb.put(TRIBE_NAME, entry.getKey());
-            if (sb.get("http.enabled") == null) {
-                sb.put("http.enabled", false);
-            }
-            sb.put("node.client", true);
-            nodes.add(new TribeClientNode(sb.build()));
+            Settings clientSettings = buildClientSettings(entry.getKey(), settings, entry.getValue());
+            nodes.add(new TribeClientNode(clientSettings));
         }
 
         String[] blockIndicesWrite = Strings.EMPTY_ARRAY;
@@ -171,6 +172,45 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         this.blockIndicesWrite = blockIndicesWrite;
 
         this.onConflict = settings.get("tribe.on_conflict", ON_CONFLICT_ANY);
+    }
+
+    // pkg private for testing
+    /**
+     * Builds node settings for a tribe client node from the tribe node's global settings,
+     * combined with tribe specific settings.
+     */
+    static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+        for (String tribeKey : tribeSettings.getAsMap().keySet()) {
+            if (tribeKey.startsWith("path.")) {
+                throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
+            }
+        }
+        Settings.Builder sb = Settings.builder().put(tribeSettings);
+        sb.put("name", globalSettings.get("name") + "/" + tribeName);
+        sb.put("path.home", globalSettings.get("path.home")); // pass through ES home dir
+        if (globalSettings.get("path.conf") != null) {
+            sb.put("path.conf", globalSettings.get("path.conf"));
+        }
+        if (globalSettings.get("path.plugins") != null) {
+            sb.put("path.plugins", globalSettings.get("path.plugins"));
+        }
+        if (globalSettings.get("path.logs") != null) {
+            sb.put("path.logs", globalSettings.get("path.logs"));
+        }
+        if (globalSettings.get("path.scripts") != null) {
+            sb.put("path.scripts", globalSettings.get("path.scripts"));
+        }
+        for (String passthrough : PASS_THROUGH_SETTINGS) {
+            if (tribeSettings.get(passthrough) == null && globalSettings.get(passthrough) != null) {
+                sb.put(passthrough, globalSettings.get(passthrough));
+            }
+        }
+        sb.put(TRIBE_NAME, tribeName);
+        if (sb.get("http.enabled") == null) {
+            sb.put("http.enabled", false);
+        }
+        sb.put("node.client", true);
+        return sb.build();
     }
 
     @Override

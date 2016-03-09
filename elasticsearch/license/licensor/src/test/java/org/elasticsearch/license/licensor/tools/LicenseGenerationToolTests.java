@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.MockTerminal;
@@ -18,7 +20,7 @@ import org.elasticsearch.license.licensor.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-public class LicenseGenerationToolTests extends ESTestCase {
+public class LicenseGenerationToolTests extends CommandTestCase {
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
 
@@ -28,28 +30,31 @@ public class LicenseGenerationToolTests extends ESTestCase {
         priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE);
     }
 
+    @Override
+    protected Command newCommand() {
+        return new LicenseGeneratorTool();
+    }
+
     public void testMissingKeyPaths() throws Exception {
-        LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Path pub = createTempDir().resolve("pub");
         Path pri = createTempDir().resolve("pri");
         UserError e = expectThrows(UserError.class, () -> {
-            licenseGeneratorTool.execute(Terminal.DEFAULT, pub, pri, null, null);
+            execute("--publicKeyPath", pub.toString(), "--privateKeyPath", pri.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pri does not exist"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
 
         Files.createFile(pri);
         e = expectThrows(UserError.class, () -> {
-            licenseGeneratorTool.execute(Terminal.DEFAULT, pub, pri, null, null);
+            execute("--publicKeyPath", pub.toString(), "--privateKeyPath", pri.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 
     public void testMissingLicenseSpec() throws Exception {
-        LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         UserError e = expectThrows(UserError.class, () -> {
-            licenseGeneratorTool.execute(Terminal.DEFAULT, pubKeyPath, priKeyPath, null, null);
+            execute("--publicKeyPath", pubKeyPath.toString(), "--privateKeyPath", priKeyPath.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Must specify either --license or --licenseFile"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
@@ -58,7 +63,9 @@ public class LicenseGenerationToolTests extends ESTestCase {
     public void testLicenseSpecString() throws Exception {
         TestUtils.LicenseSpec inputLicenseSpec = TestUtils.generateRandomLicenseSpec(License.VERSION_CURRENT);
         String licenseSpecString = TestUtils.generateLicenseSpecString(inputLicenseSpec);
-        String output = runTool(licenseSpecString, null);
+        String output = execute("--publicKeyPath", pubKeyPath.toString(),
+                                "--privateKeyPath", priKeyPath.toString(),
+                                "--license", licenseSpecString);
         License outputLicense = License.fromSource(output.getBytes(StandardCharsets.UTF_8));
         TestUtils.assertLicenseSpec(inputLicenseSpec, outputLicense);
     }
@@ -68,18 +75,10 @@ public class LicenseGenerationToolTests extends ESTestCase {
         String licenseSpecString = TestUtils.generateLicenseSpecString(inputLicenseSpec);
         Path licenseSpecFile = createTempFile();
         Files.write(licenseSpecFile, licenseSpecString.getBytes(StandardCharsets.UTF_8));
-        String output = runTool(null, licenseSpecFile);
+        String output = execute("--publicKeyPath", pubKeyPath.toString(),
+                                "--privateKeyPath", priKeyPath.toString(),
+                                "--licenseFile", licenseSpecFile.toString());
         License outputLicense = License.fromSource(output.getBytes(StandardCharsets.UTF_8));
         TestUtils.assertLicenseSpec(inputLicenseSpec, outputLicense);
     }
-
-    private String runTool(String licenseSpecString, Path licenseSpecPath) throws Exception {
-        MockTerminal outputTerminal = new MockTerminal();
-        LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
-        licenseGeneratorTool.execute(outputTerminal, pubKeyPath, priKeyPath, licenseSpecString, licenseSpecPath);
-        String output = outputTerminal.getOutput();
-        assertFalse(output, output.isEmpty());
-        return output;
-    }
-
 }

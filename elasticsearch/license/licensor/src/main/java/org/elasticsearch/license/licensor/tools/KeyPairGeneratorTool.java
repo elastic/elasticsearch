@@ -18,22 +18,23 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.io.PathUtils;
 
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPrivateKey;
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPublicKey;
 
 public class KeyPairGeneratorTool extends Command {
 
-    private final OptionSpec<File> publicKeyPathOption;
-    private final OptionSpec<File> privateKeyPathOption;
+    private final OptionSpec<String> publicKeyPathOption;
+    private final OptionSpec<String> privateKeyPathOption;
 
     public KeyPairGeneratorTool() {
         super("Generates a key pair with RSA 2048-bit security");
         // TODO: in jopt-simple 5.0 we can use a PathConverter to take Path instead of File
         this.publicKeyPathOption = parser.accepts("publicKeyPath", "public key path")
-            .withRequiredArg().ofType(File.class).required();
+            .withRequiredArg().required();
         this.privateKeyPathOption = parser.accepts("privateKeyPath", "private key path")
-            .withRequiredArg().ofType(File.class).required();
+            .withRequiredArg().required();
     }
 
     public static void main(String[] args) throws Exception {
@@ -50,13 +51,8 @@ public class KeyPairGeneratorTool extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        File publicKeyPath = publicKeyPathOption.value(options);
-        File privateKeyPath = privateKeyPathOption.value(options);
-        execute(terminal, publicKeyPath.toPath(), privateKeyPath.toPath());
-    }
-
-    // pkg private for tests
-    void execute(Terminal terminal, Path publicKeyPath, Path privateKeyPath) throws Exception {
+        Path publicKeyPath = PathUtils.get(publicKeyPathOption.value(options));
+        Path privateKeyPath = PathUtils.get(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath)) {
             throw new UserError(ExitCodes.USAGE, privateKeyPath + " already exists");
         } else if (Files.exists(publicKeyPath)) {

@@ -9,16 +9,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-public class LicenseVerificationToolTests extends ESTestCase {
+public class LicenseVerificationToolTests extends CommandTestCase {
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
 
@@ -29,20 +29,23 @@ public class LicenseVerificationToolTests extends ESTestCase {
         priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE);
     }
 
+    @Override
+    protected Command newCommand() {
+        return new LicenseVerificationTool();
+    }
+
     public void testMissingKeyPath() throws Exception {
-        LicenseVerificationTool tool = new LicenseVerificationTool();
         Path pub = createTempDir().resolve("pub");
         UserError e = expectThrows(UserError.class, () -> {
-            tool.execute(Terminal.DEFAULT, pub, null, null);
+            execute("--publicKeyPath", pub.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 
     public void testMissingLicenseSpec() throws Exception {
-        LicenseVerificationTool tool = new LicenseVerificationTool();
         UserError e = expectThrows(UserError.class, () -> {
-            tool.execute(Terminal.DEFAULT, pubKeyPath, null, null);
+            execute("--publicKeyPath", pubKeyPath.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Must specify either --license or --licenseFile"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
@@ -53,9 +56,9 @@ public class LicenseVerificationToolTests extends ESTestCase {
         License tamperedLicense = License.builder()
             .fromLicenseSpec(signedLicense, signedLicense.signature())
             .expiryDate(signedLicense.expiryDate() + randomIntBetween(1, 1000)).build();
-        LicenseVerificationTool tool = new LicenseVerificationTool();
         UserError e = expectThrows(UserError.class, () -> {
-            tool.execute(Terminal.DEFAULT, pubKeyPath, TestUtils.dumpLicense(tamperedLicense), null);
+            execute("--publicKeyPath", pubKeyPath.toString(),
+                    "--license", TestUtils.dumpLicense(tamperedLicense));
         });
         assertEquals("Invalid License!", e.getMessage());
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
@@ -63,15 +66,17 @@ public class LicenseVerificationToolTests extends ESTestCase {
 
     public void testLicenseSpecString() throws Exception {
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-        LicenseVerificationTool tool = new LicenseVerificationTool();
-        tool.execute(Terminal.DEFAULT, pubKeyPath, TestUtils.dumpLicense(signedLicense), null);
+        String output = execute("--publicKeyPath", pubKeyPath.toString(),
+                                "--license", TestUtils.dumpLicense(signedLicense));
+        assertFalse(output, output.isEmpty());
     }
 
     public void testLicenseSpecFile() throws Exception {
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
         Path licenseSpecFile = createTempFile();
         Files.write(licenseSpecFile, TestUtils.dumpLicense(signedLicense).getBytes(StandardCharsets.UTF_8));
-        LicenseVerificationTool tool = new LicenseVerificationTool();
-        tool.execute(Terminal.DEFAULT, pubKeyPath, null, licenseSpecFile);
+        String output = execute("--publicKeyPath", pubKeyPath.toString(),
+                                "--licenseFile", licenseSpecFile.toString());
+        assertFalse(output, output.isEmpty());
     }
 }

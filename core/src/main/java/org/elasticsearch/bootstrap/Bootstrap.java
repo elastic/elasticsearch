@@ -19,14 +19,22 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -38,13 +46,6 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.file.Path;
-import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
@@ -217,9 +218,16 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
-    static void init() throws Throwable {
+    static void init(String[] args) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
+
+        BootstrapCliParser parser = new BootstrapCliParser();
+        int status = parser.main(args, Terminal.DEFAULT);
+
+        if (parser.shouldRun() == false || status != ExitCodes.OK) {
+            exit(status);
+        }
 
         INSTANCE = new Bootstrap();
 

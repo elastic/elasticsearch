@@ -19,10 +19,87 @@
 
 package org.elasticsearch.cli;
 
+import joptsimple.OptionSet;
+import org.junit.Before;
+
 public class MultiCommandTests extends CommandTestCase {
+
+    static class DummyMultiCommand extends MultiCommand {
+        DummyMultiCommand() {
+            super("A dummy multi command");
+        }
+    }
+
+    static class DummySubCommand extends Command {
+        DummySubCommand() {
+            super("A dummy subcommand");
+        }
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            terminal.println("Arguments: " + options.nonOptionArguments().toString());
+        }
+    }
+
+    DummyMultiCommand multiCommand;
+
+    @Before
+    public void setupCommand() {
+        multiCommand = new DummyMultiCommand();
+    }
 
     @Override
     protected Command newCommand() {
-        return null;
+        return multiCommand;
+    }
+
+    public void testNoCommandsConfigured() throws Exception {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            execute();
+        });
+        assertEquals("No subcommands configured", e.getMessage());
+    }
+
+    public void testUnknownCommand() throws Exception {
+        multiCommand.subcommands.put("something", new DummySubCommand());
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("somethingelse");
+        });
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertEquals("Unknown command [somethingelse]", e.getMessage());
+    }
+
+    public void testMissingCommand() throws Exception {
+        multiCommand.subcommands.put("command1", new DummySubCommand());
+        UserError e = expectThrows(UserError.class, () -> {
+            execute();
+        });
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertEquals("Missing command", e.getMessage());
+    }
+
+    public void testHelp() throws Exception {
+        multiCommand.subcommands.put("command1", new DummySubCommand());
+        multiCommand.subcommands.put("command2", new DummySubCommand());
+        execute("-h");
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains("command1"));
+        assertTrue(output, output.contains("command2"));
+    }
+
+    public void testSubcommandHelp() throws Exception {
+        multiCommand.subcommands.put("command1", new DummySubCommand());
+        multiCommand.subcommands.put("command2", new DummySubCommand());
+        execute("command2", "-h");
+        String output = terminal.getOutput();
+        assertFalse(output, output.contains("command1"));
+        assertTrue(output, output.contains("A dummy subcommand"));
+    }
+
+    public void testSubcommandArguments() throws Exception {
+        multiCommand.subcommands.put("command1", new DummySubCommand());
+        execute("command1", "foo", "bar");
+        String output = terminal.getOutput();
+        assertFalse(output, output.contains("command1"));
+        assertTrue(output, output.contains("Arguments: [foo, bar]"));
     }
 }

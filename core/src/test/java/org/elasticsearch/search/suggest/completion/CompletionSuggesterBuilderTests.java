@@ -122,25 +122,17 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected Tuple<MapperService, CompletionSuggestionBuilder> mockMapperServiceAndSuggestionBuilder(
-        IndexSettings idxSettings, AnalysisService mockAnalysisService, CompletionSuggestionBuilder suggestBuilder) {
+    protected Tuple<MappedFieldType, CompletionSuggestionBuilder> randomFieldTypeAndSuggestionBuilder() {
         final BuilderAndInfo builderAndInfo = randomSuggestionBuilderWithContextInfo();
-        final MapperService mapperService = new MapperService(idxSettings, mockAnalysisService, null,
-            new IndicesModule().getMapperRegistry(), null) {
-            @Override
-            public MappedFieldType fullName(String fullName) {
-                CompletionFieldMapper.CompletionFieldType type = new CompletionFieldMapper.CompletionFieldType();
-                List<ContextMapping> contextMappings = builderAndInfo.catContexts.stream()
-                    .map(catContext -> new CategoryContextMapping.Builder(catContext).build())
-                    .collect(Collectors.toList());
-                contextMappings.addAll(builderAndInfo.geoContexts.stream()
-                    .map(geoContext -> new GeoContextMapping.Builder(geoContext).build())
-                    .collect(Collectors.toList()));
-                type.setContextMappings(new ContextMappings(contextMappings));
-                return type;
-            }
-        };
-        return new Tuple<>(mapperService, builderAndInfo.builder);
+        CompletionFieldMapper.CompletionFieldType type = new CompletionFieldMapper.CompletionFieldType();
+        List<ContextMapping> contextMappings = builderAndInfo.catContexts.stream()
+            .map(catContext -> new CategoryContextMapping.Builder(catContext).build())
+            .collect(Collectors.toList());
+        contextMappings.addAll(builderAndInfo.geoContexts.stream()
+            .map(geoContext -> new GeoContextMapping.Builder(geoContext).build())
+            .collect(Collectors.toList()));
+        type.setContextMappings(new ContextMappings(contextMappings));
+        return new Tuple<>(type, builderAndInfo.builder);
     }
 
     @Override

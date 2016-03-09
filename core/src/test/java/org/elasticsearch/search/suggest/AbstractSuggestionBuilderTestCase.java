@@ -213,20 +213,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         }
     }
 
-    protected Tuple<MapperService, SB> mockMapperServiceAndSuggestionBuilder(
-        IndexSettings idxSettings, AnalysisService mockAnalysisService, SB suggestBuilder) {
-        final MapperService mapperService = new MapperService(idxSettings, mockAnalysisService, null,
-            new IndicesModule().getMapperRegistry(), null) {
-            @Override
-            public MappedFieldType fullName(String fullName) {
-                StringFieldType type = new StringFieldType();
-                if (randomBoolean()) {
-                    type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
-                }
-                return type;
-            }
-        };
-        return new Tuple<>(mapperService, suggestBuilder);
+    protected Tuple<MappedFieldType, SB> randomFieldTypeAndSuggestionBuilder() {
+        StringFieldType type = new StringFieldType();
+        if (randomBoolean()) {
+            type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
+        }
+        return new Tuple<>(type, randomTestBuilder());
     }
 
     /**
@@ -246,12 +238,17 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SuggestBuilder suggestBuilder = new SuggestBuilder();
-            SB suggestionBuilder = randomTestBuilder();
-            Tuple<MapperService, SB> mapperServiceSBTuple =
-                mockMapperServiceAndSuggestionBuilder(idxSettings, mockAnalysisService, suggestionBuilder);
-            suggestionBuilder = mapperServiceSBTuple.v2();
+            final Tuple<MappedFieldType, SB> mappedFieldTypeSBTuple = randomFieldTypeAndSuggestionBuilder();
+            final MapperService mapperService = new MapperService(idxSettings, mockAnalysisService, null,
+                new IndicesModule().getMapperRegistry(), null) {
+                @Override
+                public MappedFieldType fullName(String fullName) {
+                    return mappedFieldTypeSBTuple.v1();
+                }
+            };
+            SB suggestionBuilder = mappedFieldTypeSBTuple.v2();
             QueryShardContext mockShardContext = new QueryShardContext(idxSettings,
-                null, null, mapperServiceSBTuple.v1(), null, scriptService, null) {
+                null, null, mapperService, null, scriptService, null) {
                 @Override
                 public MappedFieldType fieldMapper(String name) {
                     StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);

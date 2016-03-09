@@ -70,38 +70,12 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNotNull(doc.rootDoc().getField(UidFieldMapper.NAME));
     }
 
-    public void testDotsAsObject() throws Exception {
-        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo").startObject("properties")
-            .startObject("bar").startObject("properties")
-            .startObject("baz").field("type", "integer")
-            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
-        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
-
-        BytesReference bytes = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("foo.bar.baz", 123)
-            .startObject("foo")
-            .field("bar.baz", 456)
-            .endObject()
-            .startObject("foo.bar")
-            .field("baz", 789)
-            .endObject()
-            .endObject().bytes();
-        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
-        String[] values = doc.rootDoc().getValues("foo.bar.baz");
-        assertEquals(3, values.length);
-        assertEquals("123", values[0]);
-        assertEquals("456", values[1]);
-        assertEquals("789", values[2]);
-    }
-
     DocumentMapper createDummyMapping(MapperService mapperService) throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("a").startObject("properties")
-            .startObject("b").field("type", "object")
-            .endObject().endObject().endObject().endObject().endObject().endObject().string();
+            .startObject("b").field("type", "object").startObject("properties")
+            .startObject("c").field("type", "object")
+            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
 
         DocumentMapper defaultMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         return defaultMapper;
@@ -141,6 +115,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNotNull(aMapper);
         assertTrue(aMapper instanceof ObjectMapper);
         assertNotNull(((ObjectMapper)aMapper).getMapper("foo"));
+        assertNull(((ObjectMapper)aMapper).getMapper("b"));
     }
 
     public void testMultipleSubfieldMappingUpdate() throws Exception {
@@ -154,6 +129,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertTrue(aMapper instanceof ObjectMapper);
         assertNotNull(((ObjectMapper)aMapper).getMapper("foo"));
         assertNotNull(((ObjectMapper)aMapper).getMapper("bar"));
+        assertNull(((ObjectMapper)aMapper).getMapper("b"));
     }
 
     public void testDeepSubfieldMappingUpdate() throws Exception {
@@ -166,6 +142,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         Mapper bMapper = ((ObjectMapper)aMapper).getMapper("b");
         assertTrue(bMapper instanceof ObjectMapper);
         assertNotNull(((ObjectMapper)bMapper).getMapper("foo"));
+        assertNull(((ObjectMapper)bMapper).getMapper("c"));
     }
 
     public void testObjectMappingUpdate() throws Exception {

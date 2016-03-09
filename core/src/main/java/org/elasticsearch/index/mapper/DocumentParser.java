@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -223,13 +224,13 @@ final class DocumentParser implements Closeable {
         // will be processed in a contiguous block. When the prefix is no longer seen, we pop the extra elements
         // off the stack, merging them upwards into the existing mappers.
         Collections.sort(dynamicMappers, (Mapper o1, Mapper o2) -> o1.name().compareTo(o2.name()));
+        Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
-        // create an empty root object which updates will be propagated into
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(docMapper.type());
-        RootObjectMapper.BuilderContext context = new RootObjectMapper.BuilderContext(Settings.EMPTY, new ContentPath());
-        parentMappers.add(rootBuilder.build(context));
+        Mapper firstUpdate = dynamicMapperItr.next();
+        parentMappers.add(createUpdate(mapping.root(), firstUpdate.name().split("\\."), 0, firstUpdate));
         Mapper previousMapper = null;
-        for (Mapper newMapper : dynamicMappers) {
+        while (dynamicMapperItr.hasNext()) {
+            Mapper newMapper = dynamicMapperItr.next();
             if (previousMapper != null && newMapper.name().equals(previousMapper.name())) {
                 // We can see the same mapper more than once, for example, if we had foo.bar and foo.baz, where
                 // foo did not yet exist. This will create 2 copies in dynamic mappings, which should be identical.
@@ -245,52 +246,76 @@ final class DocumentParser implements Closeable {
                    parentMappers.get(keepBefore).simpleName().equals(nameParts[keepBefore - 1])) {
                 ++keepBefore;
             }
-            popMappers(parentMappers, keepBefore);
+            popMappers(parentMappers, keepBefore, true);
 
-            // Add parent mappers that don't exist in dynamic mappers
-            while (keepBefore < nameParts.length) {
-                ObjectMapper parent = parentMappers.get(parentMappers.size() - 1);
-                Mapper newLast = parent.getMapper(nameParts[keepBefore - 1]);
-                if (newLast == null) {
-                    String objectName = nameParts[keepBefore - 1];
+            if (keepBefore < nameParts.length) {
+                String updateParentName = nameParts[keepBefore - 1];
+                final ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);
+                Mapper updateParent = lastParent.getMapper(updateParentName);
+                if (updateParent == null) {
+                    // the parent we need is not on the stack, so look it up in the full mappings
                     if (keepBefore > 1) {
                         // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
-                        objectName = parent.name() + '.' + objectName;
+                        updateParentName = lastParent.name() + '.' + updateParentName;
                     }
-                    newLast = docMapper.objectMappers().get(objectName);
+                    updateParent = docMapper.objectMappers().get(updateParentName);
                 }
-                assert newLast instanceof ObjectMapper;
-                parentMappers.add((ObjectMapper)newLast);
-                ++keepBefore;
+                assert updateParent instanceof ObjectMapper;
+                newMapper = createUpdate((ObjectMapper)updateParent, nameParts, keepBefore, newMapper);
             }
 
             if (newMapper instanceof ObjectMapper) {
                 parentMappers.add((ObjectMapper)newMapper);
             } else {
-                addToLastMapper(parentMappers, newMapper);
+                addToLastMapper(parentMappers, newMapper, true);
             }
         }
-        popMappers(parentMappers, 1);
+        popMappers(parentMappers, 1, true);
         assert parentMappers.size() == 1;
 
         return mapping.mappingUpdate(parentMappers.get(0));
     }
 
-    private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore) {
+    private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
         assert keepBefore >= 1; // never remove the root mapper
         // pop off parent mappers not needed by the current mapper,
         // merging them backwards since they are immutable
         for (int i = parentMappers.size() - 1; i >= keepBefore; --i) {
-            addToLastMapper(parentMappers, parentMappers.remove(i));
+            addToLastMapper(parentMappers, parentMappers.remove(i), merge);
         }
     }
 
-    private static void addToLastMapper(List<ObjectMapper> parentMappers, Mapper mapper) {
+    /**
+     * Adds a mapper as an update into the last mapper. If merge is true, the new mapper
+     * will be merged in with other child mappers of the last parent, otherwise it will be a new update.
+     */
+    private static void addToLastMapper(List<ObjectMapper> parentMappers, Mapper mapper, boolean merge) {
         assert parentMappers.size() >= 1;
         int lastIndex = parentMappers.size() - 1;
         ObjectMapper withNewMapper = parentMappers.get(lastIndex).mappingUpdate(mapper);
-        ObjectMapper merged = parentMappers.get(lastIndex).merge(withNewMapper, false);
-        parentMappers.set(lastIndex, merged);
+        if (merge) {
+            withNewMapper = parentMappers.get(lastIndex).merge(withNewMapper, false);
+        }
+        parentMappers.set(lastIndex, withNewMapper);
+    }
+
+    /** Build an update for the parent which will contain the given mapper and any intermediate fields. */
+    private static ObjectMapper createUpdate(ObjectMapper parent, String[] nameParts, int i, Mapper mapper) {
+        List<ObjectMapper> parentMappers = new ArrayList<>();
+        ObjectMapper previousIntermediate = parent;
+        for (; i < nameParts.length - 1; ++i) {
+            Mapper intermediate = previousIntermediate.getMapper(nameParts[i]);
+            assert intermediate instanceof ObjectMapper;
+            parentMappers.add((ObjectMapper)intermediate);
+            previousIntermediate = (ObjectMapper)intermediate;
+        }
+        if (parentMappers.isEmpty() == false) {
+            // add the new mapper to the stack, and pop down to the original parent level
+            addToLastMapper(parentMappers, mapper, false);
+            popMappers(parentMappers, 1, false);
+            mapper = parentMappers.get(0);
+        }
+        return parent.mappingUpdate(mapper);
     }
 
     static void parseObjectOrNested(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {

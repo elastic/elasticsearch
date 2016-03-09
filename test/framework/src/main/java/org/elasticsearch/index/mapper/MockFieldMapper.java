@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
@@ -35,7 +36,8 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(String fullName, MappedFieldType fieldType) {
-        super(findSimpleName(fullName), setName(fullName, fieldType), setName(fullName, fieldType), dummySettings, null, null);
+        super(findSimpleName(fullName), setName(fullName, fieldType), setName(fullName, fieldType), dummySettings,
+            MultiFields.empty(), new CopyTo.Builder().build());
     }
 
     static MappedFieldType setName(String fullName, MappedFieldType fieldType) {

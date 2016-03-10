@@ -176,7 +176,7 @@ need to specify the `type` (like `string` or `date`) since it is already known.
 [[mapper-attachments-copy-to]]
 ==== Copy To feature
 
-If you want to use http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-core-types.html#copy-to[copy_to]
+If you want to use https://www.elastic.co/guide/en/elasticsearch/reference/current/copy-to.html[copy_to]
 feature, you need to define it on each sub-field you want to copy to another field:
 
 [source,js]

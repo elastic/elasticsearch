@@ -59,14 +59,6 @@ if [ -z "$ES_CLASSPATH" ]; then
     exit 1
 fi
 
-# Special-case path variables.
-case `uname` in
-    CYGWIN*)
-        ES_CLASSPATH=`cygpath -p -w "$ES_CLASSPATH"`
-        ES_HOME=`cygpath -p -w "$ES_HOME"`
-    ;;
-esac
-
 # Try to read package config files
 if [ -f "/etc/sysconfig/elasticsearch" ]; then
     CONF_DIR=/etc/elasticsearch

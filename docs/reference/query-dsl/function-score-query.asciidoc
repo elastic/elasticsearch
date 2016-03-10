@@ -215,6 +215,20 @@ There are a number of options for the `field_value_factor` function:
     `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
     Defaults to `none`.
 
+|====================================
+| Modifier | Meaning
+
+| `none` | Do not apply any multiplier to the field value
+| `log` | Take the https://en.wikipedia.org/wiki/Logarithm[logarithm] of the field value
+| `log1p` | Add 1 to the field value and take the logarithm
+| `log2p` | Add 2 to the field value and take the logarithm
+| `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value
+| `ln1p` | Add 1 to the field value and take the natural logarithm
+| `ln2p` | Add 2 to the field value and take the natural logarithm
+| `square` | Square the field value (multiply it by itself)
+| `sqrt` | Take the https://en.wikipedia.org/wiki/Square_root[square root] of the field value
+| `reciprocal` | https://en.wikipedia.org/wiki/Multiplicative_inverse[Reciprocate] the field value, same as `1/x` where `x` is the field's value
+
 `missing`::
 
     Value used if the document doesn't have that field. The modifier

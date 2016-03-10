@@ -370,7 +370,6 @@ public class RecoverySourceHandler {
              * target are failed (see {@link IndexShard#updateRoutingEntry}).
              */
             try {
-                // nocommit: awful hack to work around delay replications being rejected by the primary term check. proper fix coming.
                 shard.relocated("to " + request.targetNode());
             } catch (IllegalIndexShardStateException e) {
                 // we can ignore this exception since, on the other node, when it moved to phase3

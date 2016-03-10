@@ -251,5 +251,15 @@ sure the document doesn't change during the update. You can use the `version`
 parameter to specify that the document should only be updated if its version
 matches the one specified. By setting version type to `force` you can force
 the new version of the document after update (use with care! with `force`
-there is no guarantee the document didn't change).Version types `external` &
-`external_gte` are not supported.
+there is no guarantee the document didn't change).
+
+[NOTE]
+.The update API does not support external versioning
+=====================================================
+
+External versioning (version types `external` & `external_gte`) is not
+supported by the update API as it would result in Elasticsearch version
+numbers being out of sync with the external system.  Use the
+<<docs-index,`index` API>> instead.
+
+=====================================================

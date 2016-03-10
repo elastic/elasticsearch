@@ -80,7 +80,7 @@ setup:
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline1.count: 1}
+  - gte: {nodes.$master.ingest.pipelines.pipeline1.count: 1}
   - match: {nodes.$master.ingest.pipelines.pipeline1.failed: 0}
   - gte: {nodes.$master.ingest.pipelines.pipeline1.time_in_millis: 0}
   - match: {nodes.$master.ingest.pipelines.pipeline1.current: 0}

@@ -76,31 +76,49 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
 
     @Override
     public long getFieldCount(String field) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.means.containsKey(field) == false) {
+            return 0;
+        }
         return multiFieldStatsResults.counts.get(field);
     }
 
     @Override
     public double getMean(String field) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.means.containsKey(field) == false) {
+            return Double.NaN;
+        }
         return multiFieldStatsResults.means.get(field);
     }
 
     @Override
     public double getVariance(String field) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.variances.containsKey(field) == false) {
+            return Double.NaN;
+        }
         return multiFieldStatsResults.variances.get(field);
     }
 
     @Override
     public double getSkewness(String field) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.skewness.containsKey(field) == false) {
+            return Double.NaN;
+        }
         return multiFieldStatsResults.skewness.get(field);
     }
 
     @Override
     public double getKurtosis(String field) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.kurtosis.containsKey(field) == false) {
+            return Double.NaN;
+        }
         return multiFieldStatsResults.kurtosis.get(field);
     }
 
     @Override
     public double getCovariance(String fieldX, String fieldY) {
+        if (multiFieldStatsResults == null) {
+            return Double.NaN;
+        }
         return multiFieldStatsResults.getCovariance(fieldX, fieldY);
     }
 
@@ -111,6 +129,9 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
 
     @Override
     public double getCorrelation(String fieldX, String fieldY) {
+        if (multiFieldStatsResults == null) {
+            return Double.NaN;
+        }
         return multiFieldStatsResults.getCorrelation(fieldX, fieldY);
     }
 
@@ -120,23 +141,43 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
     }
 
     static class Fields {
+        public static final XContentBuilderString COUNTS = new XContentBuilderString("counts");
+        public static final XContentBuilderString MEANS = new XContentBuilderString("means");
+        public static final XContentBuilderString VARIANCES = new XContentBuilderString("variances");
+        public static final XContentBuilderString SKEWNESS = new XContentBuilderString("skewness");
+        public static final XContentBuilderString KURTOSIS = new XContentBuilderString("kurtosis");
+        public static final XContentBuilderString COVARIANCE = new XContentBuilderString("covariance");
         public static final XContentBuilderString CORRELATION = new XContentBuilderString("correlation");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (multiFieldStatsResults != null && multiFieldStatsResults.correlation != null) {
-            builder.startObject(Fields.CORRELATION);
-            for (Map.Entry<String, HashMap<String, Double>> fieldCorr : multiFieldStatsResults.correlation.entrySet()) {
-                builder.startObject(fieldCorr.getKey());
-                for (Map.Entry<String, Double> corrValue : fieldCorr.getValue().entrySet()) {
-                    builder.field(corrValue.getKey(), corrValue.getValue());
-                }
-                builder.endObject();
-            }
-            builder.endObject();
+            builder = doXContentBody(builder, Fields.COUNTS, multiFieldStatsResults.counts);
+            builder = doXContentBody(builder, Fields.MEANS, multiFieldStatsResults.means);
+            builder = doXContentBody(builder, Fields.VARIANCES, multiFieldStatsResults.variances);
+            builder = doXContentBody(builder, Fields.SKEWNESS, multiFieldStatsResults.skewness);
+            builder = doXContentBody(builder, Fields.KURTOSIS, multiFieldStatsResults.kurtosis);
+            builder = doXContentBody(builder, Fields.COVARIANCE, multiFieldStatsResults.covariances);
+            builder = doXContentBody(builder, Fields.CORRELATION, multiFieldStatsResults.correlation);
         }
         return builder;
+    }
+
+    private XContentBuilder doXContentBody(XContentBuilder builder, XContentBuilderString field, Map fieldVals) throws IOException {
+        builder.startObject(field);
+        for (Map.Entry<String, Object> vals : ((HashMap<String, Object>)fieldVals).entrySet()) {
+            if (vals.getValue() instanceof HashMap) {
+                builder.startObject(vals.getKey());
+                for (Map.Entry<String, Double> val : ((HashMap<String, Double>)vals.getValue()).entrySet()) {
+                    builder.field(val.getKey(), val.getValue());
+                }
+                builder.endObject();
+            } else {
+                builder.field(vals.getKey(), vals.getValue());
+            }
+        }
+        return builder.endObject();
     }
 
     @Override
@@ -158,7 +199,7 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (multiFieldStatsResults == null) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.docCount == 0) {
             out.writeVLong(0);
         } else {
             out.writeVLong(multiFieldStatsResults.docCount);
@@ -180,7 +221,13 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // merge stats across all shards
-        aggregations.removeIf(p -> ((InternalMultiFieldStats)p).multiFieldStatsResults ==null);
+        aggregations.removeIf(p -> ((InternalMultiFieldStats)p).multiFieldStatsResults == null);
+
+        // return empty result iff all stats are null
+        if (aggregations.size() == 0) {
+            return new InternalMultiFieldStats(name, 0, new MultiFieldStatsResults(), pipelineAggregators(), getMetaData());
+        }
+
         MultiFieldStatsResults corrStats = ((InternalMultiFieldStats) aggregations.get(0)).multiFieldStatsResults;
         for (int i=1; i < aggregations.size(); ++i) {
             corrStats.merge(((InternalMultiFieldStats) aggregations.get(i)).multiFieldStatsResults);

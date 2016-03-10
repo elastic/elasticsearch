@@ -20,12 +20,14 @@ package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.multifieldStats;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -33,7 +35,6 @@ import static org.hamcrest.Matchers.*;
 
 /**
  * MultiFieldStats aggregation integration test
- * todo: refactor to a general multi_stats aggregation?
  */
 public class MultiFieldStatsIT extends AbstractNumericTestCase {
     protected static String[] valFieldName = new String[] {"value", "randVal1", "randVal2"};
@@ -70,7 +71,28 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testEmptyAggregation() throws Exception {
-        //
+        SearchResponse response = client().prepareSearch("empty_bucket_idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
+                .subAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))).execute().actionGet();
+        assertSearchResponse(response);
+
+        assertThat(response.getHits().getTotalHits(), equalTo(2L));
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
+        assertThat(bucket, notNullValue());
+
+        MultiFieldStats multiFieldStats = bucket.getAggregations().get(aggName);
+        assertThat(multiFieldStats, notNullValue());
+        assertThat(multiFieldStats.getName(), equalTo(aggName));
+        assertThat(multiFieldStats.getFieldCount("value"), equalTo(0L));
+        assertThat(Double.isNaN(multiFieldStats.getMean("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getVariance("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getSkewness("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getKurtosis("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getCovariance("value", "randVal1")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getCorrelation("value", "randVal1")), is(true));
     }
 
     @Override

@@ -25,9 +25,9 @@ import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 
-public interface SortBuilderTemp<T extends ToXContent> extends NamedWriteable<T>, ToXContent {
+public interface SortBuilderParser<T extends ToXContent> extends NamedWriteable<T>, ToXContent {
     /**
-     * Creates a new item from the json held by the {@link SortBuilderTemp}
+     * Creates a new item from the json held by the {@link SortBuilderParser}
      * in {@link org.elasticsearch.common.xcontent.XContent} format
      *
      * @param context
@@ -36,5 +36,5 @@ public interface SortBuilderTemp<T extends ToXContent> extends NamedWriteable<T>
      *            call
      * @return the new item
      */
-    SortBuilderTemp<T> fromXContent(QueryParseContext context, String elementName) throws IOException;
+    SortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException;
 }

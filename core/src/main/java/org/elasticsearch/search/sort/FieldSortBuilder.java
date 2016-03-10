@@ -35,14 +35,14 @@ import java.util.Objects;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<FieldSortBuilder> {
-    public static final String NAME = "field_sort";
+public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements SortBuilderParser<FieldSortBuilder> {
     static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
     public static final ParseField MISSING = new ParseField("missing");
     public static final ParseField ORDER = new ParseField("order");
+    public static final ParseField REVERSE = new ParseField("reverse");
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
@@ -304,12 +304,19 @@ public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<Fie
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.parseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
                     nestedFilter = context.parseInnerQueryBuilder();
+                } else {
+                    throw new IllegalArgumentException("Expected " + NESTED_FILTER.getPreferredName() + " element.");
                 }
             } else if (token.isValue()) {
                 if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
                     nestedPath = parser.text();
                 } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
                     missing = parser.objectBytes();
+                } else if (context.parseFieldMatcher().match(currentFieldName, REVERSE)) {
+                    if (parser.booleanValue()) {
+                        order = SortOrder.DESC;
+                    }
+                    // else we keep the default ASC
                 } else if (context.parseFieldMatcher().match(currentFieldName, ORDER)) {
                     String sortOrder = parser.text();
                     if ("asc".equals(sortOrder)) {
@@ -323,6 +330,8 @@ public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<Fie
                     sortMode = parser.text();
                 } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
                     unmappedType = parser.text();
+                } else {
+                    throw new IllegalArgumentException("Option " + currentFieldName + " not supported.");
                 }
             }
         }

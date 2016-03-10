@@ -42,7 +42,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractSortTestCase<T extends SortBuilderTemp<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderParser<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -54,6 +54,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilderTemp<T>> extends
         namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 

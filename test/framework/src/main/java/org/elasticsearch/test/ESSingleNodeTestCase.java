@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -160,6 +159,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return Arrays.asList(plugins);
     }
 
+    /** Additional settings to add when creating the node. Also allows overriding the default settings. */
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
+    }
+
     private Node newNode() {
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
@@ -177,6 +181,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
+            .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();

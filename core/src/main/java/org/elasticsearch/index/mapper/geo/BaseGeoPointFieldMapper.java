@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.geo;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
@@ -30,6 +29,8 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,6 +63,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  */
 public abstract class BaseGeoPointFieldMapper extends FieldMapper implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
+    protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BaseGeoPointFieldMapper.class));
 
     public static class Names {
         public static final String LAT = "lat";
@@ -69,7 +71,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public static final String LON = "lon";
         public static final String LON_SUFFIX = "." + LON;
         public static final String GEOHASH = "geohash";
-        public static final String GEOHASH_SUFFIX = "." + GEOHASH;
         public static final String IGNORE_MALFORMED = "ignore_malformed";
     }
 
@@ -214,9 +215,13 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("precision_step")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " precision_step parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {

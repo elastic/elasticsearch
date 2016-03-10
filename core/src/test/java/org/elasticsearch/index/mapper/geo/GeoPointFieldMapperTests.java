@@ -600,7 +600,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
      */
     @Test
     public void testOptionDeprecation() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
         // test deprecation exceptions on newly created indexes
@@ -610,7 +610,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .field("validate", true).endObject().endObject()
                     .endObject().endObject().string();
             parser.parse("type", new CompressedXContent(validateMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            if (version.onOrAfter(Version.V_2_0_0)) {
+                fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            }
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate : true]");
         }
@@ -621,7 +623,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .field("validate_lat", true).endObject().endObject()
                     .endObject().endObject().string();
             parser.parse("type", new CompressedXContent(validateMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            if (version.onOrAfter(Version.V_2_0_0)) {
+                fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            }
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate_lat : true]");
         }
@@ -632,7 +636,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .field("validate_lon", true).endObject().endObject()
                     .endObject().endObject().string();
             parser.parse("type", new CompressedXContent(validateMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            if (version.onOrAfter(Version.V_2_0_0)) {
+                fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            }
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate_lon : true]");
         }
@@ -644,7 +650,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .field("normalize", true).endObject().endObject()
                     .endObject().endObject().string();
             parser.parse("type", new CompressedXContent(normalizeMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            if (version.onOrAfter(Version.V_2_0_0)) {
+                fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            }
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize : true]");
         }
@@ -655,7 +663,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .field("normalize_lat", true).endObject().endObject()
                     .endObject().endObject().string();
             parser.parse("type", new CompressedXContent(normalizeMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            if (version.onOrAfter(Version.V_2_0_0)) {
+                fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            }
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lat : true]");
         }
@@ -666,7 +676,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .field("normalize_lon", true).endObject().endObject()
                     .endObject().endObject().string();
             parser.parse("type", new CompressedXContent(normalizeMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            if (version.onOrAfter(Version.V_2_0_0)) {
+                fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
+            }
         } catch (MapperParsingException e) {
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lon : true]");
         }

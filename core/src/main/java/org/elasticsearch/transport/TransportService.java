@@ -434,7 +434,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * Registers a new request handler
      *
      * @param action         The action the request handler is associated with
-     *                       =======
+     *
      * @param action         The action the request handler is associated with
      * @param requestFactory a callable to be used construct new instances for streaming
      * @param executor       The executor the request handling will be executed on

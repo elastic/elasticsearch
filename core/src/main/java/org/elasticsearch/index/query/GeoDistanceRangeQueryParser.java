@@ -154,10 +154,6 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
                     point.resetLon(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
-                } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
-                    point.resetFromGeoHash(parser.text());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
@@ -186,7 +182,7 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
             }
         }
 
-        if (coerce) {
+        if (indexCreatedBeforeV2_2 == false || coerce) {
             GeoUtils.normalizePoint(point, coerce, coerce);
         }
 

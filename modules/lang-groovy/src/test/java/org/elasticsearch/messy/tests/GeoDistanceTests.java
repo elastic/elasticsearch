@@ -57,6 +57,7 @@ import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -251,6 +252,28 @@ public class GeoDistanceTests extends ESIntegTestCase {
 
         assertHitCount(searchResponse, 7);
         assertOrderedSearchHits(searchResponse, "7", "2", "6", "5", "4", "3", "1");
+    }
+
+    @Test
+    public void testNestedRangeQuery() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        // create a nested geo_point type with a subfield named "geohash" (explicit testing for ISSUE #15179)
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("locations").field("type", "nested").startObject("properties")
+            .startObject("geohash").field("type", "geo_point").endObject().endObject().endObject().endObject().endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .startArray("locations").startObject().startObject("geohash").field("lat", 20.5).field("lon", 20.5)
+                .endObject().endObject().endArray().endObject()));
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(nestedQuery("locations", geoDistanceRangeQuery("locations.geohash").from(0.0).to(200000.0)
+                .geohash("s7ws01wyd7ws"))).execute().actionGet();
+        assertHitCount(searchResponse, 1);
     }
 
     @Test

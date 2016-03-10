@@ -175,7 +175,8 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
             }
         }
 
-        if (coerce) {
+        final Version indexVersionCreated = parseContext.indexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_2_2_0) || coerce) {
             // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longditude range
             boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
@@ -197,7 +198,6 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
         Query query;
-        final Version indexVersionCreated = parseContext.indexVersionCreated();
         if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
             // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
             // if index created V_2_3 > use prefix encoded postings format

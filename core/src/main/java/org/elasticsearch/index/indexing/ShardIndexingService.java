@@ -49,7 +49,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public ShardIndexingService(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
-        this.slowLog = new IndexingSlowLog(indexSettings);
+        this.slowLog = new IndexingSlowLog(shardId, indexSettings);
     }
 
     /**

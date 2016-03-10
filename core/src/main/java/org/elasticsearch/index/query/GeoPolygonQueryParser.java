@@ -151,7 +151,7 @@ public class GeoPolygonQueryParser implements QueryParser {
             }
         }
 
-        if (coerce) {
+        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_2_0) || coerce) {
             for (GeoPoint point : shell) {
                 GeoUtils.normalizePoint(point, coerce, coerce);
             }

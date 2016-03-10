@@ -66,6 +66,7 @@ export ES_JAVA_OPTS
 export ES_GC_LOG_FILE
 export ES_STARTUP_SLEEP_TIME
 export JAVA_HOME
+export ES_INCLUDE
 
 lockfile=/var/lock/subsys/$prog
 

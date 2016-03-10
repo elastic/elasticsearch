@@ -53,7 +53,7 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
-    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
+    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped").withAllDeprecated("unmapped_type");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
     public static final String SCORE_FIELD_NAME = "_score";

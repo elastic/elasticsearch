@@ -50,6 +50,10 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * of the current elasticsearch major version.
      */
     public static final Version MINIMUM_DISCOVERY_NODE_VERSION = Version.CURRENT.minimumCompatibilityVersion();
+    public static final String DATA_ATTR = "data";
+    public static final String MASTER_ATTR = "master";
+    public static final String CLIENT_ATTR = "client";
+    public static final String INGEST_ATTR = "ingest";
 
     public static boolean localNode(Settings settings) {
         if (settings.get("node.local") != null) {
@@ -245,7 +249,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Should this node hold data (shards) or not.
      */
     public boolean dataNode() {
-        String data = attributes.get("data");
+        String data = attributes.get(DATA_ATTR);
         if (data == null) {
             return !clientNode();
         }
@@ -263,7 +267,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Is the node a client node or not.
      */
     public boolean clientNode() {
-        String client = attributes.get("client");
+        String client = attributes.get(CLIENT_ATTR);
         return client != null && Booleans.parseBooleanExact(client);
     }
 
@@ -275,7 +279,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Can this node become master or not.
      */
     public boolean masterNode() {
-        String master = attributes.get("master");
+        String master = attributes.get(MASTER_ATTR);
         if (master == null) {
             return !clientNode();
         }
@@ -287,6 +291,14 @@ public class DiscoveryNode implements Streamable, ToXContent {
      */
     public boolean isMasterNode() {
         return masterNode();
+    }
+
+    /**
+     * Returns a boolean that tells whether this an ingest node or not
+     */
+    public boolean isIngestNode() {
+        String ingest = attributes.get(INGEST_ATTR);
+        return ingest == null ? true : Booleans.parseBooleanExact(ingest);
     }
 
     public Version version() {

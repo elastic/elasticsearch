@@ -529,7 +529,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 return expressions;
             }
 
-            if (expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0))) || Regex.isMatchAllPattern(expressions.get(0)))) {
+            if (expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0)) || Regex.isMatchAllPattern(expressions.get(0))))) {
                 if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
                     return Arrays.asList(metaData.concreteAllIndices());
                 } else if (options.expandWildcardsOpen()) {

@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
@@ -135,24 +134,36 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
             String propName = Strings.toUnderscoreCase(entry.getKey());
             Object propNode = entry.getValue();
             if (indexCreatedBeforeV2_0 && propName.equals("validate")) {
+                deprecationLogger.deprecated(CONTENT_TYPE + " validate parameter is deprecated and will be removed "
+                + "in the next major release");
                 builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             } else if (indexCreatedBeforeV2_0 && propName.equals("validate_lon")) {
+                deprecationLogger.deprecated(CONTENT_TYPE + " validate_lon parameter is deprecated and will be removed "
+                    + "in the next major release");
                 builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             } else if (indexCreatedBeforeV2_0 && propName.equals("validate_lat")) {
+                deprecationLogger.deprecated(CONTENT_TYPE + " validate_lat parameter is deprecated and will be removed "
+                    + "in the next major release");
                 builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             } else if (propName.equals(Names.COERCE)) {
                 builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             } else if (indexCreatedBeforeV2_0 && propName.equals("normalize")) {
+                deprecationLogger.deprecated(CONTENT_TYPE + " normalize parameter is deprecated and will be removed "
+                    + "in the next major release");
                 builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             } else if (indexCreatedBeforeV2_0 && propName.equals("normalize_lat")) {
+                deprecationLogger.deprecated(CONTENT_TYPE + " normalize_lat parameter is deprecated and will be removed "
+                    + "in the next major release");
                 builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             } else if (indexCreatedBeforeV2_0 && propName.equals("normalize_lon")) {
+                deprecationLogger.deprecated(CONTENT_TYPE + " normalize_lon parameter is deprecated and will be removed "
+                    + "in the next major release");
                 builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
                 iterator.remove();
             }

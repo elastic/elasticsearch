@@ -126,7 +126,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     @Override
     protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
         if (request.unallocated) {
-            IndexService indexService = indicesService.indexService(request.shardId.getIndexName());
+            IndexService indexService = indicesService.indexService(request.shardId.getIndex());
             if (indexService == null) {
                 return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
@@ -150,7 +150,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         long startTimeNS = System.nanoTime();
         boolean exists = false;
         try {
-            IndexService indexService = indicesService.indexService(shardId.getIndexName());
+            IndexService indexService = indicesService.indexService(shardId.getIndex());
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {

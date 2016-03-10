@@ -66,6 +66,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
@@ -1697,7 +1698,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    synchronized String routingKeyForShard(String index, String type, int shard, Random random) {
+    synchronized String routingKeyForShard(Index index, String type, int shard, Random random) {
         assertThat(shard, greaterThanOrEqualTo(0));
         assertThat(shard, greaterThanOrEqualTo(0));
         for (NodeAndClient n : nodes.values()) {
@@ -1710,7 +1711,7 @@ public final class InternalTestCluster extends TestCluster {
                 OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
-                    final int targetShard = operationRouting.indexShards(clusterService.state(), index, type, null, routing).shardId().getId();
+                    final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), type, null, routing).shardId().getId();
                     if (shard == targetShard) {
                         return routing;
                     }

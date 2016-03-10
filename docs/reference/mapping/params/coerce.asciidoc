@@ -12,7 +12,6 @@ For instance:
 
 * Strings will be coerced to numbers.
 * Floating points will be truncated for integer values.
-* Lon/lat geo-points will be normalized to a standard -180:180 / -90:90 coordinate system.
 
 For instance:
 

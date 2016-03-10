@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,7 +51,14 @@ public class Index implements Writeable<Index> {
 
     @Override
     public String toString() {
-        return "[" + name + "]";
+        /*
+         * If we have a uuid we put it in the toString so it'll show up in logs which is useful as more and more things use the uuid rather
+         * than the name as the lookup key for the index.
+         */
+        if (ClusterState.UNKNOWN_UUID.equals(uuid)) {
+            return "[" + name + "]";
+        }
+        return "[" + name + "/" + uuid + "]";
     }
 
     @Override

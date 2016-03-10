@@ -124,25 +124,25 @@ public abstract class TransportTasksAction<
     }
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
-        if (request.taskId().isSet()) {
-            return clusterState.nodes().resolveNodesIds(request.nodesIds());
+        if (request.getTaskId().isSet()) {
+            return clusterState.nodes().resolveNodesIds(request.getNodesIds());
         } else {
-            return new String[]{request.taskId().getNodeId()};
+            return new String[]{request.getTaskId().getNodeId()};
         }
     }
 
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
-        if (request.taskId().isSet() == false) {
+        if (request.getTaskId().isSet() == false) {
             // we are only checking one task, we can optimize it
-            Task task = taskManager.getTask(request.taskId().getId());
+            Task task = taskManager.getTask(request.getTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept((OperationTask) task);
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.taskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTaskId());
                 }
             } else {
-                throw new ResourceNotFoundException("task [{}] is missing", request.taskId());
+                throw new ResourceNotFoundException("task [{}] is missing", request.getTaskId());
             }
         } else {
             for (Task task : taskManager.getTasks().values()) {
@@ -224,8 +224,8 @@ public abstract class TransportTasksAction<
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                if (request.timeout() != null) {
-                    builder.withTimeout(request.timeout());
+                if (request.getTimeout() != null) {
+                    builder.withTimeout(request.getTimeout());
                 }
                 builder.withCompress(transportCompress());
                 for (int i = 0; i < nodesIds.length; i++) {

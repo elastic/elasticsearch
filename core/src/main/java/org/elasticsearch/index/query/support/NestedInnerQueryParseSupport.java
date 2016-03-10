@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -61,8 +60,8 @@ public class NestedInnerQueryParseSupport {
     protected ObjectMapper nestedObjectMapper;
     private ObjectMapper parentObjectMapper;
 
-    public NestedInnerQueryParseSupport(XContentParser parser, SearchContext searchContext) {
-        shardContext = searchContext.getQueryShardContext();
+    public NestedInnerQueryParseSupport(XContentParser parser, QueryShardContext context) {
+        shardContext = context;
         parseContext = shardContext.parseContext();
         shardContext.reset(parser);
 

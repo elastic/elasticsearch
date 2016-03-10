@@ -20,14 +20,20 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
+import java.util.Objects;
+
 /**
  *
  */
-public abstract class SortBuilder implements ToXContent {
+public abstract class SortBuilder<T extends SortBuilder<?>> implements ToXContent {
+
+    protected SortOrder order = SortOrder.ASC;
+    public static final ParseField ORDER_FIELD = new ParseField("order");
 
     @Override
     public String toString() {
@@ -42,13 +48,19 @@ public abstract class SortBuilder implements ToXContent {
     }
 
     /**
-     * The order of sorting. Defaults to {@link SortOrder#ASC}.
+     * Set the order of sorting.
      */
-    public abstract SortBuilder order(SortOrder order);
+    @SuppressWarnings("unchecked")
+    public T order(SortOrder order) {
+        Objects.requireNonNull(order, "sort order cannot be null.");
+        this.order = order;
+        return (T) this;
+    }
 
     /**
-     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
-     * <tt>_first</tt> to sort missing last or first respectively.
+     * Return the {@link SortOrder} used for this {@link SortBuilder}.
      */
-    public abstract SortBuilder missing(Object missing);
+    public SortOrder order() {
+        return this.order;
+    }
 }

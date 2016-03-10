@@ -52,10 +52,10 @@ public class RestCancelTasksAction extends BaseRestHandler {
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-        cancelTasksRequest.taskId(taskId);
-        cancelTasksRequest.nodesIds(nodesIds);
-        cancelTasksRequest.actions(actions);
-        cancelTasksRequest.parentTaskId(parentTaskId);
+        cancelTasksRequest.setTaskId(taskId);
+        cancelTasksRequest.setNodesIds(nodesIds);
+        cancelTasksRequest.setActions(actions);
+        cancelTasksRequest.setParentTaskId(parentTaskId);
         client.admin().cluster().cancelTasks(cancelTasksRequest, new RestToXContentListener<>(channel));
     }
 }

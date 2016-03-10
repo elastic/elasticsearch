@@ -172,7 +172,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 return;
             }
 
-            request.shardId = shardIt.shardId().id();
+            request.shardId = shardIt.shardId();
             DiscoveryNode node = nodes.get(shard.currentNodeId());
             transportService.sendRequest(node, shardActionName, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
 

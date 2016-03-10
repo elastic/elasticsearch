@@ -19,13 +19,12 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 
 // TODO once sort refactoring is done this needs to be merged into SortBuilder
-public interface SortElementParserTemp<T extends ToXContent> {
+public interface SortElementParserTemp<T extends SortBuilder> {
     /**
      * Creates a new SortBuilder from the json held by the {@link SortElementParserTemp}
      * in {@link org.elasticsearch.common.xcontent.XContent} format

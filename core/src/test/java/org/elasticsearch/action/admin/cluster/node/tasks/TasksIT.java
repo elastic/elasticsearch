@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -40,6 +42,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,8 +57,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -325,6 +331,78 @@ public class TasksIT extends ESIntegTestCase {
 
         future.get();
         assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
+    }
+
+    public void testTasksListWaitForCompletion() throws Exception {
+        // Start blocking test task
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
+                .execute();
+
+        ListenableActionFuture<ListTasksResponse> waitResponseFuture;
+        try {
+            // Wait for the task to start on all nodes
+            assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+            // Spin up a request to wait for that task to finish
+            waitResponseFuture = client().admin().cluster().prepareListTasks()
+                    .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).execute();
+        } finally {
+            // Unblock the request so the wait for completion request can finish
+            TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+        }
+
+        // Now that the task is unblocked the list response will come back
+        ListTasksResponse waitResponse = waitResponseFuture.get();
+        // If any tasks come back then they are the tasks we asked for - it'd be super weird if this wasn't true
+        for (TaskInfo task: waitResponse.getTasks()) {
+            assertEquals(task.getAction(), TestTaskPlugin.TestTaskAction.NAME + "[n]");
+        }
+        // See the next test to cover the timeout case
+
+        future.get();
+    }
+
+    public void testTasksListWaitForTimeout() throws Exception {
+        // Start blocking test task
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
+                .execute();
+        try {
+            // Wait for the task to start on all nodes
+            assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+            // Spin up a request that should wait for those tasks to finish
+            // It will timeout because we haven't unblocked the tasks
+            ListTasksResponse waitResponse = client().admin().cluster().prepareListTasks()
+                    .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).setTimeout(timeValueMillis(100))
+                    .get();
+
+            assertFalse(waitResponse.getNodeFailures().isEmpty());
+            for (FailedNodeException failure : waitResponse.getNodeFailures()) {
+                Throwable timeoutException = failure.getCause();
+                // The exception sometimes comes back wrapped depending on the client
+                if (timeoutException.getCause() != null) {
+                    timeoutException = timeoutException.getCause();
+                }
+                assertThat(timeoutException,
+                        either(instanceOf(ElasticsearchTimeoutException.class)).or(instanceOf(ReceiveTimeoutTransportException.class)));
+            }
+        } finally {
+            // Now we can unblock those requests
+            TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+        }
+        future.get();
+    }
+
+    public void testTasksListWaitForNoTask() throws Exception {
+        // Spin up a request to wait for no matching tasks
+        ListenableActionFuture<ListTasksResponse> waitResponseFuture = client().admin().cluster().prepareListTasks()
+                .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).setTimeout(timeValueMillis(10))
+                .execute();
+
+        // It should finish quickly and without complaint
+        assertThat(waitResponseFuture.get().getTasks(), emptyCollectionOf(TaskInfo.class));
     }
 
     @Override

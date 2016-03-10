@@ -52,9 +52,6 @@ Then the following simple query can be executed with a
 |Option |Description
 |`_name` |Optional name field to identify the filter
 
-|`coerce` |Set to `true` to normalize longitude and latitude values to a
-standard -180:180 / -90:90 coordinate system. (default is `false`).
-
 |`ignore_malformed` |Set to `true` to
 accept geo points with invalid latitude or longitude (default is `false`).
 

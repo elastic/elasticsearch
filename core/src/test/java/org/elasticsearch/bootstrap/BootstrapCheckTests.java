@@ -131,7 +131,7 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testMaxNumberOfThreadsCheck() {
-        final int limit = 1 << 15;
+        final int limit = 1 << 11;
         final AtomicLong maxNumberOfThreads = new AtomicLong(randomIntBetween(1, limit - 1));
         final BootstrapCheck.MaxNumberOfThreadsCheck check = new BootstrapCheck.MaxNumberOfThreadsCheck() {
             @Override

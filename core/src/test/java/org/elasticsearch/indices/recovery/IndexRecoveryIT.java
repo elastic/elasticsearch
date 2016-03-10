@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -261,14 +262,16 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .execute().actionGet().getState();
 
         logger.info("--> waiting for recovery to start both on source and target");
+        final Index index = resolveIndex(INDEX_NAME);
         assertBusy(new Runnable() {
             @Override
             public void run() {
+
                 IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
-                assertThat(indicesService.indexServiceSafe(INDEX_NAME).getShard(0).recoveryStats().currentAsSource(),
+                assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(),
                         equalTo(1));
                 indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
-                assertThat(indicesService.indexServiceSafe(INDEX_NAME).getShard(0).recoveryStats().currentAsTarget(),
+                assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(),
                         equalTo(1));
             }
         });

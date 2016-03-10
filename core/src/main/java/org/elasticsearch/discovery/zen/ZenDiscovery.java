@@ -60,7 +60,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -137,10 +136,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
 
-    @Nullable
-    private NodeService nodeService;
-
-
     // must initialized in doStart(), when we have the routingService set
     private volatile NodeJoinController nodeJoinController;
 
@@ -190,11 +185,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
-    }
-
-    @Override
-    public void setNodeService(@Nullable NodeService nodeService) {
-        this.nodeService = nodeService;
     }
 
     @Override
@@ -290,11 +280,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public DiscoveryNodes nodes() {
         return clusterService.state().nodes();
-    }
-
-    @Override
-    public NodeService nodeService() {
-        return this.nodeService;
     }
 
     @Override

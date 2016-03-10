@@ -546,7 +546,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
                         aggParsers, suggesters);
                 assertEquals(1, searchSourceBuilder.sorts().size());
-                assertEquals("{\"foo\":{}}", searchSourceBuilder.sorts().get(0).toUtf8());
+                assertEquals("{\"foo\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
             }
         }
 

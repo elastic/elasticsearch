@@ -43,7 +43,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXContent & SortElementParserTemp<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder & NamedWriteable<T> & SortElementParserTemp<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -53,7 +53,8 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(GeoDistanceSortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
@@ -85,9 +86,9 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
 
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
             itemParser.nextToken();
-            
+
             /*
-             * filter out name of sort, or field name to sort on for element fieldSort 
+             * filter out name of sort, or field name to sort on for element fieldSort
              */
             itemParser.nextToken();
             String elementName = itemParser.currentName();
@@ -95,7 +96,7 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
 
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.reset(itemParser);
-            NamedWriteable<T> parsedItem = testItem.fromXContent(context, elementName);
+            SortBuilder parsedItem = testItem.fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -146,17 +147,15 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected T copyItem(T original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                @SuppressWarnings("unchecked")
-                T prototype = (T) namedWriteableRegistry.getPrototype(getPrototype(), original.getWriteableName());
-                T copy = (T) prototype.readFrom(in);
-                return copy;
+                T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
+                        original.getWriteableName());
+                return prototype.readFrom(in);
             }
         }
     }
-    
-    protected abstract Class<T> getPrototype();
 }

@@ -260,6 +260,6 @@ there is no guarantee the document didn't change).
 External versioning (version types `external` & `external_gte`) is not
 supported by the update API as it would result in Elasticsearch version
 numbers being out of sync with the external system.  Use the
-<<docs-index,`index` API>> instead.
+<<docs-index_,`index` API>> instead.
 
 =====================================================

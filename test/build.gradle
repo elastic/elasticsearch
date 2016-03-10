@@ -27,7 +27,7 @@ subprojects {
   apply plugin: 'elasticsearch.build'
 
   
-  // the main files are actually test files, so use the appopriate forbidden api sigs
+  // the main files are actually test files, so use the appropriate forbidden api sigs
   forbiddenApisMain {
     bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),

@@ -1698,7 +1698,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Helper method to create list of plugins without specifying generic types. */
     @SafeVarargs
-    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which causes this warning
     protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
         return Arrays.asList(plugins);
     }
@@ -1706,7 +1706,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * This method is used to obtain additional settings for clients created by the internal cluster.
      * These settings will be applied on the client in addition to some randomized settings defined in
-     * the cluster. These setttings will also override any other settings the internal cluster might
+     * the cluster. These settings will also override any other settings the internal cluster might
      * add by default.
      */
     protected Settings transportClientSettings() {
@@ -1842,7 +1842,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         @Override
         public String description() {
-            return "a test plugin that registeres index.tests.seed as an index setting";
+            return "a test plugin that registers index.tests.seed as an index setting";
         }
         public void onModule(SettingsModule module) {
             module.registerSetting(INDEX_TEST_SEED_SETTING);
@@ -1983,7 +1983,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @After
     public final void after() throws Exception {
         printTestMessage("finished");
-        // Deleting indices is going to clear search contexts implicitely so we
+        // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         super.ensureAllSearchContextsReleased();

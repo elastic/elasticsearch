@@ -131,7 +131,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfFailed(List<Throwable> errors) {
     }
 
-    /** called after a test is finished, but only if succesfull */
+    /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {
     }
 

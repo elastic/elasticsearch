@@ -4,6 +4,16 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.2.
 
+[[float]]
+=== Mapping APIs
+
+==== Geo Point Type
+
+The `geo_point` format has been changed to reduce index size and the time required to both index and query
+geo point data. To make these performance improvements possible both `doc_values` and `coerce` are required
+and therefore cannot be changed. For this reason the `doc_values` and `coerce` parameters have been removed
+from the <<geo-point, geo_point>> field mapping.
+
 [float]
 === Scripting and security
 

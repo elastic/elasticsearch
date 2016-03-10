@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -143,6 +144,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .setUpdateAllTypes(true)
                 .get();
         assertAcked(putMappingResponse);
+        Index test = resolveIndex("test");
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -152,7 +154,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
                 boolean verified = false;
                 IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-                IndexService indexService = indicesService.indexService("test");
+                IndexService indexService = indicesService.indexService(test);
                 if (indexService != null) {
                     MapperService mapperService = indexService.mapperService();
                     DocumentMapper documentMapper = mapperService.documentMapper("child");

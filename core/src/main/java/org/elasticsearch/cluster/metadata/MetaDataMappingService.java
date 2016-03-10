@@ -36,6 +36,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
@@ -112,13 +113,13 @@ public class MetaDataMappingService extends AbstractComponent {
         MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
         for (Map.Entry<String, List<RefreshTask>> entry : tasksPerIndex.entrySet()) {
-            String index = entry.getKey();
-            IndexMetaData indexMetaData = mdBuilder.get(index);
+            IndexMetaData indexMetaData = mdBuilder.get(entry.getKey());
             if (indexMetaData == null) {
                 // index got deleted on us, ignore...
-                logger.debug("[{}] ignoring tasks - index meta data doesn't exist", index);
+                logger.debug("[{}] ignoring tasks - index meta data doesn't exist", entry.getKey());
                 continue;
             }
+            final Index index = indexMetaData.getIndex();
             // the tasks lists to iterate over, filled with the list of mapping tasks, trying to keep
             // the latest (based on order) update mapping one per node
             List<RefreshTask> allIndexTasks = entry.getValue();
@@ -127,7 +128,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (indexMetaData.isSameUUID(task.indexUUID)) {
                     hasTaskWithRightUUID = true;
                 } else {
-                    logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
+                    logger.debug("{} ignoring task [{}] - index meta data doesn't match task uuid", index, task);
                 }
             }
             if (hasTaskWithRightUUID == false) {
@@ -136,7 +137,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
             // construct the actual index if needed, and make sure the relevant mappings are there
             boolean removeIndex = false;
-            IndexService indexService = indicesService.indexService(index);
+            IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
                 indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
@@ -208,47 +209,57 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
-            Set<String> indicesToClose = new HashSet<>();
+        public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
+                                                                        List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+            Set<Index> indicesToClose = new HashSet<>();
             BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
             try {
                 // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
-                    // failures here mean something is broken with our cluster state - fail all tasks by letting exceptions bubble up
-                    for (String index : request.indices()) {
-                        final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                        if (indexMetaData != null  && indicesService.hasIndex(index) == false) {
-                            // if we don't have the index, we will throw exceptions later;
-                            indicesToClose.add(index);
-                            IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
-                            // add mappings for all types, we need them for cross-type validation
-                            for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
+                    final List<Index> indices = new ArrayList<>(request.indices().length);
+                    try {
+                        for (String index : request.indices()) {
+                            final IndexMetaData indexMetaData = currentState.metaData().index(index);
+                            if (indexMetaData != null) {
+                                if (indicesService.hasIndex(indexMetaData.getIndex()) == false) {
+                                    // if the index does not exists we create it once, add all types to the mapper service and
+                                    // close it later once we are done with mapping update
+                                    indicesToClose.add(indexMetaData.getIndex());
+                                    IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData,
+                                        Collections.emptyList());
+                                    // add mappings for all types, we need them for cross-type validation
+                                    for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
+                                        indexService.mapperService().merge(mapping.value.type(), mapping.value.source(),
+                                            MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
+                                    }
+                                }
+                                indices.add(indexMetaData.getIndex());
+                            } else {
+                                // we didn't find the index in the clusterstate - maybe it was deleted
+                                // NOTE: this doesn't fail the entire batch only the current PutMapping request we are processing
+                                throw new IndexNotFoundException(index);
                             }
                         }
-                    }
-                }
-                for (PutMappingClusterStateUpdateRequest request : tasks) {
-                    try {
-                        currentState = applyRequest(currentState, request);
+                        currentState = applyRequest(currentState, request, indices);
                         builder.success(request);
                     } catch (Throwable t) {
                         builder.failure(request, t);
                     }
                 }
-
                 return builder.build(currentState);
             } finally {
-                for (String index : indicesToClose) {
+                for (Index index : indicesToClose) {
                     indicesService.removeIndex(index, "created for mapping processing");
                 }
             }
         }
 
-        private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request) throws IOException {
+        private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
+                                          List<Index> indices) throws IOException {
             String mappingType = request.type();
             CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
-            for (String index : request.indices()) {
+            final MetaData metaData = currentState.metaData();
+            for (Index index : indices) {
                 IndexService indexService = indicesService.indexServiceSafe(index);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
@@ -270,7 +281,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         // and a put mapping api call, so we don't which type did exist before.
                         // Also the order of the mappings may be backwards.
                         if (newMapper.parentFieldMapper().active()) {
-                            IndexMetaData indexMetaData = currentState.metaData().index(index);
+                            IndexMetaData indexMetaData = metaData.index(index);
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                 if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
                                     throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
@@ -290,11 +301,11 @@ public class MetaDataMappingService extends AbstractComponent {
             if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
-            MetaData.Builder builder = MetaData.builder(currentState.metaData());
-            for (String index : request.indices()) {
+            MetaData.Builder builder = MetaData.builder(metaData);
+            for (Index index : indices) {
                 // do the actual merge here on the master, and update the mapping source
                 IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) {
+                if (indexService == null) { // TODO this seems impossible given we use indexServiceSafe above
                     continue;
                 }
 
@@ -326,7 +337,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
                 }
 
-                IndexMetaData indexMetaData = currentState.metaData().index(index);
+                IndexMetaData indexMetaData = metaData.index(index);
                 if (indexMetaData == null) {
                     throw new IndexNotFoundException(index);
                 }

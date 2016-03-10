@@ -808,6 +808,15 @@ changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
 
+==== Longer startup times
+
+In Elasticsearch 5.0.0 the `-XX:+AlwaysPreTouch` flag has been added to the JVM
+startup options. This option touches all memory pages used by the JVM heap
+during initialization of the HotSpot VM to reduce the chance of having to commit
+a memory page during GC time. This will increase the startup time of
+Elasticsearch as well as increasing the initial resident memory usage of the
+Java process.
+
 [[breaking_50_scripting]]
 === Scripting
 

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,13 +72,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         return originalIndices.indicesOptions();
     }
 
-    @Override
-    public String index() {
-        return shardSearchLocalRequest.index();
-    }
 
     @Override
-    public int shardId() {
+    public ShardId shardId() {
         return shardSearchLocalRequest.shardId();
     }
 

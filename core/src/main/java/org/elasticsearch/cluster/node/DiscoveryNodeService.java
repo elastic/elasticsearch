@@ -19,24 +19,40 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  */
 public class DiscoveryNodeService extends AbstractComponent {
 
+    public static final Setting<Long> NODE_ID_SEED_SETTING =
+            // don't use node.id.seed so it won't be seen as an attribute
+            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, false, Setting.Scope.CLUSTER);
     private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
+    private final Version version;
 
     @Inject
-    public DiscoveryNodeService(Settings settings) {
+    public DiscoveryNodeService(Settings settings, Version version) {
         super(settings);
+        this.version = version;
+    }
+
+    public static String generateNodeId(Settings settings) {
+        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
+        return Strings.randomBase64UUID(random);
     }
 
     public DiscoveryNodeService addCustomAttributeProvider(CustomAttributesProvider customAttributesProvider) {
@@ -44,7 +60,7 @@ public class DiscoveryNodeService extends AbstractComponent {
         return this;
     }
 
-    public Map<String, String> buildAttributes() {
+    public DiscoveryNode buildLocalNode(TransportAddress publishAddress) {
         Map<String, String> attributes = new HashMap<>(settings.getByPrefix("node.").getAsMap());
         attributes.remove("name"); // name is extracted in other places
         if (attributes.containsKey("client")) {
@@ -76,10 +92,11 @@ public class DiscoveryNodeService extends AbstractComponent {
             }
         }
 
-        return attributes;
+        final String nodeId = generateNodeId(settings);
+        return new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, attributes, version);
     }
 
-    public static interface CustomAttributesProvider {
+    public interface CustomAttributesProvider {
 
         Map<String, String> buildAttributes();
     }

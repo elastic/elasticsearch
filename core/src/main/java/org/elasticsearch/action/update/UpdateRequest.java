@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -88,7 +89,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     public UpdateRequest(String index, String type, String id) {
-        this.index = index;
+        super(index);
         this.type = type;
         this.id = id;
     }
@@ -195,7 +196,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return parent;
     }
 
-    int shardId() {
+    public ShardId getShardId() {
         return this.shardId;
     }
 

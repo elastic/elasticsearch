@@ -75,12 +75,12 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     @Override
     protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, ShardId shardId) {
-        MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
+        final MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final IndexShard indexShard = indexService.getShard(shardId.id());
         for (int i = 0; i < request.locations.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             try {
-                IndexService indexService = indicesService.indexServiceSafe(request.index());
-                IndexShard indexShard = indexService.getShard(shardId.id());
                 TermVectorsResponse termVectorsResponse = TermVectorsService.getTermVectors(indexShard, termVectorsRequest);
                 termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);

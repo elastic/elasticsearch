@@ -16,7 +16,7 @@
         body:
           source:
             index: twitter
-            timeout: 10ms
+            timeout: 10
             query:
               script:
                 # Sleep 100x longer than the timeout. That should cause a timeout!

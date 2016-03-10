@@ -44,7 +44,11 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;

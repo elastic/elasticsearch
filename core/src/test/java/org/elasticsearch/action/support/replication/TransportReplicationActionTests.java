@@ -630,11 +630,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardIterator shardIt = shardRoutingTable.shardsIt();
         final ShardId shardId = shardIt.shardId();
         final Request request = new Request(shardId);
+        final long primaryTerm = randomInt(200);
+        request.primaryTerm(primaryTerm);
         final PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
 
-        TransportReplicationAction.IndexShardReference reference = getOrCreateIndexShardOperationsCounter();
+        TransportReplicationAction.IndexShardReference reference = getOrCreateIndexShardOperationsCounter(0);
 
         ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
         indexShardRouting.set(primaryShard);
@@ -767,6 +769,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
         // all replicas have responded so the counter should be decreased again
         assertIndexShardCounter(1);
+
+        // assert that nothing in the replica logic changes the primary term of the operation
+        assertThat(request.primaryTerm(), equalTo(primaryTerm));
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -989,7 +994,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     /**
      * Returns testIndexShardOperationsCounter or initializes it if it was already created in this test run.
      */
-    private synchronized TransportReplicationAction.IndexShardReference getOrCreateIndexShardOperationsCounter() {
+    private synchronized TransportReplicationAction.IndexShardReference getOrCreateIndexShardOperationsCounter(long primaryTerm) {
         count.incrementAndGet();
         return new TransportReplicationAction.IndexShardReference() {
             @Override
@@ -1007,6 +1012,11 @@ public class TransportReplicationActionTests extends ESTestCase {
                 ShardRouting shardRouting = indexShardRouting.get();
                 assert shardRouting != null;
                 return shardRouting;
+            }
+
+            @Override
+            public long opPrimaryTerm() {
+                return primaryTerm;
             }
 
             @Override
@@ -1104,13 +1114,15 @@ public class TransportReplicationActionTests extends ESTestCase {
             return false;
         }
 
+
         @Override
         protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId) {
-            return getOrCreateIndexShardOperationsCounter();
+            final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+            return getOrCreateIndexShardOperationsCounter(indexMetaData.primaryTerm(shardId.id()));
         }
 
-        protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId) {
-            return getOrCreateIndexShardOperationsCounter();
+        protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId, long opPrimaryTerm) {
+            return getOrCreateIndexShardOperationsCounter(opPrimaryTerm);
         }
     }
 

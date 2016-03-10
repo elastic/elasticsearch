@@ -718,6 +718,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private void executeLocally() throws Exception {
             // execute locally
             Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(state.metaData(), request);
+            primaryResponse.v2().primaryTerm(indexShardReference.opPrimaryTerm());
             if (logger.isTraceEnabled()) {
                 logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
             }

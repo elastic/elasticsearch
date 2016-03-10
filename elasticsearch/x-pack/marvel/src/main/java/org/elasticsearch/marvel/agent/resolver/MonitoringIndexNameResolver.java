@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -155,10 +156,10 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format","YYYY.MM.dd",
                 Function.identity(), Setting.Property.NodeScope);
 
-        private final String id;
+        private final MonitoredSystem id;
         private final DateTimeFormatter formatter;
 
-        public Timestamped(String id, int version, Settings settings) {
+        public Timestamped(MonitoredSystem id, int version, Settings settings) {
             super(version);
             this.id = id;
             String format = INDEX_NAME_TIME_FORMAT_SETTING.get(settings);
@@ -171,7 +172,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
 
         @Override
         public String index(T document) {
-            return String.join(DELIMITER, PREFIX, id, String.valueOf(getVersion()), formatter.print(document.getTimestamp()));
+            return String.join(DELIMITER, PREFIX, id.getSystem(), String.valueOf(getVersion()), formatter.print(document.getTimestamp()));
         }
 
         @Override
@@ -186,7 +187,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         }
 
         String getId() {
-            return id;
+            return id.getSystem();
         }
     }
 }

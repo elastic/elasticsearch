@@ -81,7 +81,7 @@ public class IndicesStatsTests extends MarvelIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = new IndicesStatsResolver(Settings.EMPTY).filters();
+        String[] filters = IndicesStatsResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 

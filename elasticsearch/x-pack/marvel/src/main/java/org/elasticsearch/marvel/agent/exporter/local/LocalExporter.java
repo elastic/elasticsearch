@@ -26,7 +26,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -277,16 +277,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 long expirationTime = expiration.getMillis();
 
                 // Get the list of monitoring index patterns
-                Set<String> monitoringPatterns = new HashSet<>();
-                for (MonitoringIndexNameResolver resolver : getResolvers()) {
-                    monitoringPatterns.add(resolver.indexPattern());
-                }
-
                 String[] patterns = StreamSupport.stream(getResolvers().spliterator(), false)
                                                 .map(MonitoringIndexNameResolver::indexPattern)
+                                                .distinct()
                                                 .toArray(String[]::new);
 
-                MonitoringDoc monitoringDoc = new MonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
+                MonitoringDoc monitoringDoc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
                 monitoringDoc.setTimestamp(System.currentTimeMillis());
 
                 // Get the names of the current monitoring indices

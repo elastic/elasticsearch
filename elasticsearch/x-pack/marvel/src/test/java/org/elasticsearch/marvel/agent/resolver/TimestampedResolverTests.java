@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.joda.time.format.DateTimeFormat;
 
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCase {
 
-    private String randomId = randomFrom(MonitoringIds.values()).getId();
+    private MonitoredSystem randomId = randomFrom(MonitoredSystem.values());
     private int randomVersion = randomIntBetween(0, 100);
 
     @Override
@@ -72,7 +72,7 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
 
             MonitoringIndexNameResolver.Timestamped resolver = newTimestampedResolver(randomId, randomVersion, settings);
             assertThat(resolver, notNullValue());
-            assertThat(resolver.getId(), equalTo(randomId));
+            assertThat(resolver.getId(), equalTo(randomId.getSystem()));
             assertThat(resolver.getVersion(), equalTo(randomVersion));
             assertThat(resolver.index(doc),
                     equalTo(PREFIX + DELIMITER + resolver.getId() + DELIMITER + String.valueOf(resolver.getVersion())
@@ -80,7 +80,7 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
         }
     }
 
-    private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(String id, int version, Settings settings) {
+    private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(MonitoredSystem id, int version, Settings settings) {
         return new MonitoringIndexNameResolver.Timestamped<MonitoringDoc>(id, version, settings) {
             @Override
             public String type(MonitoringDoc document) {

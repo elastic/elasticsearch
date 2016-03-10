@@ -13,7 +13,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
@@ -120,7 +120,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected String monitoringId() {
         // Collectors always collects data for Elasticsearch
-        return MonitoringIds.ES.getId();
+        return MonitoredSystem.ES.getSystem();
     }
 
     protected String monitoringVersion() {

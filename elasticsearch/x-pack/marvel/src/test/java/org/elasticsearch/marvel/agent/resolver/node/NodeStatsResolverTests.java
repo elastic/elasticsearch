@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingTestUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -52,11 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<NodeStatsMonitoringDoc, NodeStatsResolver> {
-
-    @Override
-    protected NodeStatsResolver newResolver() {
-        return new NodeStatsResolver(Settings.EMPTY);
-    }
 
     @Override
     protected NodeStatsMonitoringDoc newMarvelDoc() {

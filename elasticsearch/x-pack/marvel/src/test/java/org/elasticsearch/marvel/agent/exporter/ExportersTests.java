@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.shield.InternalClient;
@@ -306,7 +306,7 @@ public class ExportersTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     List<MonitoringDoc> docs = new ArrayList<>();
                     for (int n = 0; n < nbDocs; n++) {
-                        docs.add(new MonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString()));
+                        docs.add(new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString()));
                     }
                     barrier.await(10, TimeUnit.SECONDS);
                     exporters.export(docs);

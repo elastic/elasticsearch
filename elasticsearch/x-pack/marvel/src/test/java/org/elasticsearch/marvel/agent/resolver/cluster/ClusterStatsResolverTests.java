@@ -56,11 +56,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCase<ClusterStatsMonitoringDoc, ClusterStatsResolver> {
 
     @Override
-    protected ClusterStatsResolver newResolver() {
-        return new ClusterStatsResolver(Settings.EMPTY);
-    }
-
-    @Override
     protected ClusterStatsMonitoringDoc newMarvelDoc() {
         ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));

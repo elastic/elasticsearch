@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
@@ -389,11 +390,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
 
-        public MockTimestampedIndexNameResolver(String id, int version, Settings settings) {
+        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version, Settings settings) {
             super(id, version, settings);
         }
 
-        public MockTimestampedIndexNameResolver(String id, int version) {
+        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version) {
             this(id, version, Settings.EMPTY);
         }
 

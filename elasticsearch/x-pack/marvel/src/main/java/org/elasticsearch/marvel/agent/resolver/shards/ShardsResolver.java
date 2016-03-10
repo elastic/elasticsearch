@@ -10,9 +10,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.shards.ShardMonitoringDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
@@ -21,7 +20,7 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
 
     public static final String TYPE = "shards";
 
-    private static final String[] FILTERS = {
+    static final String[] FILTERS = {
             "cluster_uuid",
             "timestamp",
             "source_node",
@@ -34,8 +33,8 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
             "shard.index",
     };
 
-    public ShardsResolver(Settings settings) {
-        super(MonitoringIds.ES.getId(), MarvelTemplateUtils.TEMPLATE_VERSION, settings);
+    public ShardsResolver(MonitoredSystem id, int version, Settings settings) {
+        super(id, version, settings);
     }
 
     @Override

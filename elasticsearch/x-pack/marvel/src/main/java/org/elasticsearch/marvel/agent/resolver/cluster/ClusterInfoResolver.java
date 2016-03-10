@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMonitoringDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
@@ -24,8 +23,8 @@ public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<Cluste
 
     public static final String TYPE = "cluster_info";
 
-    public ClusterInfoResolver() {
-        super(MarvelTemplateUtils.TEMPLATE_VERSION);
+    public ClusterInfoResolver(int version) {
+        super(version);
     }
 
     @Override

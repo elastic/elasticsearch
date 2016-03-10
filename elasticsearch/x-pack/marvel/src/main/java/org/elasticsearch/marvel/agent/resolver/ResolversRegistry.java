@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.marvel.agent.resolver;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateNodeMonitoringDoc;
@@ -18,6 +17,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.shards.ShardMonitoringDoc;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterInfoResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterStateNodeResolver;
@@ -31,95 +31,80 @@ import org.elasticsearch.marvel.agent.resolver.node.NodeStatsResolver;
 import org.elasticsearch.marvel.agent.resolver.shards.ShardsResolver;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.marvel.MonitoredSystem.ES;
 
 public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> {
 
-    private List<Registration> registrations;
+    private final List<Registration> registrations = new ArrayList<>();
 
     public ResolversRegistry(Settings settings) {
-        List<Registration> resolvers = new ArrayList<>();
-        registerElasticsearchResolvers(resolvers, settings);
-        this.registrations = Collections.unmodifiableList(resolvers);
+        // register built-in defaults resolvers
+        registerBuiltIn(ES, MarvelTemplateUtils.TEMPLATE_VERSION, settings);
+
+        // register resolvers for external applications, something like:
+        //registrations.add(resolveByIdVersion(MonitoringIds.KIBANA, "4.4.1", new KibanaDocResolver(KIBANA, 0, settings)));
     }
 
-    /** Registers default Elasticsearch resolvers used by the Marvel plugin. **/
-    private void registerElasticsearchResolvers(List<Registration> resolvers, Settings settings) {
-        Map<Class<? extends MonitoringDoc>, MonitoringIndexNameResolver<? extends MonitoringDoc>> map = new HashMap<>();
-        map.put(ClusterInfoMonitoringDoc.class, new ClusterInfoResolver());
-        map.put(ClusterStateNodeMonitoringDoc.class, new ClusterStateNodeResolver(settings));
-        map.put(ClusterStateMonitoringDoc.class, new ClusterStateResolver(settings));
-        map.put(ClusterStatsMonitoringDoc.class, new ClusterStatsResolver(settings));
-        map.put(DiscoveryNodeMonitoringDoc.class, new DiscoveryNodeResolver());
-        map.put(IndexRecoveryMonitoringDoc.class, new IndexRecoveryResolver(settings));
-        map.put(IndexStatsMonitoringDoc.class, new IndexStatsResolver(settings));
-        map.put(IndicesStatsMonitoringDoc.class, new IndicesStatsResolver(settings));
-        map.put(NodeStatsMonitoringDoc.class, new NodeStatsResolver(settings));
-        map.put(ShardMonitoringDoc.class, new ShardsResolver(settings));
-
-        for (Map.Entry<Class<? extends MonitoringDoc>, MonitoringIndexNameResolver<? extends MonitoringDoc>> resolver : map.entrySet()) {
-            resolvers.add(new Registration(MonitoringIds.ES.getId(), Version.CURRENT.toString(), resolver.getKey(), resolver.getValue()));
-        }
+    /**
+     * Registers resolvers for elasticsearch documents collected by the monitoring plugin
+     */
+    private void registerBuiltIn(MonitoredSystem id, int version, Settings settings) {
+        registrations.add(resolveByClass(ClusterInfoMonitoringDoc.class, new ClusterInfoResolver(version)));
+        registrations.add(resolveByClass(ClusterStateNodeMonitoringDoc.class, new ClusterStateNodeResolver(id, version, settings)));
+        registrations.add(resolveByClass(ClusterStateMonitoringDoc.class, new ClusterStateResolver(id, version, settings)));
+        registrations.add(resolveByClass(ClusterStatsMonitoringDoc.class, new ClusterStatsResolver(id, version, settings)));
+        registrations.add(resolveByClass(DiscoveryNodeMonitoringDoc.class, new DiscoveryNodeResolver(version)));
+        registrations.add(resolveByClass(IndexRecoveryMonitoringDoc.class, new IndexRecoveryResolver(id, version, settings)));
+        registrations.add(resolveByClass(IndexStatsMonitoringDoc.class, new IndexStatsResolver(id, version, settings)));
+        registrations.add(resolveByClass(IndicesStatsMonitoringDoc.class, new IndicesStatsResolver(id, version, settings)));
+        registrations.add(resolveByClass(NodeStatsMonitoringDoc.class, new NodeStatsResolver(id, version, settings)));
+        registrations.add(resolveByClass(ShardMonitoringDoc.class, new ShardsResolver(id, version, settings)));
     }
 
-    public <T extends MonitoringDoc> MonitoringIndexNameResolver<MonitoringDoc> getResolver(T document) {
-        return getResolver(document.getClass(), document.getMonitoringId(), document.getMonitoringVersion());
-    }
-
-    <T extends MonitoringDoc> MonitoringIndexNameResolver<T> getResolver(Class<? extends MonitoringDoc> clazz, String id, String version) {
+    /**
+     * @return a Resolver that is able to resolver the given monitoring document
+     */
+    public MonitoringIndexNameResolver getResolver(MonitoringDoc document) {
         for (Registration registration : registrations) {
-            if (registration.support(id, version, clazz)) {
-                return (MonitoringIndexNameResolver<T>) registration.getResolver();
+            if (registration.support(document)) {
+                return registration.resolver();
             }
         }
-        throw new IllegalArgumentException("No resolver found for monitoring document [class=" + clazz.getName()
-                + ", id=" + id + ", version=" + version + "]");
+        throw new IllegalArgumentException("No resolver found for monitoring document [class=" + document.getClass().getName()
+                + ", id=" + document.getMonitoringId() + ", version=" + document.getMonitoringVersion() + "]");
     }
 
     @Override
     public Iterator<MonitoringIndexNameResolver> iterator() {
-        List<MonitoringIndexNameResolver> resolvers = new ArrayList<>(registrations.size());
-        for (Registration registration : registrations) {
-            resolvers.add(registration.getResolver());
-        }
-        return Collections.unmodifiableList(resolvers).iterator();
+        return registrations.stream().map(Registration::resolver).iterator();
     }
 
-    private static class Registration {
+    static Registration resolveByClass(Class<? extends MonitoringDoc> type, MonitoringIndexNameResolver resolver) {
+        return new Registration(resolver, type::isInstance);
+    }
 
-        private final String id;
-        private final String version;
-        private final Class<? extends MonitoringDoc> clazz;
-        private final MonitoringIndexNameResolver<? extends MonitoringDoc> resolver;
+    static class Registration {
 
-        private Registration(String id, String version, Class<? extends MonitoringDoc> clazz,
-                             MonitoringIndexNameResolver<? extends MonitoringDoc> resolver) {
-            this.id = Objects.requireNonNull(id);
-            this.version = Objects.requireNonNull(version);
-            this.clazz = Objects.requireNonNull(clazz);
+        private final MonitoringIndexNameResolver resolver;
+        private final Predicate<MonitoringDoc> predicate;
+
+        Registration(MonitoringIndexNameResolver resolver, Predicate<MonitoringDoc> predicate) {
             this.resolver = Objects.requireNonNull(resolver);
+            this.predicate = Objects.requireNonNull(predicate);
         }
 
-        public MonitoringIndexNameResolver<? extends MonitoringDoc> getResolver() {
+        boolean support(MonitoringDoc document) {
+            return predicate.test(document);
+        }
+
+        MonitoringIndexNameResolver resolver() {
             return resolver;
         }
-
-        public boolean support(String id, String version, Class<? extends MonitoringDoc> documentClass) {
-            return clazz.equals(documentClass) && this.id.equals(id) && this.version.equals(version);
-        }
-
-        @Override
-        public String toString() {
-            return "monitoring resolver [" + resolver.getClass().getName()
-                    + "] registered for [class=" + clazz.getName() +
-                    ", id=" + id +
-                    ", version=" + version +
-                    "]";
-        }
     }
+
 }

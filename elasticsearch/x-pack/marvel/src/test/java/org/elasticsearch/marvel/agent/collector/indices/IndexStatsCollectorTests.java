@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -99,7 +99,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(monitoringDoc, instanceOf(IndexStatsMonitoringDoc.class));
 
         IndexStatsMonitoringDoc indexStatsMarvelDoc = (IndexStatsMonitoringDoc) monitoringDoc;
-        assertThat(indexStatsMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(indexStatsMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
         assertThat(indexStatsMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(indexStatsMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));

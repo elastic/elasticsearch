@@ -21,6 +21,7 @@ your application to Elasticsearch 5.0.
 * <<breaking_50_scripting>>
 * <<breaking_50_term_vectors>>
 * <<breaking_50_security>>
+* <<breaking_50_snapshot_restore>>
 
 [[breaking_50_search_changes]]
 === Warmers
@@ -853,3 +854,12 @@ distributed document frequencies anymore.
 
 The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
 permissions to elasticsearch users must tweak the local Java Security Policy.
+
+[[breaking_50_snapshot_restore]]
+=== Snapshot/Restore
+
+==== Closing / deleting indices while running snapshot
+
+In previous versions of Elasticsearch, closing or deleting an index during a full snapshot would make the snapshot fail. This is now changed
+by failing the close/delete index request instead. The behavior for partial snapshots remains unchanged: Closing or deleting an index during
+a partial snapshot is still possible. The snapshot result is then marked as partial.

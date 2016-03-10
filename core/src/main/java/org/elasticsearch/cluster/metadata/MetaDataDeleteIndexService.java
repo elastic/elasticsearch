@@ -34,11 +34,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,7 +68,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     }
 
     public void deleteIndices(final Request request, final Listener userListener) {
-        Collection<String> indices = Arrays.asList(request.indices);
+        Set<String> indices = Sets.newHashSet(request.indices);
         final DeleteIndexListener listener = new DeleteIndexListener(userListener);
 
         clusterService.submitStateUpdateTask("delete-index " + indices, new ClusterStateUpdateTask(Priority.URGENT) {
@@ -84,6 +85,9 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
+                // Check if index deletion conflicts with any running snapshots
+                SnapshotsService.checkIndexDeletion(currentState, indices);
+
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());

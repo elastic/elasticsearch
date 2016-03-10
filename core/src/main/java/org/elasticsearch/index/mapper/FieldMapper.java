@@ -374,7 +374,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             // this can happen if this mapper represents a mapping update
             return this;
         } else if (fieldType.getClass() != newFieldType.getClass()) {
-            throw new IllegalStateException("Mixing up field types: " + fieldType.getClass() + " != " + newFieldType.getClass());
+            throw new IllegalStateException("Mixing up field types: " +
+                fieldType.getClass() + " != " + newFieldType.getClass() + " on field " + fieldType.name());
         }
         MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
         if (fieldType == newFieldType && multiFields == updatedMultiFields) {

@@ -29,6 +29,7 @@ integTest {
      'cat.nodeattrs/10_basic/Test cat nodes attrs output',
      'bulk/40_fields/Fields',
      'indices.get_alias/10_basic/Get alias against closed indices',
+     'ingest/70_bulk/*',
      'ingest/10_crud/Check availability of default processors'].join(',')
 
   cluster {

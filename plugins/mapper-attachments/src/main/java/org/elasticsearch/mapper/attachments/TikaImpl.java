@@ -138,6 +138,8 @@ final class TikaImpl {
         perms.add(new SecurityPermission("insertProvider"));
         perms.add(new SecurityPermission("insertProvider.BC"));
         perms.add(new ReflectPermission("suppressAccessChecks"));
+        // xmlbeans, use by POI, needs to get the context classloader
+        perms.add(new RuntimePermission("getClassLoader"));
         perms.setReadOnly();
         return perms;
     }

@@ -215,7 +215,8 @@ There are a number of options for the `field_value_factor` function:
     `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
     Defaults to `none`.
 
-|====================================
+[cols="<,<",options="header",]
+|=======================================================================
 | Modifier | Meaning
 
 | `none` | Do not apply any multiplier to the field value
@@ -228,6 +229,7 @@ There are a number of options for the `field_value_factor` function:
 | `square` | Square the field value (multiply it by itself)
 | `sqrt` | Take the https://en.wikipedia.org/wiki/Square_root[square root] of the field value
 | `reciprocal` | https://en.wikipedia.org/wiki/Multiplicative_inverse[Reciprocate] the field value, same as `1/x` where `x` is the field's value
+|=======================================================================
 
 `missing`::
 

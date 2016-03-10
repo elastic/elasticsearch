@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -51,6 +52,10 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
+        return randomCompletionSuggestionBuilder();
+    }
+
+    public static CompletionSuggestionBuilder randomCompletionSuggestionBuilder() {
         return randomSuggestionBuilderWithContextInfo().builder;
     }
 
@@ -60,7 +65,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         List<String> geoContexts = new ArrayList<>();
     }
 
-    private BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
+    private static BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
         final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
@@ -190,8 +195,8 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         try {
             final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(payload), suggesters);
             fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("parsing failed"));
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("failed to parse field [payload]"));
         }
     }
 }

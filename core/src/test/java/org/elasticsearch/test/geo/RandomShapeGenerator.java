@@ -20,12 +20,12 @@
 package org.elasticsearch.test.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.impl.Range;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.impl.Range;
 import com.vividsolutions.jts.algorithm.ConvexHull;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
@@ -45,7 +45,7 @@ import org.junit.Assert;
 
 import java.util.Random;
 
-import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
+import static org.locationtech.spatial4j.shape.SpatialRelation.CONTAINS;
 
 /**
  * Random geoshape generation utilities for randomized {@code geo_shape} type testing

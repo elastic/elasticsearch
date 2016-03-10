@@ -280,7 +280,7 @@ public class InternalEngine extends Engine {
         SearcherManager searcherManager = null;
         try {
             try {
-                final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter, true), shardId);
+                final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 searcherManager = new SearcherManager(directoryReader, searcherFactory);
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                 success = true;
@@ -368,7 +368,7 @@ public class InternalEngine extends Engine {
                 }
 
                 long expectedVersion = index.version();
-                if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                if (isVersionConflictForWrites(index, currentVersion, deleted, expectedVersion)) {
                     if (index.origin() == Operation.Origin.RECOVERY) {
                         return false;
                     } else {
@@ -386,22 +386,9 @@ public class InternalEngine extends Engine {
                 if (currentVersion == Versions.NOT_FOUND) {
                     // document does not exists, we can optimize for create
                     created = true;
-                    if (index.docs().size() > 1) {
-                        indexWriter.addDocuments(index.docs());
-                    } else {
-                        indexWriter.addDocument(index.docs().get(0));
-                    }
+                    index(index, indexWriter);
                 } else {
-                    if (versionValue != null) {
-                        created = versionValue.delete(); // we have a delete which is not GC'ed...
-                    } else {
-                        created = false;
-                    }
-                    if (index.docs().size() > 1) {
-                        indexWriter.updateDocuments(index.uid(), index.docs());
-                    } else {
-                        indexWriter.updateDocument(index.uid(), index.docs().get(0));
-                    }
+                    created = update(index, versionValue, indexWriter);
                 }
                 Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
@@ -414,6 +401,33 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+    }
+
+    private static boolean update(Index index, VersionValue versionValue, IndexWriter indexWriter) throws IOException {
+        boolean created;
+        if (versionValue != null) {
+            created = versionValue.delete(); // we have a delete which is not GC'ed...
+        } else {
+            created = false;
+        }
+        if (index.docs().size() > 1) {
+            indexWriter.updateDocuments(index.uid(), index.docs());
+        } else {
+            indexWriter.updateDocument(index.uid(), index.docs().get(0));
+        }
+        return created;
+    }
+
+    private static void index(Index index, IndexWriter indexWriter) throws IOException {
+        if (index.docs().size() > 1) {
+            indexWriter.addDocuments(index.docs());
+        } else {
+            indexWriter.addDocument(index.docs().get(0));
+        }
+    }
+
+    private boolean isVersionConflictForWrites(Index index, long currentVersion, boolean deleted, long expectedVersion) {
+        return index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted);
     }
 
     @Override
@@ -939,12 +953,6 @@ public class InternalEngine extends Engine {
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
             iwc.setCodec(engineConfig.getCodec());
-            /* We set this timeout to a highish value to work around
-             * the default poll interval in the Lucene lock that is
-             * 1000ms by default. We might need to poll multiple times
-             * here but with 1s poll this is only executed twice at most
-             * in combination with the default writelock timeout*/
-            iwc.setWriteLockTimeout(5000);
             iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
@@ -81,7 +82,7 @@ public class ExternalMapper extends FieldMapper {
         public Builder(String name, String generatedValue, String mapperName) {
             super(name, new ExternalFieldType(), new ExternalFieldType());
             this.builder = this;
-            this.stringBuilder = new StringFieldMapper.Builder(name).store(false);
+            this.stringBuilder = new TextFieldMapper.Builder(name).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
         }
@@ -224,7 +225,7 @@ public class ExternalMapper extends FieldMapper {
         BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
         GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
         GeoShapeFieldMapper shapeMapperUpdate = (GeoShapeFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
-        StringFieldMapper stringMapperUpdate = (StringFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
+        TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
         if (update == this
                 && multiFieldsUpdate == multiFields
                 && binMapperUpdate == binMapper

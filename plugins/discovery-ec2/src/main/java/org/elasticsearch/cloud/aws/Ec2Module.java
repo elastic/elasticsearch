@@ -20,10 +20,6 @@
 package org.elasticsearch.cloud.aws;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.ec2.Ec2Discovery;
 
 public class Ec2Module extends AbstractModule {
 
@@ -32,17 +28,4 @@ public class Ec2Module extends AbstractModule {
         bind(AwsEc2Service.class).to(AwsEc2ServiceImpl.class).asEagerSingleton();
     }
 
-    /**
-     * Check if discovery is meant to start
-     * @return true if we can start discovery features
-     */
-    public static boolean isEc2DiscoveryActive(Settings settings, ESLogger logger) {
-        // User set discovery.type: ec2
-        if (!Ec2Discovery.EC2.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
-            logger.trace("discovery.type not set to {}", Ec2Discovery.EC2);
-            return false;
-        }
-
-        return true;
-    }
 }

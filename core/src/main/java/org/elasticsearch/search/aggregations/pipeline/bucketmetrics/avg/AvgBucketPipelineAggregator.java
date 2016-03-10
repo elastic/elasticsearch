@@ -20,13 +20,11 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -84,32 +82,6 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         double avgValue = count == 0 ? Double.NaN : (sum / count);
         return new InternalSimpleValue(name(), avgValue, formatter, pipelineAggregators, metadata);
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-        private final GapPolicy gapPolicy;
-
-        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.gapPolicy = gapPolicy;
-            this.formatter = formatter;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new AvgBucketPipelineAggregator(name, bucketsPaths, gapPolicy, formatter, metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-        }
-
     }
 
 }

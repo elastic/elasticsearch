@@ -362,11 +362,11 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
-            assertThat(e.getMessage(), containsString("[type : string]"));
+            assertThat(e.getMessage(), containsString("[type : text]"));
         }
     }
 
-    // related to https://github.com/elasticsearch/elasticsearch/issues/5864
+    // related to https://github.com/elastic/elasticsearch/issues/5864
     public void testMistypedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
         try {
@@ -374,11 +374,11 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
-            assertThat(e.getMessage(), containsString("type=string"));
+            assertThat(e.getMessage(), containsString("type=text"));
         }
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     public void testMisplacedMappingAsRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
         try {
@@ -386,11 +386,11 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Root mapping definition has unsupported parameters"));
-            assertThat(e.getMessage(), containsString("type=string"));
+            assertThat(e.getMessage(), containsString("type=text"));
         }
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     // test that RootObjectMapping still works
     public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -404,7 +404,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         parser.parse("test", new CompressedXContent(mapping));
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     public void testMetadataMappersStillWorking() throws MapperParsingException, IOException {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();
@@ -433,25 +433,12 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
         }
 
-
-        mapping = jsonBuilder().startObject().startObject("type")
-            .startObject("_all")
-                .startObject("fielddata")
-                    .field("format", "doc_values")
-            .endObject().endObject().endObject().endObject().string();
-        Settings legacySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        try {
-            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
-        }
     }
 
     public void testAutoBoost() throws Exception {
         for (boolean boost : new boolean[] {false, true}) {
             String index = "test_" + boost;
-            IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=string" + (boost ? ",boost=2" : "")));
+            IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=text" + (boost ? ",boost=2" : "")));
             client().prepareIndex(index, "type").setSource("foo", "bar").get();
             client().admin().indices().prepareRefresh(index).get();
             Query query = indexService.mapperService().documentMapper("type").allFieldMapper().fieldType().termQuery("bar", null);

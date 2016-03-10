@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -127,6 +129,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -295,8 +298,8 @@ public class InternalEngineTests extends ESTestCase {
              Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
             List<Segment> segments = engine.segments(false);
             assertThat(segments.isEmpty(), equalTo(true));
-            assertThat(engine.segmentsStats().getCount(), equalTo(0L));
-            assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0L));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(0L));
+            assertThat(engine.segmentsStats(false).getMemoryInBytes(), equalTo(0L));
 
             // create a doc and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -308,7 +311,7 @@ public class InternalEngineTests extends ESTestCase {
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(1));
-            SegmentsStats stats = engine.segmentsStats();
+            SegmentsStats stats = engine.segmentsStats(false);
             assertThat(stats.getCount(), equalTo(1L));
             assertThat(stats.getTermsMemoryInBytes(), greaterThan(0L));
             assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
@@ -326,7 +329,7 @@ public class InternalEngineTests extends ESTestCase {
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(1));
-            assertThat(engine.segmentsStats().getCount(), equalTo(1L));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(1L));
             assertThat(segments.get(0).isCommitted(), equalTo(true));
             assertThat(segments.get(0).isSearch(), equalTo(true));
             assertThat(segments.get(0).getNumDocs(), equalTo(2));
@@ -339,12 +342,12 @@ public class InternalEngineTests extends ESTestCase {
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(2));
-            assertThat(engine.segmentsStats().getCount(), equalTo(2L));
-            assertThat(engine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-            assertThat(engine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-            assertThat(engine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0L));
-            assertThat(engine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-            assertThat(engine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(2L));
+            assertThat(engine.segmentsStats(false).getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+            assertThat(engine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+            assertThat(engine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
+            assertThat(engine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+            assertThat(engine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
             assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
             assertThat(segments.get(0).isCommitted(), equalTo(true));
             assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -365,7 +368,7 @@ public class InternalEngineTests extends ESTestCase {
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(2));
-            assertThat(engine.segmentsStats().getCount(), equalTo(2L));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(2L));
             assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
             assertThat(segments.get(0).isCommitted(), equalTo(true));
             assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -386,7 +389,7 @@ public class InternalEngineTests extends ESTestCase {
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(3));
-            assertThat(engine.segmentsStats().getCount(), equalTo(3L));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(3L));
             assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
             assertThat(segments.get(0).isCommitted(), equalTo(true));
             assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -486,6 +489,29 @@ public class InternalEngineTests extends ESTestCase {
                 // we should have had just 1 merge, so last generation should be exact
                 assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
+        }
+    }
+
+    public void testSegmentsStatsIncludingFileSizes() throws Exception {
+        try (Store store = createStore();
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            assertThat(engine.segmentsStats(true).getFileSizes().size(), equalTo(0));
+
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.index(new Engine.Index(newUid("1"), doc));
+            engine.refresh("test");
+
+            SegmentsStats stats = engine.segmentsStats(true);
+            assertThat(stats.getFileSizes().size(), greaterThan(0));
+            assertThat((Iterable<Long>) () -> stats.getFileSizes().valuesIt(), everyItem(greaterThan(0L)));
+
+            ObjectObjectCursor<String, Long> firstEntry = stats.getFileSizes().iterator().next();
+
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+            engine.index(new Engine.Index(newUid("2"), doc2));
+            engine.refresh("test");
+
+            assertThat(engine.segmentsStats(true).getFileSizes().get(firstEntry.key), greaterThan(firstEntry.value));
         }
     }
 

@@ -144,6 +144,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         }
         if (request.segments()) {
             flags.set(CommonStatsFlags.Flag.Segments);
+            flags.includeSegmentFileSizes(request.includeSegmentFileSizes());
         }
         if (request.completion()) {
             flags.set(CommonStatsFlags.Flag.Completion);

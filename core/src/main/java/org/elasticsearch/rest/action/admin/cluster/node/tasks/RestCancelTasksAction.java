@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -40,23 +41,21 @@ public class RestCancelTasksAction extends BaseRestHandler {
     public RestCancelTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(POST, "/_tasks/_cancel", this);
-        controller.registerHandler(POST, "/_tasks/{nodeId}/_cancel", this);
-        controller.registerHandler(POST, "/_tasks/{nodeId}/{taskId}/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        long taskId = request.paramAsLong("taskId", ListTasksRequest.ALL_TASKS);
+        TaskId taskId = new TaskId(request.param("taskId"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
-        String parentNode = request.param("parent_node");
-        long parentTaskId = request.paramAsLong("parent_task", ListTasksRequest.ALL_TASKS);
+        TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
 
-        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest(nodesIds);
-        cancelTasksRequest.taskId(taskId);
-        cancelTasksRequest.actions(actions);
-        cancelTasksRequest.parentNode(parentNode);
-        cancelTasksRequest.parentTaskId(parentTaskId);
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setTaskId(taskId);
+        cancelTasksRequest.setNodesIds(nodesIds);
+        cancelTasksRequest.setActions(actions);
+        cancelTasksRequest.setParentTaskId(parentTaskId);
         client.admin().cluster().cancelTasks(cancelTasksRequest, new RestToXContentListener<>(channel));
     }
 }

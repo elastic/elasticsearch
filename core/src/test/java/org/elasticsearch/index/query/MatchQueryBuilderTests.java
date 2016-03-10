@@ -23,8 +23,8 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -124,15 +124,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         switch (queryBuilder.type()) {
         case BOOLEAN:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(NumericRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(LegacyNumericRangeQuery.class)));
             break;
         case PHRASE:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(NumericRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(LegacyNumericRangeQuery.class)));
             break;
         case PHRASE_PREFIX:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(NumericRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(LegacyNumericRangeQuery.class)));
             break;
         }
 
@@ -187,31 +187,28 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
         }
 
-        if (query instanceof NumericRangeQuery) {
+        if (query instanceof LegacyNumericRangeQuery) {
             // These are fuzzy numeric queries
             assertTrue(queryBuilder.fuzziness() != null);
             @SuppressWarnings("unchecked")
-            NumericRangeQuery<Number> numericRangeQuery = (NumericRangeQuery<Number>) query;
+            LegacyNumericRangeQuery<Number> numericRangeQuery = (LegacyNumericRangeQuery<Number>) query;
             assertTrue(numericRangeQuery.includesMin());
             assertTrue(numericRangeQuery.includesMax());
 
             double value;
-            double width = 0;
-            try {
+            double width;
+            if (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false) {
                 value = Double.parseDouble(queryBuilder.value().toString());
-            } catch (NumberFormatException e) {
-                // Maybe its a date
-                value = ISODateTimeFormat.dateTimeParser().parseMillis(queryBuilder.value().toString());
-                width = queryBuilder.fuzziness().asTimeValue().getMillis();
-            }
-
-            if (width == 0) {
                 if (queryBuilder.fuzziness().equals(Fuzziness.AUTO)) {
                     width = 1;
                 } else {
                     width = queryBuilder.fuzziness().asDouble();
                 }
+            } else {
+                value = ISODateTimeFormat.dateTimeParser().parseMillis(queryBuilder.value().toString());
+                width = queryBuilder.fuzziness().asTimeValue().getMillis();
             }
+
             assertEquals(value - width, numericRangeQuery.getMin().doubleValue(), width * .1);
             assertEquals(value + width, numericRangeQuery.getMax().doubleValue(), width * .1);
         }

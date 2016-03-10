@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -95,6 +96,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.IndexSettings;
@@ -836,7 +838,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
         for (String node : nodes) {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-            IndexService indexService = indicesService.indexService(index);
+            IndexService indexService = indicesService.indexService(resolveIndex(index));
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
             assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
@@ -2041,7 +2043,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * of the provided index.
      */
     protected String routingKeyForShard(String index, String type, int shard) {
-        return internalCluster().routingKeyForShard(index, type, shard, getRandom());
+        return internalCluster().routingKeyForShard(resolveIndex(index), type, shard, getRandom());
     }
 
     /**
@@ -2142,6 +2144,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Inherited
     @Target(ElementType.TYPE)
     public @interface SuppressNetworkMode {
+    }
+
+    public static Index resolveIndex(String index) {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        return new Index(index, uuid);
     }
 
 }

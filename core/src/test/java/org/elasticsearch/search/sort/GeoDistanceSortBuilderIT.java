@@ -280,7 +280,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field1", "type=string",
+                "type", "str_field1", "type=keyword",
                 "long_field", "type=long",
                 "double_field", "type=double").get());
         assertAcked(prepareCreate("test2").get());
@@ -292,8 +292,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         ensureYellow("test1", "test2");
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("string"))
-                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
+                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")).get();
 
         assertSortValues(resp,
                 new Object[] {new Text("bcd"), null},

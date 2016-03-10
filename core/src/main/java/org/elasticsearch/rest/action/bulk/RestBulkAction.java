@@ -93,6 +93,9 @@ public class RestBulkAction extends BaseRestHandler {
             public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Fields.TOOK, response.getTookInMillis());
+                if (response.getIngestTookInMillis() != BulkResponse.NO_INGEST_TOOK) {
+                    builder.field(Fields.INGEST_TOOK, response.getIngestTookInMillis());
+                }
                 builder.field(Fields.ERRORS, response.hasFailures());
                 builder.startArray(Fields.ITEMS);
                 for (BulkItemResponse itemResponse : response) {
@@ -112,5 +115,6 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString ITEMS = new XContentBuilderString("items");
         static final XContentBuilderString ERRORS = new XContentBuilderString("errors");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
+        static final XContentBuilderString INGEST_TOOK = new XContentBuilderString("ingest_took");
     }
 }

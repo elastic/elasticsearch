@@ -203,6 +203,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 actionFilters, indexNameExpressionResolver);
             transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterName, threadPool, clusterService, transportService,
                 actionFilters, indexNameExpressionResolver);
+            transportService.acceptIncomingRequests();
         }
 
         public final TestClusterService clusterService;

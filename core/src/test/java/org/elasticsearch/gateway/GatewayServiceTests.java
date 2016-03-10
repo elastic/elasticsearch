@@ -34,7 +34,7 @@ public class GatewayServiceTests extends ESTestCase {
                 .put("http.enabled", "false")
                 .put("discovery.type", "local")
                 .put(settings.build()).build(),
-                null, new NoopClusterService(), null, null, null, null, null, new NoopDiscovery());
+                null, new NoopClusterService(), null, null, null, null, new NoopDiscovery());
 
     }
 

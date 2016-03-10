@@ -147,7 +147,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
                 .addAggregation(geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
-                .subAggregation(geoCentroid(aggName)))
+                .subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
         assertSearchResponse(response);
 

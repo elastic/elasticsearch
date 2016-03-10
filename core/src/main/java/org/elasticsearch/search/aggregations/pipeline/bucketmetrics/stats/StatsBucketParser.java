@@ -19,10 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.Map;
 
@@ -33,8 +30,13 @@ public class StatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            ValueFormatter formatter, Map<String, Object> unparsedParams) {
-        return new StatsBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
+    protected StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> unparsedParams) {
+        return new StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+    }
+
+    @Override
+    public StatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return StatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

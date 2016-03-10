@@ -124,32 +124,37 @@ public abstract class TransportTasksAction<
     }
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
-        return clusterState.nodes().resolveNodesIds(request.nodesIds());
+        if (request.getTaskId().isSet()) {
+            return clusterState.nodes().resolveNodesIds(request.getNodesIds());
+        } else {
+            return new String[]{request.getTaskId().getNodeId()};
+        }
     }
 
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
-        if (request.taskId() != BaseTasksRequest.ALL_TASKS) {
+        if (request.getTaskId().isSet() == false) {
             // we are only checking one task, we can optimize it
-            Task task = taskManager.getTask(request.taskId());
+            Task task = taskManager.getTask(request.getTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept((OperationTask) task);
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.taskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTaskId());
                 }
             } else {
-                throw new ResourceNotFoundException("task [{}] is missing", request.taskId());
+                throw new ResourceNotFoundException("task [{}] is missing", request.getTaskId());
             }
         } else {
             for (Task task : taskManager.getTasks().values()) {
                 if (request.match(task)) {
-                    operation.accept((OperationTask)task);
+                    operation.accept((OperationTask) task);
                 }
             }
         }
     }
 
-    protected abstract TasksResponse newResponse(TasksRequest request, List<TaskResponse> tasks, List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions);
+    protected abstract TasksResponse newResponse(TasksRequest request, List<TaskResponse> tasks, List<TaskOperationFailure>
+        taskOperationFailures, List<FailedNodeException> failedNodeExceptions);
 
     @SuppressWarnings("unchecked")
     protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray responses) {
@@ -219,8 +224,8 @@ public abstract class TransportTasksAction<
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                if (request.timeout() != null) {
-                    builder.withTimeout(request.timeout());
+                if (request.getTimeout() != null) {
+                    builder.withTimeout(request.getTimeout());
                 }
                 builder.withCompress(transportCompress());
                 for (int i = 0; i < nodesIds.length; i++) {
@@ -230,36 +235,32 @@ public abstract class TransportTasksAction<
                     try {
                         if (node == null) {
                             onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
-                        } else if (!clusterService.localNode().shouldConnectTo(node) && !clusterService.localNode().equals(node)) {
-                            // the check "!clusterService.localNode().equals(node)" is to maintain backward comp. where before
-                            // we allowed to connect from "local" client node to itself, certain tests rely on it, if we remove it, we need to fix
-                            // those (and they randomize the client node usage, so tricky to find when)
-                            onFailure(idx, nodeId, new NodeShouldNotConnectException(clusterService.localNode(), node));
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
-                            transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(), new BaseTransportResponseHandler<NodeTasksResponse>() {
-                                @Override
-                                public NodeTasksResponse newInstance() {
-                                    return new NodeTasksResponse();
-                                }
+                            transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                                new BaseTransportResponseHandler<NodeTasksResponse>() {
+                                    @Override
+                                    public NodeTasksResponse newInstance() {
+                                        return new NodeTasksResponse();
+                                    }
 
-                                @Override
-                                public void handleResponse(NodeTasksResponse response) {
-                                    onOperation(idx, response);
-                                }
+                                    @Override
+                                    public void handleResponse(NodeTasksResponse response) {
+                                        onOperation(idx, response);
+                                    }
 
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    onFailure(idx, node.id(), exp);
-                                }
+                                    @Override
+                                    public void handleException(TransportException exp) {
+                                        onFailure(idx, node.id(), exp);
+                                    }
 
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
-                            });
+                                    @Override
+                                    public String executor() {
+                                        return ThreadPool.Names.SAME;
+                                    }
+                                });
                         }
                     } catch (Throwable t) {
                         onFailure(idx, nodeId, t);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -63,7 +63,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
             assertThat(query, instanceOf(TermQuery.class));
             TermQuery termQuery = (TermQuery) query;
             Term term = termQuery.getTerm();
-            assertThat(term.field(), equalTo(queryBuilder.fieldName() + GeoPointFieldMapper.Names.GEOHASH_SUFFIX));
+            assertThat(term.field(), equalTo(queryBuilder.fieldName() + "." + GeoPointFieldMapper.Names.GEOHASH));
             String geohash = queryBuilder.geohash();
             if (queryBuilder.precision() != null) {
                 int len = Math.min(queryBuilder.precision(), geohash.length());

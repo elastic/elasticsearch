@@ -9,7 +9,7 @@
             index: test
             body:
                 mappings:
-                    type1: { "properties": { "foo": { "type": "string", "fields": { "hash": { "type": "murmur3" } } } } }
+                    type1: { "properties": { "foo": { "type": "text", "fields": { "hash": { "type": "murmur3" } } } } }
 
     - do:
         index:

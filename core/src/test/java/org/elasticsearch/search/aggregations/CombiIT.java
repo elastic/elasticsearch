@@ -117,7 +117,7 @@ public class CombiIT extends ESIntegTestCase {
         prepareCreate("idx").addMapping("type", jsonBuilder()
                 .startObject()
                 .startObject("type").startObject("properties")
-                    .startObject("name").field("type", "string").endObject()
+                    .startObject("name").field("type", "text").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
                 .endObject()).execute().actionGet();

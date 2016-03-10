@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LegacyIntField;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,25 +36,31 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
-        ParsedDocument pd = new ParsedDocument(new StringField("uid", "test:id", Store.YES), new IntField("version", 1, Store.YES),
-                new IntField("seqNo", 1, Store.YES), "id",
+        ParsedDocument pd = new ParsedDocument(new StringField("uid", "test:id", Store.YES), new LegacyIntField("version", 1, Store.YES),
+                new LegacyIntField("seqNo", 1, Store.YES) , "id",
                 "test", null, 0, -1, null, source, null);
-
+        Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(pd, 10, true, 0);
+        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
         assertThat(p.toString(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
-        p = new SlowLogParsedDocumentPrinter(pd, 10, true, Integer.MAX_VALUE);
+        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, Integer.MAX_VALUE);
         assertThat(p.toString(), containsString("source[{\"foo\":\"bar\"}]"));
 
         // And you can truncate the source
-        p = new SlowLogParsedDocumentPrinter(pd, 10, true, 3);
+        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
         assertThat(p.toString(), containsString("source[{\"f]"));
+
+        // And you can truncate the source
+        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
+        assertThat(p.toString(), containsString("source[{\"f]"));
+        assertThat(p.toString(), startsWith("[foo/123] took"));
     }
 
     public void testReformatSetting() {

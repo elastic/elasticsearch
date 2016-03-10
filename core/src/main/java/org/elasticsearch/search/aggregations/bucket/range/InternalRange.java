@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -221,25 +223,37 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
 
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
+        public ValuesSourceType getValueSourceType() {
+            return ValuesSourceType.NUMERIC;
+        }
+
+        public ValueType getValueType() {
+            return ValueType.NUMERIC;
+        }
+
+        @SuppressWarnings("unchecked")
         public R create(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
             return (R) new InternalRange<>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
 
+        @SuppressWarnings("unchecked")
         public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
                 ValueFormatter formatter) {
             return (B) new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
+        @SuppressWarnings("unchecked")
         public R create(List<B> ranges, R prototype) {
             return (R) new InternalRange<>(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.pipelineAggregators(),
                     prototype.metaData);
         }
 
+        @SuppressWarnings("unchecked")
         public B createBucket(InternalAggregations aggregations, B prototype) {
             return (B) new Bucket(prototype.getKey(), prototype.from, prototype.to, prototype.getDocCount(), aggregations, prototype.keyed,
                     prototype.formatter);
@@ -276,6 +290,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return FACTORY;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public R create(List<B> buckets) {
         return getFactory().create(buckets, (R) this);
@@ -286,9 +301,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return getFactory().createBucket(aggregations, prototype);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        @SuppressWarnings("unchecked")
         List<Bucket>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
             rangeList[i] = new ArrayList<Bucket>();

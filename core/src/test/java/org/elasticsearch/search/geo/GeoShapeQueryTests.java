@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
-import com.spatial4j.core.shape.Rectangle;
+import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.elasticsearch.action.get.GetResponse;

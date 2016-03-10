@@ -22,6 +22,10 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LegacyIntField;
+import org.apache.lucene.document.LegacyLongField;
+import org.apache.lucene.document.LegacyFloatField;
+import org.apache.lucene.document.LegacyDoubleField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -128,8 +132,8 @@ public abstract class ParseContext {
          * Returns an array of values of the field specified as the method parameter.
          * This method returns an empty array when there are no
          * matching fields.  It never returns null.
-         * For {@link org.apache.lucene.document.IntField}, {@link org.apache.lucene.document.LongField}, {@link
-         * org.apache.lucene.document.FloatField} and {@link org.apache.lucene.document.DoubleField} it returns the string value of the number.
+         * For {@link org.apache.lucene.document.LegacyIntField}, {@link org.apache.lucene.document.LegacyLongField}, {@link
+         * org.apache.lucene.document.LegacyFloatField} and {@link org.apache.lucene.document.LegacyDoubleField} it returns the string value of the number.
          * If you want the actual numeric field instances back, use {@link #getFields}.
          * @param name the name of the field
          * @return a <code>String[]</code> of field values
@@ -332,16 +336,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public float docBoost() {
-            return in.docBoost();
-        }
-
-        @Override
-        public void docBoost(float docBoost) {
-            in.docBoost(docBoost);
-        }
-
-        @Override
         public StringBuilder stringBuilder() {
             return in.stringBuilder();
         }
@@ -385,8 +379,6 @@ public abstract class ParseContext {
 
         private AllEntries allEntries = new AllEntries();
 
-        private float docBoost = 1.0f;
-
         private Mapper dynamicMappingsUpdate = null;
 
         public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
@@ -412,7 +404,6 @@ public abstract class ParseContext {
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
             this.allEntries = new AllEntries();
-            this.docBoost = 1.0f;
             this.dynamicMappingsUpdate = null;
         }
 
@@ -553,16 +544,6 @@ public abstract class ParseContext {
         @Override
         public AllEntries allEntries() {
             return this.allEntries;
-        }
-
-        @Override
-        public float docBoost() {
-            return this.docBoost;
-        }
-
-        @Override
-        public void docBoost(float docBoost) {
-            this.docBoost = docBoost;
         }
 
         /**
@@ -783,10 +764,6 @@ public abstract class ParseContext {
         }
         return clazz.cast(externalValue());
     }
-
-    public abstract float docBoost();
-
-    public abstract void docBoost(float docBoost);
 
     /**
      * A string builder that can be used to construct complex names for example.

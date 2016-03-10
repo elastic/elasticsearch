@@ -186,7 +186,7 @@ The verification process can also be executed manually by running the following 
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_backup/_verify
+POST /_snapshot/s3_repository/_verify
 -----------------------------------
 // AUTOSENSE
 
@@ -195,7 +195,7 @@ It returns a list of nodes where repository was successfully verified or an erro
 [float]
 === Snapshot
 
-A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the
+A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
 cluster. A snapshot with the name `snapshot_1` in the repository `my_backup` can be created by executing the following
 command:
 

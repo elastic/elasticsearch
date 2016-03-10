@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.netty;
 
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -51,7 +53,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -535,8 +537,16 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
+        final int publishPort = resolvePublishPort(name, settings, profileSettings, boundAddresses, publishInetAddress);
+        final TransportAddress publishAddress = new InetSocketTransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
+        return new BoundTransportAddress(transportBoundAddresses, publishAddress);
+    }
+
+    // package private for tests
+    static int resolvePublishPort(String profileName, Settings settings, Settings profileSettings, List<InetSocketAddress> boundAddresses,
+                               InetAddress publishInetAddress) {
         int publishPort;
-        if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
+        if (TransportSettings.DEFAULT_PROFILE.equals(profileName)) {
             publishPort = TransportSettings.PUBLISH_PORT.get(settings);
         } else {
             publishPort = profileSettings.getAsInt("publish_port", -1);
@@ -553,17 +563,25 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         }
 
-        // if port still not matches, just take port of first bound address
+        // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
-            // TODO: In case of DEFAULT_PROFILE we should probably fail here, as publish address does not match any bound address
-            // In case of a custom profile, we might use the publish address of the default profile
-            publishPort = boundAddresses.get(0).getPort();
-            logger.warn("Publish port not found by matching publish address [{}] to bound addresses [{}], "
-                    + "falling back to port [{}] of first bound address", publishInetAddress, boundAddresses, publishPort);
+            final IntSet ports = new IntHashSet();
+            for (InetSocketAddress boundAddress : boundAddresses) {
+                ports.add(boundAddress.getPort());
+            }
+            if (ports.size() == 1) {
+                publishPort = ports.iterator().next().value;
+            }
         }
 
-        final TransportAddress publishAddress = new InetSocketTransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
-        return new BoundTransportAddress(transportBoundAddresses, publishAddress);
+        if (publishPort < 0) {
+            String profileExplanation = TransportSettings.DEFAULT_PROFILE.equals(profileName) ? "" : " for profile " + profileName;
+            throw new BindTransportException("Failed to auto-resolve publish port" + profileExplanation + ", multiple bound addresses " +
+                boundAddresses + " with distinct ports and none of them matched the publish address (" + publishInetAddress + "). " +
+                "Please specify a unique port by setting " + TransportSettings.PORT.getKey() + " or " +
+                TransportSettings.PUBLISH_PORT.getKey());
+        }
+        return publishPort;
     }
 
     private void createServerBootstrap(String name, Settings settings) {
@@ -1324,16 +1342,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    class ScheduledPing extends AbstractRunnable {
+    class ScheduledPing extends AbstractLifecycleRunnable {
 
         final CounterMetric successfulPings = new CounterMetric();
         final CounterMetric failedPings = new CounterMetric();
 
+        public ScheduledPing() {
+            super(lifecycle, logger);
+        }
+
         @Override
-        protected void doRun() throws Exception {
-            if (lifecycle.stoppedOrClosed()) {
-                return;
-            }
+        protected void doRunInLifecycle() throws Exception {
             for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
@@ -1356,6 +1375,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     }
                 }
             }
+        }
+
+        @Override
+        protected void onAfterInLifecycle() {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
         }
 

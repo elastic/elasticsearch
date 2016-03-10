@@ -505,6 +505,8 @@ thirdPartyAudit.excludes = [
   'org.python.objectweb.asm.tree.analysis.BasicVerifier', 
   'org.python.objectweb.asm.tree.analysis.Frame', 
   'org.python.objectweb.asm.tree.analysis.SimpleVerifier', 
+  'org.slf4j.Logger',
+  'org.slf4j.LoggerFactory',
   'org.tukaani.xz.ARMOptions', 
   'org.tukaani.xz.ARMThumbOptions', 
   'org.tukaani.xz.DeltaOptions', 

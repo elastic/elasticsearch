@@ -29,6 +29,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -39,25 +40,25 @@ public class RestListTasksAction extends BaseRestHandler {
     public RestListTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(GET, "/_tasks", this);
-        controller.registerHandler(GET, "/_tasks/{nodeId}", this);
-        controller.registerHandler(GET, "/_tasks/{nodeId}/{taskId}", this);
+        controller.registerHandler(GET, "/_tasks/{taskId}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         boolean detailed = request.paramAsBoolean("detailed", false);
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        long taskId = request.paramAsLong("taskId", ListTasksRequest.ALL_TASKS);
+        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
+        TaskId taskId = new TaskId(request.param("taskId"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
-        String parentNode = request.param("parent_node");
-        long parentTaskId = request.paramAsLong("parent_task", ListTasksRequest.ALL_TASKS);
+        TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
+        boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
 
-        ListTasksRequest listTasksRequest = new ListTasksRequest(nodesIds);
-        listTasksRequest.taskId(taskId);
-        listTasksRequest.detailed(detailed);
-        listTasksRequest.actions(actions);
-        listTasksRequest.parentNode(parentNode);
-        listTasksRequest.parentTaskId(parentTaskId);
+        ListTasksRequest listTasksRequest = new ListTasksRequest();
+        listTasksRequest.setTaskId(taskId);
+        listTasksRequest.setNodesIds(nodesIds);
+        listTasksRequest.setDetailed(detailed);
+        listTasksRequest.setActions(actions);
+        listTasksRequest.setParentTaskId(parentTaskId);
+        listTasksRequest.setWaitForCompletion(waitForCompletion);
         client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<>(channel));
     }
 }

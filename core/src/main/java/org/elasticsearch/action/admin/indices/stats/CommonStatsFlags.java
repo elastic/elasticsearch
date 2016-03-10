@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -38,6 +39,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     private String[] groups = null;
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
+    private boolean includeSegmentFileSizes = false;
 
 
     /**
@@ -62,6 +64,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = null;
         fieldDataFields = null;
         completionDataFields = null;
+        includeSegmentFileSizes = false;
         return this;
     }
 
@@ -74,6 +77,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = null;
         fieldDataFields = null;
         completionDataFields = null;
+        includeSegmentFileSizes = false;
         return this;
     }
 
@@ -137,6 +141,15 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         return this.completionDataFields;
     }
 
+    public CommonStatsFlags includeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        this.includeSegmentFileSizes = includeSegmentFileSizes;
+        return this;
+    }
+
+    public boolean includeSegmentFileSizes() {
+        return this.includeSegmentFileSizes;
+    }
+
     public boolean isSet(Flag flag) {
         return flags.contains(flag);
     }
@@ -177,6 +190,9 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
+        if (out.getVersion().onOrAfter(Version.V_5_0_0)) {
+            out.writeBoolean(includeSegmentFileSizes);
+        }
     }
 
     @Override
@@ -192,6 +208,11 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_5_0_0)) {
+            includeSegmentFileSizes = in.readBoolean();
+        } else {
+            includeSegmentFileSizes = false;
+        }
     }
 
     @Override

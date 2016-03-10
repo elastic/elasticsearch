@@ -65,10 +65,12 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         assertThat(bulkRequestModifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
         // simulate that we actually executed the modified bulk request:
-        ActionListener<BulkResponse> result = bulkRequestModifier.wrapActionListenerIfNeeded(actionListener);
+        long ingestTook = randomLong();
+        ActionListener<BulkResponse> result = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTook, actionListener);
         result.onResponse(new BulkResponse(new BulkItemResponse[numRequests - failedSlots.size()], 0));
 
         BulkResponse bulkResponse = actionListener.getResponse();
+        assertThat(bulkResponse.getIngestTookInMillis(), equalTo(ingestTook));
         for (int j = 0; j < bulkResponse.getItems().length; j++) {
             if (failedSlots.contains(j)) {
                 BulkItemResponse item = bulkResponse.getItems()[j];
@@ -102,7 +104,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
 
         List<BulkItemResponse> responses = new ArrayList<>();
-        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(new ActionListener<BulkResponse>() {
+        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 responses.addAll(Arrays.asList(bulkItemResponses.getItems()));
@@ -142,7 +144,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
         @SuppressWarnings("unchecked")
         ActionListener<BulkResponse> actionListener = mock(ActionListener.class);
-        assertThat(modifier.wrapActionListenerIfNeeded(actionListener), Matchers.sameInstance(actionListener));
+        assertThat(modifier.wrapActionListenerIfNeeded(1L, actionListener).getClass().isAnonymousClass(), is(true));
     }
 
     private static class CaptureActionListener implements ActionListener<BulkResponse> {

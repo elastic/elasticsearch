@@ -38,6 +38,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -58,19 +60,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
  */
 public abstract class StreamOutput extends OutputStream {
 
     private Version version = Version.CURRENT;
 
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
-    public StreamOutput setVersion(Version version) {
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
+    public void setVersion(Version version) {
         this.version = version;
-        return this;
     }
 
     public long position() throws IOException {
@@ -650,6 +657,20 @@ public abstract class StreamOutput extends OutputStream {
     void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
+    }
+
+    /**
+     * Writes a {@link AggregatorBuilder} to the current stream
+     */
+    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
+    }
+
+    /**
+     * Writes a {@link PipelineAggregatorBuilder} to the current stream
+     */
+    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
     }
 
     /**

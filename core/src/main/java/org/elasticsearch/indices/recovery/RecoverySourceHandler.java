@@ -137,7 +137,7 @@ public class RecoverySourceHandler {
                 }
             }
 
-            logger.trace("snapshot translog for recovery. current size is [{}]", translogView.totalOperations());
+            logger.trace("{} snapshot translog for recovery. current size is [{}]", shard.shardId(), translogView.totalOperations());
             try {
                 phase2(translogView.snapshot());
             } catch (Throwable e) {

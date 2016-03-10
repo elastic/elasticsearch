@@ -207,9 +207,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         .startObject()
                         .startObject("type1")
                         .startObject("properties")
-                        .startObject("body").field("type", "string")
+                        .startObject("body").field("type", "text")
                         .startObject("fields")
-                        .startObject("sub").field("type", "string")
+                        .startObject("sub").field("type", "text")
                         .endObject() // sub
                         .endObject() // fields
                         .endObject() // body
@@ -329,7 +329,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .startObject("type1")
                 .startObject("properties")
                 .startObject("location")
-                .field("type", "string")
+                .field("type", "text")
                 .field("analyzer", "german")
                 .endObject()
                 .endObject()

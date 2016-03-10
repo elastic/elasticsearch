@@ -305,7 +305,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         NumShards numShards = getNumShards("test-idx");
 
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("foo").setSource("baz", "type=string"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("foo").setSource("baz", "type=text"));
         ensureGreen();
 
         logger.info("--> snapshot it");
@@ -317,7 +317,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         cluster().wipeIndices("test-idx");
         assertAcked(prepareCreate("test-idx", 2, Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 5, TimeUnit.SECONDS)));
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("bar").setSource("baz", "type=string"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("bar").setSource("baz", "type=text"));
         ensureGreen();
 
         logger.info("--> close index");
@@ -1635,7 +1635,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(prepareCreate("test-idx", 2, indexSettings));
 
         int numberOfShards = getNumShards("test-idx").numPrimaries;
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("type1").setSource("field1", "type=string,analyzer=standard,search_analyzer=my_analyzer"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("type1").setSource("field1", "type=text,analyzer=standard,search_analyzer=my_analyzer"));
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
@@ -1863,6 +1863,66 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("Deleted index during snapshot and doesn't allow partial");
             assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.FAILED)));
         }
+    }
+
+    public void testCloseIndexDuringRestore() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.settingsBuilder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            ));
+
+        createIndex("test-idx-1", "test-idx-2");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+
+        logger.info("--> snapshot");
+        assertThat(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setIndices("test-idx-*").setWaitForCompletion(true).get().getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> deleting indices before restoring");
+        assertAcked(client.admin().indices().prepareDelete("test-idx-*").get());
+
+        blockAllDataNodes("test-repo");
+        logger.info("--> execution will be blocked on all data nodes");
+
+        logger.info("--> start restore");
+        ListenableActionFuture<RestoreSnapshotResponse> restoreFut = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .execute();
+
+        logger.info("--> waiting for block to kick in");
+        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueSeconds(60));
+
+        logger.info("--> close index while restore is running");
+        try {
+            client.admin().indices().prepareClose("test-idx-1").get();
+            fail("Expected closing index to fail during restore");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [test-idx-1]"));
+        }
+
+        logger.info("--> unblocking all data nodes");
+        unblockAllDataNodes("test-repo");
+
+        logger.info("--> wait for restore to finish");
+        RestoreSnapshotResponse restoreSnapshotResponse = restoreFut.get();
+        logger.info("--> check that all shards were recovered");
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThan(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
     }
 
     public void testDeleteOrphanSnapshot() throws Exception {

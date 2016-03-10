@@ -108,13 +108,12 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-            return true;
+        protected void resolveRequest(ClusterState state, Request request) {
         }
 
         @Override
         protected ShardIterator shards(ClusterState clusterState, Request request) {
-            return clusterState.routingTable().index(request.concreteIndex()).shard(request.shardId).primaryShardIt();
+            return clusterState.routingTable().index(request.concreteIndex()).shard(request.shardId.getId()).primaryShardIt();
         }
     }
 
@@ -141,6 +140,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         clusterService = new TestClusterService(THREAD_POOL);
         transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
+        transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
                 Settings.EMPTY,
                 "indices:admin/test",
@@ -178,7 +178,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public void testBasicRequestWorks() throws InterruptedException, ExecutionException, TimeoutException {
         Request request = new Request().index("test");
-        request.shardId = 0;
+        request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         clusterService.setState(ClusterStateCreationUtils.state("test", randomBoolean(), ShardRoutingState.STARTED));
         action.new AsyncSingleAction(request, listener).start();
@@ -189,7 +189,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public void testFailureWithoutRetry() throws Exception {
         Request request = new Request().index("test");
-        request.shardId = 0;
+        request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         clusterService.setState(ClusterStateCreationUtils.state("test", randomBoolean(), ShardRoutingState.STARTED));
 
@@ -215,7 +215,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public void testSuccessAfterRetryWithClusterStateUpdate() throws Exception {
         Request request = new Request().index("test");
-        request.shardId = 0;
+        request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         boolean local = randomBoolean();
         clusterService.setState(ClusterStateCreationUtils.state("test", local, ShardRoutingState.INITIALIZING));
@@ -229,9 +229,9 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         listener.get();
     }
 
-    public void testSuccessAfterRetryWithExcpetionFromTransport() throws Exception {
+    public void testSuccessAfterRetryWithExceptionFromTransport() throws Exception {
         Request request = new Request().index("test");
-        request.shardId = 0;
+        request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         boolean local = randomBoolean();
         clusterService.setState(ClusterStateCreationUtils.state("test", local, ShardRoutingState.STARTED));
@@ -250,7 +250,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public void testRetryOfAnAlreadyTimedOutRequest() throws Exception {
         Request request = new Request().index("test").timeout(new TimeValue(0, TimeUnit.MILLISECONDS));
-        request.shardId = 0;
+        request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         clusterService.setState(ClusterStateCreationUtils.state("test", randomBoolean(), ShardRoutingState.STARTED));
         action.new AsyncSingleAction(request, listener).start();
@@ -289,17 +289,17 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
                 Settings.EMPTY,
                 "indices:admin/test_unresolvable",
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(new HashSet<>()),
                 new MyResolver(),
                 Request::new
         ) {
             @Override
-            protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-                return false;
+            protected void resolveRequest(ClusterState state, Request request) {
+                throw new IllegalStateException("request cannot be resolved");
             }
         };
         Request request = new Request().index("test");
-        request.shardId = 0;
+        request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         clusterService.setState(ClusterStateCreationUtils.state("test", randomBoolean(), ShardRoutingState.STARTED));
         action.new AsyncSingleAction(request, listener).start();

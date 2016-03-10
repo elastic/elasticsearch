@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,12 +57,14 @@ public class UnicastZenPingIT extends ESTestCase {
 
         NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
+        transportServiceA.acceptIncomingRequests();
         final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
         NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
+        transportServiceB.acceptIncomingRequests();
         final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
@@ -81,11 +82,6 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public NodeService nodeService() {
-                return null;
-            }
-
-            @Override
             public boolean nodeHasJoinedClusterOnce() {
                 return false;
             }
@@ -97,11 +93,6 @@ public class UnicastZenPingIT extends ESTestCase {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeB).localNodeId("UZP_B").build();
-            }
-
-            @Override
-            public NodeService nodeService() {
-                return null;
             }
 
             @Override

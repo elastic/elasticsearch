@@ -40,8 +40,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
@@ -50,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -306,9 +305,9 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         if (!shards.isEmpty()) {
             return randomSubsetOf(1, shards.toArray(new ShardRouting[0])).get(0);
         } else {
-            return
-                TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(), DiscoveryService.generateNodeId(Settings.EMPTY),
-                        randomInt(20), randomBoolean(), randomFrom(ShardRoutingState.values()));
+            return TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(),
+                    InternalClusterService.generateNodeId(Settings.EMPTY), randomInt(20), randomBoolean(),
+                    randomFrom(ShardRoutingState.values()));
         }
     }
 

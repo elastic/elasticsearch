@@ -188,10 +188,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
                 docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
             }
             indexRandom(true, docs);
-            if (compatibilityVersion().before(Version.V_1_3_0)) {
-                // issue another refresh through a new node to side step issue #6545
-                assertNoFailures(backwardsCluster().internalCluster().dataNodeClient().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
-            }
             numDocs *= 2;
         }
 
@@ -561,7 +557,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testAnalyze() {
         createIndexWithAlias();
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,analyzer=keyword"));
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=text,analyzer=keyword"));
         ensureYellow("test");
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("this is a test").setIndex(indexOrAlias()).setField("field").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
@@ -586,7 +582,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testGetTermVector() throws IOException {
         createIndexWithAlias();
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=string,term_vector=with_positions_offsets_payloads").get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=text,term_vector=with_positions_offsets_payloads").get());
         ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "type1", "1")

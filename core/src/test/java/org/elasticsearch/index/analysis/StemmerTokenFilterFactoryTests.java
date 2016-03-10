@@ -40,10 +40,9 @@ import static org.hamcrest.Matchers.instanceOf;
  *
  */
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
-    public void testEnglishBackwardsCompatibility() throws IOException {
+    public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-
             Version v = VersionUtils.randomVersion(random());
             Settings settings = Settings.settingsBuilder()
                     .put("index.analysis.filter.my_english.type", "stemmer")
@@ -61,19 +60,13 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             tokenizer.setReader(new StringReader("foo bar"));
             TokenStream create = tokenFilter.create(tokenizer);
             NamedAnalyzer analyzer = analysisService.analyzer("my_english");
-
-            if (v.onOrAfter(Version.V_1_3_0)) {
-                assertThat(create, instanceOf(PorterStemFilter.class));
-                assertAnalyzesTo(analyzer, "consolingly", new String[]{"consolingli"});
-            } else {
-                assertThat(create, instanceOf(SnowballFilter.class));
-                assertAnalyzesTo(analyzer, "consolingly", new String[]{"consol"});
-            }
+            assertThat(create, instanceOf(PorterStemFilter.class));
+            assertAnalyzesTo(analyzer, "consolingly", new String[]{"consolingli"});
         }
 
     }
 
-    public void testPorter2BackwardsCompatibility() throws IOException {
+    public void testPorter2FilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
 
@@ -95,12 +88,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             TokenStream create = tokenFilter.create(tokenizer);
             NamedAnalyzer analyzer = analysisService.analyzer("my_porter2");
             assertThat(create, instanceOf(SnowballFilter.class));
-
-            if (v.onOrAfter(Version.V_1_3_0)) {
-                assertAnalyzesTo(analyzer, "possibly", new String[]{"possibl"});
-            } else {
-                assertAnalyzesTo(analyzer, "possibly", new String[]{"possibli"});
-            }
+            assertAnalyzesTo(analyzer, "possibly", new String[]{"possibl"});
         }
 
     }

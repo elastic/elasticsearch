@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
@@ -140,25 +139,5 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         ValueFormatterStreams.writeOptional(formatter, out);
         gapPolicy.writeTo(out);
         out.writeVInt(lag);
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private int lag;
-
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, int lag) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
-            this.gapPolicy = gapPolicy;
-            this.lag = lag;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter, gapPolicy, lag, metaData);
-        }
-
     }
 }

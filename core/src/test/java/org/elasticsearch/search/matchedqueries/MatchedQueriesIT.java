@@ -315,7 +315,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
     }
 
     /**
-     * Test case for issue #4361: https://github.com/elasticsearch/elasticsearch/issues/4361
+     * Test case for issue #4361: https://github.com/elastic/elasticsearch/issues/4361
      */
     public void testMatchedWithShould() throws Exception {
         createIndex("test");

@@ -85,7 +85,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         try (Directory dir = new RAMDirectory();
              IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(getRandom())))) {
             w.addDocuments(doc.docs());
-            try (DirectoryReader reader = DirectoryReader.open(w, true)) {
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();
                 // boolean fields are indexed and have doc values by default
                 assertEquals(new BytesRef("T"), leaf.terms("field").iterator().next());
@@ -134,8 +134,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .field("type", "boolean")
                         .startObject("fields")
                             .startObject("as_string")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
+                                .field("type", "keyword")
                             .endObject()
                         .endObject()
                     .endObject().endObject()

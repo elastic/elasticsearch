@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +51,7 @@ public class QueryShardContextTests extends ESTestCase {
         );
 
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new StringFieldMapper.StringFieldType();
+        MappedFieldType fieldType = new TextFieldMapper.TextFieldType();
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         try {
@@ -73,7 +73,7 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(result, sameInstance(fieldType));
         result = context.failIfFieldMappingNotFound("name", null);
         assertThat(result, notNullValue());
-        assertThat(result, instanceOf(StringFieldMapper.StringFieldType.class));
+        assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
     }
 

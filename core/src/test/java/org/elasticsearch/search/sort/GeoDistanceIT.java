@@ -341,7 +341,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     // Regression bug:
-    // https://github.com/elasticsearch/elasticsearch/issues/2851
+    // https://github.com/elastic/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -393,8 +393,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company").startObject("properties")
-                .startObject("name").field("type", "string").endObject().startObject("branches").field("type", "nested")
-                .startObject("properties").startObject("name").field("type", "string").endObject().startObject("location")
+                .startObject("name").field("type", "text").endObject().startObject("branches").field("type", "nested")
+                .startObject("properties").startObject("name").field("type", "text").endObject().startObject("location")
                 .field("type", "geo_point");
         if (version.before(Version.V_2_2_0)) {
             xContentBuilder.field("lat_lon", true);

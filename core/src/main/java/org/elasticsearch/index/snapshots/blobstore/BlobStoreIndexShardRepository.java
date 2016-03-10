@@ -926,13 +926,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();
-                    // write the checksum
-                    if (fileInfo.metadata().hasLegacyChecksum()) {
-                        Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
-                        legacyChecksums.add(fileInfo.metadata());
-                        legacyChecksums.write(store);
-
-                    }
                     store.directory().sync(Collections.singleton(fileInfo.physicalName()));
                     success = true;
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {

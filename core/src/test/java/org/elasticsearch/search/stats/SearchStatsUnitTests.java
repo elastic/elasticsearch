@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SearchStatsUnitTests extends ESTestCase {
-    // https://github.com/elasticsearch/elasticsearch/issues/7644
+    // https://github.com/elastic/elasticsearch/issues/7644
     public void testShardLevelSearchGroupStats() throws Exception {
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();

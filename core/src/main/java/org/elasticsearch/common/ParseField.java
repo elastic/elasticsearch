@@ -18,25 +18,22 @@
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 
-import java.util.EnumSet;
 import java.util.HashSet;
 
 /**
  * Holds a field that can be found in a request while parsing and its different variants, which may be deprecated.
  */
 public class ParseField {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
+
     private final String camelCaseName;
     private final String underscoreName;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
-
-    static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
-    static final EnumSet<Flag> STRICT_FLAGS = EnumSet.of(Flag.STRICT);
-
-    enum Flag {
-        STRICT
-    }
 
     public ParseField(String value, String... deprecatedNames) {
         camelCaseName = Strings.toCamelCase(value);
@@ -80,19 +77,21 @@ public class ParseField {
         return parseField;
     }
 
-    boolean match(String currentFieldName, EnumSet<Flag> flags) {
+    boolean match(String currentFieldName, boolean strict) {
         if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }
         String msg;
         for (String depName : deprecatedNames) {
             if (currentFieldName.equals(depName)) {
-                if (flags.contains(Flag.STRICT)) {
-                    msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
-                    if (allReplacedWith != null) {
-                        msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
-                    }
+                msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
+                if (allReplacedWith != null) {
+                    msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
+                }
+                if (strict) {
                     throw new IllegalArgumentException(msg);
+                } else {
+                    DEPRECATION_LOGGER.deprecated(msg);
                 }
                 return true;
             }

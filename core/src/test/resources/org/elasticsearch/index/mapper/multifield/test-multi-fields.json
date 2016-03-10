@@ -2,23 +2,20 @@
   "person": {
     "properties": {
       "name": {
-        "type": "string",
-        "index": "analyzed",
+        "type": "text",
         "store": true,
         "fields": {
           "indexed": {
-            "type": "string",
-            "index": "analyzed",
+            "type": "text",
             "store": false
           },
           "not_indexed": {
-            "type": "string",
-            "index": "no",
+            "type": "text",
+            "index": false,
             "store": true
           },
           "test1": {
-            "type": "string",
-            "index": "analyzed",
+            "type": "text",
             "store": true,
             "fielddata": {
               "loading": "eager"
@@ -38,8 +35,7 @@
             "type": "date",
             "fields": {
               "string": {
-                "type": "string",
-                "index": "not_analyzed"
+                "type": "keyword"
               }
             }
           }

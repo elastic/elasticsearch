@@ -43,7 +43,7 @@ public class ShardStateIT extends ESIntegTestCase {
         final String node = state.nodes().get(nodeId).name();
         logger.info("--> failing primary of [{}] on node [{}]", shard, node);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        indicesService.indexService("test").getShard(shard).failShard("simulated test failure", null);
+        indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
         assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));

@@ -418,10 +418,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
             final long start = out.position();
-            out.skip(RamUsageEstimator.NUM_BYTES_INT);
+            out.skip(Integer.BYTES);
             writeOperationNoSize(checksumStreamOutput, operation);
             final long end = out.position();
-            final int operationSize = (int) (end - RamUsageEstimator.NUM_BYTES_INT - start);
+            final int operationSize = (int) (end - Integer.BYTES - start);
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
@@ -636,7 +636,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2 * RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
+            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2 * Long.BYTES + Integer.BYTES;
         }
 
         @Override
@@ -1168,10 +1168,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             for (Operation op : toWrite) {
                 out.reset();
                 final long start = out.position();
-                out.skip(RamUsageEstimator.NUM_BYTES_INT);
+                out.skip(Integer.BYTES);
                 writeOperationNoSize(checksumStreamOutput, op);
                 long end = out.position();
-                int operationSize = (int) (out.position() - RamUsageEstimator.NUM_BYTES_INT - start);
+                int operationSize = (int) (out.position() - Integer.BYTES - start);
                 out.seek(start);
                 out.writeInt(operationSize);
                 out.seek(end);

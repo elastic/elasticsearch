@@ -30,13 +30,14 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -261,14 +262,16 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .execute().actionGet().getState();
 
         logger.info("--> waiting for recovery to start both on source and target");
+        final Index index = resolveIndex(INDEX_NAME);
         assertBusy(new Runnable() {
             @Override
             public void run() {
+
                 IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
-                assertThat(indicesService.indexServiceSafe(INDEX_NAME).getShard(0).recoveryStats().currentAsSource(),
+                assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(),
                         equalTo(1));
                 indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
-                assertThat(indicesService.indexServiceSafe(INDEX_NAME).getShard(0).recoveryStats().currentAsTarget(),
+                assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(),
                         equalTo(1));
             }
         });
@@ -558,7 +561,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureSearchable(indexName);
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        final String blueNodeId = internalCluster().getInstance(DiscoveryService.class, blueNodeName).localNode().id();
+        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().id();
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 

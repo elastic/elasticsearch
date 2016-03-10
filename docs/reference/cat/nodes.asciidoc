@@ -85,6 +85,7 @@ k0zy 192.168.56.10 9300 {version} m
 |`pid` |`p` |No |Process ID |13061
 |`ip` |`i` |Yes |IP address |127.0.1.1
 |`port` |`po` |No |Bound transport port |9300
+|`http_address` |`http`| No | bound http address | 127.0.0.1:9200
 |`version` |`v` |No |Elasticsearch version |{version}
 |`build` |`b` |No |Elasticsearch Build hash |5c03844
 |`jdk` |`j` |No |Running Java version |1.8.0
@@ -102,6 +103,7 @@ descriptors percentage |1
 |`file_desc.max` |`fdm`, `fileDescriptorMax` |No |Maximum number of file
 descriptors |1024
 |`load` |`l` |No |Most recent load average |0.22
+|`cpu` | |No |Recent system CPU usage as percent |12
 |`uptime` |`u` |No |Node uptime |17.3m
 |`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Data node (d); Client
 node (c) |d

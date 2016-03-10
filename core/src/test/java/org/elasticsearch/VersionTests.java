@@ -31,8 +31,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.Version.V_0_20_0;
-import static org.elasticsearch.Version.V_0_90_0;
+import static org.elasticsearch.Version.V_2_2_0;
+import static org.elasticsearch.Version.V_5_0_0;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -41,31 +41,28 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
-    public void testMavenVersion() {
-        // maven sets this property to ensure that the latest version
-        // we use here is the version that is actually set to the project.version
-        // in maven
-        String property = System.getProperty("tests.version", null);
-        assumeTrue("tests.version is set", property != null);
-        assertEquals(property, Version.CURRENT.toString());
-    }
-
     public void testVersionComparison() throws Exception {
-        assertThat(V_0_20_0.before(V_0_90_0), is(true));
-        assertThat(V_0_20_0.before(V_0_20_0), is(false));
-        assertThat(V_0_90_0.before(V_0_20_0), is(false));
+        assertThat(V_2_2_0.before(V_5_0_0), is(true));
+        assertThat(V_2_2_0.before(V_2_2_0), is(false));
+        assertThat(V_5_0_0.before(V_2_2_0), is(false));
 
-        assertThat(V_0_20_0.onOrBefore(V_0_90_0), is(true));
-        assertThat(V_0_20_0.onOrBefore(V_0_20_0), is(true));
-        assertThat(V_0_90_0.onOrBefore(V_0_20_0), is(false));
+        assertThat(V_2_2_0.onOrBefore(V_5_0_0), is(true));
+        assertThat(V_2_2_0.onOrBefore(V_2_2_0), is(true));
+        assertThat(V_5_0_0.onOrBefore(V_2_2_0), is(false));
 
-        assertThat(V_0_20_0.after(V_0_90_0), is(false));
-        assertThat(V_0_20_0.after(V_0_20_0), is(false));
-        assertThat(V_0_90_0.after(V_0_20_0), is(true));
+        assertThat(V_2_2_0.after(V_5_0_0), is(false));
+        assertThat(V_2_2_0.after(V_2_2_0), is(false));
+        assertThat(V_5_0_0.after(V_2_2_0), is(true));
 
-        assertThat(V_0_20_0.onOrAfter(V_0_90_0), is(false));
-        assertThat(V_0_20_0.onOrAfter(V_0_20_0), is(true));
-        assertThat(V_0_90_0.onOrAfter(V_0_20_0), is(true));
+        assertThat(V_2_2_0.onOrAfter(V_5_0_0), is(false));
+        assertThat(V_2_2_0.onOrAfter(V_2_2_0), is(true));
+        assertThat(V_5_0_0.onOrAfter(V_2_2_0), is(true));
+
+        assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
+        assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
+        assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
+        assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
+
     }
 
     public void testVersionConstantPresent() {
@@ -93,12 +90,7 @@ public class VersionTests extends ESTestCase {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            if (version.snapshot()) { // number doesn't include SNAPSHOT but the parser checks for that
-                assertEquals(Version.fromString(version.number()), version);
-            } else {
-                assertThat(Version.fromString(version.number()), sameInstance(version));
-            }
-            assertFalse(Version.fromString(version.number()).snapshot());
+            assertThat(Version.fromString(version.toString()), sameInstance(version));
         }
     }
 
@@ -141,42 +133,78 @@ public class VersionTests extends ESTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
-        final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
+        final Version version = randomFrom(Version.V_2_0_0, Version.V_2_3_0, Version.V_5_0_0);
         assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
 
     public void testMinCompatVersion() {
         assertThat(Version.V_2_0_0_beta1.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0_beta1));
-        assertThat(Version.V_1_3_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
-        assertThat(Version.V_1_2_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
-        assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
-        assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
+        assertThat(Version.V_2_1_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_2_2_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_2_3_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_5_0_0.minimumCompatibilityVersion(), equalTo(Version.V_5_0_0));
     }
 
     public void testToString() {
         // with 2.0.beta we lowercase
-        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.number());
-        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.number());
-        assertEquals("1.4.0", Version.V_1_4_0.number());
+        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.toString());
+        assertEquals("5.0.0", Version.V_5_0_0.toString());
+        assertEquals("2.3.0", Version.V_2_3_0.toString());
+        assertEquals("0.90.0.Beta1", Version.fromString("0.90.0.Beta1").toString());
+        assertEquals("1.0.0.Beta1", Version.fromString("1.0.0.Beta1").toString());
+        assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
+        assertEquals("5.0.0-beta1", Version.fromString("5.0.0-beta1").toString());
+        assertEquals("5.0.0-alpha1", Version.fromString("5.0.0-alpha1").toString());
     }
 
     public void testIsBeta() {
         assertTrue(Version.V_2_0_0_beta1.isBeta());
-        assertTrue(Version.V_1_4_0_Beta1.isBeta());
-        assertFalse(Version.V_1_4_0.isBeta());
+        assertTrue(Version.fromString("1.0.0.Beta1").isBeta());
+        assertTrue(Version.fromString("0.90.0.Beta1").isBeta());
     }
+
+
+    public void testIsAlpha() {
+        assertTrue(new Version(5000001, org.apache.lucene.util.Version.LUCENE_6_0_0).isAlpha());
+        assertFalse(new Version(4000002, org.apache.lucene.util.Version.LUCENE_6_0_0).isAlpha());
+        assertTrue(new Version(4000002, org.apache.lucene.util.Version.LUCENE_6_0_0).isBeta());
+        assertTrue(Version.fromString("5.0.0-alpha14").isAlpha());
+        assertEquals(5000014, Version.fromString("5.0.0-alpha14").id);
+        assertTrue(Version.fromId(5000015).isAlpha());
+
+        for (int i = 0 ; i < 25; i++) {
+            assertEquals(Version.fromString("5.0.0-alpha" + i).id, Version.fromId(5000000 + i).id);
+            assertEquals("5.0.0-alpha" + i, Version.fromId(5000000 + i).toString());
+        }
+
+        for (int i = 0 ; i < 25; i++) {
+            assertEquals(Version.fromString("5.0.0-beta" + i).id, Version.fromId(5000000 + i + 25).id);
+            assertEquals("5.0.0-beta" + i, Version.fromId(5000000 + i + 25).toString());
+        }
+    }
+
 
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            if (version.snapshot() == false && random().nextBoolean()) {
-                version = new Version(version.id, true, version.luceneVersion);
+            if (random().nextBoolean()) {
+                version = new Version(version.id, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
-            assertEquals(version.snapshot(), parsedVersion.snapshot());
         }
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            Version.fromString("5.0.0-alph2");
+        });
+        assertSame(Version.CURRENT, Version.fromString(Version.CURRENT.toString()));
+
+        assertSame(Version.fromString("2.0.0-SNAPSHOT"), Version.fromString("2.0.0"));
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            Version.fromString("5.0.0-SNAPSHOT");
+        });
     }
 
     public void testParseLenient() {
@@ -207,7 +235,7 @@ public class VersionTests extends ESTestCase {
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {
-                    String number = v.number();
+                    String number = v.toString();
                     if (v.isBeta()) {
                         number = number.replace("-beta", "_beta");
                     } else if (v.isRC()) {
@@ -215,7 +243,7 @@ public class VersionTests extends ESTestCase {
                     }
                     assertEquals("V_" + number.replace('.', '_'), constantName);
                 } else {
-                    assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                    assertEquals("V_" + v.toString().replace('.', '_'), constantName);
                 }
 
                 // only the latest version for a branch should be a snapshot (ie unreleased)
@@ -225,7 +253,7 @@ public class VersionTests extends ESTestCase {
                     maxBranchVersions.put(branchName, v);
                 } else if (v.after(maxBranchVersion)) {
 
-                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", maxBranchVersion.snapshot());
+                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", VersionUtils.isSnapshot(maxBranchVersion));
                     maxBranchVersions.put(branchName, v);
                 }
             }

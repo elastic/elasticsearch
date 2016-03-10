@@ -109,6 +109,9 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
             nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
         }
+        if (nodesStatsRequest.indices().isSet(Flag.Segments) && (request.hasParam("include_segment_file_sizes"))) {
+            nodesStatsRequest.indices().includeSegmentFileSizes(true);
+        }
 
         client.admin().cluster().nodesStats(nodesStatsRequest, new RestToXContentListener<NodesStatsResponse>(channel));
     }

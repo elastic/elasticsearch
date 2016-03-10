@@ -79,7 +79,7 @@ sudo /bin/systemctl enable elasticsearch.service
 --------------------------------------------------
 
 [float]
-=== YUM
+=== YUM / DNF
 
 Download and install the public signing key:
 
@@ -95,9 +95,9 @@ in a file with a `.repo` suffix, for example `elasticsearch.repo`
 --------------------------------------------------
 [elasticsearch-{major-version}]
 name=Elasticsearch repository for {major-version} packages
-baseurl=http://packages.elastic.co/elasticsearch/{major-version}/centos
+baseurl=https://packages.elastic.co/elasticsearch/{major-version}/centos
 gpgcheck=1
-gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 --------------------------------------------------
 
@@ -106,6 +106,13 @@ And your repository is ready for use. You can install it with:
 [source,sh]
 --------------------------------------------------
 yum install elasticsearch
+--------------------------------------------------
+
+Or, for newer versions of Fedora and Redhat:
+
+[source,sh]
+--------------------------------------------------
+dnf install elasticsearch
 --------------------------------------------------
 
 Configure Elasticsearch to automatically start during bootup. If your

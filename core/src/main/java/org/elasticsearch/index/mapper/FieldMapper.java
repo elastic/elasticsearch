@@ -185,6 +185,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+            this.fieldType.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
+            return builder;
+        }
+
         public T includeInAll(Boolean includeInAll) {
             this.includeInAll = includeInAll;
             return builder;
@@ -225,7 +230,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.V_3_0_0)) {
+            if (indexCreated.onOrAfter(Version.V_5_0_0)) {
                 // add doc values by default to keyword (boolean, numerics, etc.) fields
                 return fieldType.tokenized() == false;
             } else {
@@ -293,7 +298,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             parseCreateField(context, fields);
             for (Field field : fields) {
-                if (!customBoost()) {
+                if (!customBoost()
+                        // don't set boosts eg. on dv fields
+                        && field.fieldType().indexOptions() != IndexOptions.NONE
+                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

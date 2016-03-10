@@ -54,7 +54,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
         for (int i = 0; i < fields.length; i++) {
             fields[i++] = "field_" + fieldId++;
             String analyzer = randomAnalyzer();
-            fields[i] = "type=string,analyzer=" + analyzer;
+            fields[i] = "type=text,analyzer=" + analyzer;
         }
         assertAcked(prepareCreate("test")
                 .addMapping("type", (Object[])fields)
@@ -104,17 +104,8 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
     }
 
     private String randomAnalyzer() {
-        while(true) {
-            PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
-            if (preBuiltAnalyzers == PreBuiltAnalyzers.SORANI && compatibilityVersion().before(Version.V_1_3_0)) {
-                continue; // SORANI was added in 1.3.0
-            }
-            if (preBuiltAnalyzers == PreBuiltAnalyzers.LITHUANIAN && compatibilityVersion().before(Version.V_2_1_0)) {
-                continue; // LITHUANIAN was added in 2.1.0
-            }
-            return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
-        }
-
+        PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
+        return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
     }
 
     private static final class InputOutput {
@@ -127,7 +118,5 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
             this.input = input;
             this.field = field;
         }
-
-
     }
 }

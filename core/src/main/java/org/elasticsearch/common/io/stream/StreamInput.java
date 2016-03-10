@@ -39,6 +39,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -67,24 +69,22 @@ import java.util.function.Supplier;
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
+/**
+ * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+ */
 public abstract class StreamInput extends InputStream {
-
-    private final NamedWriteableRegistry namedWriteableRegistry;
-
     private Version version = Version.CURRENT;
 
-    protected StreamInput() {
-        this.namedWriteableRegistry = new NamedWriteableRegistry();
-    }
-
-    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-    }
-
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
     public void setVersion(Version version) {
         this.version = version;
     }
@@ -672,6 +672,20 @@ public abstract class StreamInput extends InputStream {
      */
     <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a {@link AggregatorBuilder} from the current stream
+     */
+    public AggregatorBuilder readAggregatorFactory() throws IOException {
+        return readNamedWriteable(AggregatorBuilder.class);
+    }
+
+    /**
+     * Reads a {@link PipelineAggregatorBuilder} from the current stream
+     */
+    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
+        return readNamedWriteable(PipelineAggregatorBuilder.class);
     }
 
     /**

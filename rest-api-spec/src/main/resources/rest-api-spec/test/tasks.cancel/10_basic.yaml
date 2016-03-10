@@ -2,7 +2,6 @@
 "tasks_cancel test":
   - do:
       tasks.cancel:
-          node_id: _local
-          task_id: 1
+          actions: "unknown_action"
 
   - length: { nodes: 0 }

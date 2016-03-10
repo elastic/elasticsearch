@@ -21,13 +21,18 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -37,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHSc
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -63,6 +67,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 
 /**
  *
@@ -133,7 +138,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
         List<SignificanceHeuristic> heuristics = new ArrayList<>();
-        heuristics.add(JLHScore.INSTANCE);
+        heuristics.add(JLHScore.PROTOTYPE);
         heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
         heuristics.add(new GND(randomBoolean()));
         heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
@@ -196,7 +201,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     public void testBuilderAndParser() throws Exception {
 
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
-        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers, null);
+        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
         // test jlh with string
@@ -210,10 +215,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(parseFromString(heuristicParserMapper, searchContext, "\"chi_square\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new ChiSquare(includeNegatives, backgroundIsSuperset))));
 
         // test with builders
-        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore.JLHScoreBuilder()) instanceof JLHScore);
-        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder(backgroundIsSuperset)) instanceof GND);
-        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation.MutualInformationBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
-        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare.ChiSquareBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new ChiSquare(includeNegatives, backgroundIsSuperset)));
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore()) instanceof JLHScore);
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND(backgroundIsSuperset)) instanceof GND);
+        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
+        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new ChiSquare(includeNegatives, backgroundIsSuperset)));
 
         // test exceptions
         String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
@@ -233,34 +238,46 @@ public class SignificanceHeuristicTests extends ESTestCase {
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
     }
 
-    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
+    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext,
+            String faultyHeuristicDefinition, String expectedError) throws IOException {
+
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashMap<String, QueryParser<?>>());
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
+            QueryParseContext parseContext = new QueryParseContext(registry);
+            parseContext.reset(stParser);
+            parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
             stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+            new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
             fail();
         } catch (ElasticsearchParseException e) {
             assertTrue(e.getMessage().contains(expectedError));
         }
     }
 
-    protected SignificanceHeuristic parseFromBuilder(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, SignificanceHeuristicBuilder significanceHeuristicBuilder) throws IOException {
-        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(significanceHeuristicBuilder).field("text").minDocCount(200);
+    protected SignificanceHeuristic parseFromBuilder(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, SignificanceHeuristic significanceHeuristic) throws IOException {
+        SignificantTermsAggregatorBuilder stBuilder = significantTerms("testagg");
+        stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
         return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
     }
 
-    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, XContentParser stParser) throws IOException {
+    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
+            SearchContext searchContext, XContentParser stParser) throws IOException {
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashMap<String, QueryParser<?>>());
+        QueryParseContext parseContext = new QueryParseContext(registry);
+        parseContext.reset(stParser);
+        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         stParser.nextToken();
-        SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        SignificantTermsAggregatorBuilder aggregatorFactory = (SignificantTermsAggregatorBuilder) new SignificantTermsParser(
+                heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
-        return aggregatorFactory.getSignificanceHeuristic();
+        return aggregatorFactory.significanceHeuristic();
     }
 
     protected SignificanceHeuristic parseFromString(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String heuristicString) throws IOException {
@@ -371,14 +388,14 @@ public class SignificanceHeuristicTests extends ESTestCase {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
         testBackgroundAssertions(new GND(true), new GND(false));
-        testAssertions(PercentageScore.INSTANCE);
-        testAssertions(JLHScore.INSTANCE);
+        testAssertions(PercentageScore.PROTOTYPE);
+        testAssertions(JLHScore.PROTOTYPE);
     }
 
     public void testBasicScoreProperties() {
-        basicScoreProperties(JLHScore.INSTANCE, true);
+        basicScoreProperties(JLHScore.PROTOTYPE, true);
         basicScoreProperties(new GND(true), true);
-        basicScoreProperties(PercentageScore.INSTANCE, true);
+        basicScoreProperties(PercentageScore.PROTOTYPE, true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }

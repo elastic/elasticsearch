@@ -400,7 +400,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         if (ordered.isEmpty()) {
-            throw new IllegalArgumentException("No data node with critera [" + nodeAttribute + "] found");
+            throw new IllegalArgumentException("No data node with criteria [" + nodeAttribute + "] found");
         }
         return new PlainShardIterator(shardId, ordered);
     }

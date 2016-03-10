@@ -32,8 +32,6 @@ import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
-
 /**
  * Represents a failure to search on a specific shard.
  */
@@ -106,7 +104,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public int shardId() {
         if (shardTarget != null) {
-            return shardTarget.shardId();
+            return shardTarget.shardId().id();
         }
         return -1;
     }
@@ -133,7 +131,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            shardTarget = readSearchShardTarget(in);
+            shardTarget = new SearchShardTarget(in);
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);

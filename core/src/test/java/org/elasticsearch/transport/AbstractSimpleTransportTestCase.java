@@ -40,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -74,11 +75,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Settings.builder().put("name", "TS_A", TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING").build(),
                 version0, new NamedWriteableRegistry()
         );
+        serviceA.acceptIncomingRequests();
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
         serviceB = build(
                 Settings.builder().put("name", "TS_B", TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING").build(),
                 version1, new NamedWriteableRegistry()
         );
+        serviceB.acceptIncomingRequests();
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
@@ -1252,6 +1255,54 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         assertTrue(nodeA.address().sameHost(addressA.get()));
         assertTrue(nodeB.address().sameHost(addressB.get()));
+    }
+
+    public void testBlockingIncomingRequests() throws Exception {
+        TransportService service = build(
+                Settings.builder().put("name", "TS_TEST", TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING").build(),
+                version0, new NamedWriteableRegistry()
+        );
+        AtomicBoolean requestProcessed = new AtomicBoolean();
+        service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+                (request, channel) -> {
+                    requestProcessed.set(true);
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                });
+
+        DiscoveryNode node = new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), version0);
+        serviceA.connectToNode(node);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        serviceA.sendRequest(node, "action", new TestRequest(), new TransportResponseHandler<TestResponse>() {
+            @Override
+            public TestResponse newInstance() {
+                return new TestResponse();
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        assertFalse(requestProcessed.get());
+
+        service.acceptIncomingRequests();
+        assertBusy(() -> assertTrue(requestProcessed.get()));
+
+        latch.await();
+        service.close();
+
     }
 
     public static class TestRequest extends TransportRequest {

@@ -48,6 +48,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -155,10 +156,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         refresh();
-
+        Index index = resolveIndex("foo-copy");
         for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (service.hasIndex("foo-copy")) {
-                IndexShard shard = service.indexServiceSafe("foo-copy").getShardOrNull(0);
+
+            if (service.hasIndex(index)) {
+                IndexShard shard = service.indexServiceSafe(index).getShardOrNull(0);
                 if (shard.routingEntry().primary()) {
                     assertFalse(shard instanceof ShadowIndexShard);
                 } else {
@@ -172,6 +174,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     }
 
+    @TestLogging("gateway:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -188,7 +191,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
 
         // So basically, the primary should fail and the replica will need to
@@ -199,8 +202,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(IDX).clear().setTranslog(true).get();
         assertEquals(2, indicesStatsResponse.getIndex(IDX).getPrimaries().getTranslog().estimatedNumberOfOperations());
         assertEquals(2, indicesStatsResponse.getIndex(IDX).getTotal().getTranslog().estimatedNumberOfOperations());
+        Index index = resolveIndex(IDX);
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
-            IndexService indexService = service.indexService(IDX);
+            IndexService indexService = service.indexService(index);
             if (indexService != null) {
                 IndexShard shard = indexService.getShard(0);
                 TranslogStats translogStats = shard.translogStats();
@@ -265,7 +269,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -323,7 +327,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -383,7 +387,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -458,7 +462,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -551,7 +555,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -590,7 +594,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
 
         int docCount = randomIntBetween(10, 100);
@@ -797,8 +801,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
-        prepareCreate(IDX2).setSettings(idx2Settings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
+        prepareCreate(IDX2).setSettings(idx2Settings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX, IDX2);
 
         int docCount = randomIntBetween(10, 100);

@@ -54,7 +54,7 @@ class VersionValue implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_OBJECT_REF + translogLocation.ramBytesUsed();
+        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Long.BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF + translogLocation.ramBytesUsed();
     }
     
     @Override

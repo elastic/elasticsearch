@@ -104,6 +104,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
+                        logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
+                                currentNode, nodeWithHighestMatch);
                         it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                                 "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
                                 null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));

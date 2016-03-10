@@ -39,8 +39,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,8 +79,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     private final ClusterService clusterService;
 
-    private final DiscoveryService discoveryService;
-
     private final TimeValue recoverAfterTime;
     private final int recoverAfterNodes;
     private final int expectedNodes;
@@ -95,14 +93,12 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     @Inject
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
-                          DiscoveryService discoveryService, ThreadPool threadPool,
-                          NodeEnvironment nodeEnvironment, GatewayMetaState metaState,
+                          ThreadPool threadPool, NodeEnvironment nodeEnvironment, GatewayMetaState metaState,
                           TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery) {
         super(settings);
         this.gateway = new Gateway(settings, clusterService, nodeEnvironment, metaState, listGatewayMetaState, discovery);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
-        this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         // allow to control a delay of when indices will get created
         this.expectedNodes = EXPECTED_NODES_SETTING.get(this.settings);
@@ -133,27 +129,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     @Override
     protected void doStart() {
         clusterService.addLast(this);
-        // check we didn't miss any cluster state that came in until now / during the addition
-        clusterService.submitStateUpdateTask("gateway_initial_state_recovery", new ClusterStateUpdateTask() {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                checkStateMeetsSettingsAndMaybeRecover(currentState);
-                return currentState;
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                // It's OK to run on non masters as checkStateMeetsSettingsAndMaybeRecover checks for this
-                // we return false to avoid unneeded failure logs
-                return false;
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("unexpected failure while checking if state can be recovered. another attempt will be made with the next cluster state change", t);
-            }
-        });
     }
 
     @Override
@@ -170,10 +145,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        checkStateMeetsSettingsAndMaybeRecover(event.state());
-    }
 
-    protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state) {
+        final ClusterState state = event.state();
+
         if (state.nodes().localNodeMaster() == false) {
             // not our job to recover
             return;
@@ -184,7 +158,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
 
         DiscoveryNodes nodes = state.nodes();
-        if (state.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
+        if (state.nodes().masterNodeId() == null) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
@@ -233,7 +207,20 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
-                threadPool.generic().execute(() -> gateway.performStateRecovery(recoveryListener));
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("Recovery failed", t);
+                        // we reset `recovered` in the listener don't reset it here otherwise there might be a race
+                        // that resets it to false while a new recover is already running?
+                        recoveryListener.onFailure("state recovery failed: " + t.getMessage());
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        gateway.performStateRecovery(recoveryListener);
+                    }
+                });
             }
         }
     }

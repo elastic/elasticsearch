@@ -336,10 +336,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // we have to do this in two steps as we now do async shard fetching before assigning, so the change to the
         // allocation filtering may not have immediate effect
         // TODO: we should add an easier to do this. It's too much of a song and dance..
+        Index index = resolveIndex("test");
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex("test"));
+                assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex(index));
             }
         });
 

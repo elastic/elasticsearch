@@ -12,12 +12,16 @@ Obtaining an elasticsearch `Client` is simple. The most common way to
 get a client is by creating a <<transport-client,`TransportClient`>>
 that connects to a cluster.
 
-*Important:*
-______________________________________________________________________________________________________________________________________________________________
-Please note that you are encouraged to use the same version on client
-and cluster sides. You may hit some incompatibility issues when mixing
-major versions.
-______________________________________________________________________________________________________________________________________________________________
+[IMPORTANT]
+==============================
+
+The client must have the same major version (e.g. `2.x`, or `5.x`) as the
+nodes in the cluster. Clients may connect to clusters which have a different
+minor version (e.g. `2.3.x`) but it is possible that new funcionality may not
+be supported.  Ideally, the client should have the same version as the
+cluster.
+
+==============================
 
 
 [[transport-client]]

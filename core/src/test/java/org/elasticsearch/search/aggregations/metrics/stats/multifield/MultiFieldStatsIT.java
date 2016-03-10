@@ -20,6 +20,9 @@ package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 
@@ -27,6 +30,7 @@ import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.multifieldStats;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -39,7 +43,7 @@ import static org.hamcrest.Matchers.*;
 public class MultiFieldStatsIT extends AbstractNumericTestCase {
     protected static String[] valFieldName = new String[] {"value", "randVal1", "randVal2"};
     protected static MultiFieldStatsResults multiFieldStatsResults = new MultiFieldStatsResults();
-    protected static int numDocs = 10000;
+    protected static long numDocs = 10000L;
     protected static final double TOLERANCE = 1e-6;
     protected static final String aggName = "multifieldstats";
 
@@ -83,21 +87,17 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
         Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
-        MultiFieldStats multiFieldStats = bucket.getAggregations().get(aggName);
-        assertThat(multiFieldStats, notNullValue());
-        assertThat(multiFieldStats.getName(), equalTo(aggName));
-        assertThat(multiFieldStats.getFieldCount("value"), equalTo(0L));
-        assertThat(Double.isNaN(multiFieldStats.getMean("value")), is(true));
-        assertThat(Double.isNaN(multiFieldStats.getVariance("value")), is(true));
-        assertThat(Double.isNaN(multiFieldStats.getSkewness("value")), is(true));
-        assertThat(Double.isNaN(multiFieldStats.getKurtosis("value")), is(true));
-        assertThat(Double.isNaN(multiFieldStats.getCovariance("value", "randVal1")), is(true));
-        assertThat(Double.isNaN(multiFieldStats.getCorrelation("value", "randVal1")), is(true));
+        assertEmptyMultiFieldStats(bucket.getAggregations().get(aggName));
     }
 
     @Override
     public void testUnmapped() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+            .setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))
+            .execute().actionGet();
+        assertThat(response.getHits().getTotalHits(), equalTo(0L));
 
+        assertEmptyMultiFieldStats(response.getAggregations().get(aggName));
     }
 
     @Override
@@ -109,39 +109,37 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
         assertSearchResponse(response);
 
         assertHitCount(response, numDocs);
-        MultiFieldStats multiFieldStats = response.getAggregations().get(aggName);
-        assertThat(multiFieldStats, notNullValue());
-        assertThat(multiFieldStats.getName(), equalTo(aggName));
-        // check mean
-        for (String fieldName : valFieldName) {
-            // check mean
-            assertThat(multiFieldStats.getMean(fieldName), closeTo(multiFieldStatsResults.means.get(fieldName), TOLERANCE));
-            // check variance
-            assertThat(multiFieldStats.getVariance(fieldName), closeTo(multiFieldStatsResults.variances.get(fieldName), TOLERANCE));
-            // check skewness
-            assertThat(multiFieldStats.getSkewness(fieldName), closeTo(multiFieldStatsResults.skewness.get(fieldName), TOLERANCE));
-            // check kurtosis
-            assertThat(multiFieldStats.getKurtosis(fieldName), closeTo(multiFieldStatsResults.kurtosis.get(fieldName), TOLERANCE));
-            // check covariance
-            for (String fieldNameY : valFieldName) {
-                // check covariance
-                assertThat(multiFieldStats.getCovariance(fieldName, fieldNameY),
-                    closeTo(multiFieldStatsResults.getCovariance(fieldName, fieldNameY), TOLERANCE));
-                // check correlation
-                assertThat(multiFieldStats.getCorrelation(fieldName, fieldNameY),
-                    closeTo(multiFieldStatsResults.getCorrelation(fieldName, fieldNameY), TOLERANCE));
-            }
-        }
+
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery())
+            .addAggregation(global("global").subAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
 
+        Global global = response.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(numDocs));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        assertExpectedStatsResults((MultiFieldStats)global.getProperty(aggName));
+        // check values by using property paths
+        assertExpectedStatsResultsByProperty((MultiFieldStats)global.getProperty(aggName));
     }
 
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
+            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName))).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
 
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
@@ -187,5 +185,112 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValuedWithParams() throws Exception {
 
+    }
+
+    private void assertEmptyMultiFieldStats(MultiFieldStats multiFieldStats) {
+        assertThat(multiFieldStats, notNullValue());
+        assertThat(multiFieldStats.getName(), equalTo(aggName));
+        assertThat(multiFieldStats.getFieldCount("value"), equalTo(0L));
+        assertThat(Double.isNaN(multiFieldStats.getMean("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getVariance("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getSkewness("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getKurtosis("value")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getCovariance("value", "randVal1")), is(true));
+        assertThat(Double.isNaN(multiFieldStats.getCorrelation("value", "randVal1")), is(true));
+    }
+
+    private void assertExpectedStatsResults(MultiFieldStats multiFieldStats) {
+        assertThat(multiFieldStats, notNullValue());
+        assertThat(multiFieldStats.getName(), equalTo(aggName));
+        for (String fieldName : valFieldName) {
+            // check fieldCount
+            assertThat(multiFieldStats.getFieldCount(fieldName), equalTo(multiFieldStatsResults.counts.get(fieldName)));
+            // check mean
+            assertThat(multiFieldStats.getMean(fieldName), closeTo(multiFieldStatsResults.means.get(fieldName), TOLERANCE));
+            // check variance
+            assertThat(multiFieldStats.getVariance(fieldName), closeTo(multiFieldStatsResults.variances.get(fieldName), TOLERANCE));
+            // check skewness
+            assertThat(multiFieldStats.getSkewness(fieldName), closeTo(multiFieldStatsResults.skewness.get(fieldName), TOLERANCE));
+            // check kurtosis
+            assertThat(multiFieldStats.getKurtosis(fieldName), closeTo(multiFieldStatsResults.kurtosis.get(fieldName), TOLERANCE));
+            // check covariance
+            for (String fieldNameY : valFieldName) {
+                // check covariance
+                assertThat(multiFieldStats.getCovariance(fieldName, fieldNameY),
+                    closeTo(multiFieldStatsResults.getCovariance(fieldName, fieldNameY), TOLERANCE));
+                // check correlation
+                assertThat(multiFieldStats.getCorrelation(fieldName, fieldNameY),
+                    closeTo(multiFieldStatsResults.getCorrelation(fieldName, fieldNameY), TOLERANCE));
+            }
+        }
+    }
+
+    private void assertExpectedStatsResultsByProperty(MultiFieldStats multiFieldStats) {
+        assertThat(multiFieldStats, notNullValue());
+        assertThat(multiFieldStats.getName(), equalTo(aggName));
+
+        HashMap<String, Double> counts = (HashMap<String, Double>) multiFieldStats.getProperty("counts");
+        HashMap<String, Double> means = (HashMap<String, Double>) multiFieldStats.getProperty("means");
+        HashMap<String, Double> variances = (HashMap<String, Double>) multiFieldStats.getProperty("variances");
+        HashMap<String, Double> skewness = (HashMap<String, Double>) multiFieldStats.getProperty("skewness");
+        HashMap<String, Double> kurtosis = (HashMap<String, Double>) multiFieldStats.getProperty("kurtosis");
+        HashMap<String, HashMap<String, Double>> covariance =
+            (HashMap<String, HashMap<String, Double>>) multiFieldStats.getProperty("covariance");
+        HashMap<String, HashMap<String, Double>> correlation =
+            (HashMap<String, HashMap<String, Double>>) multiFieldStats.getProperty("correlation");
+
+        for (String fieldName : valFieldName) {
+            // check fieldCount
+            assertThat(counts.get(fieldName), equalTo(multiFieldStatsResults.counts.get(fieldName)));
+            // check mean
+            assertThat(means.get(fieldName), closeTo(multiFieldStatsResults.means.get(fieldName), TOLERANCE));
+            // check variance
+            assertThat(variances.get(fieldName), closeTo(multiFieldStatsResults.variances.get(fieldName), TOLERANCE));
+            // check skewness
+            assertThat(skewness.get(fieldName), closeTo(multiFieldStatsResults.skewness.get(fieldName), TOLERANCE));
+            // check kurtosis
+            assertThat(kurtosis.get(fieldName), closeTo(multiFieldStatsResults.kurtosis.get(fieldName), TOLERANCE));
+            // check covariance and correlation
+            HashMap<String, Double> colCov;
+            HashMap<String, Double> colCorr;
+            for (String fieldNameY : valFieldName) {
+                // if the fieldnames are the same just return the variance
+                if (fieldName.equals(fieldNameY)) {
+                    assertThat(variances.get(fieldName),
+                        closeTo(multiFieldStatsResults.getCovariance(fieldName, fieldNameY), TOLERANCE));
+                    assertThat(1.0D,
+                        closeTo(multiFieldStatsResults.getCorrelation(fieldName, fieldNameY), TOLERANCE));
+                } else {
+                    // the x and y field names may be swapped when pulled from the aggregation, so we have this
+                    // irritating flip flop logic
+                    colCov = null;
+                    colCorr = null;
+                    if (covariance.containsKey(fieldName)) {
+                        colCov = covariance.get(fieldName);
+                    }
+                    if (correlation.containsKey(fieldName)) {
+                        colCorr = correlation.get(fieldName);
+                    }
+
+                    String fnY = fieldNameY;
+                    if (colCov == null || colCov.containsKey(fnY) == false) {
+                        colCov = covariance.get(fieldNameY);
+                        fnY = fieldName;
+                    }
+                    // check covariance
+                    assertThat(colCov.get(fnY),
+                        closeTo(multiFieldStatsResults.getCovariance(fieldName, fieldNameY), TOLERANCE));
+
+                    if (colCorr == null || colCorr.containsKey(fnY) == false) {
+                        colCorr = correlation.get(fieldNameY);
+                        fnY = fieldName;
+                    }
+
+                    // check correlation
+                    assertThat(colCorr.get(fnY),
+                        closeTo(multiFieldStatsResults.getCorrelation(fieldName, fieldNameY), TOLERANCE));
+                }
+            }
+        }
     }
 }

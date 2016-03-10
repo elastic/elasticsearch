@@ -75,10 +75,10 @@ class MultiFieldStatsResults implements Streamable {
      * Returns covariance between two fields
      */
     public double getCovariance(String fieldX, String fieldY) {
-        if (variances.containsKey(fieldX) == false && variances.containsKey(fieldY) == false) {
-            return Double.NaN;
-        } else if (fieldX.equals(fieldY)) {
+        if (fieldX.equals(fieldY)) {
             return variances.get(fieldX);
+        } else if (variances.containsKey(fieldX) == false && variances.containsKey(fieldY) == false) {
+            return Double.NaN;
         }
         return getValFromUpperTriangularMatrix(covariances, fieldX, fieldY);
     }
@@ -87,10 +87,10 @@ class MultiFieldStatsResults implements Streamable {
      * Returns the correlation coefficient between two fields
      */
     public double getCorrelation(String fieldX, String fieldY) {
-        if (correlation.containsKey(fieldX) == false && correlation.containsKey(fieldY) == false) {
-            return Double.NaN;
-        } else if (fieldX.equals(fieldY)) {
+        if (fieldX.equals(fieldY)) {
             return 1.0;
+        } else if (correlation.containsKey(fieldX) == false && correlation.containsKey(fieldY) == false) {
+            return Double.NaN;
         }
         return getValFromUpperTriangularMatrix(correlation, fieldX, fieldY);
     }

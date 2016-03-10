@@ -129,7 +129,7 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
 
     @Override
     public double getCorrelation(String fieldX, String fieldY) {
-        if (multiFieldStatsResults == null) {
+        if (multiFieldStatsResults == null || multiFieldStatsResults.correlation == null) {
             return Double.NaN;
         }
         return multiFieldStatsResults.getCorrelation(fieldX, fieldY);
@@ -186,7 +186,22 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
             return this;
         } else if (path.size() == 1) {
             String coordinate = path.get(0);
+            if (multiFieldStatsResults == null) {
+                multiFieldStatsResults = new MultiFieldStatsResults();
+            }
             switch (coordinate) {
+                case "counts":
+                    return multiFieldStatsResults.counts;
+                case "means":
+                    return multiFieldStatsResults.means;
+                case "variances":
+                    return multiFieldStatsResults.variances;
+                case "skewness":
+                    return multiFieldStatsResults.skewness;
+                case "kurtosis":
+                    return multiFieldStatsResults.kurtosis;
+                case "covariance":
+                    return multiFieldStatsResults.covariances;
                 case "correlation":
                     return multiFieldStatsResults.correlation;
                 default:

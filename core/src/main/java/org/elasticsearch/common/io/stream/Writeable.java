@@ -37,4 +37,17 @@ public interface Writeable<T> extends StreamableReader<T> {
      * Write this into the {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
+
+    @FunctionalInterface
+    interface IOFunction<T, R> {
+
+        /**
+         * Applies this function to the given argument.
+         *
+         * @param t the function argument
+         * @return the function result
+         */
+        R apply(T t) throws IOException;
+    }
+
 }

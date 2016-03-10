@@ -89,14 +89,14 @@ class NodeInfo {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** Creates a node to run as part of a cluster for the given task */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion) {
         this.config = config
         this.nodeNum = nodeNum
         clusterName = "${task.path.replace(':', '_').substring(1)}"
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
-        homeDir = homeDir(baseDir, config.distribution)
-        confDir = confDir(baseDir, config.distribution)
+        homeDir = homeDir(baseDir, config.distribution, nodeVersion)
+        confDir = confDir(baseDir, config.distribution, nodeVersion)
         configFile = new File(confDir, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
@@ -181,13 +181,13 @@ class NodeInfo {
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro) {
+    static File homeDir(File baseDir, String distro, String nodeVersion) {
         String path
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
-                path = "elasticsearch-${VersionProperties.elasticsearch}"
+                path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
             case 'deb':
@@ -199,12 +199,12 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File confDir(File baseDir, String distro) {
+    static File confDir(File baseDir, String distro, String nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
-                return new File(homeDir(baseDir, distro), 'config')
+                return new File(homeDir(baseDir, distro, nodeVersion), 'config')
             case 'rpm':
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")

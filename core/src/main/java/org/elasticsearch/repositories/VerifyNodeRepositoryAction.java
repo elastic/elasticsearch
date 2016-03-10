@@ -149,7 +149,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         }
     }
 
-    class VerifyNodeRepositoryRequestHandler implements TransportRequestHandler<VerifyNodeRepositoryRequest> {
+    class VerifyNodeRepositoryRequestHandler extends TransportRequestHandler<VerifyNodeRepositoryRequest> {
         @Override
         public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
             try {

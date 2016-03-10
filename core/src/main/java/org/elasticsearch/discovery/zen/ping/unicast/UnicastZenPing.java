@@ -515,7 +515,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         return unicastPingResponse;
     }
 
-    class UnicastPingRequestHandler implements TransportRequestHandler<UnicastPingRequest> {
+    class UnicastPingRequestHandler extends TransportRequestHandler<UnicastPingRequest> {
 
         @Override
         public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {

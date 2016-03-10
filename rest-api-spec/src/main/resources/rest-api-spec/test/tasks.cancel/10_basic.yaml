@@ -1,0 +1,7 @@
+---
+"tasks_cancel test":
+  - do:
+      tasks.cancel:
+          actions: "unknown_action"
+
+  - length: { nodes: 0 }

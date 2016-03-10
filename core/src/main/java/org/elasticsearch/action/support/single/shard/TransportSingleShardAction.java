@@ -60,7 +60,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Class<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         this.clusterService = clusterService;
         this.transportService = transportService;
 
@@ -244,7 +244,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
-    private class TransportHandler implements TransportRequestHandler<Request> {
+    private class TransportHandler extends TransportRequestHandler<Request> {
 
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
@@ -272,7 +272,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
-    private class ShardTransportHandler implements TransportRequestHandler<Request> {
+    private class ShardTransportHandler extends TransportRequestHandler<Request> {
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {

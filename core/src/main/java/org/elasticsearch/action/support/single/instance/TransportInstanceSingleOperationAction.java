@@ -237,7 +237,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         }
     }
 
-    private class ShardTransportHandler implements TransportRequestHandler<Request> {
+    private class ShardTransportHandler extends TransportRequestHandler<Request> {
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {

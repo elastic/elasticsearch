@@ -243,7 +243,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 .addGlobalBlock(new ClusterBlock(1, "", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(request, listener).start();
+            action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
 
@@ -258,7 +258,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 .addIndexBlock(TEST_INDEX, new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(request, listener).start();
+            action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
 
@@ -269,7 +269,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[]{TEST_INDEX});
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        action.new AsyncAction(request, listener).start();
+        action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
@@ -303,7 +303,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
 
-        action.new AsyncAction(request, listener).start();
+        action.new AsyncAction(null, request, listener).start();
 
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
 
@@ -390,7 +390,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
         }
 
-        action.new AsyncAction(request, listener).start();
+        action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
         transport.clear();
 
@@ -472,5 +472,16 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public void sendResponse(Throwable error) throws IOException {
         }
+
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "test";
+        }
+
     }
 }

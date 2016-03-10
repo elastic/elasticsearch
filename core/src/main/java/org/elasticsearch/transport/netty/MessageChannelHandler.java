@@ -170,6 +170,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     protected void handleResponse(Channel channel, StreamInput buffer, final TransportResponseHandler handler) {
+        buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
         response.remoteAddress();
@@ -241,7 +242,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             request.readFrom(buffer);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, transportChannel);
+                reg.processMessageReceived(request, transportChannel);
             } else {
                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
             }
@@ -296,7 +297,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         @SuppressWarnings({"unchecked"})
         @Override
         protected void doRun() throws Exception {
-            reg.getHandler().messageReceived(request, transportChannel);
+            reg.processMessageReceived(request, transportChannel);
         }
 
         @Override

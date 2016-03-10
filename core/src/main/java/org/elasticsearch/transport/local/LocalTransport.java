@@ -271,13 +271,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             request.readFrom(stream);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, transportChannel);
+                reg.processMessageReceived(request, transportChannel);
             } else {
                 threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        reg.getHandler().messageReceived(request, transportChannel);
+                        reg.processMessageReceived(request, transportChannel);
                     }
 
                     @Override
@@ -310,6 +310,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected void handleResponse(StreamInput buffer, LocalTransport sourceTransport, final TransportResponseHandler handler) {
+        buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {

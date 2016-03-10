@@ -243,7 +243,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
+    private class ShardFailedTransportHandler extends TransportRequestHandler<ShardRoutingEntry> {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
@@ -252,7 +252,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    class ShardStartedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
+    class ShardStartedTransportHandler extends TransportRequestHandler<ShardRoutingEntry> {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {

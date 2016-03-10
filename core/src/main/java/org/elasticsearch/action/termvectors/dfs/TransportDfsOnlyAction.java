@@ -39,6 +39,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -69,9 +70,9 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
     }
 
     @Override
-    protected void doExecute(DfsOnlyRequest request, ActionListener<DfsOnlyResponse> listener) {
+    protected void doExecute(Task task, DfsOnlyRequest request, ActionListener<DfsOnlyResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override

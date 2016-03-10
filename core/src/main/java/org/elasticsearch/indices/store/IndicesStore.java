@@ -311,7 +311,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     }
 
-    private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
+    private class ShardActiveRequestHandler extends TransportRequestHandler<ShardActiveRequest> {
 
         @Override
         public void messageReceived(final ShardActiveRequest request, final TransportChannel channel) throws Exception {

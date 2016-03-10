@@ -574,7 +574,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     /**
      * Transport request handler that is used to send changes in snapshot status to master
      */
-    class UpdateSnapshotStateRequestHandler implements TransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
+    class UpdateSnapshotStateRequestHandler extends TransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
         @Override
         public void messageReceived(UpdateIndexShardSnapshotStatusRequest request, final TransportChannel channel) throws Exception {
             innerUpdateSnapshotState(request);

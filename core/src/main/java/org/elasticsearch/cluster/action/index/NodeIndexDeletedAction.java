@@ -113,7 +113,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         void onNodeIndexStoreDeleted(String index, String nodeId);
     }
 
-    private class NodeIndexDeletedTransportHandler implements TransportRequestHandler<NodeIndexDeletedMessage> {
+    private class NodeIndexDeletedTransportHandler extends TransportRequestHandler<NodeIndexDeletedMessage> {
 
         @Override
         public void messageReceived(NodeIndexDeletedMessage message, TransportChannel channel) throws Exception {
@@ -124,7 +124,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
-    private class NodeIndexStoreDeletedTransportHandler implements TransportRequestHandler<NodeIndexStoreDeletedMessage> {
+    private class NodeIndexStoreDeletedTransportHandler extends TransportRequestHandler<NodeIndexStoreDeletedMessage> {
 
         @Override
         public void messageReceived(NodeIndexStoreDeletedMessage message, TransportChannel channel) throws Exception {

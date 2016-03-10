@@ -24,6 +24,8 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -780,4 +782,28 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertSearchResponse(response);
         assertOrderedSearchHits(response, ids);
     }
+
+    /**
+     * Test the list tasks works in mixed enviroments
+     */
+    public void testListTasks() throws ExecutionException, InterruptedException {
+        final int numberOfNodes;
+        if (backwardsCompatibilityVersion().before(Version.V_2_3_0)) {
+            // nodes before this version don't support task management
+            numberOfNodes = backwardsCluster().numNewDataNodes();
+        } else {
+            // otherwise it should work on all nodes
+            numberOfNodes = backwardsCluster().numDataNodes();
+        }
+        logger.info("Version: {}, all data nodes: {}, new data nodes: {}",
+            backwardsCompatibilityVersion(), backwardsCluster().numNewDataNodes(), backwardsCluster().numDataNodes());
+        ListTasksResponse response =
+            backwardsCluster().internalCluster().clientNodeClient().admin().cluster().prepareListTasks().setNodesIds("data:true")
+            .setActions(ListTasksAction.NAME + "[n]").get();
+
+        assertEquals(numberOfNodes, response.getTasks().size());
+        assertEquals(0, response.getTaskFailures().size());
+        assertEquals(0, response.getNodeFailures().size());
+    }
+
 }

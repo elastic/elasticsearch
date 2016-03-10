@@ -32,6 +32,12 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -247,6 +253,52 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * for the node ids provided. Note: Use <tt>*</tt> to fetch samples for all nodes
      */
     NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
+
+    /**
+     * List tasks
+     *
+     * @param request The nodes tasks request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#listTasksRequest()
+     */
+    ActionFuture<ListTasksResponse> listTasks(ListTasksRequest request);
+
+    /**
+     * List active tasks
+     *
+     * @param request  The nodes tasks request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#listTasksRequest()
+     */
+    void listTasks(ListTasksRequest request, ActionListener<ListTasksResponse> listener);
+
+    /**
+     * List active tasks
+     */
+    ListTasksRequestBuilder prepareListTasks(String... nodesIds);
+
+    /**
+     * Cancel tasks
+     *
+     * @param request The nodes tasks request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#cancelTasksRequest()
+     */
+    ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request);
+
+    /**
+     * Cancel active tasks
+     *
+     * @param request  The nodes tasks request
+     * @param listener A cancelener to be notified with a result
+     * @see org.elasticsearch.client.Requests#cancelTasksRequest()
+     */
+    void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);
+
+    /**
+     * Cancel active tasks
+     */
+    CancelTasksRequestBuilder prepareCancelTasks(String... nodesIds);
 
     /**
      * Returns list of shards the given search would be executed on.

@@ -32,6 +32,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -580,10 +584,27 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a {@link Task.Status} to the current stream.
+     */
+    public void writeTaskStatus(Task.Status status) throws IOException {
+        writeNamedWriteable(status);
+    }
+
+    /**
      * Writes the given {@link GeoPoint} to the stream
      */
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
         writeDouble(geoPoint.lat());
         writeDouble(geoPoint.lon());
+    }
+
+    /**
+     * Writes a list of {@link Writeable} objects
+     */
+    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+        writeVInt(list.size());
+        for (T obj: list) {
+            obj.writeTo(this);
+        }
     }
 }

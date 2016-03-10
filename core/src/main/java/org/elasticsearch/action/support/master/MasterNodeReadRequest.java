@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * Base request for master based read operations that allows to read the cluster state from the local node if needed
  */
-public abstract class MasterNodeReadRequest<T extends MasterNodeReadRequest> extends MasterNodeRequest<T> {
+public abstract class MasterNodeReadRequest<T extends MasterNodeReadRequest<T>> extends MasterNodeRequest<T> {
 
     protected boolean local = false;
 

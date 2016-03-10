@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -135,6 +136,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final ClusterBlocks.Builder initialBlocks;
 
+    private final TaskManager taskManager;
+
     private volatile ScheduledFuture reconnectToNodes;
 
     @Inject
@@ -162,6 +165,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
         initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
+
+        taskManager = transportService.getTaskManager();
     }
 
     public NodeSettingsService settingsService() {
@@ -187,6 +192,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override
     protected void doStart() {
         add(localNodeMasterListeners);
+        add(taskManager);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
@@ -394,6 +400,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return updateTasksExecutor.getMaxTaskWaitTime();
     }
 
+    @Override
+    public TaskManager getTaskManager() {
+        return taskManager;
+    }
 
     /** asserts that the current thread is the cluster state update thread */
     public boolean assertClusterStateThread() {

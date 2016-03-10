@@ -88,6 +88,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -95,6 +96,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -858,8 +860,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, transport, threadPool, namedWriteableRegistry);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {
@@ -884,7 +886,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
             super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
         }
 
-        private class InterceptingRequestHandler implements TransportRequestHandler {
+        private class InterceptingRequestHandler extends TransportRequestHandler {
 
             private final TransportRequestHandler requestHandler;
             private final String action;
@@ -895,7 +897,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
             }
 
             @Override
-            public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
+            public void messageReceived(TransportRequest request, TransportChannel channel, Task task) throws Exception {
                 synchronized (InterceptingTransportService.this) {
                     if (actions.contains(action)) {
                         List<TransportRequest> requestList = requests.get(action);
@@ -908,7 +910,12 @@ public class IndicesRequestTests extends ESIntegTestCase {
                         }
                     }
                 }
-                requestHandler.messageReceived(request, channel);
+                requestHandler.messageReceived(request, channel, task);
+            }
+
+            @Override
+            public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
+                messageReceived(request, channel, null);
             }
         }
     }

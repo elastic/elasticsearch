@@ -19,10 +19,19 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.tasks.Task;
+
 /**
  *
  */
-public interface TransportRequestHandler<T extends TransportRequest> {
+public abstract class TransportRequestHandler<T extends TransportRequest> {
 
-    void messageReceived(T request, TransportChannel channel) throws Exception;
+    /**
+     * Override this method if access to the Task parameter is needed
+     */
+    public void messageReceived(final T request, final TransportChannel channel, Task task) throws Exception {
+        messageReceived(request, channel);
+    }
+
+    public abstract void messageReceived(T request, TransportChannel channel) throws Exception;
 }

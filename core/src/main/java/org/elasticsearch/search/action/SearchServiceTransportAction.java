@@ -327,7 +327,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class FreeContextTransportHandler<FreeContextRequest extends ScrollFreeContextRequest> implements TransportRequestHandler<FreeContextRequest> {
+    class FreeContextTransportHandler<FreeContextRequest extends ScrollFreeContextRequest> extends TransportRequestHandler<FreeContextRequest> {
         @Override
         public void messageReceived(FreeContextRequest request, TransportChannel channel) throws Exception {
             boolean freed = searchService.freeContext(request.id());
@@ -346,7 +346,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     }
 
-    class ClearScrollContextsTransportHandler implements TransportRequestHandler<ClearScrollContextsRequest> {
+    class ClearScrollContextsTransportHandler extends TransportRequestHandler<ClearScrollContextsRequest> {
         @Override
         public void messageReceived(ClearScrollContextsRequest request, TransportChannel channel) throws Exception {
             searchService.freeAllScrollContexts();
@@ -354,7 +354,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchDfsTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
+    class SearchDfsTransportHandler extends TransportRequestHandler<ShardSearchTransportRequest> {
         @Override
         public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             DfsSearchResult result = searchService.executeDfsPhase(request);
@@ -362,7 +362,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchQueryTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
+    class SearchQueryTransportHandler extends TransportRequestHandler<ShardSearchTransportRequest> {
         @Override
         public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QuerySearchResultProvider result = searchService.executeQueryPhase(request);
@@ -370,7 +370,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchQueryByIdTransportHandler implements TransportRequestHandler<QuerySearchRequest> {
+    class SearchQueryByIdTransportHandler extends TransportRequestHandler<QuerySearchRequest> {
         @Override
         public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeQueryPhase(request);
@@ -378,7 +378,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchQueryScrollTransportHandler implements TransportRequestHandler<InternalScrollSearchRequest> {
+    class SearchQueryScrollTransportHandler extends TransportRequestHandler<InternalScrollSearchRequest> {
         @Override
         public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
@@ -386,7 +386,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchQueryFetchTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
+    class SearchQueryFetchTransportHandler extends TransportRequestHandler<ShardSearchTransportRequest> {
         @Override
         public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
@@ -394,7 +394,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchQueryQueryFetchTransportHandler implements TransportRequestHandler<QuerySearchRequest> {
+    class SearchQueryQueryFetchTransportHandler extends TransportRequestHandler<QuerySearchRequest> {
         @Override
         public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
@@ -402,7 +402,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class FetchByIdTransportHandler<Request extends ShardFetchRequest> implements TransportRequestHandler<Request> {
+    class FetchByIdTransportHandler<Request extends ShardFetchRequest> extends TransportRequestHandler<Request> {
         @Override
         public void messageReceived(Request request, TransportChannel channel) throws Exception {
             FetchSearchResult result = searchService.executeFetchPhase(request);
@@ -410,7 +410,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchQueryFetchScrollTransportHandler implements TransportRequestHandler<InternalScrollSearchRequest> {
+    class SearchQueryFetchScrollTransportHandler extends TransportRequestHandler<InternalScrollSearchRequest> {
         @Override
         public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
@@ -419,7 +419,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     @Deprecated // remove in 3.0
-    class SearchScanTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
+    class SearchScanTransportHandler extends TransportRequestHandler<ShardSearchTransportRequest> {
         @Override
         public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeScan(request);
@@ -427,7 +427,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchScanScrollTransportHandler implements TransportRequestHandler<InternalScrollSearchRequest> {
+    class SearchScanScrollTransportHandler extends TransportRequestHandler<InternalScrollSearchRequest> {
         @Override
         public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQueryFetchSearchResult result = searchService.executeScan(request);

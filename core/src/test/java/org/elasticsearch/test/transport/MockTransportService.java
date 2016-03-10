@@ -19,20 +19,25 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -43,6 +48,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.local.LocalTransport;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -84,11 +91,26 @@ public class MockTransportService extends TransportService {
         }
     }
 
+
+    public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        Transport transport = new LocalTransport(settings, threadPool, version, namedWriteableRegistry);
+        return new MockTransportService(settings, transport, threadPool, namedWriteableRegistry);
+    }
+
+    public static MockTransportService nettyFromThreadPool(Settings settings, Version version, ThreadPool threadPool) {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
+            version, namedWriteableRegistry);
+        return new MockTransportService(Settings.EMPTY, transport, threadPool, namedWriteableRegistry);
+    }
+
+
     private final Transport original;
 
     @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-        super(settings, new LookupTestTransport(transport), threadPool);
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
+        super(settings, new LookupTestTransport(transport), threadPool, namedWriteableRegistry);
         this.original = transport;
     }
 
@@ -98,6 +120,15 @@ public class MockTransportService extends TransportService {
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+    }
+
+    @Override
+    protected TaskManager createTaskManager() {
+        if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
+            return new MockTaskManager(settings);
+        } else {
+            return super.createTaskManager();
+        }
     }
 
     /**

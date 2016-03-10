@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -431,6 +433,26 @@ public class Requests {
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against all the nodes.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#listTasks(ListTasksRequest)
+     */
+    public static ListTasksRequest listTasksRequest() {
+        return new ListTasksRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#cancelTasks(CancelTasksRequest)
+     */
+    public static CancelTasksRequest cancelTasksRequest() {
+        return new CancelTasksRequest();
     }
 
     /**

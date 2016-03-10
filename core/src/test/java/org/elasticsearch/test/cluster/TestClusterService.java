@@ -38,7 +38,9 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -48,6 +50,7 @@ import java.util.concurrent.ScheduledFuture;
 public class TestClusterService implements ClusterService {
 
     volatile ClusterState state;
+    private volatile TaskManager taskManager;
     private final List<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
     private final ThreadPool threadPool;
@@ -60,6 +63,12 @@ public class TestClusterService implements ClusterService {
 
     public TestClusterService(ThreadPool threadPool) {
         this(ClusterState.builder(new ClusterName("test")).build(), threadPool);
+        taskManager = new TaskManager(Settings.EMPTY);
+    }
+
+    public TestClusterService(ThreadPool threadPool, TransportService transportService) {
+        this(ClusterState.builder(new ClusterName("test")).build(), threadPool);
+        taskManager = transportService.getTaskManager();
     }
 
     public TestClusterService(ClusterState state) {
@@ -224,6 +233,11 @@ public class TestClusterService implements ClusterService {
     @Override
     public TimeValue getMaxTaskWaitTime() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TaskManager getTaskManager() {
+        return taskManager;
     }
 
     @Override

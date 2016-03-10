@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-public final class TransportLivenessAction implements TransportRequestHandler<LivenessRequest> {
+public final class TransportLivenessAction extends TransportRequestHandler<LivenessRequest> {
 
     private final ClusterService clusterService;
     private final ClusterName clusterName;

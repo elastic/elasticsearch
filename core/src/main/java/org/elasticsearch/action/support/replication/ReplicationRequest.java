@@ -23,12 +23,15 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ChildTaskActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
+public class ReplicationRequest<T extends ReplicationRequest<T>> extends ChildTaskActionRequest<T> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -206,6 +209,11 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         out.writeBoolean(canHaveDuplicates);
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new ReplicationTask(id, type, action, getDescription(), parentTaskId);
+    }
+
     /**
      * Sets the target shard id for the request. The shard id is set when a
      * index/delete request is resolved by the transport action
@@ -222,5 +230,10 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         } else {
             return index;
         }
+    }
+
+    @Override
+    public String getDescription() {
+        return toString();
     }
 }

@@ -30,7 +30,8 @@ import java.io.IOException;
 
 /**
  */
-public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeReadRequest<T> implements IndicesRequest.Replaceable {
+public abstract class ClusterInfoRequest<T extends ClusterInfoRequest<T>> extends MasterNodeReadRequest<T> implements IndicesRequest
+    .Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;

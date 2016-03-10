@@ -309,7 +309,7 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private class MasterPingRequestHandler implements TransportRequestHandler<MasterPingRequest> {
+    private class MasterPingRequestHandler extends TransportRequestHandler<MasterPingRequest> {
 
         @Override
         public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {

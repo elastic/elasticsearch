@@ -63,7 +63,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         transportService.sendRequest(nodes.masterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
-    private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {
+    private class NodeMappingRefreshTransportHandler extends TransportRequestHandler<NodeMappingRefreshRequest> {
 
         @Override
         public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {

@@ -87,7 +87,7 @@ public abstract class AbstractMultiValuesSourceParser<VS extends ValuesSource>
             throws IOException {
 
         List<String> fields = null;
-        List<Script> scripts = null;
+        HashMap<String, Script> scripts = null;
         ValueType valueType = null;
         String format = null;
         Object missing = null;
@@ -134,17 +134,23 @@ public abstract class AbstractMultiValuesSourceParser<VS extends ValuesSource>
                 }
             } else if (scriptable && token == XContentParser.Token.START_OBJECT) {
                 if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    scripts = Collections.singletonList(Script.parse(parser, context.parseFieldMatcher()));
+                    scripts = new HashMap<>();
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        parseScriptAndAdd(aggregationName, currentFieldName, parser, context.parseFieldMatcher(), scripts);
+                    }
                 } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (scriptable && token == XContentParser.Token.START_ARRAY) {
                 if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    scripts = new ArrayList<>();
+                    scripts = new HashMap<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Script script = Script.parse(parser, context.parseFieldMatcher());
-                        scripts.add(script);
+                        // since each script must have a name, this must be an array of objects
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            parser.nextToken();
+                            parseScriptAndAdd(aggregationName, currentFieldName, parser, context.parseFieldMatcher(), scripts);
+                        }
                     }
                 } else if ("field".equals(currentFieldName)) {
                     fields = new ArrayList<>();
@@ -187,6 +193,34 @@ public abstract class AbstractMultiValuesSourceParser<VS extends ValuesSource>
             factory.timeZone(timezone);
         }
         return factory;
+    }
+
+    /**
+     * Parses a key:value script in the form of: {script_name} : {script} and adds to the provided script map
+     */
+    private final void parseScriptAndAdd(final String aggregationName, final String currentFieldName,
+            XContentParser parser, ParseFieldMatcher parseFieldMatcher, final Map<String, Script> scripts) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        // If the parser hasn't yet been pushed to the first token, do it now
+        if (token == null) {
+            token = parser.nextToken();
+        }
+
+        // each script must have a name
+        if (token == XContentParser.Token.FIELD_NAME) {
+            final String name = parser.currentName();
+            if (scripts.containsKey(name)) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "Script name " + token + " already defined [" + currentFieldName + "] in [" + aggregationName + "].");
+            }
+            //advance parser
+            parser.nextToken();
+            // add script and name
+            scripts.put(name, Script.parse(parser, parseFieldMatcher));
+        } else {
+            throw new ParsingException(parser.getTokenLocation(),
+                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+        }
     }
 
     /**

@@ -68,7 +68,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
     private final ValuesSourceType valuesSourceType;
     private final ValueType targetValueType;
     private List<String> fields = Collections.emptyList();
-    private List<Script> scripts = Collections.emptyList();
+    private Map<String, Script> scripts = Collections.emptyMap();
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
@@ -106,7 +106,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
      * Sets the script to use for this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AB scripts(List<Script> scripts) {
+    public AB scripts(Map<String, Script> scripts) {
         if (scripts == null) {
             throw new IllegalArgumentException("[script] must not be null: [" + name + "]");
         }
@@ -117,7 +117,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
     /**
      * Gets the script to use for this aggregation.
      */
-    public List<Script> scripts() {
+    public Map<String, Script> scripts() {
         return scripts;
     }
 
@@ -213,9 +213,9 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
             ValuesSourceConfig<VS> config = config(context, field, null);
             configs.put(field, config);
         }
-        for (Script script : scripts) {
-            ValuesSourceConfig<VS> config = config(context, null, script);
-            configs.put(script.getType().getParseField().getPreferredName(), config);
+        for (Map.Entry<String, Script> script : scripts.entrySet()) {
+            ValuesSourceConfig<VS> config = config(context, null, script.getValue());
+            configs.put(script.getKey(), config);
         }
         return configs;
     }
@@ -344,8 +344,9 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
         out.writeBoolean(hasScripts);
         if (hasScripts) {
             out.writeVInt(scripts.size());
-            for (Script script : scripts) {
-                script.writeTo(out);
+            for (Map.Entry<String, Script> script : scripts.entrySet()) {
+                out.writeString(script.getKey());
+                script.getValue().writeTo(out);
             }
         }
         boolean hasValueType = valueType != null;
@@ -383,9 +384,9 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
         }
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<Script> scripts = new ArrayList<>(size);
+            Map<String, Script> scripts = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                scripts.add(Script.readScript(in));
+                scripts.put(in.readString(), Script.readScript(in));
             }
             factory.scripts = scripts;
         }

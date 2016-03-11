@@ -65,7 +65,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public static final String LON = "lon";
         public static final String LON_SUFFIX = "." + LON;
         public static final String GEOHASH = "geohash";
-        public static final String GEOHASH_SUFFIX = "." + GEOHASH;
         public static final String IGNORE_MALFORMED = "ignore_malformed";
     }
 

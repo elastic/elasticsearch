@@ -81,6 +81,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.breaker(metrics.contains("breaker"));
             nodesStatsRequest.script(metrics.contains("script"));
             nodesStatsRequest.discovery(metrics.contains("discovery"));
+            nodesStatsRequest.ingest(metrics.contains("ingest"));
 
             // check for index specific metrics
             if (metrics.contains("indices")) {
@@ -113,6 +114,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeSegmentFileSizes(true);
         }
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new RestToXContentListener<NodesStatsResponse>(channel));
+        client.admin().cluster().nodesStats(nodesStatsRequest, new RestToXContentListener<>(channel));
     }
 }

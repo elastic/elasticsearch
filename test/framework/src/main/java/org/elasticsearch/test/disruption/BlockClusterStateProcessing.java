@@ -56,7 +56,7 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         }
         logger.info("delaying cluster state updates on node [{}]", disruptionNodeCopy);
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
-        assert success : "startDisrupting called without waiting on stopDistrupting to complete";
+        assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 

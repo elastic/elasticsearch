@@ -50,7 +50,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
         parser.nextToken();
         GeoDistanceSortParser geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        geoParser.parse(parser, context.getQueryShardContext());
 
         sortBuilder = jsonBuilder();
         sortBuilder.startObject();
@@ -139,6 +139,6 @@ public class SortParserTests extends ESSingleNodeTestCase {
         XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
         parser.nextToken();
         GeoDistanceSortParser geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        geoParser.parse(parser, context.getQueryShardContext());
     }
 }

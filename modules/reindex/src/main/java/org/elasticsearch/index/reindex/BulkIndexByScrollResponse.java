@@ -45,16 +45,18 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     private BulkByScrollTask.Status status;
     private List<Failure> indexingFailures;
     private List<ShardSearchFailure> searchFailures;
+    private boolean timedOut;
 
     public BulkIndexByScrollResponse() {
     }
 
     public BulkIndexByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> indexingFailures,
-            List<ShardSearchFailure> searchFailures) {
+            List<ShardSearchFailure> searchFailures, boolean timedOut) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
         this.indexingFailures = indexingFailures;
         this.searchFailures = searchFailures;
+        this.timedOut = timedOut;
     }
 
     public TimeValue getTook() {
@@ -103,6 +105,13 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         return searchFailures;
     }
 
+    /**
+     * Did any of the sub-requests that were part of this request timeout?
+     */
+    public boolean isTimedOut() {
+        return timedOut;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -116,6 +125,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         for (ShardSearchFailure failure: searchFailures) {
             failure.writeTo(out);
         }
+        out.writeBoolean(timedOut);
     }
 
     @Override
@@ -135,11 +145,13 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
             searchFailures.add(readShardSearchFailure(in));
         }
         this.searchFailures = unmodifiableList(searchFailures);
+        this.timedOut = in.readBoolean();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("took", took.millis());
+        builder.field("timed_out", timedOut);
         status.innerXContent(builder, params, false, false);
         builder.startArray("failures");
         for (Failure failure: indexingFailures) {

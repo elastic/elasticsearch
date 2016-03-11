@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -120,7 +121,7 @@ public class ClusterChangedEvent {
     /**
      * Returns the indices deleted in this event
      */
-    public List<String> indicesDeleted() {
+    public List<Index> indicesDeleted() {
         // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected
         // master that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
         // rather we want to import them as dangling indices instead.  So we check here if the cluster UUID differs from the previous
@@ -131,17 +132,18 @@ public class ClusterChangedEvent {
         if (metaDataChanged() == false || isNewCluster()) {
             return Collections.emptyList();
         }
-        List<String> deleted = null;
-        for (ObjectCursor<String> cursor : previousState.metaData().indices().keys()) {
-            String index = cursor.value;
-            if (!state.metaData().hasIndex(index)) {
+        List<Index> deleted = null;
+        for (ObjectCursor<IndexMetaData> cursor : previousState.metaData().indices().values()) {
+            IndexMetaData index = cursor.value;
+            IndexMetaData current = state.metaData().index(index.getIndex().getName());
+            if (current == null || index.getIndexUUID().equals(current.getIndexUUID()) == false) {
                 if (deleted == null) {
                     deleted = new ArrayList<>();
                 }
-                deleted.add(index);
+                deleted.add(index.getIndex());
             }
         }
-        return deleted == null ? Collections.<String>emptyList() : deleted;
+        return deleted == null ? Collections.<Index>emptyList() : deleted;
     }
 
     /**

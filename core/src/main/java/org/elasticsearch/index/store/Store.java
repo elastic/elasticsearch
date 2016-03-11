@@ -379,7 +379,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
             decRef();
-            logger.debug("store reference count on close: " + refCounter.refCount());
+            logger.debug("store reference count on close: {}", refCounter.refCount());
         }
     }
 

@@ -81,13 +81,13 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         transportService.sendRequest(clusterState.nodes().masterNode(),
                 INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         if (nodes.localNode().isDataNode() == false) {
-            logger.trace("[{}] not acking store deletion (not a data node)");
+            logger.trace("[{}] not acking store deletion (not a data node)", index);
             return;
         }
         threadPool.generic().execute(new AbstractRunnable() {
             @Override
             public void onFailure(Throwable t) {
-                logger.warn("[{}]failed to ack index store deleted for  index", t, index);
+                logger.warn("[{}] failed to ack index store deleted for index", t, index);
             }
 
             @Override

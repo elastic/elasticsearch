@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -95,6 +96,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.IndexSettings;
@@ -836,7 +838,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
         for (String node : nodes) {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-            IndexService indexService = indicesService.indexService(index);
+            IndexService indexService = indicesService.indexService(resolveIndex(index));
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
             assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
@@ -881,7 +883,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
                         .append("] id [").append(hit.id()).append("]");
             }
-            logger.warn(sb.toString());
+            logger.warn("{}", sb);
             fail(failMsg);
         }
     }
@@ -1696,7 +1698,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Helper method to create list of plugins without specifying generic types. */
     @SafeVarargs
-    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which causes this warning
     protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
         return Arrays.asList(plugins);
     }
@@ -1704,7 +1706,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * This method is used to obtain additional settings for clients created by the internal cluster.
      * These settings will be applied on the client in addition to some randomized settings defined in
-     * the cluster. These setttings will also override any other settings the internal cluster might
+     * the cluster. These settings will also override any other settings the internal cluster might
      * add by default.
      */
     protected Settings transportClientSettings() {
@@ -1840,7 +1842,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         @Override
         public String description() {
-            return "a test plugin that registeres index.tests.seed as an index setting";
+            return "a test plugin that registers index.tests.seed as an index setting";
         }
         public void onModule(SettingsModule module) {
             module.registerSetting(INDEX_TEST_SEED_SETTING);
@@ -1981,7 +1983,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @After
     public final void after() throws Exception {
         printTestMessage("finished");
-        // Deleting indices is going to clear search contexts implicitely so we
+        // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         super.ensureAllSearchContextsReleased();
@@ -2041,7 +2043,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * of the provided index.
      */
     protected String routingKeyForShard(String index, String type, int shard) {
-        return internalCluster().routingKeyForShard(index, type, shard, getRandom());
+        return internalCluster().routingKeyForShard(resolveIndex(index), type, shard, getRandom());
     }
 
     /**
@@ -2142,6 +2144,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Inherited
     @Target(ElementType.TYPE)
     public @interface SuppressNetworkMode {
+    }
+
+    public static Index resolveIndex(String index) {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        return new Index(index, uuid);
     }
 
 }

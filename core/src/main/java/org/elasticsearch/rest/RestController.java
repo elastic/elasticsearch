@@ -176,7 +176,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                     try {
                         channel.sendResponse(new BytesRestResponse(channel, e));
                     } catch (Throwable e1) {
-                        logger.error("failed to send failure response for uri [" + request.uri() + "]", e1);
+                        logger.error("failed to send failure response for uri [{}]", e1, request.uri());
                     }
                 }
             } else {
@@ -275,7 +275,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 try {
                     channel.sendResponse(new BytesRestResponse(channel, e));
                 } catch (IOException e1) {
-                    logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
+                    logger.error("Failed to send failure response for uri [{}]", e1, request.uri());
                 }
             }
         }

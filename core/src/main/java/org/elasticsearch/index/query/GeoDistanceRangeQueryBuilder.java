@@ -236,7 +236,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         }
 
         GeoPoint point = new GeoPoint(this.point);
-        if (GeoValidationMethod.isCoerce(validationMethod)) {
+        if (indexCreatedBeforeV2_2 == false || GeoValidationMethod.isCoerce(validationMethod)) {
             GeoUtils.normalizePoint(point, true, true);
         }
 

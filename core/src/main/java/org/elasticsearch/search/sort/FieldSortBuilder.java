@@ -27,11 +27,9 @@ import java.io.IOException;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder {
+public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private final String fieldName;
-
-    private SortOrder order;
 
     private Object missing;
 
@@ -56,19 +54,9 @@ public class FieldSortBuilder extends SortBuilder {
     }
 
     /**
-     * The order of sorting. Defaults to {@link SortOrder#ASC}.
-     */
-    @Override
-    public FieldSortBuilder order(SortOrder order) {
-        this.order = order;
-        return this;
-    }
-
-    /**
      * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
      * <tt>_first</tt> to sort missing last or first respectively.
      */
-    @Override
     public FieldSortBuilder missing(Object missing) {
         this.missing = missing;
         return this;
@@ -119,9 +107,7 @@ public class FieldSortBuilder extends SortBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
-        if (order != null) {
-            builder.field("order", order.toString());
-        }
+        builder.field(ORDER_FIELD.getPreferredName(), order);
         if (missing != null) {
             builder.field("missing", missing);
         }

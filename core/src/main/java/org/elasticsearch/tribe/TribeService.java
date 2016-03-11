@@ -41,6 +41,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +54,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -154,6 +159,15 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public static final Set<String> TRIBE_SETTING_KEYS = Sets.newHashSet(TRIBE_NAME_SETTING.getKey(), ON_CONFLICT_SETTING.getKey(),
             BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
 
+    // these settings should be passed through to each tribe client, if they are not set explicitly
+    private static final List<Setting<?>> PASS_THROUGH_SETTINGS = Arrays.asList(
+        NetworkService.GLOBAL_NETWORK_HOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
+        TransportSettings.HOST,
+        TransportSettings.BIND_HOST,
+        TransportSettings.PUBLISH_HOST
+    );
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
@@ -167,18 +181,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings.Builder sb = Settings.builder().put(entry.getValue());
-            sb.put("node.name", settings.get("node.name") + "/" + entry.getKey());
-            sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(settings)); // pass through ES home dir
-            if (Environment.PATH_CONF_SETTING.exists(settings)) {
-                sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(settings));
-            }
-            sb.put(TRIBE_NAME_SETTING.getKey(), entry.getKey());
-            if (sb.get("http.enabled") == null) {
-                sb.put("http.enabled", false);
-            }
-            sb.put(Node.NODE_CLIENT_SETTING.getKey(), true);
-            nodes.add(new TribeClientNode(sb.build()));
+            Settings clientSettings = buildClientSettings(entry.getKey(), settings, entry.getValue());
+            nodes.add(new TribeClientNode(clientSettings));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -196,6 +200,46 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
+
+    // pkg private for testing
+    /**
+     * Builds node settings for a tribe client node from the tribe node's global settings,
+     * combined with tribe specific settings.
+     */
+    static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+        for (String tribeKey : tribeSettings.getAsMap().keySet()) {
+            if (tribeKey.startsWith("path.")) {
+                throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
+            }
+        }
+        Settings.Builder sb = Settings.builder().put(tribeSettings);
+        sb.put("node.name", globalSettings.get("node.name") + "/" + tribeName);
+        sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
+        if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
+        }
+        if (Environment.PATH_PLUGINS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_PLUGINS_SETTING.getKey(), Environment.PATH_PLUGINS_SETTING.get(globalSettings));
+        }
+        if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
+        }
+        if (Environment.PATH_SCRIPTS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_SCRIPTS_SETTING.getKey(), Environment.PATH_SCRIPTS_SETTING.get(globalSettings));
+        }
+        for (Setting<?> passthrough : PASS_THROUGH_SETTINGS) {
+            if (passthrough.exists(tribeSettings) == false && passthrough.exists(globalSettings)) {
+                sb.put(passthrough.getKey(), globalSettings.get(passthrough.getKey()));
+            }
+        }
+        sb.put(TRIBE_NAME_SETTING.getKey(), tribeName);
+        if (sb.get(NetworkModule.HTTP_ENABLED.getKey()) == null) {
+            sb.put(NetworkModule.HTTP_ENABLED.getKey(), false);
+        }
+        sb.put(Node.NODE_CLIENT_SETTING.getKey(), true);
+        return sb.build();
+    }
+
 
     @Override
     protected void doStart() {
@@ -218,7 +262,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     try {
                         otherNode.close();
                     } catch (Throwable t) {
-                        logger.warn("failed to close node {} on failed start", otherNode, t);
+                        logger.warn("failed to close node {} on failed start", t, otherNode);
                     }
                 }
                 if (e instanceof RuntimeException) {

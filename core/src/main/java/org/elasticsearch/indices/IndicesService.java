@@ -103,6 +103,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -185,14 +186,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
-        Set<String> indices = new HashSet<>(this.indices.keySet());
+        final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
-        for (final String index : indices) {
+        for (final Index index : indices) {
             indicesStopExecutor.execute(() -> {
                 try {
                     removeIndex(index, "shutdown", false);
                 } catch (Throwable e) {
-                    logger.warn("failed to remove index on stop [" + index + "]", e);
+                    logger.warn("failed to remove index on stop [{}]", e, index);
                 } finally {
                     latch.countDown();
                 }
@@ -256,7 +257,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
 
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-        for (IndexService indexService : indices.values()) {
+        for (IndexService indexService : this) {
             for (IndexShard indexShard : indexService) {
                 try {
                     if (indexShard.routingEntry() == null) {
@@ -290,17 +291,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indices.values().iterator();
     }
 
-    public boolean hasIndex(String index) {
-        return indices.containsKey(index);
-    }
-
-    /**
-     * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
-     *
-     */
-    @Nullable
-    public IndexService indexService(String index) {
-        return indices.get(index);
+    public boolean hasIndex(Index index) {
+        return indices.containsKey(index.getUUID());
     }
 
     /**
@@ -309,32 +301,20 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     @Nullable
     public IndexService indexService(Index index) {
-        return indexService(index.getName());
-    }
-
-    /**
-     * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
-     */
-    public IndexService indexServiceSafe(String index) {
-        IndexService indexService = indexService(index);
-        if (indexService == null) {
-            throw new IndexNotFoundException(index);
-        }
-        return indexService;
+        return indices.get(index.getUUID());
     }
 
     /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
     public IndexService indexServiceSafe(Index index) {
-        IndexService indexService = indexServiceSafe(index.getName());
-        if (indexService.indexUUID().equals(index.getUUID()) == false) {
+        IndexService indexService = indices.get(index.getUUID());
+        if (indexService == null) {
             throw new IndexNotFoundException(index);
         }
+        assert indexService.indexUUID().equals(index.getUUID()) : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
         return indexService;
     }
-
-
 
     /**
      * Creates a new {@link IndexService} for the given metadata.
@@ -346,10 +326,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
+        if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
+            throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
+        }
         final Index index = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
-        if (indices.containsKey(index.getName())) {
+        if (hasIndex(index)) {
             throw new IndexAlreadyExistsException(index);
         }
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
@@ -378,7 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         try {
             assert indexService.getIndexEventListener() == listener;
             listener.afterIndexCreated(indexService);
-            indices = newMapBuilder(indices).put(index.getName(), indexService).immutableMap();
+            indices = newMapBuilder(indices).put(index.getUUID(), indexService).immutableMap();
             success = true;
             return indexService;
         } finally {
@@ -395,22 +378,24 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to remove
      * @param reason  the high level reason causing this removal
      */
-    public void removeIndex(String index, String reason) {
+    public void removeIndex(Index index, String reason) {
         removeIndex(index, reason, false);
     }
 
-    private void removeIndex(String index, String reason, boolean delete) {
+    private void removeIndex(Index index, String reason, boolean delete) {
+        final String indexName = index.getName();
         try {
             final IndexService indexService;
             final IndexEventListener listener;
             synchronized (this) {
-                if (indices.containsKey(index) == false) {
+                if (hasIndex(index) == false) {
                     return;
                 }
 
-                logger.debug("[{}] closing ... (reason [{}])", index, reason);
+                logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
                 Map<String, IndexService> newIndices = new HashMap<>(indices);
-                indexService = newIndices.remove(index);
+                indexService = newIndices.remove(index.getUUID());
+                assert indexService != null : "IndexService is null for index: " + index;
                 indices = unmodifiableMap(newIndices);
                 listener = indexService.getIndexEventListener();
             }
@@ -419,9 +404,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             if (delete) {
                 listener.beforeIndexDeleted(indexService);
             }
-            logger.debug("[{}] closing index service (reason [{}])", index, reason);
+            logger.debug("{} closing index service (reason [{}])", index, reason);
             indexService.close(reason, delete);
-            logger.debug("[{}] closed... (reason [{}])", index, reason);
+            logger.debug("{} closed... (reason [{}])", index, reason);
             listener.afterIndexClosed(indexService.index(), indexService.getIndexSettings().getSettings());
             if (delete) {
                 final IndexSettings indexSettings = indexService.getIndexSettings();
@@ -474,12 +459,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * Deletes the given index. Persistent parts of the index
      * like the shards files, state and transaction logs are removed once all resources are released.
      *
-     * Equivalent to {@link #removeIndex(String, String)} but fires
+     * Equivalent to {@link #removeIndex(Index, String)} but fires
      * different lifecycle events to ensure pending resources of this index are immediately removed.
      * @param index the index to delete
      * @param reason the high level reason causing this delete
      */
-    public void deleteIndex(String index, String reason) throws IOException {
+    public void deleteIndex(Index index, String reason) throws IOException {
         removeIndex(index, reason, true);
     }
 
@@ -505,16 +490,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState, boolean closed) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
-                String indexName = metaData.getIndex().getName();
-                if (indices.containsKey(indexName)) {
-                    String localUUid = indices.get(indexName).indexUUID();
-                    throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
+                Index index = metaData.getIndex();
+                if (hasIndex(index)) {
+                    String localUUid = indexService(index).indexUUID();
+                    throw new IllegalStateException("Can't delete index store for [" + index.getName() + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
                 }
-                if (clusterState.metaData().hasIndex(indexName) && (clusterState.nodes().localNode().masterNode() == true)) {
+
+                if (clusterState.metaData().hasIndex(index.getName()) && (clusterState.nodes().localNode().masterNode() == true)) {
                     // we do not delete the store if it is a master eligible node and the index is still in the cluster state
                     // because we want to keep the meta data for indices around even if no shards are left here
-                    final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
+                    final IndexMetaData idxMeta = clusterState.metaData().index(index.getName());
+                    throw new IllegalStateException("Can't delete closed index store for [" + index.getName() + "] - it's still part of the cluster state [" + idxMeta.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -607,7 +593,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @return true if the index can be deleted on this node
      */
     public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings, boolean closed) {
-        final IndexService indexService = this.indices.get(index.getName());
+        final IndexService indexService = indexService(index);
         // Closed indices may be deleted, even if they are on a shared
         // filesystem. Since it is closed we aren't deleting it for relocation
         if (indexSettings.isOnSharedFilesystem() == false || closed) {
@@ -634,7 +620,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
         assert shardId.getIndex().equals(indexSettings.getIndex());
-        final IndexService indexService = this.indices.get(shardId.getIndexName());
+        final IndexService indexService = indexService(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {
                 return indexService.hasShard(shardId.id()) == false;

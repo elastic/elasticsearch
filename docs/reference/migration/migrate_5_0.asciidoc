@@ -21,6 +21,7 @@ your application to Elasticsearch 5.0.
 * <<breaking_50_scripting>>
 * <<breaking_50_term_vectors>>
 * <<breaking_50_security>>
+* <<breaking_50_snapshot_restore>>
 
 [[breaking_50_search_changes]]
 === Warmers
@@ -189,6 +190,21 @@ purpose has been removed.
 The `host` field has been removed from the cat nodes API as its value
 is always equal to the `ip` field. The `name` field is available in the
 cat nodes API and should be used instead of the `host` field.
+
+==== Changes to cat recovery API
+
+The fields `bytes_recovered` and `files_recovered` have been added to
+the cat recovery API. These fields, respectively, indicate the total
+number of bytes and files that have been recovered.
+
+The fields `total_files` and `total_bytes` have been renamed to
+`files_total` and `bytes_total`, respectively.
+
+Additionally, the field `translog` has been renamed to
+`translog_ops_recovered`, the field `translog_total` to
+`translog_ops` and the field `translog_percent` to
+`translog_ops_percent`. The short aliases for these fields are `tor`,
+`to`, and `top`, respectively.
 
 [[breaking_50_parent_child_changes]]
 === Parent/Child changes
@@ -808,6 +824,15 @@ changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
 
+==== Longer startup times
+
+In Elasticsearch 5.0.0 the `-XX:+AlwaysPreTouch` flag has been added to the JVM
+startup options. This option touches all memory pages used by the JVM heap
+during initialization of the HotSpot VM to reduce the chance of having to commit
+a memory page during GC time. This will increase the startup time of
+Elasticsearch as well as increasing the initial resident memory usage of the
+Java process.
+
 [[breaking_50_scripting]]
 === Scripting
 
@@ -844,3 +869,12 @@ distributed document frequencies anymore.
 
 The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
 permissions to elasticsearch users must tweak the local Java Security Policy.
+
+[[breaking_50_snapshot_restore]]
+=== Snapshot/Restore
+
+==== Closing / deleting indices while running snapshot
+
+In previous versions of Elasticsearch, closing or deleting an index during a full snapshot would make the snapshot fail. This is now changed
+by failing the close/delete index request instead. The behavior for partial snapshots remains unchanged: Closing or deleting an index during
+a partial snapshot is still possible. The snapshot result is then marked as partial.

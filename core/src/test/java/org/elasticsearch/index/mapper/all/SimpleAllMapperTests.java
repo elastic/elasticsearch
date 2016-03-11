@@ -272,7 +272,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = mappingBuilder.endObject().endObject().bytes().toUtf8();
-        logger.info(mapping);
+        logger.info("Mapping: {}", mapping);
         DocumentMapper docMapper = parser.parse("test", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it

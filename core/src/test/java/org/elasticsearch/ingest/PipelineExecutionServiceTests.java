@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -38,15 +39,16 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -339,6 +341,43 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
+    }
+
+    public void testStats() throws Exception {
+        IngestStats ingestStats = executionService.stats();
+        assertThat(ingestStats.getStatsPerPipeline().size(), equalTo(0));
+        assertThat(ingestStats.getTotalStats().getIngestCount(), equalTo(0L));
+        assertThat(ingestStats.getTotalStats().getIngestCurrent(), equalTo(0L));
+        assertThat(ingestStats.getTotalStats().getIngestFailedCount(), equalTo(0L));
+        assertThat(ingestStats.getTotalStats().getIngestTimeInMillis(), equalTo(0L));
+
+        when(store.get("_id1")).thenReturn(new Pipeline("_id1", null, new CompoundProcessor()));
+        when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, new CompoundProcessor()));
+
+        Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        executionService.updatePipelineStats(new IngestMetadata(configurationMap));
+
+        Consumer<Throwable> failureHandler = mock(Consumer.class);
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+
+        IndexRequest indexRequest = new IndexRequest("_index");
+        indexRequest.setPipeline("_id1");
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
+        ingestStats = executionService.stats();
+        assertThat(ingestStats.getStatsPerPipeline().size(), equalTo(2));
+        assertThat(ingestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
+        assertThat(ingestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(0L));
+        assertThat(ingestStats.getTotalStats().getIngestCount(), equalTo(1L));
+
+        indexRequest.setPipeline("_id2");
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
+        ingestStats = executionService.stats();
+        assertThat(ingestStats.getStatsPerPipeline().size(), equalTo(2));
+        assertThat(ingestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
+        assertThat(ingestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(1L));
+        assertThat(ingestStats.getTotalStats().getIngestCount(), equalTo(2L));
     }
 
     private IngestDocument eqID(String index, String type, String id, Map<String, Object> source) {

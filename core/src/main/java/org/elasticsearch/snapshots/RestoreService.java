@@ -775,6 +775,32 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     }
 
     /**
+     * Check if any of the indices to be closed are currently being restored from a snapshot and fail closing if such an index
+     * is found as closing an index that is being restored makes the index unusable (it cannot be recovered).
+     */
+    public static void checkIndexClosing(ClusterState currentState, Set<String> indices) {
+        RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
+        if (restore != null) {
+            Set<String> indicesToFail = null;
+            for (RestoreInProgress.Entry entry : restore.entries()) {
+                for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
+                    if (!shard.value.state().completed()) {
+                        if (indices.contains(shard.key.getIndexName())) {
+                            if (indicesToFail == null) {
+                                indicesToFail = new HashSet<>();
+                            }
+                            indicesToFail.add(shard.key.getIndexName());
+                        }
+                    }
+                }
+            }
+            if (indicesToFail != null) {
+                throw new IllegalArgumentException("Cannot close indices that are being restored: " + indicesToFail);
+            }
+        }
+    }
+
+    /**
      * Adds restore completion listener
      * <p>
      * This listener is called for each snapshot that finishes restore operation in the cluster. It's responsibility of

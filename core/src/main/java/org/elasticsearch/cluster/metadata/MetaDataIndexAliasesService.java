@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
@@ -74,7 +75,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                List<String> indicesToClose = new ArrayList<>();
+                List<Index> indicesToClose = new ArrayList<>();
                 Map<String, IndexService> indices = new HashMap<>();
                 try {
                     for (AliasAction aliasAction : request.actions()) {
@@ -112,7 +113,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.getIndex());
                                             continue;
                                         }
-                                        indicesToClose.add(indexMetaData.getIndex().getName());
+                                        indicesToClose.add(indexMetaData.getIndex());
                                     }
                                     indices.put(indexMetaData.getIndex().getName(), indexService);
                                 }
@@ -153,7 +154,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
                     return currentState;
                 } finally {
-                    for (String index : indicesToClose) {
+                    for (Index index : indicesToClose) {
                         indicesService.removeIndex(index, "created for alias processing");
                     }
                 }

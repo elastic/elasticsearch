@@ -42,6 +42,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean breaker;
     private boolean script;
     private boolean discovery;
+    private boolean ingest;
 
     public NodesStatsRequest() {
     }
@@ -69,6 +70,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.breaker = true;
         this.script = true;
         this.discovery = true;
+        this.ingest = true;
         return this;
     }
 
@@ -87,6 +89,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.breaker = false;
         this.script = false;
         this.discovery = false;
+        this.ingest = false;
         return this;
     }
 
@@ -250,6 +253,17 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean ingest() {
+        return ingest;
+    }
+
+    /**
+     * Should ingest statistics be returned.
+     */
+    public NodesStatsRequest ingest(boolean ingest) {
+        this.ingest = ingest;
+        return this;
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -265,6 +279,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         breaker = in.readBoolean();
         script = in.readBoolean();
         discovery = in.readBoolean();
+        ingest = in.readBoolean();
     }
 
     @Override
@@ -281,6 +296,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(breaker);
         out.writeBoolean(script);
         out.writeBoolean(discovery);
+        out.writeBoolean(ingest);
     }
 
 }

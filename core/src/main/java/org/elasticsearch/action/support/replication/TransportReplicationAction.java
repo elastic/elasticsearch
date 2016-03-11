@@ -53,6 +53,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -269,7 +270,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     try {
                         channel.sendResponse(e);
                     } catch (Throwable e1) {
-                        logger.warn("Failed to send response for " + actionName, e1);
+                        logger.warn("Failed to send response for {}", e1, actionName);
                     }
                 }
             });
@@ -372,18 +373,18 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         private void failReplicaIfNeeded(Throwable t) {
-            String index = request.shardId().getIndex().getName();
+            Index index = request.shardId().getIndex();
             int shardId = request.shardId().id();
             logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
             if (ignoreReplicaException(t) == false) {
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService == null) {
-                    logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
+                    logger.debug("ignoring failed replica {}[{}] because index was already removed.", index, shardId);
                     return;
                 }
                 IndexShard indexShard = indexService.getShardOrNull(shardId);
                 if (indexShard == null) {
-                    logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
+                    logger.debug("ignoring failed replica {}[{}] because index was already removed.", index, shardId);
                     return;
                 }
                 indexShard.failShard(actionName + " failed on replica", t);
@@ -394,7 +395,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             try {
                 channel.sendResponse(t);
             } catch (IOException responseException) {
-                logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 logger.warn("actual Exception", t);
             }
         }
@@ -1106,7 +1107,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 try {
                     channel.sendResponse(finalResponse);
                 } catch (IOException responseException) {
-                    logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                    logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 }
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on all replicas [{}] for request [{}]", transportReplicaAction, shardId, replicaRequest);

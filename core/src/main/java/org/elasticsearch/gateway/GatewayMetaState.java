@@ -202,7 +202,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation)) {
                 for (Path stateFile : stream) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[upgrade]: processing [" + stateFile.getFileName() + "]");
+                        logger.trace("[upgrade]: processing [{}]", stateFile.getFileName());
                     }
                     final String name = stateFile.getFileName().toString();
                     if (name.startsWith("metadata-")) {

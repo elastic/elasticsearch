@@ -316,7 +316,8 @@ final class DocumentParser implements Closeable {
         while (i < nameParts.length - 1 && last.getMapper(nameParts[i]) != null) {
             Mapper newLast = last.getMapper(nameParts[i]);
             assert newLast instanceof ObjectMapper;
-            parentMappers.add((ObjectMapper)newLast);
+            last = (ObjectMapper) newLast;
+            parentMappers.add(last);
             ++i;
         }
         return i;

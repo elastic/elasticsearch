@@ -196,6 +196,9 @@ The fields `bytes_recovered` and `files_recovered` have been added to
 the cat recovery API. These fields, respectively, indicate the total
 number of bytes and files that have been recovered.
 
+The fields `total_files` and `total_bytes` have been renamed to
+`files_total` and `bytes_total`, respectively.
+
 Additionally, the field `translog` has been renamed to
 `translog_ops_recovered`, the field `translog_total` to
 `translog_ops` and the field `translog_percent` to

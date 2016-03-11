@@ -140,11 +140,11 @@ public class RestRecoveryActionTests extends ESTestCase {
         assertThat(headers.get(9).value, equalTo("files"));
         assertThat(headers.get(10).value, equalTo("files_recovered"));
         assertThat(headers.get(11).value, equalTo("files_percent"));
-        assertThat(headers.get(12).value, equalTo("total_files"));
+        assertThat(headers.get(12).value, equalTo("files_total"));
         assertThat(headers.get(13).value, equalTo("bytes"));
         assertThat(headers.get(14).value, equalTo("bytes_recovered"));
         assertThat(headers.get(15).value, equalTo("bytes_percent"));
-        assertThat(headers.get(16).value, equalTo("total_bytes"));
+        assertThat(headers.get(16).value, equalTo("bytes_total"));
         assertThat(headers.get(17).value, equalTo("translog_ops"));
         assertThat(headers.get(18).value, equalTo("translog_ops_recovered"));
         assertThat(headers.get(19).value, equalTo("translog_ops_percent"));

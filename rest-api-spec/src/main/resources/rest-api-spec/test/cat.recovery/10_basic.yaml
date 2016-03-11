@@ -37,11 +37,11 @@
                 \d+         \s+                                 # files
                 \d+         \s+                                 # files_recovered
                 \d+\.\d+%   \s+                                 # files_percent
-                \d+         \s+                                 # total_files
+                \d+         \s+                                 # files_total
                 \d+         \s+                                 # bytes
                 \d+         \s+                                 # bytes_recovered
                 \d+\.\d+%   \s+                                 # bytes_percent
-                \d+         \s+                                 # total_bytes
+                \d+         \s+                                 # bytes_total
                 -?\d+       \s+                                 # translog_ops
                 \d+         \s+                                 # translog_ops_recovered
                 -?\d+\.\d+%                                     # translog_ops_percent

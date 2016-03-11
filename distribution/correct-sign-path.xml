@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="correct-sign-path">
+<project name="correct-sign-path" default="shorten-gpg-path">
     <target name="check-keypath-override">
         <condition property="gpg.keypath.overridden" value="true" else="false">
             <not>

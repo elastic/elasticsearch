@@ -133,7 +133,7 @@ public class BootstrapCliParserTests extends CommandTestCase {
     public void testConfig() throws Exception {
         registerProperties("es.foo", "es.spam");
 
-        execute("-Efoo=bar", "-Espam=eggs");
+        execute("-Dfoo=bar", "-Dspam=eggs");
         assertSystemProperty("es.foo", "bar");
         assertSystemProperty("es.spam", "eggs");
         assertShouldRun(true);
@@ -141,9 +141,16 @@ public class BootstrapCliParserTests extends CommandTestCase {
 
     public void testConfigMalformed() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            execute("-Efoo");
+            execute("-Dfoo");
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Malformed elasticsearch setting"));
+    }
+
+    public void testUnknownOption() throws Exception {
+        OptionException e = expectThrows(OptionException.class, () -> {
+            execute("--network.host");
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("network.host is not a recognized option"));
     }
 
     private void registerProperties(String ... systemProperties) {

@@ -89,35 +89,35 @@ public abstract class Terminal {
 
     private static class ConsoleTerminal extends Terminal {
 
-        private static final Console console = System.console();
+        private static final Console CONSOLE = System.console();
 
         ConsoleTerminal() {
             super(System.lineSeparator());
         }
 
         static boolean isSupported() {
-            return console != null;
+            return CONSOLE != null;
         }
 
         @Override
         public PrintWriter getWriter() {
-            return console.writer();
+            return CONSOLE.writer();
         }
 
         @Override
         public String readText(String prompt) {
-            return console.readLine("%s", prompt);
+            return CONSOLE.readLine("%s", prompt);
         }
 
         @Override
         public char[] readSecret(String prompt) {
-            return console.readPassword("%s", prompt);
+            return CONSOLE.readPassword("%s", prompt);
         }
     }
 
     private static class SystemTerminal extends Terminal {
 
-        private static final PrintWriter writer = newWriter();
+        private static final PrintWriter WRITER = newWriter();
 
         SystemTerminal() {
             super(System.lineSeparator());
@@ -130,7 +130,7 @@ public abstract class Terminal {
 
         @Override
         public PrintWriter getWriter() {
-            return writer;
+            return WRITER;
         }
 
         @Override

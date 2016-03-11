@@ -38,6 +38,8 @@ thirdPartyAudit.excludes = [
   // for example we do not need ivy, scripts arent allowed to download code
   'com.thoughtworks.xstream.XStream', 
   'groovyjarjarasm.asm.util.Textifiable', 
+  // commons-cli is referenced by groovy, even though they supposedly
+  // jarjar it. Since we don't use the cli, we don't need the dep.
   'org.apache.commons.cli.CommandLine',
   'org.apache.commons.cli.CommandLineParser',
   'org.apache.commons.cli.GnuParser',

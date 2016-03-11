@@ -326,6 +326,38 @@
                         <id>check-license</id>
                         <phase>none</phase>
                     </execution>
+                    <execution>
+                        <id>set-doclint-all</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- if we are on java 1.8.* we set doclint to run all checks -->
+                                <condition property="doclint.all" value="-Xdoclint:all" else="" >
+                                    <matches pattern="1\.8\..+$" string="${java.runtime.version}" />
+                                </condition>
+                            </target>
+                            <exportAntProperties>true</exportAntProperties>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>set-doclint-missing</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- if we are on java 1.8.* we set doclint to ignore missing-->
+                                <condition property="doclint.missing" value="-Xdoclint:-missing" else="" >
+                                    <matches pattern="1\.8\..+$" string="${java.runtime.version}" />
+                                </condition>
+                            </target>
+                            <exportAntProperties>true</exportAntProperties>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -339,8 +371,8 @@
                         </goals>
                         <configuration>
                             <quiet>true</quiet>
-                            <additionalparam>-Xdoclint:all</additionalparam>
-                            <additionalparam>-Xdoclint:-missing</additionalparam>
+                            <additionalparam>${doclint.all}</additionalparam>
+                            <additionalparam>${doclint.missing}</additionalparam>
                         </configuration>
                     </execution>
                 </executions>

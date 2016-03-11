@@ -118,11 +118,12 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         String fieldName = null;
 
-        XContentParser.Token token;
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == null) {
+            // when we parse from RestSuggestAction the current token is null, advance the token
             parser.nextToken();
         }
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT : "current token must be a start object";
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -135,7 +136,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String suggestionName = fieldName;
                 if (suggestionName == null) {
-                    throw new IllegalArgumentException("Suggestion must have name");
+                    throw new IllegalArgumentException("suggestion must have name");
                 }
                 suggestBuilder.addSuggestion(suggestionName, SuggestionBuilder.fromXContent(parseContext, suggesters));
             } else {

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="correct-sign-path" default="shorten-gpg-path">
+    <target name="check-keypath-override">
+        <condition property="gpg.keypath.overridden" value="true" else="false">
+            <not>
+                <equals arg1="${gpg.keypath}" arg2="${gpg.default.keypath}"/>
+            </not>
+        </condition>
+
+        <condition property="shorten.gpg.path" value="true" else="false">
+            <and>
+                <isfalse value="${gpg.keypath.overridden}"/>
+                <os family="unix"/>
+            </and>
+        </condition>
+
+        <condition property="copy.gpg.path" value="true" else="false">
+            <and>
+                <isfalse value="${gpg.keypath.overridden}"/>
+                <os family="windows"/>
+            </and>
+        </condition>
+
+    </target>
+
+    <!--
+        Either use a symlink (Unix) to shorten the GPG path or copy the directory (Windows).
+
+        In case the gpg.keypath has been overwritten externally we don't do any symlink magic
+    -->
+    <target name="symlink-gpg-path" depends="check-keypath-override" if="${shorten.gpg.path}">
+        <echo level="info" message="Symlinking ${gpg.long.keypath} to ${gpg.keypath}"/>
+        <symlink link="${gpg.keypath}" resource="${gpg.long.keypath}" overwrite="true"/>
+    </target>
+
+
+    <target name="copy-gpg-path" depends="check-keypath-override" if="${copy.gpg.path}">
+        <echo level="info" message="Copying ${gpg.long.keypath} to ${gpg.keypath}"/>
+        <copy todir="${gpg.keypath}">
+            <fileset dir="${gpg.long.keypath}"/>
+        </copy>
+    </target>
+
+    <target name="shorten-gpg-path" depends="symlink-gpg-path, copy-gpg-path"/>
+
+</project>

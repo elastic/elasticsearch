@@ -45,6 +45,7 @@
         <!-- we expect packaging formats to have integration tests, but not unit tests -->
         <skip.unit.tests>true</skip.unit.tests>
 
+        <packaging.gpg.shortening.ant.script>${project.basedir}/../correct-sign-path.xml</packaging.gpg.shortening.ant.script>
         <!-- By default we sign RPMs and DEBs using a dummy gpg directory that we check into
              source control. Releases will override this with the real information. -->
         <gpg.key>16E55242</gpg.key>

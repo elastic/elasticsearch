@@ -303,6 +303,18 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
+                    <execution>
+                        <id>shorten-gpg-key-path</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <ant antfile="${packaging.gpg.shortening.ant.script}"/>
+                            </target>
+                        </configuration>
+                    </execution>
                     <!-- start up external cluster -->
                     <execution>
                         <id>integ-setup</id>

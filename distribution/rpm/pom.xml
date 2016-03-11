@@ -364,7 +364,7 @@
                         </goals>
                         <configuration>
                             <target>
-                                <ant antfile="correct-sign-path.xml" target="shorten-gpg-path"/>
+                                <ant antfile="${packaging.gpg.shortening.ant.script}"/>
                             </target>
                         </configuration>
                     </execution>

@@ -8,28 +8,17 @@ package org.elasticsearch.license.licensor.tools;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
-import org.elasticsearch.common.cli.CliTool.Command;
-import org.elasticsearch.common.cli.CliTool.ExitStatus;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.MockTerminal;
-import org.elasticsearch.common.cli.UserError;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
-import org.elasticsearch.license.licensor.tools.LicenseVerificationTool.LicenseVerifier;
-import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.core.IsEqual.equalTo;
-
-public class LicenseVerificationToolTests extends CliToolTestCase {
+public class LicenseVerificationToolTests extends CommandTestCase {
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
 
@@ -40,115 +29,54 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
         priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE);
     }
 
-    public void testParsingMissingLicense() throws Exception {
-        LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
-        Path path = getDataPath(TestUtils.PUBLIC_KEY_RESOURCE);
-        Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME, new String[] { "--publicKeyPath", path.toString() });
-
-        assertThat(command, instanceOf(Command.Exit.class));
-        Command.Exit exitCommand = (Command.Exit) command;
-        assertThat(exitCommand.status(), equalTo(ExitStatus.USAGE));
+    @Override
+    protected Command newCommand() {
+        return new LicenseVerificationTool();
     }
 
-    public void testParsingMissingPublicKeyPath() throws Exception {
-        License inputLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-        LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
+    public void testMissingKeyPath() throws Exception {
+        Path pub = createTempDir().resolve("pub");
         UserError e = expectThrows(UserError.class, () -> {
-            licenseVerificationTool.parse(LicenseVerificationTool.NAME,
-                    new String[] { "--license", TestUtils.dumpLicense(inputLicense) });
+            execute("--publicKeyPath", pub.toString());
         });
-        assertThat(e.getMessage(), containsString("pub"));
+        assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
+        assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 
-    public void testParsingNonExistentPublicKeyPath() throws Exception {
-        LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
-        Path path = getDataPath(TestUtils.PUBLIC_KEY_RESOURCE);
-        Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME,
-                new String[] { "--publicKeyPath", path.toString().concat(".invalid") });
-
-        assertThat(command, instanceOf(Command.Exit.class));
-        Command.Exit exitCommand = (Command.Exit) command;
-        assertThat(exitCommand.status(), equalTo(ExitStatus.USAGE));
+    public void testMissingLicenseSpec() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("--publicKeyPath", pubKeyPath.toString());
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("Must specify either --license or --licenseFile"));
+        assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 
-    public void testParsingSimple() throws Exception {
-        License inputLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-        LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
-        Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME,
-                new String[] { "--license", TestUtils.dumpLicense(inputLicense),
-                        "--publicKeyPath", getDataPath(TestUtils.PUBLIC_KEY_RESOURCE).toString() });
-        assertThat(command, instanceOf(LicenseVerifier.class));
-        LicenseVerifier licenseVerifier = (LicenseVerifier) command;
-        assertThat(inputLicense, equalTo(licenseVerifier.license));
-    }
-
-    public void testParsingLicenseFile() throws Exception {
-        License inputLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-
-        LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
-        Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME,
-                new String[]{"--licenseFile", dumpLicenseAsFile(inputLicense),
-                        "--publicKeyPath", getDataPath(TestUtils.PUBLIC_KEY_RESOURCE).toString()});
-        assertThat(command, instanceOf(LicenseVerifier.class));
-        LicenseVerifier licenseVerifier = (LicenseVerifier) command;
-        assertThat(inputLicense, equalTo(licenseVerifier.license));
-
-    }
-
-    public void testParsingMultipleLicense() throws Exception {
-        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-        List<String> arguments = new ArrayList<>();
-        arguments.add("--license");
-        arguments.add(TestUtils.dumpLicense(license));
-        arguments.add("--publicKeyPath");
-        arguments.add(getDataPath(TestUtils.PUBLIC_KEY_RESOURCE).toString());
-        LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
-        Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME, arguments.toArray(new String[arguments.size()]));
-
-        assertThat(command, instanceOf(LicenseVerifier.class));
-        LicenseVerifier licenseVerifier = (LicenseVerifier) command;
-        assertThat(licenseVerifier.license, equalTo(license));
-    }
-
-    public void testToolSimple() throws Exception {
-        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-        String output = runLicenseVerificationTool(license, getDataPath(TestUtils.PUBLIC_KEY_RESOURCE), ExitStatus.OK);
-        License outputLicense = License.fromSource(output.getBytes(StandardCharsets.UTF_8));
-        assertThat(outputLicense, CoreMatchers.equalTo(license));
-    }
-
-    public void testToolInvalidLicense() throws Exception {
+    public void testBrokenLicense() throws Exception {
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
-
         License tamperedLicense = License.builder()
-                .fromLicenseSpec(signedLicense, signedLicense.signature())
-                .expiryDate(signedLicense.expiryDate() + randomIntBetween(1, 1000)).build();
-
-        runLicenseVerificationTool(tamperedLicense, getDataPath(TestUtils.PUBLIC_KEY_RESOURCE), ExitStatus.DATA_ERROR);
+            .fromLicenseSpec(signedLicense, signedLicense.signature())
+            .expiryDate(signedLicense.expiryDate() + randomIntBetween(1, 1000)).build();
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("--publicKeyPath", pubKeyPath.toString(),
+                    "--license", TestUtils.dumpLicense(tamperedLicense));
+        });
+        assertEquals("Invalid License!", e.getMessage());
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
     }
 
-    private String dumpLicenseAsFile(License license) throws Exception {
-        Path tempFile = createTempFile();
-        Files.write(tempFile, TestUtils.dumpLicense(license).getBytes(StandardCharsets.UTF_8));
-        return tempFile.toAbsolutePath().toString();
+    public void testLicenseSpecString() throws Exception {
+        License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
+        String output = execute("--publicKeyPath", pubKeyPath.toString(),
+                                "--license", TestUtils.dumpLicense(signedLicense));
+        assertFalse(output, output.isEmpty());
     }
 
-    private String runLicenseVerificationTool(License license, Path publicKeyPath, ExitStatus expectedExitStatus) throws Exception {
-        MockTerminal outputTerminal = new MockTerminal();
-        Settings settings = Settings.builder().put("path.home", createTempDir("LicenseVerificationToolTests")).build();
-        LicenseVerifier licenseVerifier = new LicenseVerifier(outputTerminal, license, publicKeyPath);
-        assertThat(execute(licenseVerifier, settings), equalTo(expectedExitStatus));
-        if (expectedExitStatus == ExitStatus.OK) {
-            String output = outputTerminal.getOutput();
-            assertFalse(output, output.isEmpty());
-            return output;
-        } else {
-            return null;
-        }
-    }
-
-    private ExitStatus execute(Command cmd, Settings settings) throws Exception {
-        Environment env = new Environment(settings);
-        return cmd.execute(settings, env);
+    public void testLicenseSpecFile() throws Exception {
+        License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
+        Path licenseSpecFile = createTempFile();
+        Files.write(licenseSpecFile, TestUtils.dumpLicense(signedLicense).getBytes(StandardCharsets.UTF_8));
+        String output = execute("--publicKeyPath", pubKeyPath.toString(),
+                                "--licenseFile", licenseSpecFile.toString());
+        assertFalse(output, output.isEmpty());
     }
 }

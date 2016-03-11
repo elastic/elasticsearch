@@ -5,872 +5,381 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.MockTerminal;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
-import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.authc.support.SecuredStringTests;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Objects;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
-/**
- *
- */
-public class ESUsersToolTests extends CliToolTestCase {
-    public void testUseraddParseAllOptions() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r r1,r2,r3"));
-        assertThat(command, instanceOf(ESUsersTool.Useradd.class));
-        ESUsersTool.Useradd cmd = (ESUsersTool.Useradd) command;
-        assertThat(cmd.username, equalTo("username"));
-        assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
-        assertThat(cmd.roles, notNullValue());
-        assertThat(cmd.roles, arrayContaining("r1", "r2", "r3"));
+public class ESUsersToolTests extends CommandTestCase {
+
+    // the mock filesystem we use so permissions/users/groups can be modified
+    static FileSystem jimfs;
+
+    // the config dir for each test to use
+    Path confDir;
+
+    // settings used to create an Environment for tools
+    Settings.Builder settingsBuilder;
+
+
+    @BeforeClass
+    public static void setupJimfs() throws IOException {
+        String view = randomFrom("basic", "posix");
+        Configuration conf = Configuration.unix().toBuilder().setAttributeViews(view).build();
+        jimfs = Jimfs.newFileSystem(conf);
+        PathUtilsForTesting.installMock(jimfs);
     }
 
-    public void testUseraddExtraArgs() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r r1,r2,r3 r4 r6"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.USAGE));
+    @Before
+    public void setupHome() throws IOException {
+        Path homeDir = jimfs.getPath("eshome");
+        IOUtils.rm(homeDir);
+        confDir = homeDir.resolve("config").resolve("xpack");
+        Files.createDirectories(confDir);
+        Files.write(confDir.resolve("users"), Arrays.asList(
+            "existing_user:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()))),
+            "existing_user2:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme2".toCharArray()))),
+            "existing_user3:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme3".toCharArray())))
+        ), StandardCharsets.UTF_8);
+        Files.write(confDir.resolve("users_roles"), Arrays.asList(
+            "test_admin:existing_user,existing_user2",
+            "test_r1:existing_user2"
+        ), StandardCharsets.UTF_8);
+        Files.write(confDir.resolve("roles.yml"), Arrays.asList(
+            "test_admin:",
+            "  cluster: all",
+            "test_r1:",
+            "  cluster: all",
+            "test_r2:",
+            "  cluster: all"
+        ), StandardCharsets.UTF_8);
+        settingsBuilder = Settings.builder()
+            .put("path.home", homeDir)
+            .put("shield.authc.realms.esusers.type", "esusers");
     }
 
-    public void testUseraddParseInvalidUsername() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("$34dkl -p changeme -r r1,r2,r3"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    @AfterClass
+    public static void closeJimfs() throws IOException {
+        if (jimfs != null) {
+            jimfs.close();
+        }
     }
 
-    public void testUseradd_Parse_InvalidRoleName() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r $343,r2,r3"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
+    @Override
+    protected Command newCommand() {
+        return new ESUsersTool(new Environment(settingsBuilder.build()));
     }
 
-    public void testUseraddParseInvalidPassword() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("username -p 123 -r r1,r2,r3"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
-        assertThat(exit.status(), is(CliTool.ExitStatus.DATA_ERROR));
-    }
-
-    public void testUseraddParseNoUsername() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("-p test123"));
-        assertThat(command, instanceOf(CliTool.Command.Exit.class));
-        assertThat(((CliTool.Command.Exit) command).status(), is(CliTool.ExitStatus.USAGE));
-    }
-
-    public void testUseraddParseNoPassword() throws Exception {
-        ESUsersTool tool = new ESUsersTool(new MockTerminal() {
-            @Override
-            public char[] readSecret(String text) {
-                return "changeme".toCharArray();
-            }
-        });
-        CliTool.Command command = tool.parse("useradd", args("username"));
-        assertThat(command, instanceOf(ESUsersTool.Useradd.class));
-        ESUsersTool.Useradd cmd = (ESUsersTool.Useradd) command;
-        assertThat(cmd.username, equalTo("username"));
-        assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
-        assertThat(cmd.roles, notNullValue());
-        assertThat(cmd.roles.length, is(0));
-    }
-
-    public void testUseraddCmdCreate() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = createTempFile();
-        Path userRolesFile = createTempFile();
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"), "r1", "r2");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertFileExists(userFile);
-        List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
-        assertThat(lines.size(), is(1));
-        // we can't just hash again and compare the lines, as every time we hash a new salt is generated
-        // instead we'll just verify the generated hash against the correct password.
-        String line = lines.get(0);
-        assertThat(line, startsWith("user1:"));
-        String hash = line.substring("user1:".length());
-        assertThat(Hasher.BCRYPT.verify(SecuredStringTests.build("changeme"), hash.toCharArray()), is(true));
-
-        assertFileExists(userRolesFile);
-        lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
-        assertThat(lines, hasSize(2));
-        assertThat(lines, containsInAnyOrder("r1:user1", "r2:user1"));
-    }
-
-    public void testUseraddCmdAppend() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user2:hash2");
-        Path userRolesFile = writeFile("r3:user2\nr4:user2");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"), "r1", "r2");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertFileExists(userFile);
-        List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
-        assertThat(lines, hasSize(2));
-        assertThat(lines, hasItem("user2:hash2"));
-        assertThat(lines, hasItem(startsWith("user1:")));
-
-        // we can't just hash again and compare the lines, as every time we hash a new salt is generated
-        // instead we'll just verify the generated hash against the correct password.
+    /** checks the user exists with the given password */
+    void assertUser(String username, String password) throws IOException {
+        List<String> lines = Files.readAllLines(confDir.resolve("users"), StandardCharsets.UTF_8);
         for (String line : lines) {
-            if (line.startsWith("user1")) {
-                String hash = line.substring("user1:".length());
-                assertThat(Hasher.BCRYPT.verify(SecuredStringTests.build("changeme"), hash.toCharArray()), is(true));
+            String[] usernameHash = line.split(":", 2);
+            if (usernameHash.length != 2) {
+                fail("Corrupted users file, line: " + line);
+            }
+            if (username.equals(usernameHash[0]) == false) {
+                continue;
+            }
+            String gotHash = usernameHash[1];
+            SecuredString expectedHash = SecuredStringTests.build(password);
+            assertTrue("Expected hash " + expectedHash + " for password " + password + " but got " + gotHash,
+                       Hasher.BCRYPT.verify(expectedHash, gotHash.toCharArray()));
+            return;
+        }
+        fail("Could not find username " + username + " in users file:\n" + lines.toString());
+    }
+
+    /** Checks the user does not exist in the users or users_roles files*/
+    void assertNoUser(String username) throws IOException {
+        List<String> lines = Files.readAllLines(confDir.resolve("users"), StandardCharsets.UTF_8);
+        for (String line : lines) {
+            String[] usernameHash = line.split(":", 2);
+            if (usernameHash.length != 2) {
+                fail("Corrupted users file, line: " + line);
+            }
+            assertNotEquals(username, usernameHash[0]);
+        }
+        lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
+        for (String line : lines) {
+            String[] roleUsers = line.split(":", 2);
+            if (roleUsers.length != 2) {
+                fail("Corrupted users_roles file, line: " + line);
+            }
+            String[] users = roleUsers[1].split(",");
+            for (String user : users) {
+                assertNotEquals(user, username);
             }
         }
 
-        assertFileExists(userRolesFile);
-        lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
-        assertThat(lines, hasSize(4));
-        assertThat(lines, containsInAnyOrder("r1:user1", "r2:user1", "r3:user2", "r4:user2"));
     }
 
-    public void testUseraddCmdAddingUserWithoutRolesDoesNotAddEmptyRole() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user2:hash2");
-        Path userRolesFile = writeFile("r3:user2\nr4:user2");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"));
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertFileExists(userRolesFile);
-        List<String> lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
-        assertThat(lines, hasSize(2));
-        assertThat(lines, not(hasItem(containsString("user1"))));
-    }
-
-    public void testUseraddCmdAppendUserAlreadyExists() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user1:hash1");
-        Path userRolesFile = createTempFile();
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"), "r1", "r2");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.CODE_ERROR));
-    }
-
-    public void testUseraddCustomRole() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = createTempFile();
-        Path userRolesFile = createTempFile();
-        Path rolesFile = writeFile("plugin_admin:\n" +
-                "  manage_plugin");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal terminal = new MockTerminal();
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(terminal, "user1", SecuredStringTests.build("changeme"), "plugin_admin");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
-    }
-
-    public void testUseraddNonExistantRole() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = createTempFile();
-        Path userRolesFile = createTempFile();
-        Path rolesFile = writeFile("plugin_admin:\n" +
-                "  manage_plugin");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal terminal = new MockTerminal();
-        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(terminal, "user1", SecuredStringTests.build("changeme"), "plugin_admin_2");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(terminal.getOutput(), containsString("[plugin_admin_2]"));
-    }
-
-    public void testUserdelParse() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("userdel", args("username"));
-        assertThat(command, instanceOf(ESUsersTool.Userdel.class));
-        ESUsersTool.Userdel userdel = (ESUsersTool.Userdel) command;
-        assertThat(userdel.username, equalTo("username"));
-    }
-
-    public void testUserdelParseMissingUsername() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("userdel", args(null));
-        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
-        ESUsersTool.Command.Exit exit = (ESUsersTool.Command.Exit) command;
-        assertThat(exit.status(), equalTo(CliTool.ExitStatus.USAGE));
-    }
-
-    public void testUserdelParseExtraArgs() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("userdel", args("user1 user2"));
-        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
-        ESUsersTool.Command.Exit exit = (ESUsersTool.Command.Exit) command;
-        assertThat(exit.status(), equalTo(CliTool.ExitStatus.USAGE));
-    }
-
-    public void testUserdelCmd() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user1:hash2");
-        Path userRolesFile = writeFile("r3:user1\nr4:user1");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(new MockTerminal(), "user1");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertFileExists(userFile);
-        List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
-        assertThat(lines.size(), is(0));
-
-        assertFileExists(userRolesFile);
-        lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
-        assertThat(lines.size(), is(0));
-    }
-
-    public void testUserdelCmdMissingUser() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user1:hash2");
-        Path userRolesFile = writeFile("r3:user1\nr4:user1");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-        MockTerminal terminal = new MockTerminal();
-
-        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(terminal, "user2");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.NO_USER));
-
-        assertThat(terminal.getOutput(), startsWith("User [user2] doesn't exist"));
-
-        assertFileExists(userFile);
-        List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
-        assertThat(lines.size(), is(1));
-
-        assertFileExists(userRolesFile);
-        lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
-        assertThat(lines, hasSize(2));
-    }
-
-    public void testUserdelCmdMissingFiles() throws Exception {
-        Path dir = createTempDir();
-        Path userFile = dir.resolve("users");
-        Path userRolesFile = dir.resolve("users_roles");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(new MockTerminal(), "user2");
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.NO_USER));
-
-        assertThat(Files.exists(userFile), is(false));
-        assertThat(Files.exists(userRolesFile), is(false));
-    }
-
-    public void testPasswdParseAllOptions() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("passwd", args("user1 -p changeme"));
-        assertThat(command, instanceOf(ESUsersTool.Passwd.class));
-        ESUsersTool.Passwd cmd = (ESUsersTool.Passwd) command;
-        assertThat(cmd.username, equalTo("user1"));
-        assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
-    }
-
-    public void testPasswdParseMissingUsername() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("passwd", args("-p changeme"));
-        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
-        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
-        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
-    }
-
-    public void testPasswdParseExtraArgs() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("passwd", args("user1 user2 -p changeme"));
-        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
-        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
-        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
-    }
-
-    public void testPasswdParseMissingPassword() throws Exception {
-        final AtomicReference<Boolean> secretRequested = new AtomicReference<>(false);
-        Terminal terminal = new MockTerminal() {
-            @Override
-            public char[] readSecret(String text) {
-                secretRequested.set(true);
-                return "changeme".toCharArray();
+    /** checks the role has the given users, or that the role does not exist if not users are passed. */
+    void assertRole(String role, String... users) throws IOException {
+        List<String> lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
+        for (String line : lines) {
+            String[] roleUsers = line.split(":", 2);
+            if (roleUsers.length != 2) {
+                fail("Corrupted users_roles file, line: " + line);
             }
-        };
-        ESUsersTool tool = new ESUsersTool(terminal);
-        CliTool.Command command = tool.parse("passwd", args("user1"));
-        assertThat(command, instanceOf(ESUsersTool.Passwd.class));
-        ESUsersTool.Passwd cmd = (ESUsersTool.Passwd) command;
-        assertThat(cmd.username, equalTo("user1"));
-        assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
-        assertThat(secretRequested.get(), is(true));
+            if (role.equals(roleUsers[0]) == false) {
+                continue;
+            }
+            if (users.length == 0) {
+                fail("Found role " + role + " in users_roles file with users [" + roleUsers[1] + "]");
+            }
+            List<String> gotUsers = Arrays.asList(roleUsers[1].split(","));
+            for (String user : users) {
+                if (gotUsers.contains(user) == false) {
+                    fail("Expected users [" + Arrays.toString(users) + "] for role " + role +
+                         " but found [" + gotUsers.toString() + "]");
+                }
+            }
+            return;
+        }
+        if (users.length != 0) {
+            fail("Could not find role " + role + " in users_roles file:\n" + lines.toString());
+        }
     }
 
-    public void testPasswdCmd() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user1:hash2");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Passwd cmd = new ESUsersTool.Passwd(new MockTerminal(), "user1", "changeme".toCharArray());
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
-        assertThat(lines.size(), is(1));
-        // we can't just hash again and compare the lines, as every time we hash a new salt is generated
-        // instead we'll just verify the generated hash against the correct password.
-        String line = lines.get(0);
-        assertThat(line, startsWith("user1:"));
-        String hash = line.substring("user1:".length());
-        assertThat(Hasher.BCRYPT.verify(SecuredStringTests.build("changeme"), hash.toCharArray()), is(true));
+    public void testParseInvalidUsername() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            ESUsersTool.parseUsername(Collections.singletonList("$34dkl"));
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
     }
 
-    public void testPasswdCmdUnknownUser() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = writeFile("user1:hash2");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Passwd cmd = new ESUsersTool.Passwd(new MockTerminal(), "user2", "changeme".toCharArray());
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.NO_USER));
+    public void testParseUsernameMissing() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+           ESUsersTool.parseUsername(Collections.emptyList());
+        });
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Missing username argument"));
     }
 
-    public void testPasswdCmdMissingFiles() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = createTempFile();
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Passwd cmd = new ESUsersTool.Passwd(new MockTerminal(), "user2", "changeme".toCharArray());
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.NO_USER));
+    public void testParseUsernameExtraArgs() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            ESUsersTool.parseUsername(Arrays.asList("username", "extra"));
+        });
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Expected a single username argument"));
     }
 
-    public void testRolesParseAllOptions() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("roles", args("someuser -a test1,test2,test3 -r test4,test5,test6"));
-        assertThat(command, instanceOf(ESUsersTool.Roles.class));
-        ESUsersTool.Roles rolesCommand = (ESUsersTool.Roles) command;
-        assertThat(rolesCommand.username, is("someuser"));
-        assertThat(rolesCommand.addRoles, arrayContaining("test1", "test2", "test3"));
-        assertThat(rolesCommand.removeRoles, arrayContaining("test4", "test5", "test6"));
+    public void testParseInvalidPasswordOption() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            ESUsersTool.parsePassword(terminal, "123");
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid password"));
     }
 
-    public void testRolesParseExtraArgs() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("roles", args("someuser -a test1,test2,test3 foo -r test4,test5,test6 bar"));
-        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
-        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
-        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
+    public void testParseInvalidPasswordInput() throws Exception {
+        terminal.addSecretInput("123");
+        UserError e = expectThrows(UserError.class, () -> {
+            ESUsersTool.parsePassword(terminal, null);
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid password"));
     }
 
-    public void testRolesCmdValidatingRoleNames() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        ESUsersTool tool = new ESUsersTool();
-        Path usersFile = writeFile("admin:hash");
-        Path usersRoleFile = writeFile("admin: admin\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        // invalid role names
-        assertThat(execute(tool.parse("roles", args("admin -a r0le!")), settings), is(CliTool.ExitStatus.DATA_ERROR));
-        assertThat(execute(tool.parse("roles", args("admin -a role%")), settings), is(CliTool.ExitStatus.DATA_ERROR));
-        assertThat(execute(tool.parse("roles", args("admin -a role:")), settings), is(CliTool.ExitStatus.DATA_ERROR));
-        assertThat(execute(tool.parse("roles", args("admin -a role>")), settings), is(CliTool.ExitStatus.DATA_ERROR));
-
-        // valid role names
-        assertThat(execute(tool.parse("roles", args("admin -a test01")), settings), is(CliTool.ExitStatus.OK));
-        assertThat(execute(tool.parse("roles", args("admin -a @role")), settings), is(CliTool.ExitStatus.OK));
-        assertThat(execute(tool.parse("roles", args("admin -a _role")), settings), is(CliTool.ExitStatus.OK));
-        assertThat(execute(tool.parse("roles", args("admin -a -role")), settings), is(CliTool.ExitStatus.OK));
-        assertThat(execute(tool.parse("roles", args("admin -a -Role")), settings), is(CliTool.ExitStatus.OK));
-        assertThat(execute(tool.parse("roles", args("admin -a role0")), settings), is(CliTool.ExitStatus.OK));
+    public void testParseMismatchPasswordInput() throws Exception {
+        terminal.addSecretInput("password1");
+        terminal.addSecretInput("password2");
+        UserError e = expectThrows(UserError.class, () -> {
+            ESUsersTool.parsePassword(terminal, null);
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Password mismatch"));
     }
 
-    public void testRolesCmdAddingRoleWorks() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", new String[]{"foo"}, Strings.EMPTY_ARRAY);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        Map<String, String[]> userRoles = FileUserRolesStore.parseFile(usersRoleFile, logger);
-        assertThat(userRoles.keySet(), hasSize(2));
-        assertThat(userRoles.keySet(), hasItems("admin", "user"));
-        assertThat(userRoles.get("admin"), arrayContaining("admin"));
-        assertThat(userRoles.get("user"), arrayContainingInAnyOrder("user", "foo"));
+    public void testParseUnknownRole() throws Exception {
+        ESUsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,r2,r3");
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains("The following roles [r2,r3] are unknown"));
     }
 
-    public void testRolesCmdRemovingRoleWorks() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo: user\nbar: user\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", Strings.EMPTY_ARRAY, new String[]{"foo"});
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        Map<String, String[]> userRoles = FileUserRolesStore.parseFile(usersRoleFile, logger);
-        assertThat(userRoles.keySet(), hasSize(2));
-        assertThat(userRoles.keySet(), hasItems("admin", "user"));
-        assertThat(userRoles.get("admin"), arrayContaining("admin"));
-        assertThat(userRoles.get("user"), arrayContainingInAnyOrder("user", "bar"));
+    public void testParseInvalidRole() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            ESUsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "$345");
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [$345]"));
     }
 
-    public void testRolesCmdAddingAndRemovingRoleWorks() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", new String[]{"newrole"}, new String[]{"foo"});
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        Map<String, String[]> userRoles = FileUserRolesStore.parseFile(usersRoleFile, logger);
-        assertThat(userRoles.keySet(), hasSize(2));
-        assertThat(userRoles.keySet(), hasItems("admin", "user"));
-        assertThat(userRoles.get("admin"), arrayContaining("admin"));
-        assertThat(userRoles.get("user"), arrayContainingInAnyOrder("user", "bar", "newrole"));
+    public void testParseMultipleRoles() throws Exception {
+        String[] roles = ESUsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,test_r2");
+        assertEquals(Objects.toString(roles), 2, roles.length);
+        assertEquals("test_r1", roles[0]);
+        assertEquals("test_r2", roles[1]);
     }
 
-    public void testRolesCmdRemovingLastRoleRemovesEntryFromRolesFile() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", Strings.EMPTY_ARRAY, new String[]{"user", "foo", "bar"});
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        List<String> usersRoleFileLines = Files.readAllLines(usersRoleFile, StandardCharsets.UTF_8);
-        assertThat(usersRoleFileLines, not(hasItem(containsString("user"))));
+    public void testUseraddNoPassword() throws Exception {
+        terminal.addSecretInput("changeme");
+        terminal.addSecretInput("changeme");
+        execute("useradd", "username");
+        assertUser("username", "changeme");
     }
 
-    public void testRolesCmdUserNotFound() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "does-not-exist", Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.NO_USER));
+    public void testUseraddPasswordOption() throws Exception {
+        execute("useradd", "username", "-p", "changeme");
+        assertUser("username", "changeme");
     }
 
-    public void testRolesCmdTestNotAddingOrRemovingRolesShowsListingOfRoles() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(catchTerminalOutput, "user", Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getOutput(), allOf(containsString("user"), containsString("user,foo,bar")));
+    public void testUseraddUserExists() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("useradd", "existing_user", "-p", "changeme");
+        });
+        assertEquals(ExitCodes.CODE_ERROR, e.exitCode);
+        assertEquals("User [existing_user] already exists", e.getMessage());
     }
 
-    public void testRolesCmdRoleCanBeAddedWhenUserIsNotInRolesFile() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path usersFile = writeFile("admin:hash\nuser:hash");
-        Path usersRoleFile = writeFile("admin: admin\n");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nmyrole:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.Roles cmd = new ESUsersTool.Roles(catchTerminalOutput, "user", new String[]{"myrole"}, Strings.EMPTY_ARRAY);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        Map<String, String[]> userRoles = FileUserRolesStore.parseFile(usersRoleFile, logger);
-        assertThat(userRoles.keySet(), hasSize(2));
-        assertThat(userRoles.keySet(), hasItems("admin", "user"));
-        assertThat(userRoles.get("user"), arrayContaining("myrole"));
+    public void testUseraddNoRoles() throws Exception {
+        Files.delete(confDir.resolve("users_roles"));
+        Files.createFile(confDir.resolve("users_roles"));
+        execute("useradd", "username", "-p", "changeme");
+        List<String> lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
+        assertTrue(lines.toString(), lines.isEmpty());
     }
 
-    public void testListUsersAndRolesCmdParsingWorks() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("list", args("someuser"));
-        assertThat(command, instanceOf(ESUsersTool.ListUsersAndRoles.class));
-        ESUsersTool.ListUsersAndRoles listUsersAndRolesCommand = (ESUsersTool.ListUsersAndRoles) command;
-        assertThat(listUsersAndRolesCommand.username, is("someuser"));
+    public void testUserdelUnknownUser() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("userdel", "unknown");
+        });
+        assertEquals(ExitCodes.NO_USER, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
-    public void testListUsersAndRolesCmdParsingExtraArgs() throws Exception {
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("list", args("someuser two"));
-        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
-        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
-        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
+    public void testUserdel() throws Exception {
+        execute("userdel", "existing_user");
+        assertNoUser("existing_user");
     }
 
-    public void testListUsersAndRolesCmdListAllUsers() throws Exception {
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        String output = catchTerminalOutput.getOutput();
-        assertThat(output, containsString("admin"));
-        assertThat(output, allOf(containsString("user"), containsString("user,foo,bar")));
+    public void testPasswdUnknownUser() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("passwd", "unknown", "-p", "changeme");
+        });
+        assertEquals(ExitCodes.NO_USER, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
-    public void testListUsersAndRolesCmdListAllUsersWithUnknownRoles() throws Exception {
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        String output = catchTerminalOutput.getOutput();
-        assertThat(output, containsString("admin"));
-        assertThat(output, allOf(containsString("user"), containsString("user,foo*,bar*")));
+    public void testPasswdNoPasswordOption() throws Exception {
+        terminal.addSecretInput("newpassword");
+        terminal.addSecretInput("newpassword");
+        execute("passwd", "existing_user");
+        assertUser("existing_user", "newpassword");
+        assertRole("test_admin", "existing_user", "existing_user2"); // roles unchanged
     }
 
-    public void testListUsersAndRolesCmdListSingleUser() throws Exception {
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
-        Path usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, "admin");
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(catchTerminalOutput.getOutput(), containsString("admin"));
-        assertThat(catchTerminalOutput.getOutput(), not(containsString("user")));
+    public void testPasswd() throws Exception {
+        execute("passwd", "existing_user", "-p", "newpassword");
+        assertUser("existing_user", "newpassword");
+        assertRole("test_admin", "existing_user"); // roles unchanged
     }
 
-    public void testListUsersAndRolesCmdNoUsers() throws Exception {
-        Path usersFile = writeFile("");
-        Path usersRoleFile = writeFile("");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal terminal = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(terminal, null);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(terminal.getOutput(), equalTo("No users found\n"));
+    public void testRolesUnknownUser() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("roles", "unknown");
+        });
+        assertEquals(ExitCodes.NO_USER, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
-    public void testListUsersAndRolesCmdListSingleUserNotFound() throws Exception {
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, "does-not-exist");
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.NO_USER));
+    public void testRolesAdd() throws Exception {
+        execute("roles", "existing_user", "-a", "test_r1");
+        assertRole("test_admin", "existing_user");
+        assertRole("test_r1", "existing_user");
     }
 
-    public void testListUsersAndRolesCmdUsersWithAndWithoutRolesAreListed() throws Exception {
-        Path usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
-        Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        String output = catchTerminalOutput.getOutput();
-        assertThat(output, containsString("admin"));
-        assertThat(output, allOf(containsString("user"), containsString("user,foo,bar")));
-        assertThat(output, allOf(containsString("no-roles-user"), containsString("-")));
+    public void testRolesRemove() throws Exception {
+        execute("roles", "existing_user", "-r", "test_admin");
+        assertRole("test_admin", "existing_user2");
     }
 
-    public void testListUsersAndRolesCmdUsersWithoutRolesAreListed() throws Exception {
-        Path usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
-        Path usersRoleFile = writeFile("");
-        Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("shield.authz.store.files.roles", rolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal catchTerminalOutput = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        String output = catchTerminalOutput.getOutput();
-        assertThat(output, allOf(containsString("admin"), containsString("-")));
-        assertThat(output, allOf(containsString("user"), containsString("-")));
-        assertThat(output, allOf(containsString("no-roles-user"), containsString("-")));
+    public void testRolesAddAndRemove() throws Exception {
+        execute("roles", "existing_user", "-a", "test_r1", "-r", "test_admin");
+        assertRole("test_admin", "existing_user2");
+        assertRole("test_r1", "existing_user");
     }
 
-    public void testListUsersAndRolesCmdUsersWithoutRolesAreListedForSingleUser() throws Exception {
-        Path usersFile = writeFile("admin:{plain}changeme");
-        Path usersRoleFile = writeFile("");
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users_roles", usersRoleFile)
-                .put("shield.authc.realms.esusers.files.users", usersFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        MockTerminal loggingTerminal = new MockTerminal();
-        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(loggingTerminal, "admin");
-        CliTool.ExitStatus status = execute(cmd, settings);
-
-        assertThat(status, is(CliTool.ExitStatus.OK));
-        assertThat(loggingTerminal.getOutput(), allOf(containsString("admin"), containsString("-")));
+    public void testRolesRemoveLeavesExisting() throws Exception {
+        execute("useradd", "username", "-p", "changeme", "-r", "test_admin");
+        execute("roles", "existing_user", "-r", "test_admin");
+        assertRole("test_admin", "username");
     }
 
-    public void testUseraddUsernameWithPeriod() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path userFile = createTempFile();
-        Path userRolesFile = createTempFile();
-        Settings settings = Settings.builder()
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.files.users", userFile)
-                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
-                .put("path.home", createTempDir())
-                .build();
-
-        ESUsersTool tool = new ESUsersTool();
-        CliTool.Command command = tool.parse("useradd", args("john.doe -p changeme -r r1,r2,r3"));
-        assertThat(command, instanceOf(ESUsersTool.Useradd.class));
-        ESUsersTool.Useradd cmd = (ESUsersTool.Useradd) command;
-
-        CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
-
-        assertFileExists(userFile);
-        List<String> lines = Files.readAllLines(userFile, StandardCharsets.UTF_8);
-        assertThat(lines.size(), is(1));
-        // we can't just hash again and compare the lines, as every time we hash a new salt is generated
-        // instead we'll just verify the generated hash against the correct password.
-        String line = lines.get(0);
-        assertThat(line, startsWith("john.doe:"));
-        String hash = line.substring("john.doe:".length());
-        assertThat(Hasher.BCRYPT.verify(SecuredStringTests.build("changeme"), hash.toCharArray()), is(true));
-
-        assertFileExists(userRolesFile);
-        lines = Files.readAllLines(userRolesFile, StandardCharsets.UTF_8);
-        assertThat(lines, hasSize(3));
-        assertThat(lines, containsInAnyOrder("r1:john.doe", "r2:john.doe", "r3:john.doe"));
+    public void testRolesNoAddOrRemove() throws Exception {
+        String output = execute("roles", "existing_user");
+        assertTrue(output, output.contains("existing_user"));
+        assertTrue(output, output.contains("test_admin"));
     }
 
-    private CliTool.ExitStatus execute(CliTool.Command cmd, Settings settings) throws Exception {
-        Environment env = new Environment(settings);
-        return cmd.execute(settings, env);
+    public void testListUnknownUser() throws Exception {
+        UserError e = expectThrows(UserError.class, () -> {
+            execute("list", "unknown");
+        });
+        assertEquals(ExitCodes.NO_USER, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
-    private Path writeFile(String content) throws IOException {
-        Path file = createTempFile();
-        Files.write(file, content.getBytes(StandardCharsets.UTF_8));
-        return file;
+    public void testListAllUsers() throws Exception {
+        String output = execute("list");
+        assertTrue(output, output.contains("existing_user"));
+        assertTrue(output, output.contains("test_admin"));
+        assertTrue(output, output.contains("existing_user2"));
+        assertTrue(output, output.contains("test_r1"));
     }
 
-    private void assertFileExists(Path file) {
-        assertThat(String.format(Locale.ROOT, "Expected file [%s] to exist", file), Files.exists(file), is(true));
+    public void testListSingleUser() throws Exception {
+        String output = execute("list", "existing_user");
+        assertTrue(output, output.contains("existing_user"));
+        assertTrue(output, output.contains("test_admin"));
+        assertFalse(output, output.contains("existing_user2"));
+        assertFalse(output, output.contains("test_r1"));
+    }
+
+    public void testListUnknownRoles() throws Exception {
+        execute("useradd", "username", "-p", "changeme", "-r", "test_r1,r2,r3");
+        String output = execute("list", "username");
+        assertTrue(output, output.contains("username"));
+        assertTrue(output, output.contains("r2*,r3*,test_r1"));
+    }
+
+    public void testListNoUsers() throws Exception {
+        Files.delete(confDir.resolve("users"));
+        Files.createFile(confDir.resolve("users"));
+        Files.delete(confDir.resolve("users_roles"));
+        Files.createFile(confDir.resolve("users_roles"));
+        String output = execute("list");
+        assertTrue(output, output.contains("No users found"));
+    }
+
+    public void testListUserWithoutRoles() throws Exception {
+        String output = execute("list", "existing_user3");
+        assertTrue(output, output.contains("existing_user3"));
+        output = execute("list");
+        assertTrue(output, output.contains("existing_user3"));
     }
 }

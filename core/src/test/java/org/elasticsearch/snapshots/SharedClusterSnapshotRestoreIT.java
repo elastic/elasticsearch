@@ -1781,24 +1781,27 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         blockAllDataNodes("test-repo");
         logger.info("--> execution will be blocked on all data nodes");
 
-        logger.info("--> start restore");
-        ListenableActionFuture<RestoreSnapshotResponse> restoreFut = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .execute();
-
-        logger.info("--> waiting for block to kick in");
-        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueSeconds(60));
-
-        logger.info("--> close index while restore is running");
+        final ListenableActionFuture<RestoreSnapshotResponse> restoreFut;
         try {
-            client.admin().indices().prepareClose("test-idx-1").get();
-            fail("Expected closing index to fail during restore");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [test-idx-1]"));
-        }
+            logger.info("--> start restore");
+            restoreFut = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+                .setWaitForCompletion(true)
+                .execute();
 
-        logger.info("--> unblocking all data nodes");
-        unblockAllDataNodes("test-repo");
+            logger.info("--> waiting for block to kick in");
+            waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueSeconds(60));
+
+            logger.info("--> close index while restore is running");
+            try {
+                client.admin().indices().prepareClose("test-idx-1").get();
+                fail("Expected closing index to fail during restore");
+            } catch (IllegalArgumentException e) {
+                assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [test-idx-1]"));
+            }
+        } finally {
+            logger.info("--> unblocking all data nodes");
+            unblockAllDataNodes("test-repo");
+        }
 
         logger.info("--> wait for restore to finish");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreFut.get();

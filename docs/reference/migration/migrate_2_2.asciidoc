@@ -44,6 +44,21 @@ to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the `elasticsearch.service` file.
 
 [float]
+=== Java Client
+
+Previously it was possible to iterate over `ClusterHealthResponse` to get information about `ClusterIndexHealth`.
+While this is still possible, it requires now iterating over the values returned from `getIndices()`:
+
+[source,java]
+---------------
+ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
+for (Map.Entry<String, ClusterIndexHealth> index : clusterHealthResponse.getIndices().entrySet()) {
+    String indexName = index.getKey();
+    ClusterIndexHealth health = index.getValue();
+}
+---------------
+
+[float]
 === Cloud AWS Plugin
 
 Proxy settings have been deprecated and renamed:

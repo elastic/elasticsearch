@@ -478,7 +478,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 metaDataBuilder.put(indexMetaDataFormat(snapshotVersion).read(indexMetaDataBlobContainer, snapshotId.getSnapshot()), false);
             } catch (ElasticsearchParseException | IOException ex) {
                 if (ignoreIndexErrors) {
-                    logger.warn("[{}] [{}] failed to read metadata for index", snapshotId, index, ex);
+                    logger.warn("[{}] [{}] failed to read metadata for index", ex, snapshotId, index);
                 } else {
                     throw ex;
                 }

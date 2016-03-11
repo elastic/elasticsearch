@@ -231,7 +231,7 @@ public class VersionTests extends ESTestCase {
                 assertTrue(constantName + " should be final", Modifier.isFinal(versionConstant.getModifiers()));
 
                 Version v = (Version) versionConstant.get(Version.class);
-                logger.info("Checking " + v);
+                logger.info("Checking {}", v);
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {

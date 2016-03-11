@@ -262,7 +262,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     try {
                         otherNode.close();
                     } catch (Throwable t) {
-                        logger.warn("failed to close node {} on failed start", otherNode, t);
+                        logger.warn("failed to close node {} on failed start", t, otherNode);
                     }
                 }
                 if (e instanceof RuntimeException) {

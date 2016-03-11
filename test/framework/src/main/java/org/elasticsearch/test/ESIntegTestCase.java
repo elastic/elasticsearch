@@ -883,7 +883,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
                         .append("] id [").append(hit.id()).append("]");
             }
-            logger.warn(sb.toString());
+            logger.warn("{}", sb);
             fail(failMsg);
         }
     }

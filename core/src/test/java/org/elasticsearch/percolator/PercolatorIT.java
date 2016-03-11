@@ -1072,7 +1072,7 @@ public class PercolatorIT extends ESIntegTestCase {
         int numLevels = randomIntBetween(1, 25);
         long numQueriesPerLevel = randomIntBetween(10, 250);
         long totalQueries = numLevels * numQueriesPerLevel;
-        logger.info("--> register " + totalQueries + " queries");
+        logger.info("--> register {} queries", totalQueries);
         for (int level = 1; level <= numLevels; level++) {
             for (int query = 1; query <= numQueriesPerLevel; query++) {
                 client().prepareIndex("my-index", PercolatorService.TYPE_NAME, level + "-" + query)
@@ -1166,7 +1166,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         Map<Integer, NavigableSet<Integer>> controlMap = new HashMap<>();
         long numQueries = randomIntBetween(100, 250);
-        logger.info("--> register " + numQueries + " queries");
+        logger.info("--> register {} queries", numQueries);
         for (int i = 0; i < numQueries; i++) {
             int value = randomInt(10);
             client().prepareIndex("my-index", PercolatorService.TYPE_NAME, Integer.toString(i))

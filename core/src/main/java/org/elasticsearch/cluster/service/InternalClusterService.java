@@ -436,11 +436,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         } catch (Throwable e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
-                StringBuilder sb = new StringBuilder("failed to execute cluster state update in [").append(executionTime).append("], state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
-                sb.append(previousClusterState.nodes().prettyPrint());
-                sb.append(previousClusterState.routingTable().prettyPrint());
-                sb.append(previousClusterState.getRoutingNodes().prettyPrint());
-                logger.trace(sb.toString(), e);
+                logger.trace("failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}", e, executionTime, previousClusterState.version(), source,
+                    previousClusterState.nodes().prettyPrint(), previousClusterState.routingTable().prettyPrint(), previousClusterState.getRoutingNodes().prettyPrint());
             }
             warnAboutSlowTaskIfNeeded(executionTime, source);
             batchResult = ClusterStateTaskExecutor.BatchResult.<T>builder().failures(toExecute.stream().map(updateTask -> updateTask.task)::iterator, e).build(previousClusterState);
@@ -523,9 +520,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             newClusterState.status(ClusterState.ClusterStateStatus.BEING_APPLIED);
 
             if (logger.isTraceEnabled()) {
-                StringBuilder sb = new StringBuilder("cluster state updated, source [").append(source).append("]\n");
-                sb.append(newClusterState.prettyPrint());
-                logger.trace(sb.toString());
+                logger.trace("cluster state updated, source [{}]\n{}", source, newClusterState.prettyPrint());
             } else if (logger.isDebugEnabled()) {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), source);
             }
@@ -612,11 +607,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             warnAboutSlowTaskIfNeeded(executionTime, source);
         } catch (Throwable t) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            StringBuilder sb = new StringBuilder("failed to apply updated cluster state in ").append(executionTime).append(":\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.stateUUID()).append("], source [").append(source).append("]\n");
-            sb.append(newClusterState.nodes().prettyPrint());
-            sb.append(newClusterState.routingTable().prettyPrint());
-            sb.append(newClusterState.getRoutingNodes().prettyPrint());
-            logger.warn(sb.toString(), t);
+            logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}{}{}", t, executionTime,
+                newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.nodes().prettyPrint(),
+                newClusterState.routingTable().prettyPrint(), newClusterState.getRoutingNodes().prettyPrint());
             // TODO: do we want to call updateTask.onFailure here?
         }
 

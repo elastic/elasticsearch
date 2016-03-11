@@ -250,7 +250,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         // We do some I/O in here, so skip this if DEBUG/INFO are not enabled:
         if (logger.isDebugEnabled()) {
             // Log one line per path.data:
-            StringBuilder sb = new StringBuilder("node data locations details:");
+            StringBuilder sb = new StringBuilder();
             for (NodePath nodePath : nodePaths) {
                 sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
 
@@ -278,7 +278,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                     .append(fsPath.getType())
                     .append(']');
             }
-            logger.debug(sb.toString());
+            logger.debug("node data locations details:{}", sb);
         } else if (logger.isInfoEnabled()) {
             FsInfo.Path totFSPath = new FsInfo.Path();
             Set<String> allTypes = new HashSet<>();
@@ -306,14 +306,8 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             }
 
             // Just log a 1-line summary:
-            logger.info(String.format(Locale.ROOT,
-                                      "using [%d] data paths, mounts [%s], net usable_space [%s], net total_space [%s], spins? [%s], types [%s]",
-                                      nodePaths.length,
-                                      allMounts,
-                                      totFSPath.getAvailable(),
-                                      totFSPath.getTotal(),
-                                      toString(allSpins),
-                                      toString(allTypes)));
+            logger.info("using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], spins? [{}], types [{}]",
+                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allSpins), toString(allTypes));
         }
     }
 

@@ -123,7 +123,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     if (action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        logger.debug("file chunk [" + req.toString() + "] lastChunk: " + req.lastChunk());
+                        logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
                             throw new RuntimeException("Caused some truncated files for fun and profit");

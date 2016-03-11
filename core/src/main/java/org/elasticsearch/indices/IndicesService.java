@@ -193,7 +193,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 try {
                     removeIndex(index, "shutdown", false);
                 } catch (Throwable e) {
-                    logger.warn("failed to remove index on stop " + index + "", e);
+                    logger.warn("failed to remove index on stop [{}]", e, index);
                 } finally {
                     latch.countDown();
                 }

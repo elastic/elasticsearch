@@ -1379,9 +1379,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         @Override
         public void onFailure(Throwable t) {
             if (lifecycle.stoppedOrClosed()) {
-                logger.trace("[{}] failed to send ping transport message", t);
+                logger.trace("failed to send ping transport message", t);
             } else {
-                logger.warn("[{}] failed to send ping transport message", t);
+                logger.warn("failed to send ping transport message", t);
             }
         }
     }

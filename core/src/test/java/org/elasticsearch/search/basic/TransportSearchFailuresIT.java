@@ -90,7 +90,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
                 .cluster()
                 .health(clusterHealthRequest("test").waitForYellowStatus().waitForRelocatingShards(0)
                         .waitForActiveShards(test.totalNumShards)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));
         assertThat(clusterHealth.getActiveShards(), equalTo(test.totalNumShards));

@@ -309,7 +309,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             }
             final Engine.CommitId expectedCommitId = expectedCommitIds.get(shard.currentNodeId());
             if (expectedCommitId == null) {
-                logger.trace("{} can't resolve expected commit id for {}, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
+                logger.trace("{} can't resolve expected commit id for current node, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
                 results.put(shard, new ShardSyncedFlushResponse("no commit id from pre-sync flush"));
                 contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;

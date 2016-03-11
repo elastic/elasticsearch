@@ -47,11 +47,11 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_2 = nodesIds.get(1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();
         String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().localNodeId();
-        logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
+        logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         assertThat(response.getNodes().length, is(2));
@@ -91,11 +91,11 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_2 = nodesIds.get(1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();
         String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().localNodeId();
-        logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
+        logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 

@@ -301,7 +301,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         RoutingTable routingTable = routingTableBuilder.build();
 
-        logger.info("start " + numberOfNodes + " nodes");
+        logger.info("start {} nodes", numberOfNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.put(newNode("node" + i));

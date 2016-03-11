@@ -147,12 +147,12 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             if (initializing.isEmpty()) {
                 break;
             }
-            logger.debug(initializing.toString());
+            logger.debug("Initializing shards: {}", initializing);
             numRelocations += initializing.size();
             routingTable = strategy.applyStartedShards(clusterState, initializing).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         }
-        logger.debug("--> num relocations to get balance: " + numRelocations);
+        logger.debug("--> num relocations to get balance: {}", numRelocations);
         return clusterState;
     }
 

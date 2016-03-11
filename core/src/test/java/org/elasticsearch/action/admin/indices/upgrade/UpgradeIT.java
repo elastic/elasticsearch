@@ -134,7 +134,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         // means we can never generate ancient segments in this test (unless Lucene major version bumps but ES major version does not):
         assertFalse(hasAncientSegments(client(), indexToUpgrade));
 
-        logger.info("--> Running upgrade on index " + indexToUpgrade);
+        logger.info("--> Running upgrade on index {}", indexToUpgrade);
         assertNoFailures(client().admin().indices().prepareUpgrade(indexToUpgrade).get());
         awaitBusy(() -> {
             try {
@@ -228,7 +228,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ESLogger logger = Loggers.getLogger(UpgradeIT.class);
         int toUpgrade = 0;
         for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            logger.info("Index: " + status.getIndex() + ", total: " + status.getTotalBytes() + ", toUpgrade: " + status.getToUpgradeBytes());
+            logger.info("Index: {}, total: {}, toUpgrade: {}", status.getIndex(), status.getTotalBytes(), status.getToUpgradeBytes());
             toUpgrade += status.getToUpgradeBytes();
         }
         return toUpgrade == 0;

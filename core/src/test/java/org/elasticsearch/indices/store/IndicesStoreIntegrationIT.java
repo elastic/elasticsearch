@@ -258,7 +258,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(waitForShardDeletion(node_3, "test", 0), equalTo(false));
 
         Path server2Shard = shardDirectory(node_2, "test", 0);
-        logger.info("--> stopping node " + node_2);
+        logger.info("--> stopping node {}", node_2);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
 
         logger.info("--> running cluster_health");
@@ -268,7 +268,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 .setWaitForRelocatingShards(0)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         assertThat(Files.exists(server2Shard), equalTo(true));
 

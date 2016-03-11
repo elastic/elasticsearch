@@ -25,6 +25,7 @@ import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
+import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -82,15 +84,15 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private float minDocFreq = DEFAULT_MIN_DOC_FREQ;
 
-    public TermSuggestionBuilder(String fieldname) {
-        super(fieldname);
+    public TermSuggestionBuilder(String field) {
+        super(field);
     }
 
     /**
-     * internal copy constructor that copies over all class field except fieldname.
+     * internal copy constructor that copies over all class field except field.
      */
-    private TermSuggestionBuilder(String fieldname, TermSuggestionBuilder in) {
-        super(fieldname, in);
+    private TermSuggestionBuilder(String field, TermSuggestionBuilder in) {
+        super(field, in);
         suggestMode = in.suggestMode;
         accuracy = in.accuracy;
         sort = in.sort;
@@ -409,13 +411,14 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
-            throw new ParsingException(parser.getTokenLocation(), "the required field option is missing");
+            throw new ElasticsearchParseException(
+                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
         }
         return new TermSuggestionBuilder(fieldname, tmpSuggestion);
     }
 
     @Override
-    protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+    public SuggestionContext build(QueryShardContext context) throws IOException {
         TermSuggestionContext suggestionContext = new TermSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context.getMapperService(), suggestionContext);
@@ -454,8 +457,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public TermSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(fieldname);
+    public TermSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(field);
         builder.suggestMode = SuggestMode.PROTOTYPE.readFrom(in);
         builder.accuracy = in.readFloat();
         builder.sort = SortBy.PROTOTYPE.readFrom(in);

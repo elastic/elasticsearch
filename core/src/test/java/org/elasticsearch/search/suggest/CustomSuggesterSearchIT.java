@@ -119,8 +119,8 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
-            return new CustomSuggestionBuilder(fieldname, in.readString());
+        public CustomSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
+            return new CustomSuggestionBuilder(field, in.readString());
         }
 
         @Override
@@ -183,7 +183,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+        public SuggestionContext build(QueryShardContext context) throws IOException {
             Map<String, Object> options = new HashMap<>();
             options.put(FIELDNAME_FIELD.getPreferredName(), field());
             options.put(RANDOM_SUFFIX_FIELD.getPreferredName(), randomSuffix);

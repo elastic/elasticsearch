@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -44,7 +45,7 @@ import java.util.Objects;
  */
 public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends ToXContentToBytes implements NamedWriteable<T> {
 
-    protected final String fieldname;
+    protected final String field;
     protected String text;
     protected String prefix;
     protected String regex;
@@ -62,21 +63,21 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     /**
      * Creates a new suggestion.
-     * @param fieldname field to fetch the candidate suggestions from
+     * @param field field to execute suggestions on
      */
-    public SuggestionBuilder(String fieldname) {
-        Objects.requireNonNull(fieldname, "suggestion requires a field name");
-        if (fieldname.isEmpty()) {
+    protected SuggestionBuilder(String field) {
+        Objects.requireNonNull(field, "suggestion requires a field name");
+        if (field.isEmpty()) {
             throw new IllegalArgumentException("suggestion field name is empty");
         }
-        this.fieldname = fieldname;
+        this.field = field;
     }
 
     /**
      * internal copy constructor that copies over all class fields from second SuggestionBuilder except field name.
      */
-    protected SuggestionBuilder(String fieldname, SuggestionBuilder<?> in) {
-        this(fieldname);
+    protected SuggestionBuilder(String field, SuggestionBuilder<?> in) {
+        this(field);
         text = in.text;
         prefix = in.prefix;
         regex = in.regex;
@@ -127,157 +128,11 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         return this.regex;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (text != null) {
-            builder.field(TEXT_FIELD.getPreferredName(), text);
-        }
-        if (prefix != null) {
-            builder.field(PREFIX_FIELD.getPreferredName(), prefix);
-        }
-        if (regex != null) {
-            builder.field(REGEX_FIELD.getPreferredName(), regex);
-        }
-        builder.startObject(getSuggesterName());
-        if (analyzer != null) {
-            builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
-        }
-        builder.field(FIELDNAME_FIELD.getPreferredName(), fieldname);
-        if (size != null) {
-            builder.field(SIZE_FIELD.getPreferredName(), size);
-        }
-        if (shardSize != null) {
-            builder.field(SHARDSIZE_FIELD.getPreferredName(), shardSize);
-        }
-
-        builder = innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-
-    public static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
-            throws IOException {
-        XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parsefieldMatcher = parseContext.parseFieldMatcher();
-        XContentParser.Token token;
-        String currentFieldName = null;
-        String suggestText = null;
-        String prefix = null;
-        String regex = null;
-        SuggestionBuilder<?> suggestionBuilder = null;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (parsefieldMatcher.match(currentFieldName, TEXT_FIELD)) {
-                    suggestText = parser.text();
-                } else if (parsefieldMatcher.match(currentFieldName, PREFIX_FIELD)) {
-                    prefix = parser.text();
-                } else if (parsefieldMatcher.match(currentFieldName, REGEX_FIELD)) {
-                    regex = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(currentFieldName);
-                if (suggestParser == null) {
-                    throw new ParsingException(parser.getTokenLocation(), "suggestion [" + currentFieldName + "] not supported");
-                }
-                suggestionBuilder = suggestParser.innerFromXContent(parseContext);
-            }
-        }
-        if (suggestText != null) {
-            suggestionBuilder.text(suggestText);
-        }
-        if (prefix != null) {
-            suggestionBuilder.prefix(prefix);
-        }
-        if (regex != null) {
-            suggestionBuilder.regex(regex);
-        }
-        return suggestionBuilder;
-    }
-
-    protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext) throws IOException;
-
-    public SuggestionContext build(QueryShardContext context) throws IOException {
-        SuggestionContext suggestionContext = innerBuild(context);
-        return suggestionContext;
-    }
-
-    protected abstract SuggestionContext innerBuild(QueryShardContext context) throws IOException;
-
-    /**
-     * Transfers the text, prefix, regex, analyzer, fieldname, size and shard size settings from the
-     * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
-     */
-    protected void populateCommonFields(MapperService mapperService,
-            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
-
-        Objects.requireNonNull(fieldname, "fieldname must not be null");
-
-        MappedFieldType fieldType = mapperService.fullName(fieldname);
-        if (fieldType == null) {
-            throw new IllegalArgumentException("no mapping found for field [" + fieldname + "]");
-        } else if (analyzer == null) {
-            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldType.searchAnalyzer() == null) {
-                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
-            } else {
-                suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
-            }
-        } else {
-            Analyzer luceneAnalyzer = mapperService.analysisService().analyzer(analyzer);
-            if (luceneAnalyzer == null) {
-                throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
-            }
-            suggestionContext.setAnalyzer(luceneAnalyzer);
-        }
-
-        suggestionContext.setField(fieldname);
-
-        if (size != null) {
-            suggestionContext.setSize(size);
-        }
-
-        if (shardSize != null) {
-            suggestionContext.setShardSize(shardSize);
-        } else {
-            // if no shard size is set in builder, use size (or at least 5)
-            suggestionContext.setShardSize(Math.max(suggestionContext.getSize(), 5));
-        }
-
-        if (text != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(text));
-        }
-        if (prefix != null) {
-            suggestionContext.setPrefix(BytesRefs.toBytesRef(prefix));
-        }
-        if (regex != null) {
-            suggestionContext.setRegex(BytesRefs.toBytesRef(regex));
-        }
-        if (text != null && prefix == null) {
-            suggestionContext.setPrefix(BytesRefs.toBytesRef(text));
-        } else if (text == null && prefix != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
-        } else if (text == null && regex != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(regex));
-        }
-    }
-
-    private String getSuggesterName() {
-        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
-        return getWriteableName();
-    }
-
     /**
      * get the {@link #field()} parameter
      */
     public String field() {
-        return this.fieldname;
+        return this.field;
     }
 
     /**
@@ -341,11 +196,154 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         return this.shardSize;
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (text != null) {
+            builder.field(TEXT_FIELD.getPreferredName(), text);
+        }
+        if (prefix != null) {
+            builder.field(PREFIX_FIELD.getPreferredName(), prefix);
+        }
+        if (regex != null) {
+            builder.field(REGEX_FIELD.getPreferredName(), regex);
+        }
+        builder.startObject(getSuggesterName());
+        if (analyzer != null) {
+            builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
+        }
+        builder.field(FIELDNAME_FIELD.getPreferredName(), field);
+        if (size != null) {
+            builder.field(SIZE_FIELD.getPreferredName(), size);
+        }
+        if (shardSize != null) {
+            builder.field(SHARDSIZE_FIELD.getPreferredName(), shardSize);
+        }
+
+        builder = innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
+
+    static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
+            throws IOException {
+        XContentParser parser = parseContext.parser();
+        ParseFieldMatcher parsefieldMatcher = parseContext.parseFieldMatcher();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        String suggestText = null;
+        String prefix = null;
+        String regex = null;
+        SuggestionBuilder<?> suggestionBuilder = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parsefieldMatcher.match(currentFieldName, TEXT_FIELD)) {
+                    suggestText = parser.text();
+                } else if (parsefieldMatcher.match(currentFieldName, PREFIX_FIELD)) {
+                    prefix = parser.text();
+                } else if (parsefieldMatcher.match(currentFieldName, REGEX_FIELD)) {
+                    regex = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(currentFieldName);
+                if (suggestParser == null) {
+                    throw new ParsingException(parser.getTokenLocation(), "suggestion [" + currentFieldName + "] not supported");
+                }
+                suggestionBuilder = suggestParser.innerFromXContent(parseContext);
+            }
+        }
+        if (suggestionBuilder == null) {
+            throw new ElasticsearchParseException("missing suggestion object");
+        }
+        if (suggestText != null) {
+            suggestionBuilder.text(suggestText);
+        }
+        if (prefix != null) {
+            suggestionBuilder.prefix(prefix);
+        }
+        if (regex != null) {
+            suggestionBuilder.regex(regex);
+        }
+        return suggestionBuilder;
+    }
+
+    protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext) throws IOException;
+
+    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+
+    /**
+     * Transfers the text, prefix, regex, analyzer, field, size and shard size settings from the
+     * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
+     */
+    protected void populateCommonFields(MapperService mapperService,
+            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
+
+        Objects.requireNonNull(field, "field must not be null");
+
+        MappedFieldType fieldType = mapperService.fullName(field);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("no mapping found for field [" + field + "]");
+        } else if (analyzer == null) {
+            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
+            if (fieldType.searchAnalyzer() == null) {
+                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
+            } else {
+                suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
+            }
+        } else {
+            Analyzer luceneAnalyzer = mapperService.analysisService().analyzer(analyzer);
+            if (luceneAnalyzer == null) {
+                throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
+            }
+            suggestionContext.setAnalyzer(luceneAnalyzer);
+        }
+
+        suggestionContext.setField(field);
+
+        if (size != null) {
+            suggestionContext.setSize(size);
+        }
+
+        if (shardSize != null) {
+            suggestionContext.setShardSize(shardSize);
+        } else {
+            // if no shard size is set in builder, use size (or at least 5)
+            suggestionContext.setShardSize(Math.max(suggestionContext.getSize(), 5));
+        }
+
+        if (text != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(text));
+        }
+        if (prefix != null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(prefix));
+        }
+        if (regex != null) {
+            suggestionContext.setRegex(BytesRefs.toBytesRef(regex));
+        }
+        if (text != null && prefix == null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(text));
+        } else if (text == null && prefix != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
+        } else if (text == null && regex != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(regex));
+        }
+    }
+
+    private String getSuggesterName() {
+        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
+        return getWriteableName();
+    }
 
     @Override
     public final T readFrom(StreamInput in) throws IOException {
-        String fieldname = in.readString();
-        T suggestionBuilder = doReadFrom(in, fieldname);
+        String field = in.readString();
+        T suggestionBuilder = doReadFrom(in, field);
         suggestionBuilder.text = in.readOptionalString();
         suggestionBuilder.prefix = in.readOptionalString();
         suggestionBuilder.regex = in.readOptionalString();
@@ -358,13 +356,13 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     /**
      * Subclass should return a new instance, reading itself from the input string
      * @param in the input string to read from
-     * @param fieldname the fieldname needed for ctor or concrete suggestion
+     * @param field the field needed for ctor or concrete suggestion
      */
-    protected abstract T doReadFrom(StreamInput in, String fieldname) throws IOException;
+    protected abstract T doReadFrom(StreamInput in, String field) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldname);
+        out.writeString(field);
         doWriteTo(out);
         out.writeOptionalString(text);
         out.writeOptionalString(prefix);
@@ -389,7 +387,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         return Objects.equals(text, other.text()) &&
                Objects.equals(prefix, other.prefix()) &&
                Objects.equals(regex, other.regex()) &&
-               Objects.equals(fieldname, other.field()) &&
+               Objects.equals(field, other.field()) &&
                Objects.equals(analyzer, other.analyzer()) &&
                Objects.equals(size, other.size()) &&
                Objects.equals(shardSize, other.shardSize()) &&
@@ -403,7 +401,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     @Override
     public final int hashCode() {
-        return Objects.hash(text, prefix, regex, fieldname, analyzer, size, shardSize, doHashCode());
+        return Objects.hash(text, prefix, regex, field, analyzer, size, shardSize, doHashCode());
     }
 
     /**

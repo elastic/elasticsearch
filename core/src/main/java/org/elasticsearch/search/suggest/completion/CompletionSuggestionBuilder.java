@@ -98,12 +98,12 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     protected BytesReference contextBytes = null;
     protected List<String> payloadFields = Collections.emptyList();
 
-    public CompletionSuggestionBuilder(String fieldname) {
-        super(fieldname);
+    public CompletionSuggestionBuilder(String field) {
+        super(field);
     }
 
     /**
-     * internal copy constructor that copies over all class fields except for the fieldname which is
+     * internal copy constructor that copies over all class fields except for the field which is
      * set to the one provided in the first argument
      */
     private CompletionSuggestionBuilder(String fieldname, CompletionSuggestionBuilder in) {
@@ -205,8 +205,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             super("_na_");
         }
 
-        private InnerBuilder field(String fieldName) {
-            this.field = fieldName;
+        private InnerBuilder field(String field) {
+            this.field = field;
             return this;
         }
     }
@@ -242,13 +242,13 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
             throw new ElasticsearchParseException(
-                "required field [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
         }
         return new CompletionSuggestionBuilder(field, builder);
     }
 
     @Override
-    protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+    public SuggestionContext build(QueryShardContext context) throws IOException {
         CompletionSuggestionContext suggestionContext = new CompletionSuggestionContext(context);
         // copy over common settings to each suggestion builder
         final MapperService mapperService = context.getMapperService();
@@ -301,8 +301,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
-        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder(fieldname);
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
+        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder(field);
         if (in.readBoolean()) {
             int numPayloadField = in.readVInt();
             List<String> payloadFields = new ArrayList<>(numPayloadField);

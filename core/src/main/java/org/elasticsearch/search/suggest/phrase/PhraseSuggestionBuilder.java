@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
@@ -94,12 +95,12 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     private SmoothingModel model;
     private final Map<String, List<CandidateGenerator>> generators = new HashMap<>();
 
-    public PhraseSuggestionBuilder(String fieldname) {
-        super(fieldname);
+    public PhraseSuggestionBuilder(String field) {
+        super(field);
     }
 
     /**
-     * internal copy constructor that copies over all class fields except for the fieldname which is
+     * internal copy constructor that copies over all class fields except for the field which is
      * set to the one provided in the first argument
      */
     private PhraseSuggestionBuilder(String fieldname, PhraseSuggestionBuilder in) {
@@ -529,14 +530,15 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
-            throw new ParsingException(parser.getTokenLocation(), "the required field option is missing");
+            throw new ElasticsearchParseException(
+                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
         }
         return new PhraseSuggestionBuilder(fieldname, tmpSuggestion);
     }
 
 
     @Override
-    public SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+    public SuggestionContext build(QueryShardContext context) throws IOException {
         PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(context);
         MapperService mapperService = context.getMapperService();
         // copy over common settings to each suggestion builder
@@ -657,8 +659,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     @Override
-    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String fieldname) throws IOException {
-        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(fieldname);
+    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(field);
         builder.maxErrors = in.readFloat();
         builder.realWordErrorLikelihood = in.readFloat();
         builder.confidence = in.readFloat();

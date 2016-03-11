@@ -29,7 +29,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 public abstract class SuggestBuilders {
 
     /**
-     * Creates a term suggestion lookup query with the provided <code>fieldname</code>
+     * Creates a term suggestion lookup query with the provided <code>field</code>
      *
      * @return a {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder}
      * instance
@@ -39,7 +39,7 @@ public abstract class SuggestBuilders {
     }
 
     /**
-     * Creates a phrase suggestion lookup query with the provided <code>fieldname</code>
+     * Creates a phrase suggestion lookup query with the provided <code>field</code>
      *
      * @return a {@link org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder}
      * instance
@@ -49,7 +49,7 @@ public abstract class SuggestBuilders {
     }
 
     /**
-     * Creates a completion suggestion lookup query with the provided <code>fieldname</code>
+     * Creates a completion suggestion lookup query with the provided <code>field</code>
      *
      * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder}
      * instance

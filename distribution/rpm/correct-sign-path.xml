@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="correct-sign-path">
+    <target name="check-keypath-override">
+        <condition property="gpg.keypath.overridden" value="true" else="false">
+            <not>
+                <equals arg1="${gpg.keypath}" arg2="${gpg.default.keypath}"/>
+            </not>
+        </condition>
+    </target>
+
+    <!--in case the gpg.keypath has been overwritten externally we don't do any symlink magic -->
+    <target name="shorten-gpg-path" depends="check-keypath-override" unless="${gpg.keypath.overridden}">
+        <echo level="info" message="Symlinking ${gpg.long.keypath} to ${gpg.keypath}"/>
+        <symlink link="${gpg.keypath}" resource="${gpg.long.keypath}" overwrite="true"/>
+    </target>
+</project>

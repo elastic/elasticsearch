@@ -48,7 +48,21 @@
         <!-- By default we sign RPMs and DEBs using a dummy gpg directory that we check into
              source control. Releases will override this with the real information. -->
         <gpg.key>16E55242</gpg.key>
-        <gpg.keypath>${project.parent.basedir}/src/test/resources/dummyGpg</gpg.keypath>
+        <!-- We're not using project.parent.basedir here by intention because it causes trouble
+        (i.e. the property does not get resolved; verified with
+        mvn help:effective-pom -pl distribution/rpm -Prpm). -->
+        <gpg.long.keypath>${project.basedir}/../src/test/resources/dummyGpg</gpg.long.keypath>
+        <!-- This is the path that is used internally for signing. gpg-agent allows this path to
+        be at most 108 characters on Linux (see struct sockaddr_un in <sys/un.h>) and even less
+        on other systems. By symlinking to the tmp directory, we reduce the path name length.
+
+        We use an internal property "gpg.default.keypath" which is not intended to be overridden
+        on the command line. Instead, when signing a package in the release process,
+        "gpg.keypath" should be provided (as it has been before). The build script will detect
+        this and will not use symlinking magic in this case.
+         -->
+        <gpg.default.keypath>${java.io.tmpdir}/shortGpg</gpg.default.keypath>
+        <gpg.keypath>${gpg.default.keypath}</gpg.keypath>
         <gpg.keyring>${gpg.keypath}/secring.gpg</gpg.keyring>
         <gpg.passphrase>dummy</gpg.passphrase>
         <deb.sign>true</deb.sign>

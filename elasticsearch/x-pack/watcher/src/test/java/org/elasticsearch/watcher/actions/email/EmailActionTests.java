@@ -390,7 +390,7 @@ public class EmailActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
-        logger.info(bytes.toUtf8());
+        logger.info("{}", bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 

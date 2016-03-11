@@ -120,9 +120,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
         } catch (Exception ee) {
             if (logger.isTraceEnabled()) {
-                logger.trace("realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
+                logger.trace("realm [{}] could not authenticate [{}]", ee, type(), token.principal());
             } else if (logger.isDebugEnabled()) {
-                logger.debug("realm [" + type() + "] could not authenticate [" + token.principal() + "]");
+                logger.debug("realm [{}] could not authenticate [{}]", type(), token.principal());
             }
             return null;
         }
@@ -150,9 +150,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             return userWithHash.user;
         } catch (ExecutionException ee) {
             if (logger.isTraceEnabled()) {
-                logger.trace("realm [" + name() + "] could not lookup [" + username + "]", ee);
+                logger.trace("realm [{}] could not lookup [{}]", ee, name(), username);
             } else if (logger.isDebugEnabled()) {
-                logger.debug("realm [" + name() + "] could not authenticate [" + username + "]");
+                logger.debug("realm [{}] could not authenticate [{}]", name(), username);
             }
             return null;
         }

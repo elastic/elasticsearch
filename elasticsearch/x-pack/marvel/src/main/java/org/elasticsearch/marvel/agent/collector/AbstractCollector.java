@@ -80,7 +80,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
                 return doCollect();
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error("collector [{}] timed out when collecting data");
+            logger.error("collector [{}] timed out when collecting data", name());
         } catch (Exception e) {
             logger.error("collector [{}] - failed collecting data", e, name());
         }

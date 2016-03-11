@@ -104,8 +104,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                         httpRequest.host(), httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
             }
         } catch (IOException e) {
-            logger.error("Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]: [{}]", e, httpRequest.port(),
-                    httpRequest.method(), httpRequest.path(), e.getMessage());
+            logger.error("Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]: [{}]", e, httpRequest.host(),
+                    httpRequest.port(), httpRequest.method(), httpRequest.path(), e.getMessage());
         }
 
         throw new ElasticsearchException("Unable to get attachment of type [{}] with id [{}] in watch [{}] aborting watch execution",

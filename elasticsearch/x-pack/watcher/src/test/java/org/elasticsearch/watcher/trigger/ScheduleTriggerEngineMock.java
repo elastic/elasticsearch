@@ -82,7 +82,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     public void trigger(String jobName, int times, TimeValue interval) {
         for (int i = 0; i < times; i++) {
             DateTime now = clock.now(DateTimeZone.UTC);
-            logger.debug("firing [" + jobName + "] at [" + now + "]");
+            logger.debug("firing [{}] at [{}]", jobName, now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             for (Listener listener : listeners) {
                 listener.triggered(Arrays.<TriggerEvent>asList(event));

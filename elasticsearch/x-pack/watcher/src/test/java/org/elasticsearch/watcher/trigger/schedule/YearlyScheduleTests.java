@@ -46,7 +46,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
             dayStr = dayStr.replace("32", "L");
             String monthStr = Strings.collectionToCommaDelimitedString(time.months());
             String expression = "0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?";
-            logger.info("expression: " + expression);
+            logger.info("expression: {}", expression);
             assertThat(crons, hasItemInArray(expression));
         }
     }

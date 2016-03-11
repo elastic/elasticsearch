@@ -1,0 +1,8 @@
+<?page_header <b>PLEASE NOTE:</b><br/>This page is for an out of date version of Elasticsearch.  Check out <a href="../../current">the latest docs here</a>.?>
+
+<abstract>
+    <title>Please note:</title>
+    <simpara role="page_header">
+      This page is for an out of date version of Elasticsearch.  Check out <ulink url="../../current">the latest docs here</ulink>.
+    </simpara>
+</abstract>

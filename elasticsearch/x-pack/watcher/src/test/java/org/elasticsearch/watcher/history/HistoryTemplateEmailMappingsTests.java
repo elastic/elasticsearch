@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.history;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the email address fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/17065")
 public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTestCase {
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

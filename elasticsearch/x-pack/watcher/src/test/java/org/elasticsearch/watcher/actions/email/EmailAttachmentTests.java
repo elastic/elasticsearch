@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions.email;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/17065")
 public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";

@@ -346,10 +346,12 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     /**
-     * Sets additional params for collate script
+     * Adds additional parameters for collate scripts. Previously added parameters on the
+     * same builder will be overwritten.
      */
     public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
-        this.collateParams = collateParams;
+        Objects.requireNonNull(collateParams, "collate parameters cannot be null.");
+        this.collateParams = new HashMap<>(collateParams);
         return this;
     }
 

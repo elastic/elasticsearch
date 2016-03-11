@@ -201,7 +201,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     }
 
     void setCollateScriptParams(Map<String, Object> collateScriptParams) {
-        this.collateScriptParams = collateScriptParams;
+        this.collateScriptParams = new HashMap<>(collateScriptParams);
     }
 
     void setCollatePrune(boolean prune) {

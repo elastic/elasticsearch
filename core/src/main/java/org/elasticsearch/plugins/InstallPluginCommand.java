@@ -250,7 +250,14 @@ class InstallPluginCommand extends Command {
                 }
                 hasEsDir = true;
                 Path targetFile = target.resolve(entry.getName().substring("elasticsearch/".length()));
-                // TODO: handle name being an absolute path
+
+                // Using the entry name as a path can result in an entry outside of the plugin dir, either if the
+                // name starts with the root of the filesystem, or it is a relative entry like ../whatever.
+                // This check attempts to identify both cases by first normalizing the path (which removes foo/..)
+                // and ensuring the normalized entry is still rooted with the target plugin directory.
+                if (targetFile.normalize().startsWith(target) == false) {
+                    throw new IOException("Zip contains entry name '" + entry.getName() + "' resolving outside of plugin directory");
+                }
 
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)

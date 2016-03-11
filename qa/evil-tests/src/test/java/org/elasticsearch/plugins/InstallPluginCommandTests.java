@@ -466,6 +466,18 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env);
     }
 
+    public void testZipRelativeOutsideEntryName() throws Exception {
+        Path zip = createTempDir().resolve("broken.zip");
+        try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
+            stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
+        }
+        String pluginZip = zip.toUri().toURL().toString();
+        IOException e = expectThrows(IOException.class, () -> {
+            installPlugin(pluginZip, createEnv());
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+    }
+
     // TODO: test batch flag?
     // TODO: test checksum (need maven/official below)
     // TODO: test maven, official, and staging install...need tests with fixtures...

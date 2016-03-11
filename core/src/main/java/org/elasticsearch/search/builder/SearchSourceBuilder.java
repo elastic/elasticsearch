@@ -55,6 +55,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,9 +106,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return PROTOTYPE.readFrom(in);
     }
 
-    public static SearchSourceBuilder parseSearchSource(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers)
+    public static SearchSourceBuilder parseSearchSource(XContentParser parser, QueryParseContext context,
+                                                        AggregatorParsers aggParsers, Suggesters suggesters)
             throws IOException {
-        return PROTOTYPE.fromXContent(parser, context, aggParsers);
+        return PROTOTYPE.fromXContent(parser, context, aggParsers, suggesters);
     }
 
     /**
@@ -156,7 +158,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private HighlightBuilder highlightBuilder;
 
-    private BytesReference suggestBuilder;
+    private SuggestBuilder suggestBuilder;
 
     private BytesReference innerHitsBuilder;
 
@@ -475,20 +477,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     public SearchSourceBuilder suggest(SuggestBuilder suggestBuilder) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            suggestBuilder.toXContent(builder, EMPTY_PARAMS);
-            this.suggestBuilder = builder.bytes();
-            return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.suggestBuilder = suggestBuilder;
+        return this;
     }
 
     /**
-     * Gets the bytes representing the suggester builder for this request.
+     * Gets the suggester builder for this request.
      */
-    public BytesReference suggest() {
+    public SuggestBuilder suggest() {
         return suggestBuilder;
     }
 
@@ -736,19 +732,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Create a new SearchSourceBuilder with attributes set by an xContent.
      */
-    public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers)
+    public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context,
+                                            AggregatorParsers aggParsers, Suggesters suggesters)
             throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, context, aggParsers);
+        builder.parseXContent(parser, context, aggParsers, suggesters);
         return builder;
     }
 
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser, QueryParseContext, AggregatorParsers)} if you have normal defaults.
+     * {@link #fromXContent(XContentParser, QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
      */
-    public void parseXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers) throws IOException {
+    public void parseXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers, Suggesters suggesters)
+        throws IOException {
+
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -852,8 +851,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     innerHitsBuilder = xContentBuilder.bytes();
                 } else if (context.parseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
-                    XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                    suggestBuilder = xContentBuilder.bytes();
+                    suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sorts = new ArrayList<>();
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
@@ -1050,10 +1048,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (suggestBuilder != null) {
-            builder.field(SUGGEST_FIELD.getPreferredName());
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(suggestBuilder);
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
+            builder.field(SUGGEST_FIELD.getPreferredName(), suggestBuilder);
         }
 
         if (rescoreBuilders != null) {
@@ -1232,7 +1227,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.stats = stats;
         }
         if (in.readBoolean()) {
-            builder.suggestBuilder = in.readBytesReference();
+            builder.suggestBuilder = SuggestBuilder.PROTOTYPE.readFrom(in);
         }
         builder.terminateAfter = in.readVInt();
         builder.timeoutInMillis = in.readLong();
@@ -1348,7 +1343,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasSuggestBuilder = suggestBuilder != null;
         out.writeBoolean(hasSuggestBuilder);
         if (hasSuggestBuilder) {
-            out.writeBytesReference(suggestBuilder);
+            suggestBuilder.writeTo(out);
         }
         out.writeVInt(terminateAfter);
         out.writeLong(timeoutInMillis);

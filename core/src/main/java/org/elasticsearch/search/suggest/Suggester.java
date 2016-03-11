@@ -39,7 +39,7 @@ public abstract class Suggester<T extends SuggestionSearchContext.SuggestionCont
     /**
      * link the suggester to its corresponding {@link SuggestionBuilder}
      */
-    public abstract SuggestionBuilder<?> getBuilderPrototype();
+    public abstract SuggestionBuilder<? extends SuggestionBuilder> getBuilderPrototype();
 
     public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
         execute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {

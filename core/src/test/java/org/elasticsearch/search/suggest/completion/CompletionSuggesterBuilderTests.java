@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
@@ -36,22 +35,27 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.search.suggest.completion.context.QueryContext;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
+        return randomCompletionSuggestionBuilder();
+    }
+
+    public static CompletionSuggestionBuilder randomCompletionSuggestionBuilder() {
         return randomSuggestionBuilderWithContextInfo().builder;
     }
 
@@ -61,9 +65,10 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         List<String> geoContexts = new ArrayList<>();
     }
 
-    private BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
+    private static BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
         final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
             case 0:
                 testBuilder.prefix(randomAsciiOfLength(10));
@@ -170,6 +175,28 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 break;
             default:
                 throw new IllegalStateException("should not through");
+        }
+    }
+
+    /**
+     * Test that a malformed JSON suggestion request fails.
+     */
+    public void testMalformedJsonRequestPayload() throws Exception {
+        final String field = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+        final String payload = "{\n" +
+                               "  \"bad-payload\" : { \n" +
+                               "    \"prefix\" : \"sug\",\n" +
+                               "    \"completion\" : { \n" +
+                               "      \"field\" : \"" + field + "\",\n " +
+                               "      \"payload\" : [ {\"payload\":\"field\"} ]\n" +
+                               "    }\n" +
+                               "  }\n" +
+                               "}\n";
+        try {
+            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(payload), suggesters);
+            fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("failed to parse field [payload]"));
         }
     }
 }

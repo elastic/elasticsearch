@@ -21,28 +21,25 @@ package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A request to get suggestions for corrections of phrases. Best created with
  * {@link org.elasticsearch.client.Requests#suggestRequest(String...)}.
  * <p>
- * The request requires the suggest query source to be set either using
- * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)} / {@link #suggest(org.elasticsearch.common.bytes.BytesReference)}
- * or by using {@link #suggest(org.elasticsearch.search.suggest.SuggestBuilder)}
- * (Best created using the {link @org.elasticsearch.search.suggest.SuggestBuilders)}).
+ * The request requires the suggest query source to be set using
+ * {@link #suggest(org.elasticsearch.search.suggest.SuggestBuilder)}
  *
  * @see SuggestResponse
  * @see org.elasticsearch.client.Client#suggest(SuggestRequest)
@@ -57,7 +54,7 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
     @Nullable
     private String preference;
 
-    private BytesReference suggestSource;
+    private SuggestBuilder suggest;
 
     public SuggestRequest() {
     }
@@ -77,38 +74,19 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
     }
 
     /**
-     * The Phrase to get correction suggestions for 
+     * The suggestion query to get correction suggestions for
      */
-    public BytesReference suggest() {
-        return suggestSource;
+    public SuggestBuilder suggest() {
+        return suggest;
     }
-    
+
     /**
-     * set a new source for the suggest query  
+     * set a new source for the suggest query
      */
-    public SuggestRequest suggest(BytesReference suggestSource) {
-        this.suggestSource = suggestSource;
+    public SuggestRequest suggest(SuggestBuilder suggest) {
+        Objects.requireNonNull(suggest, "suggest must not be null");
+        this.suggest = suggest;
         return this;
-    }
-
-    /**
-     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestBuilder}
-     * for phrase and term suggestion lookup
-     */
-    public SuggestRequest suggest(SuggestBuilder suggestBuilder) {
-        return suggest(suggestBuilder.buildAsBytes(Requests.CONTENT_TYPE));
-    }
-
-    /**
-     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestionBuilder}
-     * for completion suggestion lookup
-     */
-    public SuggestRequest suggest(SuggestionBuilder suggestionBuilder) {
-        return suggest(suggestionBuilder.buildAsBytes(Requests.CONTENT_TYPE));
-    }
-
-    public SuggestRequest suggest(String source) {
-        return suggest(new BytesArray(source));
     }
 
     /**
@@ -148,25 +126,29 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
         super.readFrom(in);
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        suggest(in.readBytesReference());
+        suggest = SuggestBuilder.PROTOTYPE.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        Objects.requireNonNull(suggest, "suggest must not be null");
         super.writeTo(out);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeBytesReference(suggestSource);
+        suggest.writeTo(out);
     }
 
     @Override
     public String toString() {
+        Objects.requireNonNull(suggest, "suggest must not be null");
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.convertToJson(suggestSource, false);
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder = suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            sSource = builder.string();
         } catch (Exception e) {
             // ignore
         }
-        return "[" + Arrays.toString(indices) + "]" + ", suggestSource[" + sSource + "]";
+        return "[" + Arrays.toString(indices) + "]" + ", suggest[" + sSource + "]";
     }
 }

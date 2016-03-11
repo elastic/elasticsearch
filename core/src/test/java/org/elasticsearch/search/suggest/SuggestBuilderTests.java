@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.WritableTestCase;
 import org.elasticsearch.search.suggest.phrase.Laplace;
@@ -39,6 +40,9 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,16 +50,30 @@ import java.util.Map.Entry;
 
 public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
+    private static NamedWriteableRegistry namedWriteableRegistry;
+
+    /**
+     * Setup for the whole base test class.
+     */
+    @BeforeClass
+    public static void init() {
+        NamedWriteableRegistry nwRegistry = new NamedWriteableRegistry();
+        nwRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
+        nwRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
+        nwRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
+        nwRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
+        nwRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
+        nwRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+        namedWriteableRegistry = nwRegistry;
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        namedWriteableRegistry = null;
+    }
 
     @Override
     protected NamedWriteableRegistry provideNamedWritableRegistry() {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
         return namedWriteableRegistry;
     }
 
@@ -75,7 +93,6 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
             context.reset(parser);
-            parser.nextToken();
 
             SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
             assertNotSame(suggestBuilder, secondSuggestBuilder);
@@ -84,17 +101,26 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
         }
     }
 
+    public void testIllegalSuggestionName() {
+        try {
+            new SuggestBuilder().addSuggestion(null, PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            fail("exception expected");
+        } catch (NullPointerException e) {
+            assertEquals("every suggestion needs a name", e.getMessage());
+        }
+
+        try {
+            new SuggestBuilder().addSuggestion("my-suggest", PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder())
+                .addSuggestion("my-suggest", PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            fail("exception expected");
+        } catch (IllegalArgumentException e) {
+            assertEquals("already added another suggestion with name [my-suggest]", e.getMessage());
+        }
+    }
+
     @Override
     protected SuggestBuilder createTestModel() {
-        SuggestBuilder suggestBuilder = new SuggestBuilder();
-        if (randomBoolean()) {
-            suggestBuilder.setGlobalText(randomAsciiOfLengthBetween(5, 50));
-        }
-        int numberOfSuggestions = randomIntBetween(0, 5);
-        for (int i = 0; i < numberOfSuggestions; i++) {
-            suggestBuilder.addSuggestion(randomAsciiOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
-        }
-        return suggestBuilder;
+        return randomSuggestBuilder();
     }
 
     @Override
@@ -111,26 +137,30 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
         return mutation;
     }
 
-    public void testIllegalSuggestionName() {
-        try {
-            new SuggestBuilder().addSuggestion(null, PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
-            fail("exception expected");
-        } catch (NullPointerException e) {
-            assertEquals("every suggestion needs a name", e.getMessage());
-        }
-
-        try {
-            new SuggestBuilder().addSuggestion("my-suggest", PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder())
-                                .addSuggestion("my-suggest", PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
-            fail("exception expected");
-        } catch (IllegalArgumentException e) {
-            assertEquals("already added another suggestion with name [my-suggest]", e.getMessage());
-        }
-    }
-
     @Override
     protected SuggestBuilder readFrom(StreamInput in) throws IOException {
         return SuggestBuilder.PROTOTYPE.readFrom(in);
+    }
+
+    public static SuggestBuilder randomSuggestBuilder() {
+        SuggestBuilder builder = new SuggestBuilder();
+        if (randomBoolean()) {
+            builder.setGlobalText(randomAsciiOfLengthBetween(1, 20));
+        }
+        final int numSuggestions = randomIntBetween(1, 5);
+        for (int i = 0; i < numSuggestions; i++) {
+            builder.addSuggestion(randomAsciiOfLengthBetween(5, 10), randomSuggestionBuilder());
+        }
+        return builder;
+    }
+
+    private static SuggestionBuilder<?> randomSuggestionBuilder() {
+        switch (randomIntBetween(0, 2)) {
+            case 0: return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+            case 1: return PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
+            case 2: return CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
+            default: return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+        }
     }
 
 }

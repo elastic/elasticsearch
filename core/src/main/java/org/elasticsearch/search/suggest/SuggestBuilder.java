@@ -119,6 +119,10 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         String fieldName = null;
 
         XContentParser.Token token;
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+        }
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();

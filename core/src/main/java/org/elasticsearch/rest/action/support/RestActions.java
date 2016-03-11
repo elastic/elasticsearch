@@ -42,6 +42,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 
@@ -114,14 +115,15 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static void parseRestSearchSource(SearchSourceBuilder source, BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry,
-            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers)
+    public static void parseRestSearchSource(SearchSourceBuilder source, BytesReference sourceBytes,
+                                             IndicesQueriesRegistry queryRegistry, ParseFieldMatcher parseFieldMatcher,
+                                             AggregatorParsers aggParsers, Suggesters suggesters)
             throws IOException {
         XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
         QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
         queryParseContext.reset(parser);
         queryParseContext.parseFieldMatcher(parseFieldMatcher);
-        source.parseXContent(parser, queryParseContext, aggParsers);
+        source.parseXContent(parser, queryParseContext, aggParsers, suggesters);
     }
 
     /**

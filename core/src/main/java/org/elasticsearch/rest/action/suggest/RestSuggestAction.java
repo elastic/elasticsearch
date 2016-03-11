@@ -24,9 +24,14 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -37,6 +42,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -47,9 +56,15 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
  */
 public class RestSuggestAction extends BaseRestHandler {
 
+    private final IndicesQueriesRegistry queryRegistry;
+    private final Suggesters suggesters;
+
     @Inject
-    public RestSuggestAction(Settings settings, RestController controller, Client client) {
+    public RestSuggestAction(Settings settings, RestController controller, Client client,
+                             IndicesQueriesRegistry queryRegistry, Suggesters suggesters) {
         super(settings, client);
+        this.queryRegistry = queryRegistry;
+        this.suggesters = suggesters;
         controller.registerHandler(POST, "/_suggest", this);
         controller.registerHandler(GET, "/_suggest", this);
         controller.registerHandler(POST, "/{index}/_suggest", this);
@@ -57,11 +72,17 @@ public class RestSuggestAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         if (RestActions.hasBodyContent(request)) {
-            suggestRequest.suggest(RestActions.getRestContent(request));
+            final BytesReference sourceBytes = RestActions.getRestContent(request);
+            try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
+                final QueryParseContext context = new QueryParseContext(queryRegistry);
+                context.reset(parser);
+                context.parseFieldMatcher(parseFieldMatcher);
+                suggestRequest.suggest(SuggestBuilder.fromXContent(context, suggesters));
+            }
         } else {
             throw new IllegalArgumentException("no content or source provided to execute suggestion");
         }

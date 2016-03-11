@@ -1860,7 +1860,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         if (initBlocking) {
             waitForBlock(internalCluster().getMasterName(), "test-repo", TimeValue.timeValueMinutes(1));
         } else {
-            waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
+            waitForBlockOnAllDataNodes("test-repo", TimeValue.timeValueMinutes(1));
         }
         try {
             if (allowPartial) {
@@ -1957,7 +1957,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .execute();
 
             logger.info("--> waiting for block to kick in");
-            waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueSeconds(60));
+            waitForBlockOnAllDataNodes("test-repo", TimeValue.timeValueMinutes(1));
 
             logger.info("--> close index while restore is running");
             try {

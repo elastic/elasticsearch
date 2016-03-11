@@ -149,15 +149,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+    public void waitForBlockOnAllDataNodes(String repository, TimeValue timeout) throws InterruptedException {
         if (false == awaitBusy(() -> {
             for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
-                if (mockRepository.blocked()) {
-                    return true;
+                if (mockRepository.blocked() == false) {
+                    return false;
                 }
             }
-            return false;
+            return true;
         }, timeout.millis(), TimeUnit.MILLISECONDS)) {
             fail("Timeout waiting for repository block on any data node!!!");
         }

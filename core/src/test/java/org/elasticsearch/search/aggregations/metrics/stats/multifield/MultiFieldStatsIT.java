@@ -20,13 +20,22 @@ package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
+import org.elasticsearch.search.aggregations.metrics.AvgIT;
+import org.elasticsearch.search.aggregations.metrics.ValueCountIT;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -35,17 +44,27 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.multifieldStats;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
-
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 /**
  * MultiFieldStats aggregation integration test
  */
 public class MultiFieldStatsIT extends AbstractNumericTestCase {
-    protected static String[] valFieldName = new String[] {"value", "randVal1", "randVal2"};
+    protected static String[] valFieldNames = new String[] {"value", "randVal1", "randVal2", "values"};
+    protected static String[] singleValFields = Arrays.copyOf(valFieldNames, 3);
     protected static MultiFieldStatsResults multiFieldStatsResults = new MultiFieldStatsResults();
     protected static long numDocs = 10000L;
     protected static final double TOLERANCE = 1e-6;
     protected static final String aggName = "multifieldstats";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(
+            AvgIT.ExtractFieldScriptPlugin.class,
+            ValueCountIT.FieldValueScriptPlugin.class);
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -55,15 +74,16 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
 
         Map<String, Double> vals = new HashMap<>(3);
         for (int i = 0; i < numDocs; i++) {
-            vals.put(valFieldName[0], (double)i+1);
-            vals.put(valFieldName[1], randomDouble());
-            vals.put(valFieldName[2], randomDouble());
+            vals.put(valFieldNames[0], (double)i+1);
+            vals.put(valFieldNames[1], randomDouble());
+            vals.put(valFieldNames[2], randomDouble());
+            vals.put(valFieldNames[3], ((i+2) + (i+3)) / 2.0);
             builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                 .startObject()
-                .field(valFieldName[0], vals.get(valFieldName[0]))
-                .field(valFieldName[1], vals.get(valFieldName[1]))
-                .field(valFieldName[2], vals.get(valFieldName[2]))
-                .startArray("values").value(i+2).value(i+3).endArray()
+                .field(valFieldNames[0], vals.get(valFieldNames[0]))
+                .field(valFieldNames[1], vals.get(valFieldNames[1]))
+                .field(valFieldNames[2], vals.get(valFieldNames[2]))
+                .startArray(valFieldNames[3]).value(i+2).value(i+3).endArray()
                 .endObject()));
             // add document fields
             multiFieldStatsResults.add(vals);
@@ -78,7 +98,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
         SearchResponse response = client().prepareSearch("empty_bucket_idx")
             .setQuery(matchAllQuery())
             .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                .subAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))).execute().actionGet();
+                .subAggregation(multifieldStats(aggName).fields(Arrays.asList(singleValFields)))).execute().actionGet();
         assertSearchResponse(response);
 
         assertThat(response.getHits().getTotalHits(), equalTo(2L));
@@ -93,7 +113,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     @Override
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
-            .setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))
+            .setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName).fields(Arrays.asList(singleValFields)))
             .execute().actionGet();
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
 
@@ -104,7 +124,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
-            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))
+            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(singleValFields)))
             .execute().actionGet();
         assertSearchResponse(response);
 
@@ -116,7 +136,8 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery())
-            .addAggregation(global("global").subAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName)))).execute().actionGet();
+            .addAggregation(global("global").subAggregation(multifieldStats(aggName).fields(Arrays.asList(singleValFields))))
+            .execute().actionGet();
         assertSearchResponse(response);
         assertHitCount(response, numDocs);
 
@@ -135,7 +156,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
-            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldName))).execute().actionGet();
+            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(singleValFields))).execute().actionGet();
         assertSearchResponse(response);
         assertHitCount(response, numDocs);
 
@@ -144,47 +165,106 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldWithValueScript() throws Exception {
-
+        Map<String, Script> scripts = Collections.singletonMap("field_value",
+            new Script("value", ScriptType.INLINE, ValueCountIT.FieldValueScriptEngine.NAME, null));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(singleValFields)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
     public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {
-
+        Map<String, Object> params = Collections.singletonMap("s", "value");
+        Map<String, Script> scripts = Collections.singletonMap("field_value",
+            new Script("", ScriptType.INLINE, ValueCountIT.FieldValueScriptEngine.NAME, params));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(singleValFields)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
     public void testMultiValuedField() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(multifieldStats(aggName).fields(Arrays.asList(valFieldNames)))
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
 
+        assertExpectedStatsResults(response.getAggregations().get(aggName), valFieldNames);
     }
 
     @Override
     public void testMultiValuedFieldWithValueScript() throws Exception {
-
+        Map<String, Script> scripts = Collections.singletonMap("field_value",
+            new Script("values", ScriptType.INLINE, ValueCountIT.FieldValueScriptEngine.NAME, null));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(valFieldNames)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName), valFieldNames);
     }
 
     @Override
     public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {
-
+        Map<String, Object> params = Collections.singletonMap("s", "values");
+        Map<String, Script> scripts = Collections.singletonMap("field_value",
+            new Script("", ScriptType.INLINE, ValueCountIT.FieldValueScriptEngine.NAME, params));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(valFieldNames)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName), valFieldNames);
     }
 
     @Override
     public void testScriptSingleValued() throws Exception {
-
+        HashMap<String, Script> scripts = new HashMap<>();
+        scripts.put("extract_field", new Script("value", ScriptType.INLINE, AvgIT.ExtractFieldScriptEngine.NAME, Collections.EMPTY_MAP));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(singleValFields)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
     public void testScriptSingleValuedWithParams() throws Exception {
-
+        Map<String, Object> params = Collections.singletonMap("s", "value");
+        Map<String, Script> scripts = Collections.singletonMap("field_value",
+            new Script("", ScriptType.INLINE, ValueCountIT.FieldValueScriptEngine.NAME, params));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(singleValFields)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
     public void testScriptMultiValued() throws Exception {
-
+        HashMap<String, Script> scripts = new HashMap<>();
+        scripts.put("extract_field", new Script("values", ScriptType.INLINE, AvgIT.ExtractFieldScriptEngine.NAME, Collections.EMPTY_MAP));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(singleValFields)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName));
     }
 
     @Override
     public void testScriptMultiValuedWithParams() throws Exception {
-
+        Map<String, Object> params = Collections.singletonMap("s", "values");
+        Map<String, Script> scripts = Collections.singletonMap("field_value",
+            new Script("", ScriptType.INLINE, ValueCountIT.FieldValueScriptEngine.NAME, params));
+        SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(multifieldStats(aggName)
+            .fields(Arrays.asList(valFieldNames)).scripts(scripts)).execute().actionGet();
+        assertSearchResponse(response);
+        assertHitCount(response, numDocs);
+        assertExpectedStatsResults(response.getAggregations().get(aggName), valFieldNames);
     }
 
     private void assertEmptyMultiFieldStats(MultiFieldStats multiFieldStats) {
@@ -200,9 +280,13 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
     }
 
     private void assertExpectedStatsResults(MultiFieldStats multiFieldStats) {
+        assertExpectedStatsResults(multiFieldStats, singleValFields);
+    }
+
+    private void assertExpectedStatsResults(MultiFieldStats multiFieldStats, String[] fieldNames) {
         assertThat(multiFieldStats, notNullValue());
         assertThat(multiFieldStats.getName(), equalTo(aggName));
-        for (String fieldName : valFieldName) {
+        for (String fieldName : fieldNames) {
             // check fieldCount
             assertThat(multiFieldStats.getFieldCount(fieldName), equalTo(multiFieldStatsResults.counts.get(fieldName)));
             // check mean
@@ -214,7 +298,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
             // check kurtosis
             assertThat(multiFieldStats.getKurtosis(fieldName), closeTo(multiFieldStatsResults.kurtosis.get(fieldName), TOLERANCE));
             // check covariance
-            for (String fieldNameY : valFieldName) {
+            for (String fieldNameY : fieldNames) {
                 // check covariance
                 assertThat(multiFieldStats.getCovariance(fieldName, fieldNameY),
                     closeTo(multiFieldStatsResults.getCovariance(fieldName, fieldNameY), TOLERANCE));
@@ -239,7 +323,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
         HashMap<String, HashMap<String, Double>> correlation =
             (HashMap<String, HashMap<String, Double>>) multiFieldStats.getProperty("correlation");
 
-        for (String fieldName : valFieldName) {
+        for (String fieldName : singleValFields) {
             // check fieldCount
             assertThat(counts.get(fieldName), equalTo(multiFieldStatsResults.counts.get(fieldName)));
             // check mean
@@ -253,7 +337,7 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
             // check covariance and correlation
             HashMap<String, Double> colCov;
             HashMap<String, Double> colCorr;
-            for (String fieldNameY : valFieldName) {
+            for (String fieldNameY : singleValFields) {
                 // if the fieldnames are the same just return the variance
                 if (fieldName.equals(fieldNameY)) {
                     assertThat(variances.get(fieldName),

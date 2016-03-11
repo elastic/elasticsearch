@@ -48,8 +48,6 @@ import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,8 +59,8 @@ import java.util.Map;
  */
 public class ScriptSortParser implements SortParser {
 
-    private static final String STRING_SORT_TYPE = "string";
-    private static final String NUMBER_SORT_TYPE = "number";
+    public static final String STRING_SORT_TYPE = "string";
+    public static final String NUMBER_SORT_TYPE = "number";
 
     @Override
     public String[] names() {

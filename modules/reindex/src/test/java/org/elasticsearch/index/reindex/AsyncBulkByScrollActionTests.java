@@ -88,6 +88,7 @@ import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
@@ -263,8 +264,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
         assertThat(client.scrollsCleared, contains(scrollId));
 
-        // While we're mocking the threadPool lets also check that we incremented the throttle counter
-        assertEquals(expectedDelay, task.getStatus().getThrottled());
+        // When the task is rejected we don't increment the throttled timer
+        assertEquals(timeValueMillis(0), task.getStatus().getThrottled());
     }
 
     /**
@@ -362,7 +363,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat((double) action.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
 
         int total = between(0, 1000000);
-        mainRequest.setRequestsPerSecond(1);
+        task.rethrottle(1);
         assertThat((double) action.perfectlyThrottledBatchTime(total),
                 closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
     }
@@ -373,11 +374,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          * delay for throttling.
          */
         AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         threadPool.shutdown();
         threadPool = new ThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 capturedDelay.set(delay);
+                capturedCommand.set(command);
                 return null;
             }
         };
@@ -386,7 +389,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setScroll(scrollId());
 
         // We'd like to get about 1 request a second
-        mainRequest.setRequestsPerSecond(1f);
+        task.rethrottle(1f);
         // Make the last scroll look nearly instant
         action.setLastBatchStartTime(System.nanoTime());
         // The last batch had 100 documents
@@ -403,6 +406,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         // The delay is still 100ish seconds because there hasn't been much time between when we requested the bulk and when we got it.
         assertThat(capturedDelay.get().seconds(), either(equalTo(100L)).or(equalTo(99L)));
+
+        // Running the command ought to increment the delay counter on the task.
+        capturedCommand.get().run();
+        assertEquals(capturedDelay.get(), task.getStatus().getThrottled());
     }
 
     private long retryTestCase(boolean failWithRejection) throws Exception {
@@ -539,9 +546,17 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         threadPool = new ThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
-                taskManager.cancel(task, reason, (Set<String> s) -> {});
-                command.run();
-                return null;
+                /*
+                 * This is called twice:
+                 * 1. To schedule the throttling. When that happens we immediately cancel the task.
+                 * 2. After the task is canceled.
+                 * Both times we use delegate to the standard behavior so the task is scheduled as expected so it can be cancelled and all
+                 * that good stuff.
+                 */
+                if (delay.nanos() > 0) {
+                    generic().execute(() -> taskManager.cancel(task, reason, (Set<String> s) -> {}));
+                }
+                return super.schedule(delay, name, command);
             }
         };
 
@@ -554,10 +569,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         long total = randomIntBetween(0, Integer.MAX_VALUE);
         InternalSearchHits hits = new InternalSearchHits(null, total, 0);
         InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
-        action.onScrollResponse(timeValueSeconds(0), new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+        // Use a long delay here so the test will time out if the cancellation doesn't reschedule the throttled task
+        action.onScrollResponse(timeValueMinutes(10), new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
 
-        // Now that we've got our cancel we'll just verify that it all came through allright
-        assertEquals(reason, listener.get().getReasonCancelled());
+        // Now that we've got our cancel we'll just verify that it all came through all right
+        assertEquals(reason, listener.get(10, TimeUnit.SECONDS).getReasonCancelled());
         if (previousScrollSet) {
             // Canceled tasks always start to clear the scroll before they die.
             assertThat(client.scrollsCleared, contains(scrollId));

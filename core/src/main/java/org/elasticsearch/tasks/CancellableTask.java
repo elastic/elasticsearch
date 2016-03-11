@@ -44,6 +44,7 @@ public class CancellableTask extends Task {
     final void cancel(String reason) {
         assert reason != null;
         this.reason.compareAndSet(null, reason);
+        onCancelled();
     }
 
     /**
@@ -64,5 +65,11 @@ public class CancellableTask extends Task {
     @Nullable
     public String getReasonCancelled() {
         return reason.get();
+    }
+
+    /**
+     * Called after the task is cancelled so that it can take any actions that it has to take.
+     */
+    protected void onCancelled() {
     }
 }

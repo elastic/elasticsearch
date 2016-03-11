@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -132,7 +133,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregatorBuild
                     factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                     break;
                 case 3:
-                    factory.sort(SortBuilders.scriptSort(new Script("foo"), "number").order(randomFrom(SortOrder.values())));
+                    factory.sort(SortBuilders.scriptSort(new Script("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                     break;
                 case 4:
                     factory.sort(randomAsciiOfLengthBetween(5, 20));

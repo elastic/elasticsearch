@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -35,6 +36,7 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -45,7 +47,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     SortElementParserTemp<ScriptSortBuilder> {
 
     private static final String NAME = "_script";
-    static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), "_na_");
+    static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
@@ -55,8 +57,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
     private final Script script;
 
-    // TODO make this an enum
-    private final String type;
+    private ScriptSortType type;
 
     // TODO make this an enum
     private String sortMode;
@@ -74,7 +75,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
      *            The type of the script, can be either {@link ScriptSortParser#STRING_SORT_TYPE} or
      *            {@link ScriptSortParser#NUMBER_SORT_TYPE}
      */
-    public ScriptSortBuilder(Script script, String type) {
+    public ScriptSortBuilder(Script script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");
         Objects.requireNonNull(type, "type cannot be null");
         this.script = script;
@@ -100,7 +101,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     /**
      * Get the type used in this sort.
      */
-    public String type() {
+    public ScriptSortType type() {
         return this.type;
     }
 
@@ -177,7 +178,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         XContentParser parser = context.parser();
         ParseFieldMatcher parseField = context.parseFieldMatcher();
         Script script = null;
-        String type = null;
+        ScriptSortType type = null;
         String sortMode = null;
         SortOrder order = null;
         QueryBuilder<?> nestedFilter = null;
@@ -203,7 +204,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
                 } else if (scriptParameterParser.token(currentName, token, parser, parseField)) {
                     // Do Nothing (handled by ScriptParameterParser
                 } else if (parseField.match(currentName, TYPE_FIELD)) {
-                    type = parser.text();
+                    type = ScriptSortType.fromString(parser.text());
                 } else if (parseField.match(currentName, SORTMODE_FIELD)) {
                     sortMode = parser.text();
                 } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
@@ -263,7 +264,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         script.writeTo(out);
-        out.writeString(type);
+        type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalString(sortMode);
         out.writeOptionalString(nestedPath);
@@ -276,7 +277,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
     @Override
     public ScriptSortBuilder readFrom(StreamInput in) throws IOException {
-        ScriptSortBuilder builder = new ScriptSortBuilder(Script.readScript(in), in.readString());
+        ScriptSortBuilder builder = new ScriptSortBuilder(Script.readScript(in), ScriptSortType.PROTOTYPE.readFrom(in));
         builder.order(SortOrder.readOrderFrom(in));
         builder.sortMode = in.readOptionalString();
         builder.nestedPath = in.readOptionalString();
@@ -289,5 +290,45 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    public enum ScriptSortType implements Writeable<ScriptSortType> {
+        /** script sort for a string value **/
+        STRING,
+        /** script sort for a numeric value **/
+        NUMBER;
+
+        static ScriptSortType PROTOTYPE = STRING;
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            out.writeVInt(ordinal());
+        }
+
+        @Override
+        public ScriptSortType readFrom(final StreamInput in) throws IOException {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= values().length) {
+                throw new IOException("Unknown ScriptSortType ordinal [" + ordinal + "]");
+            }
+            return values()[ordinal];
+        }
+
+        public static ScriptSortType fromString(final String str) {
+            Objects.requireNonNull(str, "input string is null");
+            switch (str.toLowerCase(Locale.ROOT)) {
+                case ("string"):
+                    return ScriptSortType.STRING;
+                case ("number"):
+                    return ScriptSortType.NUMBER;
+                default:
+                    throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
+            }
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 }

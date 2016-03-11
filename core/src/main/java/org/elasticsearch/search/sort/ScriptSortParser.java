@@ -48,6 +48,7 @@ import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,9 +60,6 @@ import java.util.Map;
  */
 public class ScriptSortParser implements SortParser {
 
-    public static final String STRING_SORT_TYPE = "string";
-    public static final String NUMBER_SORT_TYPE = "number";
-
     @Override
     public String[] names() {
         return new String[]{"_script"};
@@ -71,7 +69,7 @@ public class ScriptSortParser implements SortParser {
     public SortField parse(XContentParser parser, QueryShardContext context) throws Exception {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
-        String type = null;
+        ScriptSortType type = null;
         Map<String, Object> params = null;
         boolean reverse = false;
         MultiValueMode sortMode = null;
@@ -101,7 +99,7 @@ public class ScriptSortParser implements SortParser {
                 } else if (scriptParameterParser.token(currentName, token, parser, context.parseFieldMatcher())) {
                     // Do Nothing (handled by ScriptParameterParser
                 } else if ("type".equals(currentName)) {
-                    type = parser.text();
+                    type = ScriptSortType.fromString(parser.text());
                 } else if ("mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -134,7 +132,7 @@ public class ScriptSortParser implements SortParser {
         final SearchScript searchScript = context.getScriptService().search(
                 context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 
-        if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
+        if (ScriptSortType.STRING.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new ParsingException(parser.getTokenLocation(), "type [string] doesn't support mode [" + sortMode + "]");
         }
 
@@ -160,7 +158,7 @@ public class ScriptSortParser implements SortParser {
 
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
-            case STRING_SORT_TYPE:
+            case STRING:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
                     LeafSearchScript leafScript;
                     @Override
@@ -183,7 +181,7 @@ public class ScriptSortParser implements SortParser {
                     }
                 };
                 break;
-            case NUMBER_SORT_TYPE:
+            case NUMBER:
                 // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
                     LeafSearchScript leafScript;

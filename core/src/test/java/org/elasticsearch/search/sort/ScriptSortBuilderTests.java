@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 import java.io.IOException;
 
@@ -29,7 +30,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     @Override
     protected ScriptSortBuilder createTestItem() {
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
-                randomBoolean() ? ScriptSortParser.NUMBER_SORT_TYPE : ScriptSortParser.STRING_SORT_TYPE);
+                randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
         if (randomBoolean()) {
             builder.order(RandomSortDataGenerator.order(builder.order()));
         }
@@ -51,11 +52,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         if (randomBoolean()) {
             // change one of the constructor args, copy the rest over
             Script script = original.script();
-            String type = original.type();
+            ScriptSortType type = original.type();
             if (randomBoolean()) {
                 result = new ScriptSortBuilder(new Script(script.getScript() + "_suffix"), type);
             } else {
-                result = new ScriptSortBuilder(script, type + "_suffix");
+                result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
             result.order(original.order());
             result.sortMode(original.sortMode());
@@ -83,5 +84,21 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 break;
         }
         return result;
+    }
+
+    public void testScriptSortType() {
+        // we rely on these ordinals in serialization, so changing them breaks bwc.
+        assertEquals(0, ScriptSortType.STRING.ordinal());
+        assertEquals(1, ScriptSortType.NUMBER.ordinal());
+
+        assertEquals("string", ScriptSortType.STRING.toString());
+        assertEquals("number", ScriptSortType.NUMBER.toString());
+
+        assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("string"));
+        assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("String"));
+        assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("STRING"));
+        assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("number"));
+        assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
+        assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
     }
 }

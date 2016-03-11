@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static java.lang.Math.abs;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
@@ -122,7 +123,8 @@ public class RoundTripTests extends ESTestCase {
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
                 randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                parseTimeValue(randomPositiveTimeValue(), null, "test"), random().nextBoolean() ? null : randomSimpleString(random()));
+                parseTimeValue(randomPositiveTimeValue(), null, "test"), abs(random().nextFloat()),
+                random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), null, "test"));
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -197,6 +199,8 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getNoops(), actual.getNoops());
         assertEquals(expected.getRetries(), actual.getRetries());
         assertEquals(expected.getThrottled(), actual.getThrottled());
+        assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
+        assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
     }
 }

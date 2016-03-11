@@ -69,8 +69,8 @@ import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_A
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 
 /**
- * Abstract base for scrolling across a search and executing bulk actions on all
- * results. All package private methods are package private so their tests can use them.
+ * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
+ * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
     /**
@@ -174,53 +174,61 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             total = min(total, mainRequest.getSize());
         }
         task.setTotal(total);
-        task.countThrottle(delay);
-        threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
+        AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
-                if (task.isCancelled()) {
-                    finishHim(null);
-                    return;
-                }
-                lastBatchStartTime.set(System.nanoTime());
-                SearchHit[] docs = searchResponse.getHits().getHits();
-                logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
-                if (docs.length == 0) {
-                    startNormalTermination(Collections.<Failure>emptyList(), Collections.<ShardSearchFailure>emptyList(), false);
-                    return;
-                }
-                task.countBatch();
-                List<SearchHit> docsIterable = Arrays.asList(docs);
-                if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
-                    // Truncate the docs if we have more than the request size
-                    long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
-                    if (remaining < docs.length) {
-                        docsIterable = docsIterable.subList(0, (int) remaining);
-                    }
-                }
-                BulkRequest request = buildBulk(docsIterable);
-                request.copyContextAndHeadersFrom(mainRequest);
-                if (request.requests().isEmpty()) {
-                    /*
-                     * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
-                     */
-                    startNextScroll(0);
-                    return;
-                }
-                request.timeout(mainRequest.getTimeout());
-                request.consistencyLevel(mainRequest.getConsistency());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
-                            new ByteSizeValue(request.estimatedSizeInBytes()));
-                }
-                sendBulkRequest(request);
+                prepareBulkRequest(searchResponse);
             }
 
             @Override
             public void onFailure(Throwable t) {
                 finishHim(t);
             }
-        });
+        };
+        task.delayPrepareBulkRequest(threadPool, delay, prepareBulkRequestRunnable);
+    }
+
+    /**
+     * Prepare the bulk request. Called on the generic thread pool after some preflight checks have been done one the SearchResponse and any
+     * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
+     * thread may be blocked by the user script.
+     */
+    void prepareBulkRequest(SearchResponse searchResponse) {
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
+        lastBatchStartTime.set(System.nanoTime());
+        SearchHit[] docs = searchResponse.getHits().getHits();
+        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
+        if (docs.length == 0) {
+            startNormalTermination(Collections.<Failure>emptyList(), Collections.<ShardSearchFailure>emptyList(), false);
+            return;
+        }
+        task.countBatch();
+        List<SearchHit> docsIterable = Arrays.asList(docs);
+        if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
+            // Truncate the docs if we have more than the request size
+            long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
+            if (remaining < docs.length) {
+                docsIterable = docsIterable.subList(0, (int) remaining);
+            }
+        }
+        BulkRequest request = buildBulk(docsIterable);
+        if (request.requests().isEmpty()) {
+            /*
+             * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
+             */
+            startNextScroll(0);
+            return;
+        }
+        request.timeout(mainRequest.getTimeout());
+        request.consistencyLevel(mainRequest.getConsistency());
+        if (logger.isDebugEnabled()) {
+            logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
+                    new ByteSizeValue(request.estimatedSizeInBytes()));
+        }
+        sendBulkRequest(request);
     }
 
     /**
@@ -331,13 +339,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
      */
     float perfectlyThrottledBatchTime(int lastBatchSize) {
-        if (mainRequest.getRequestsPerSecond() == 0) {
+        if (task.getRequestsPerSecond() == 0) {
             return 0;
         }
         //       requests
         // ------------------- == seconds
         // request per seconds
-        float targetBatchTimeInSeconds = lastBatchSize / mainRequest.getRequestsPerSecond();
+        float targetBatchTimeInSeconds = lastBatchSize / task.getRequestsPerSecond();
         // nanoseconds per seconds * seconds == nanoseconds
         return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }

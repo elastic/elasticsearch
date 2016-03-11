@@ -302,16 +302,6 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         }
     }
 
-    @Override
-    protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
-        @SuppressWarnings("unchecked")
-        TermSuggestionContext oldContext = (TermSuggestionContext) oldSuggestion;
-        @SuppressWarnings("unchecked")
-        TermSuggestionContext newContext = (TermSuggestionContext) newSuggestion;
-        assertSpellcheckerSettings(oldContext.getDirectSpellCheckerSettings(), newContext.getDirectSpellCheckerSettings());
-
-    }
-
     private void assertSpellcheckerSettings(DirectSpellcheckerSettings oldSettings, DirectSpellcheckerSettings newSettings) {
         final double delta = 0.0d;
         // make sure the objects aren't the same

@@ -46,6 +46,16 @@ public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
     private static final ParseField UNICODE_AWARE_FIELD = new ParseField("unicode_aware");
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
 
+    /**
+     * fuzzy : {
+     *     "edit_distance" : STRING | INT
+     *     "transpositions" : BOOLEAN
+     *     "min_length" : INT
+     *     "prefix_length" : INT
+     *     "unicode_aware" : BOOLEAN
+     *     "max_determinized_states" : INT
+     * }
+     */
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(), Builder::new);
     static {
         PARSER.declareInt(Builder::setFuzzyMinLength, MIN_LENGTH_FIELD);

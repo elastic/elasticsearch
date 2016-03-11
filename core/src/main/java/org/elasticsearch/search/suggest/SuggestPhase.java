@@ -37,28 +37,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
+import static java.util.Collections.emptyMap;
 
 /**
  */
 public class SuggestPhase extends AbstractComponent implements SearchPhase {
-    private final Map<String, SearchParseElement> parseElements;
-    private final SuggestParseElement parseElement;
 
     @Inject
-    public SuggestPhase(Settings settings, SuggestParseElement suggestParseElement) {
+    public SuggestPhase(Settings settings) {
         super(settings);
-        this.parseElement = suggestParseElement;
-        parseElements = singletonMap("suggest", parseElement);
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return parseElements;
-    }
-
-    public SuggestParseElement parseElement() {
-        return parseElement;
+        // this is used to parse SearchSourceBuilder.ext() bytes
+        // we don't allow any suggestion parsing for the extension
+        return emptyMap();
     }
 
     @Override

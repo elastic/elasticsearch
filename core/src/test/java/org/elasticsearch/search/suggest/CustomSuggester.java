@@ -54,16 +54,6 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
         return response;
     }
 
-    @Override
-    public SuggestContextParser getContextParser() {
-        return (parser, shardContext) -> {
-            Map<String, Object> options = parser.map();
-            CustomSuggestionsContext suggestionContext = new CustomSuggestionsContext(shardContext, options);
-            suggestionContext.setField((String) options.get("field"));
-            return suggestionContext;
-        };
-    }
-
     public static class CustomSuggestionsContext extends SuggestionSearchContext.SuggestionContext {
 
         public Map<String, Object> options;

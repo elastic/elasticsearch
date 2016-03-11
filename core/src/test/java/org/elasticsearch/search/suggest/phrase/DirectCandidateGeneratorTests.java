@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,23 +30,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -144,61 +130,6 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             assertNotSame(generator, secondGenerator);
             assertEquals(generator, secondGenerator);
             assertEquals(generator.hashCode(), secondGenerator.hashCode());
-        }
-    }
-
-    /**
-     * test that build() outputs a {@link DirectCandidateGenerator} that is similar to the one
-     * we would get when parsing the xContent the test generator is rendering out
-     */
-    public void testBuild() throws IOException {
-
-        long start = System.currentTimeMillis();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), Settings.EMPTY);
-
-        AnalysisService mockAnalysisService = new AnalysisService(idxSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()) {
-            @Override
-            public NamedAnalyzer analyzer(String name) {
-                return new NamedAnalyzer(name, new WhitespaceAnalyzer());
-            }
-        };
-
-        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService , null, new IndicesModule().getMapperRegistry(), null) {
-            @Override
-            public MappedFieldType fullName(String fullName) {
-                return new StringFieldType();
-            }
-        };
-
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, mockMapperService, null, null, null) {
-            @Override
-            public MappedFieldType fieldMapper(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
-                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
-            }
-        };
-        mockShardContext.setMapUnmappedFieldAsString(true);
-
-        for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
-            DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
-            // first, build via DirectCandidateGenerator#build()
-            DirectCandidateGenerator contextGenerator = generator.build(mockMapperService);
-
-            // second, render random test generator to xContent and parse using
-            // PhraseSuggestParser
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            if (randomBoolean()) {
-                builder.prettyPrint();
-            }
-            generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
-
-            DirectCandidateGenerator secondGenerator = PhraseSuggestParser.parseCandidateGenerator(parser,
-                    mockMapperService, ParseFieldMatcher.EMPTY);
-
-            // compare their properties
-            assertNotSame(contextGenerator, secondGenerator);
-            assertEqualGenerators(contextGenerator, secondGenerator);
         }
     }
 

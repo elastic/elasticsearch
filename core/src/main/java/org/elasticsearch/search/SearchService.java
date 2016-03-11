@@ -794,6 +794,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     } else {
                         SearchParseElement parseElement = this.elementParsers.get(currentFieldName);
                         if (parseElement == null) {
+                            if (currentFieldName != null && currentFieldName.equals("suggest")) {
+                                throw new SearchParseException(context,
+                                    "suggest is not supported in [ext], please use SearchSourceBuilder#suggest(SuggestBuilder) instead",
+                                    extParser.getTokenLocation());
+                            }
                             throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
                                     extParser.getTokenLocation());
                         } else {

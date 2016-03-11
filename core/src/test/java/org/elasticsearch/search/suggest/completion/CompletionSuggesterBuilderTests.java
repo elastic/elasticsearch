@@ -113,34 +113,6 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
-        assertThat(oldSuggestion, instanceOf(CompletionSuggestionContext.class));
-        assertThat(newSuggestion, instanceOf(CompletionSuggestionContext.class));
-        CompletionSuggestionContext oldCompletionSuggestion = (CompletionSuggestionContext) oldSuggestion;
-        CompletionSuggestionContext newCompletionSuggestion = (CompletionSuggestionContext) newSuggestion;
-        assertEquals(oldCompletionSuggestion.getFieldType(), newCompletionSuggestion.getFieldType());
-        assertEquals(oldCompletionSuggestion.getPayloadFields(), newCompletionSuggestion.getPayloadFields());
-        assertEquals(oldCompletionSuggestion.getFuzzyOptions(), newCompletionSuggestion.getFuzzyOptions());
-        assertEquals(oldCompletionSuggestion.getRegexOptions(), newCompletionSuggestion.getRegexOptions());
-        assertEquals(oldCompletionSuggestion.getQueryContexts(), newCompletionSuggestion.getQueryContexts());
-
-    }
-
-    @Override
-    protected Tuple<MappedFieldType, CompletionSuggestionBuilder> randomFieldTypeAndSuggestionBuilder() {
-        final BuilderAndInfo builderAndInfo = randomSuggestionBuilderWithContextInfo();
-        CompletionFieldMapper.CompletionFieldType type = new CompletionFieldMapper.CompletionFieldType();
-        List<ContextMapping> contextMappings = builderAndInfo.catContexts.stream()
-            .map(catContext -> new CategoryContextMapping.Builder(catContext).build())
-            .collect(Collectors.toList());
-        contextMappings.addAll(builderAndInfo.geoContexts.stream()
-            .map(geoContext -> new GeoContextMapping.Builder(geoContext).build())
-            .collect(Collectors.toList()));
-        type.setContextMappings(new ContextMappings(contextMappings));
-        return new Tuple<>(type, builderAndInfo.builder);
-    }
-
-    @Override
     protected void mutateSpecificParameters(CompletionSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 5)) {
             case 0:

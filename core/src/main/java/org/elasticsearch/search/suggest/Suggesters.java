@@ -42,7 +42,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
 
     @Inject
     public Suggesters(Map<String, Suggester> suggesters) {
-        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
+        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestPhase.class);
         this.parsers = Collections.unmodifiableMap(addBuildIns(suggesters));
     }
 
@@ -53,10 +53,6 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
         map.put("completion", CompletionSuggester.PROTOTYPE);
         map.putAll(suggesters);
         return map;
-    }
-
-    public Suggester get(String type) {
-        return parsers.get(type);
     }
 
     public SuggestionBuilder<? extends SuggestionBuilder> getSuggestionPrototype(String suggesterName) {

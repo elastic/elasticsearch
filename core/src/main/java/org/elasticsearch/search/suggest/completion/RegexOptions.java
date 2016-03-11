@@ -42,6 +42,12 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
     private static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
     private static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
 
+    /**
+     * regex: {
+     *     "flags" : STRING | INT
+     *     "max_determinized_states" : INT
+     * }
+     */
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), Builder::new);
     static {
         PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);

@@ -160,40 +160,6 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         }
     }
 
-    @Override
-    protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
-        assertThat(oldSuggestion, instanceOf(PhraseSuggestionContext.class));
-        assertThat(newSuggestion, instanceOf(PhraseSuggestionContext.class));
-        PhraseSuggestionContext oldPhraseSuggestion = (PhraseSuggestionContext) oldSuggestion;
-        PhraseSuggestionContext newPhraseSuggestion = (PhraseSuggestionContext) newSuggestion;
-        assertEquals(oldPhraseSuggestion.confidence(), newPhraseSuggestion.confidence(), Float.MIN_VALUE);
-        assertEquals(oldPhraseSuggestion.collatePrune(), newPhraseSuggestion.collatePrune());
-        assertEquals(oldPhraseSuggestion.gramSize(), newPhraseSuggestion.gramSize());
-        assertEquals(oldPhraseSuggestion.realworldErrorLikelyhood(), newPhraseSuggestion.realworldErrorLikelyhood(), Float.MIN_VALUE);
-        assertEquals(oldPhraseSuggestion.maxErrors(), newPhraseSuggestion.maxErrors(), Float.MIN_VALUE);
-        assertEquals(oldPhraseSuggestion.separator(), newPhraseSuggestion.separator());
-        assertEquals(oldPhraseSuggestion.getTokenLimit(), newPhraseSuggestion.getTokenLimit());
-        assertEquals(oldPhraseSuggestion.getRequireUnigram(), newPhraseSuggestion.getRequireUnigram());
-        assertEquals(oldPhraseSuggestion.getPreTag(), newPhraseSuggestion.getPreTag());
-        assertEquals(oldPhraseSuggestion.getPostTag(), newPhraseSuggestion.getPostTag());
-        if (oldPhraseSuggestion.getCollateQueryScript() != null) {
-            // only assert that we have a compiled script on the other side
-            assertNotNull(newPhraseSuggestion.getCollateQueryScript());
-        }
-        if (oldPhraseSuggestion.generators() != null) {
-            assertNotNull(newPhraseSuggestion.generators());
-            assertEquals(oldPhraseSuggestion.generators().size(), newPhraseSuggestion.generators().size());
-            Iterator<DirectCandidateGenerator> secondList = newPhraseSuggestion.generators().iterator();
-            for (DirectCandidateGenerator candidateGenerator : newPhraseSuggestion.generators()) {
-                DirectCandidateGeneratorTests.assertEqualGenerators(candidateGenerator, secondList.next());
-            }
-        }
-        assertEquals(oldPhraseSuggestion.getCollateScriptParams(), newPhraseSuggestion.getCollateScriptParams());
-        if (oldPhraseSuggestion.model() != null) {
-            assertNotNull(newPhraseSuggestion.model());
-        }
-    }
-
     public void testInvalidParameters() throws IOException {
         // test missing field name
         try {

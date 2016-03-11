@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -34,43 +32,23 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,8 +61,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     protected static IndicesQueriesRegistry queriesRegistry;
     protected static ParseFieldMatcher parseFieldMatcher;
     protected static Suggesters suggesters;
-    private static ScriptService scriptService;
-    private static SuggestParseElement parseElement;
 
     /**
      * setup for the whole base test class
@@ -101,15 +77,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
                 .ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
-                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
-            @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
-                return new CompiledScript(ScriptType.INLINE, "mockName", "mocklang", script);
-            }
-        };
         suggesters = new Suggesters(Collections.emptyMap());
-        parseElement = new SuggestParseElement(suggesters);
 
         namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
@@ -223,104 +191,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
         }
     }
-
-    protected Tuple<MappedFieldType, SB> randomFieldTypeAndSuggestionBuilder() {
-        StringFieldType type = new StringFieldType();
-        if (randomBoolean()) {
-            type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
-        }
-        return new Tuple<>(type, randomTestBuilder());
-    }
-
-    /**
-     * parses random suggestion builder via old parseElement method and via
-     * build, comparing the results for equality
-     */
-    public void testBuild() throws IOException {
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), Settings.EMPTY);
-
-        AnalysisService mockAnalysisService = new AnalysisService(idxSettings, Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap()) {
-            @Override
-            public NamedAnalyzer analyzer(String name) {
-                return new NamedAnalyzer(name, new WhitespaceAnalyzer());
-            }
-        };
-
-        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            SuggestBuilder suggestBuilder = new SuggestBuilder();
-            final Tuple<MappedFieldType, SB> mappedFieldTypeSBTuple = randomFieldTypeAndSuggestionBuilder();
-            final MapperService mapperService = new MapperService(idxSettings, mockAnalysisService, null,
-                new IndicesModule().getMapperRegistry(), null) {
-                @Override
-                public MappedFieldType fullName(String fullName) {
-                    return mappedFieldTypeSBTuple.v1();
-                }
-            };
-            SB suggestionBuilder = mappedFieldTypeSBTuple.v2();
-            QueryShardContext mockShardContext = new QueryShardContext(idxSettings,
-                null, null, mapperService, null, scriptService, null) {
-                @Override
-                public MappedFieldType fieldMapper(String name) {
-                    StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
-                    return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
-                }
-            };
-            mockShardContext.setMapUnmappedFieldAsString(true);
-            suggestBuilder.addSuggestion(randomAsciiOfLength(10), suggestionBuilder);
-
-            if (suggestionBuilder.text() == null) {
-                // we either need suggestion text or global text
-                suggestBuilder.setGlobalText(randomAsciiOfLengthBetween(5, 50));
-            }
-            if (suggestionBuilder.text() != null && suggestionBuilder.prefix() != null) {
-                suggestionBuilder.prefix(null);
-            }
-
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            if (randomBoolean()) {
-                xContentBuilder.prettyPrint();
-            }
-            suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-
-            XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
-            parser.nextToken(); // set cursor to START_OBJECT
-            SuggestionSearchContext parsedSuggestionSearchContext = parseElement.parseInternal(parser, mockShardContext);
-
-            SuggestionSearchContext buildSuggestSearchContext = suggestBuilder.build(mockShardContext);
-            assertEquals(parsedSuggestionSearchContext.suggestions().size(), buildSuggestSearchContext.suggestions().size());
-            Iterator<Map.Entry<String, SuggestionContext>> iterator =  buildSuggestSearchContext.suggestions().entrySet().iterator();
-            for (Map.Entry<String, SuggestionContext> entry : parsedSuggestionSearchContext.suggestions().entrySet()) {
-                Map.Entry<String, SuggestionContext> other = iterator.next();
-                assertEquals(entry.getKey(), other.getKey());
-
-                SuggestionContext oldSchoolContext = entry.getValue();
-                SuggestionContext newSchoolContext = other.getValue();
-                assertNotSame(oldSchoolContext, newSchoolContext);
-                // deep comparison of analyzers is difficult here, but we check they are set or not set
-                if (oldSchoolContext.getAnalyzer() != null) {
-                    assertNotNull(newSchoolContext.getAnalyzer());
-                } else {
-                    assertNull(newSchoolContext.getAnalyzer());
-                }
-                assertEquals(oldSchoolContext.getField(), newSchoolContext.getField());
-                assertEquals(oldSchoolContext.getPrefix(), newSchoolContext.getPrefix());
-                assertEquals(oldSchoolContext.getRegex(), newSchoolContext.getRegex());
-                assertEquals(oldSchoolContext.getShardSize(), newSchoolContext.getShardSize());
-                assertEquals(oldSchoolContext.getSize(), newSchoolContext.getSize());
-                assertEquals(oldSchoolContext.getSuggester().getClass(), newSchoolContext.getSuggester().getClass());
-                assertEquals(oldSchoolContext.getText(), newSchoolContext.getText());
-                assertEquals(oldSchoolContext.getClass(), newSchoolContext.getClass());
-
-                assertSuggestionContext(oldSchoolContext, newSchoolContext);
-            }
-        }
-    }
-
-    /**
-     * compare two SuggestionContexte implementations for the special suggestion type under test
-     */
-    protected abstract void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion);
 
     private SB mutate(SB firstBuilder) throws IOException {
         SB mutation = serializedCopy(firstBuilder);

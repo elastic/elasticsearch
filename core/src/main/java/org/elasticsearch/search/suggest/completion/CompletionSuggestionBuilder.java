@@ -63,6 +63,16 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
 
+    /**
+     * {
+     *     "field" : STRING
+     *     "size" : INT
+     *     "fuzzy" : BOOLEAN | FUZZY_OBJECT
+     *     "contexts" : QUERY_CONTEXTS
+     *     "regex" : REGEX_OBJECT
+     *     "payload" : STRING_ARRAY
+     * }
+     */
     private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> TLP_PARSER =
         new ObjectParser<>(SUGGESTION_NAME, null);
     static {
@@ -261,8 +271,24 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes);
-                suggestionContext.setQueryContexts(parseQueryContexts(contextParser, type));
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                    if (type.hasContextMappings() && contextParser != null) {
+                        ContextMappings contextMappings = type.getContextMappings();
+                        contextParser.nextToken();
+                        Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
+                        assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
+                        XContentParser.Token currentToken;
+                        String currentFieldName;
+                        while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (currentToken == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = contextParser.currentName();
+                                final ContextMapping mapping = contextMappings.get(currentFieldName);
+                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                            }
+                        }
+                        suggestionContext.setQueryContexts(queryContexts);
+                    }
+                }
             } else if (contextBytes != null) {
                 throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
@@ -334,27 +360,5 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     @Override
     protected int doHashCode() {
         return Objects.hash(payloadFields, fuzzyOptions, regexOptions, contextBytes);
-    }
-
-    static Map<String, List<ContextMapping.InternalQueryContext>> parseQueryContexts(
-        XContentParser contextParser, CompletionFieldMapper.CompletionFieldType type) throws IOException {
-        Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
-        if (type.hasContextMappings() && contextParser != null) {
-            ContextMappings contextMappings = type.getContextMappings();
-            contextParser.nextToken();
-            queryContexts = new HashMap<>(contextMappings.size());
-            assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
-            XContentParser.Token currentToken;
-            String currentFieldName;
-            while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (currentToken == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = contextParser.currentName();
-                    final ContextMapping mapping = contextMappings.get(currentFieldName);
-                    queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
-                }
-            }
-            contextParser.close();
-        }
-        return queryContexts;
     }
 }

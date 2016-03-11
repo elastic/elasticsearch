@@ -30,13 +30,6 @@ public abstract class Suggester<T extends SuggestionSearchContext.SuggestionCont
         innerExecute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException;
 
     /**
-     * link the suggester to its corresponding {@link SuggestContextParser}
-     * TODO: This method should eventually be removed by {@link #getBuilderPrototype()} once
-     * we don't directly parse from xContent to the SuggestionContext any more
-     */
-    public abstract SuggestContextParser getContextParser();
-
-    /**
      * link the suggester to its corresponding {@link SuggestionBuilder}
      */
     public abstract SuggestionBuilder<? extends SuggestionBuilder> getBuilderPrototype();

@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
@@ -54,11 +53,6 @@ import java.util.Set;
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
     public static final CompletionSuggester PROTOTYPE = new CompletionSuggester();
-
-    @Override
-    public SuggestContextParser getContextParser() {
-        return new CompletionSuggestParser(this);
-    }
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,

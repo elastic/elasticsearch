@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -66,12 +65,6 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         }
         return response;
     }
-
-    @Override
-    public SuggestContextParser getContextParser() {
-        return new TermSuggestParser(this);
-    }
-
 
     private List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {
         final List<Token> result = new ArrayList<>();

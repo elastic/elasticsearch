@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cli;
+package org.elasticsearch.cli;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
@@ -45,7 +45,7 @@ public class MockTerminal extends Terminal {
     @Override
     public String readText(String prompt) {
         if (textInput.isEmpty()) {
-            return null;
+            throw new IllegalStateException("No text input configured for prompt [" + prompt + "]");
         }
         return textInput.removeFirst();
     }
@@ -53,7 +53,7 @@ public class MockTerminal extends Terminal {
     @Override
     public char[] readSecret(String prompt) {
         if (secretInput.isEmpty()) {
-            return null;
+            throw new IllegalStateException("No secret input configured for prompt [" + prompt + "]");
         }
         return secretInput.removeFirst().toCharArray();
     }
@@ -78,8 +78,10 @@ public class MockTerminal extends Terminal {
         return buffer.toString("UTF-8");
     }
 
-    /** Wipes the output. */
-    public void resetOutput() {
+    /** Wipes the input and output. */
+    public void reset() {
         buffer.reset();
+        textInput.clear();
+        secretInput.clear();
     }
 }

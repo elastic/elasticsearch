@@ -19,106 +19,29 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.varia.NullAppender;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.util.Locale;
-
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
  */
-public class PluginCli extends CliTool {
+public class PluginCli extends MultiCommand {
 
-    // commands
-    private static final String LIST_CMD_NAME = "list";
-    private static final String INSTALL_CMD_NAME = "install";
-    private static final String REMOVE_CMD_NAME = "remove";
-
-    // usage config
-    private static final CliToolConfig.Cmd LIST_CMD = cmd(LIST_CMD_NAME, ListPluginsCommand.class).build();
-    private static final CliToolConfig.Cmd INSTALL_CMD = cmd(INSTALL_CMD_NAME, InstallPluginCommand.class)
-        .options(option("b", "batch").required(false))
-        .build();
-    private static final CliToolConfig.Cmd REMOVE_CMD = cmd(REMOVE_CMD_NAME, RemovePluginCommand.class).build();
-
-    static final CliToolConfig CONFIG = CliToolConfig.config("plugin", PluginCli.class)
-            .cmds(LIST_CMD, INSTALL_CMD, REMOVE_CMD)
-            .build();
+    public PluginCli(Environment env) {
+        super("A tool for managing installed elasticsearch plugins");
+        subcommands.put("list", new ListPluginsCommand(env));
+        subcommands.put("install", new InstallPluginCommand(env));
+        subcommands.put("remove", new RemovePluginCommand(env));
+    }
 
     public static void main(String[] args) throws Exception {
-        // initialize default for es.logger.level because we will not read the logging.yml
-        String loggerLevel = System.getProperty("es.logger.level", "INFO");
-        // Set the appender for all potential log files to terminal so that other components that use the logger print out the
-        // same terminal.
-        // The reason for this is that the plugin cli cannot be configured with a file appender because when the plugin command is
-        // executed there is no way of knowing where the logfiles should be placed. For example, if elasticsearch
-        // is run as service then the logs should be at /var/log/elasticsearch but when started from the tar they should be at es.home/logs.
-        // Therefore we print to Terminal.
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder()
-                .put("appender.terminal.type", "terminal")
-                .put("rootLogger", "${es.logger.level}, terminal")
-                .put("es.logger.level", loggerLevel)
-                .build(), Terminal.DEFAULT);
-        // configure but do not read the logging conf file
-        LogConfigurator.configure(env.settings(), false);
-        int status = new PluginCli(Terminal.DEFAULT).execute(args).status();
-        exit(status);
-    }
-
-    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
-    private static void exit(int status) {
-        System.exit(status);
-    }
-
-    PluginCli(Terminal terminal) {
-        super(CONFIG, terminal);
-    }
-
-    @Override
-    protected Command parse(String cmdName, CommandLine cli) throws Exception {
-        switch (cmdName.toLowerCase(Locale.ROOT)) {
-            case LIST_CMD_NAME:
-                return new ListPluginsCommand(terminal);
-            case INSTALL_CMD_NAME:
-                return parseInstallPluginCommand(cli);
-            case REMOVE_CMD_NAME:
-                return parseRemovePluginCommand(cli);
-            default:
-                assert false : "can't get here as cmd name is validated before this method is called";
-                return exitCmd(ExitStatus.USAGE);
-        }
-    }
-
-    private Command parseInstallPluginCommand(CommandLine cli) {
-        String[] args = cli.getArgs();
-        if (args.length != 1) {
-            return exitCmd(ExitStatus.USAGE, terminal, "Must supply a single plugin id argument");
-        }
-
-        boolean batch = System.console() == null;
-        if (cli.hasOption("b")) {
-            batch = true;
-        }
-
-        return new InstallPluginCommand(terminal, args[0], batch);
-    }
-
-    private Command parseRemovePluginCommand(CommandLine cli) {
-        String[] args = cli.getArgs();
-        if (args.length != 1) {
-            return exitCmd(ExitStatus.USAGE, terminal, "Must supply a single plugin name argument");
-        }
-
-        return new RemovePluginCommand(terminal, args[0]);
+        BasicConfigurator.configure(new NullAppender());
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
+        exit(new PluginCli(env).main(args, Terminal.DEFAULT));
     }
 }

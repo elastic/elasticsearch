@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cli;
+package org.elasticsearch.cli;
 
 import java.io.BufferedReader;
 import java.io.Console;
@@ -29,7 +29,7 @@ import java.nio.charset.Charset;
 import org.elasticsearch.common.SuppressForbidden;
 
 /**
- * A Terminal wraps access to reading input and writing output for a {@link CliTool}.
+ * A Terminal wraps access to reading input and writing output for a cli.
  *
  * The available methods are similar to those of {@link Console}, with the ability
  * to read either normal text or a password, and the ability to print a line
@@ -61,7 +61,7 @@ public abstract class Terminal {
     }
 
     /** Sets the verbosity of the terminal. */
-    void setVerbosity(Verbosity verbosity) {
+    public void setVerbosity(Verbosity verbosity) {
         this.verbosity = verbosity;
     }
 
@@ -89,35 +89,35 @@ public abstract class Terminal {
 
     private static class ConsoleTerminal extends Terminal {
 
-        private static final Console console = System.console();
+        private static final Console CONSOLE = System.console();
 
         ConsoleTerminal() {
             super(System.lineSeparator());
         }
 
         static boolean isSupported() {
-            return console != null;
+            return CONSOLE != null;
         }
 
         @Override
         public PrintWriter getWriter() {
-            return console.writer();
+            return CONSOLE.writer();
         }
 
         @Override
         public String readText(String prompt) {
-            return console.readLine("%s", prompt);
+            return CONSOLE.readLine("%s", prompt);
         }
 
         @Override
         public char[] readSecret(String prompt) {
-            return console.readPassword("%s", prompt);
+            return CONSOLE.readPassword("%s", prompt);
         }
     }
 
     private static class SystemTerminal extends Terminal {
 
-        private final PrintWriter writer = newWriter();
+        private static final PrintWriter WRITER = newWriter();
 
         SystemTerminal() {
             super(System.lineSeparator());
@@ -130,7 +130,7 @@ public abstract class Terminal {
 
         @Override
         public PrintWriter getWriter() {
-            return writer;
+            return WRITER;
         }
 
         @Override

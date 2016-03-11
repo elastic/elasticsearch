@@ -21,6 +21,7 @@ package org.elasticsearch.common.cli;
 
 import java.io.IOException;
 
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;

@@ -328,6 +328,23 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <quiet>true</quiet>
+                            <additionalparam>-Xdoclint:all</additionalparam>
+                            <additionalparam>-Xdoclint:-missing</additionalparam>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
       <pluginManagement>
         <plugins>
@@ -371,28 +388,6 @@
                 </property>
             </activation>
             <!-- not including license-maven-plugin is sufficent to expose default license -->
-        </profile>
-        <profile>
-            <id>release</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                                <configuration>
-                                    <quiet>true</quiet>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
     </profiles>
 </project>

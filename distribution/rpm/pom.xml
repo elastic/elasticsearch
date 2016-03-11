@@ -364,7 +364,7 @@
                         </goals>
                         <configuration>
                             <target>
-                                <ant antfile="${packaging.gpg.shortening.ant.script.dir}"/>
+                                <ant antfile="${packaging.gpg.shortening.ant.script}"/>
                             </target>
                         </configuration>
                     </execution>

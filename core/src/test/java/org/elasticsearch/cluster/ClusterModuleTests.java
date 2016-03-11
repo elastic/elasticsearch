@@ -48,19 +48,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public void applyStartedShards(StartedRerouteAllocation allocation) {}
-        @Override
-        public void applyFailedShards(FailedRerouteAllocation allocation) {}
-        @Override
-        public boolean allocateUnassigned(RoutingAllocation allocation) {
-            return false;
-        }
-        @Override
-        public boolean rebalance(RoutingAllocation allocation) {
-            return false;
-        }
-        @Override
-        public boolean moveShards(RoutingAllocation allocation) {
+        public boolean allocate(RoutingAllocation allocation) {
             return false;
         }
     }

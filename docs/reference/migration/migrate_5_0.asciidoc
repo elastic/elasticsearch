@@ -21,6 +21,7 @@ your application to Elasticsearch 5.0.
 * <<breaking_50_scripting>>
 * <<breaking_50_term_vectors>>
 * <<breaking_50_security>>
+* <<breaking_50_snapshot_restore>>
 
 [[breaking_50_search_changes]]
 === Warmers
@@ -819,6 +820,15 @@ changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
 
+==== Longer startup times
+
+In Elasticsearch 5.0.0 the `-XX:+AlwaysPreTouch` flag has been added to the JVM
+startup options. This option touches all memory pages used by the JVM heap
+during initialization of the HotSpot VM to reduce the chance of having to commit
+a memory page during GC time. This will increase the startup time of
+Elasticsearch as well as increasing the initial resident memory usage of the
+Java process.
+
 [[breaking_50_scripting]]
 === Scripting
 
@@ -855,3 +865,12 @@ distributed document frequencies anymore.
 
 The option to disable the security manager `--security.manager.enabled` has been removed. In order to grant special
 permissions to elasticsearch users must tweak the local Java Security Policy.
+
+[[breaking_50_snapshot_restore]]
+=== Snapshot/Restore
+
+==== Closing / deleting indices while running snapshot
+
+In previous versions of Elasticsearch, closing or deleting an index during a full snapshot would make the snapshot fail. This is now changed
+by failing the close/delete index request instead. The behavior for partial snapshots remains unchanged: Closing or deleting an index during
+a partial snapshot is still possible. The snapshot result is then marked as partial.

@@ -331,13 +331,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicMappingsUpdate(Mapper update) {
-            in.addDynamicMappingsUpdate(update);
+        public void addDynamicMapper(Mapper update) {
+            in.addDynamicMapper(update);
         }
 
         @Override
-        public Mapper dynamicMappingsUpdate() {
-            return in.dynamicMappingsUpdate();
+        public List<Mapper> getDynamicMappers() {
+            return in.getDynamicMappers();
         }
     }
 
@@ -369,7 +369,7 @@ public abstract class ParseContext {
 
         private AllEntries allEntries = new AllEntries();
 
-        private Mapper dynamicMappingsUpdate = null;
+        private List<Mapper> dynamicMappers = new ArrayList<>();
 
         public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
             this.indexSettings = indexSettings;
@@ -394,7 +394,7 @@ public abstract class ParseContext {
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
             this.allEntries = new AllEntries();
-            this.dynamicMappingsUpdate = null;
+            this.dynamicMappers = new ArrayList<>();
         }
 
         @Override
@@ -536,18 +536,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicMappingsUpdate(Mapper mapper) {
-            assert mapper instanceof RootObjectMapper : mapper;
-            if (dynamicMappingsUpdate == null) {
-                dynamicMappingsUpdate = mapper;
-            } else {
-                dynamicMappingsUpdate = dynamicMappingsUpdate.merge(mapper, false);
-            }
+        public void addDynamicMapper(Mapper mapper) {
+            dynamicMappers.add(mapper);
         }
 
         @Override
-        public Mapper dynamicMappingsUpdate() {
-            return dynamicMappingsUpdate;
+        public List<Mapper> getDynamicMappers() {
+            return dynamicMappers;
         }
     }
 
@@ -747,12 +742,12 @@ public abstract class ParseContext {
     public abstract StringBuilder stringBuilder();
 
     /**
-     * Add a dynamic update to the root object mapper.
+     * Add a new mapper dynamically created while parsing.
      */
-    public abstract void addDynamicMappingsUpdate(Mapper update);
+    public abstract void addDynamicMapper(Mapper update);
 
     /**
-     * Get dynamic updates to the root object mapper.
+     * Get dynamic mappers created while parsing.
      */
-    public abstract Mapper dynamicMappingsUpdate();
+    public abstract List<Mapper> getDynamicMappers();
 }

@@ -31,7 +31,7 @@ public final class InternalSettingsPlugin extends Plugin {
 
     @Override
     public String description() {
-        return "a plugin that allows to set values for internal settings which are can't be set via the ordinary API without this pluging installed";
+        return "a plugin that allows to set values for internal settings which are can't be set via the ordinary API without this plugin installed";
     }
 
     public static final Setting<Integer> VERSION_CREATED = Setting.intSetting("index.version.created", 0, false, Setting.Scope.INDEX);

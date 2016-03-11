@@ -37,6 +37,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.context.QueryContext;
@@ -558,6 +559,14 @@ public abstract class StreamInput extends InputStream {
             T streamable = supplier.get();
             streamable.readFrom(this);
             return streamable;
+        } else {
+            return null;
+        }
+    }
+
+    public <T extends Writeable> T readOptionalWritable(T prototype) throws IOException {
+        if (readBoolean()) {
+            return (T) prototype.readFrom(this);
         } else {
             return null;
         }

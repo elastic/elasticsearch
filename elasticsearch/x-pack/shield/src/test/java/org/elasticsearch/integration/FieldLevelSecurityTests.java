@@ -17,6 +17,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
@@ -553,6 +554,58 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(response.getAllFieldStats().size(), equalTo(2));
         assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
         assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
+    }
+
+    public void testScroll() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+        );
+
+        final int numDocs = scaledRandomIntBetween(2, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "type1", String.valueOf(i))
+                    .setSource("field1", "value1", "field2", "value2", "field3", "value3")
+                    .get();
+        }
+        refresh("test");
+
+        SearchResponse response = null;
+        try {
+            response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setScroll(TimeValue.timeValueMinutes(1L))
+                    .setSize(1)
+                    .setQuery(constantScoreQuery(termQuery("field1", "value1")))
+                    .setFetchSource(true)
+                    .get();
+
+            do {
+                assertThat(response.getHits().getTotalHits(), is((long) numDocs));
+                assertThat(response.getHits().getHits().length, is(1));
+                assertThat(response.getHits().getAt(0).getSource().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSource().get("field1"), is("value1"));
+
+                if (response.getScrollId() == null) {
+                    break;
+                }
+
+                response = client()
+                        .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                        .prepareSearchScroll(response.getScrollId())
+                        .setScroll(TimeValue.timeValueMinutes(1L))
+                        .get();
+            } while (response.getHits().getHits().length > 0);
+
+        } finally {
+            if (response != null) {
+                String scrollId = response.getScrollId();
+                if (scrollId != null) {
+                    client().prepareClearScroll().addScrollId(scrollId).get();
+                }
+            }
+        }
     }
 
     public void testQueryCache() throws Exception {

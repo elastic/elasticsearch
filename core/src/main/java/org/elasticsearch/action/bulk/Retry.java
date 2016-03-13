@@ -35,7 +35,8 @@ import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Encapsulates synchronous and asynchronous retry logic.
+ * Encapsulates synchronous and asynchronous retry logic. While this was designed for use with BulkProcessor it is public so it can be used
+ * by other code. Specifically it is used by the reindex module.
  */
 public class Retry {
     private final Class<? extends Throwable> retryOnThrowable;

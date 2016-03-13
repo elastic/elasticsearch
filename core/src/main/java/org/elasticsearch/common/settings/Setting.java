@@ -113,6 +113,8 @@ public class Setting<T> extends ToXContentToBytes {
     private final Function<String, T> parser;
     private final EnumSet<Property> properties;
 
+    private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
+
     /**
      * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
      * @param key the settings key for this setting.
@@ -125,8 +127,11 @@ public class Setting<T> extends ToXContentToBytes {
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
+        if (properties == null) {
+            throw new IllegalArgumentException("properties can not be null for setting [" + key + "]");
+        }
         if (properties.length == 0) {
-            this.properties = EnumSet.noneOf(Property.class);
+            this.properties = EMPTY_PROPERTIES;
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
         }

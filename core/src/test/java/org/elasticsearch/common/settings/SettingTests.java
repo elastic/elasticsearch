@@ -445,4 +445,16 @@ public class SettingTests extends ESTestCase {
         assertThat(setting.hasIndexScope(), is(true));
         assertThat(setting.hasNodeScope(), is(true));
     }
+
+    /**
+     * We can't have Null properties
+     */
+    public void testRejectNullProperties() {
+        try {
+            Setting.simpleString("foo.bar", (Property[]) null);
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertThat(ex.getMessage(), containsString("properties can not be null for setting"));
+        }
+    }
 }

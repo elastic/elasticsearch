@@ -1,0 +1,41 @@
+[[breaking_50_percolator]]
+=== Percolator changes
+
+==== Percolator is near-real time
+
+Previously percolators were activated in real-time, i.e. as soon as they were
+indexed.  Now, changes to the percolator query are visible in near-real time,
+as soon as the index has been refreshed. This change was required because, in
+indices created from 5.0 onwards, the terms used in a percolator query are
+automatically indexed to allow for more efficient query selection during
+percolation.
+
+==== Percolator mapping
+
+The percolate API can no longer accept documents that reference fields that
+don't already exist in the mapping.
+
+The percolate API no longer modifies the mappings. Before the percolate API
+could be used to dynamically introduce new fields to the mappings based on the
+fields in the document being percolated. This no longer works, because these
+unmapped fields are not persisted in the mapping.
+
+==== Percolator documents returned by search
+
+Documents with the `.percolate` type were previously excluded from the search
+response, unless the `.percolate` type was specified explicitly in the search
+request.  Now, percolator documents are treated in the same way as any other
+document and are returned by search requests.
+
+==== Percolator `size` default
+
+The percolator by default sets the `size` option to `10` whereas before this
+was unlimited.
+
+==== Percolate API
+
+When percolating an existing document then specifying a document in the source
+of the percolate request is not allowed any more.
+
+
+

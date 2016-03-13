@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -376,12 +377,13 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 putMappingResponse.set(e);
             }
         });
+        final Index index = resolveIndex("index");
         // Wait for mappings to be available on master
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
-                final IndexService indexService = indicesService.indexServiceSafe("index");
+                final IndexService indexService = indicesService.indexServiceSafe(index);
                 assertNotNull(indexService);
                 final MapperService mapperService = indexService.mapperService();
                 DocumentMapper mapper = mapperService.documentMapper("type");

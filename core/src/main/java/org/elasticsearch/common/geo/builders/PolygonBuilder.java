@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -314,7 +314,7 @@ public class PolygonBuilder extends ShapeBuilder {
 
         double shiftOffset = any.coordinate.x > DATELINE ? DATELINE : (any.coordinate.x < -DATELINE ? -DATELINE : 0);
         if (debugEnabled()) {
-            LOGGER.debug("shift: {[]}", shiftOffset);
+            LOGGER.debug("shift: [{}]", shiftOffset);
         }
 
         // run along the border of the component, collect the
@@ -392,9 +392,9 @@ public class PolygonBuilder extends ShapeBuilder {
 
         if(debugEnabled()) {
             for (int i = 0; i < result.length; i++) {
-                LOGGER.debug("Component {[]}:", i);
+                LOGGER.debug("Component [{}]:", i);
                 for (int j = 0; j < result[i].length; j++) {
-                    LOGGER.debug("\t" + Arrays.toString(result[i][j]));
+                    LOGGER.debug("\t{}", Arrays.toString(result[i][j]));
                 }
             }
         }
@@ -444,7 +444,7 @@ public class PolygonBuilder extends ShapeBuilder {
         // is an arbitrary point of the hole. The polygon edge next to this point
         // is part of the polygon the hole belongs to.
         if (debugEnabled()) {
-            LOGGER.debug("Holes: " + Arrays.toString(holes));
+            LOGGER.debug("Holes: {}", Arrays.toString(holes));
         }
         for (int i = 0; i < numHoles; i++) {
             final Edge current = new Edge(holes[i].coordinate, holes[i].next);
@@ -464,9 +464,9 @@ public class PolygonBuilder extends ShapeBuilder {
             final int component = -edges[index].component - numHoles - 1;
 
             if(debugEnabled()) {
-                LOGGER.debug("\tposition ("+index+") of edge "+current+": " + edges[index]);
-                LOGGER.debug("\tComponent: " + component);
-                LOGGER.debug("\tHole intersections ("+current.coordinate.x+"): " + Arrays.toString(edges));
+                LOGGER.debug("\tposition ({}) of edge {}: {}", index, current, edges[index]);
+                LOGGER.debug("\tComponent: {}", component);
+                LOGGER.debug("\tHole intersections ({}): {}", current.coordinate.x, Arrays.toString(edges));
             }
 
             components.get(component).add(points[i]);

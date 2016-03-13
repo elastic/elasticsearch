@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.util.GeoEncodingUtils;

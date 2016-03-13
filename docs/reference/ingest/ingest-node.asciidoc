@@ -620,6 +620,23 @@ but is very useful for bookkeeping and tracing errors to specific processors.
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
+The <<ingest-info,node info API>> can be used to figure out what processors are available in a cluster.
+The <<ingest-info,node info API>> will provide a per node list of what processors are available.
+
+Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
+doesn't exist on all nodes. If you rely on custom processor plugins make sure to mark these plugins as mandatory by adding
+`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for example:
+
+[source,yaml]
+--------------------------------------------------
+plugin.mandatory: ingest-attachment,ingest-geoip
+--------------------------------------------------
+
+A node will not start if either of these plugins are not available.
+
+The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
+pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
+
 [[append-procesesor]]
 === Append Processor
 Appends one or more values to an existing array if the field already exists and it is an array.

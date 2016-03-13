@@ -124,7 +124,7 @@ public class TransportClientNodesService extends AbstractComponent {
         this.ignoreClusterName = CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
 
         if (logger.isDebugEnabled()) {
-            logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
+            logger.debug("node_sampler_interval[{}]", nodesSamplerInterval);
         }
 
         if (CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
@@ -323,7 +323,7 @@ public class TransportClientNodesService extends AbstractComponent {
                         transportService.connectToNode(node);
                     } catch (Throwable e) {
                         it.remove();
-                        logger.debug("failed to connect to discovered node [" + node + "]", e);
+                        logger.debug("failed to connect to discovered node [{}]", e, node);
                     }
                 }
             }

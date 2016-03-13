@@ -22,7 +22,7 @@ package org.elasticsearch.common.logging;
 
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.spi.LoggingEvent;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 
 /**
  * TerminalAppender logs event to Terminal.DEFAULT. It is used for example by the PluginCli.

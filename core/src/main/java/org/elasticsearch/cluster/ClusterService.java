@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskManager;
 
 import java.util.List;
 
@@ -154,9 +153,4 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     TimeValue getMaxTaskWaitTime();
-
-    /**
-     * Returns task manager created in the cluster service
-     */
-    TaskManager getTaskManager();
 }

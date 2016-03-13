@@ -138,6 +138,7 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationService.class).asEagerSingleton();
         bind(DiscoveryNodeService.class).asEagerSingleton();
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
+        bind(NodeConnectionsService.class).asEagerSingleton();
         bind(OperationRouting.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();

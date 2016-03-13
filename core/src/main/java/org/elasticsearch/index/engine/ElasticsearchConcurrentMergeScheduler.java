@@ -129,9 +129,9 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                                            merge.rateLimiter.getMBPerSec());
 
             if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
-                logger.debug(message);
+                logger.debug("{}", message);
             } else if (logger.isTraceEnabled()) {
-                logger.trace(message);
+                logger.trace("{}", message);
             }
         }
     }

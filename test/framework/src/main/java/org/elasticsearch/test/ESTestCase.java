@@ -67,6 +67,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -130,7 +131,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfFailed(List<Throwable> errors) {
     }
 
-    /** called after a test is finished, but only if succesfull */
+    /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {
     }
 
@@ -282,10 +283,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *
-     * @param start lower bound of interval to draw uniformly distributed random numbers from
-     * @param end upper bound
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
      * @param lowerInclusive whether or not to include lower end of the interval
-     * */
+     */
     public static double randomDoubleBetween(double start, double end, boolean lowerInclusive) {
         double result = 0.0;
 
@@ -555,12 +556,27 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, T... values) {
-        if (size > values.length) {
-            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.length + " objects");
-        }
         List<T> list = arrayAsArrayList(values);
-        Collections.shuffle(list, random());
-        return list.subList(0, size);
+        return randomSubsetOf(size, list);
+    }
+
+    /**
+     * Returns a random subset of values (including a potential empty list)
+     */
+    public static <T> List<T> randomSubsetOf(Collection<T> collection) {
+        return randomSubsetOf(randomInt(collection.size() - 1), collection);
+    }
+
+    /**
+     * Returns size random values
+     */
+    public static <T> List<T> randomSubsetOf(int size, Collection<T> collection) {
+        if (size > collection.size()) {
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a collection of " + collection.size() + " objects");
+        }
+        List<T> tempList = new ArrayList<>(collection);
+        Collections.shuffle(tempList, random());
+        return tempList.subList(0, size);
     }
 
     /**
@@ -629,27 +645,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.getFileName(), actual.getFileName());
         assertEquals(expected.getLineNumber(), actual.getLineNumber());
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
-    }
-
-    /** A runnable that can throw any checked exception. */
-    @FunctionalInterface
-    public interface ThrowingRunnable {
-        void run() throws Throwable;
-    }
-
-    /** Checks a specific exception class is thrown by the given runnable, and returns it. */
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
-        try {
-            runnable.run();
-        } catch (Throwable e) {
-            if (expectedType.isInstance(e)) {
-                return expectedType.cast(e);
-            }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName());
-            assertion.initCause(e);
-            throw assertion;
-        }
-        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
     }
 
     protected static long spinForAtLeastOneMillisecond() {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;

@@ -137,7 +137,7 @@ public class RecoverySourceHandler {
                 }
             }
 
-            logger.trace("snapshot translog for recovery. current size is [{}]", translogView.totalOperations());
+            logger.trace("{} snapshot translog for recovery. current size is [{}]", shard.shardId(), translogView.totalOperations());
             try {
                 phase2(translogView.snapshot());
             } catch (Throwable e) {
@@ -289,7 +289,7 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn("{} Remote file corruption during finalization on node {}, recovering {}. local checksum OK",
+                        logger.warn("{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
                                 corruptIndexException, shard.shardId(), request.targetNode());
                         throw exception;
                     } else {

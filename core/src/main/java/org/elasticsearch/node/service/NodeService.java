@@ -84,13 +84,13 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.discovery = discovery;
-        discovery.setNodeService(this);
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
         this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
+        clusterService.add(ingestService.getPipelineExecutionService());
     }
 
     // can not use constructor injection or there will be a circular dependency
@@ -132,12 +132,13 @@ public class NodeService extends AbstractComponent implements Closeable {
                 threadPool.info(),
                 transportService.info(),
                 httpServer == null ? null : httpServer.info(),
-                pluginService == null ? null : pluginService.info()
+                pluginService == null ? null : pluginService.info(),
+                ingestService == null ? null : ingestService.info()
         );
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                         boolean transport, boolean http, boolean plugin) {
+                         boolean transport, boolean http, boolean plugin, boolean ingest) {
         return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
@@ -146,7 +147,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 threadPool ? this.threadPool.info() : null,
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null,
-                plugin ? (pluginService == null ? null : pluginService.info()) : null
+                plugin ? (pluginService == null ? null : pluginService.info()) : null,
+                ingest ? (ingestService == null ? null : ingestService.info()) : null
         );
     }
 
@@ -164,13 +166,14 @@ public class NodeService extends AbstractComponent implements Closeable {
                 httpServer == null ? null : httpServer.stats(),
                 circuitBreakerService.stats(),
                 scriptService.stats(),
-                discovery.stats()
+                discovery.stats(),
+                ingestService.getPipelineExecutionService().stats()
         );
     }
 
     public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script, boolean discoveryStats) {
+                           boolean script, boolean discoveryStats, boolean ingest) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
@@ -184,7 +187,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 http ? (httpServer == null ? null : httpServer.stats()) : null,
                 circuitBreaker ? circuitBreakerService.stats() : null,
                 script ? scriptService.stats() : null,
-                discoveryStats ? discovery.stats() : null
+                discoveryStats ? discovery.stats() : null,
+                ingest ? ingestService.getPipelineExecutionService().stats() : null
         );
     }
 

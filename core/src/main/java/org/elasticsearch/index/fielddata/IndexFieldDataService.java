@@ -231,13 +231,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         IndexFieldData.Builder builder = null;
         String format = type.getFormat(indexSettings.getSettings());
         if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
-            logger.warn("field [" + fieldName + "] has no doc values, will use default field data format");
+            logger.warn("field [{}] has no doc values, will use default field data format", fieldName);
             format = null;
         }
         if (format != null) {
             builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
             if (builder == null) {
-                logger.warn("failed to find format [" + format + "] for field [" + fieldName + "], will use default");
+                logger.warn("failed to find format [{}] for field [{}], will use default", format, fieldName);
             }
         }
         if (builder == null && docValues) {

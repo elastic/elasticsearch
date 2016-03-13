@@ -76,7 +76,7 @@ public class SearchPhaseController extends AbstractComponent {
         public int compare(AtomicArray.Entry<? extends QuerySearchResultProvider> o1, AtomicArray.Entry<? extends QuerySearchResultProvider> o2) {
             int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
             if (i == 0) {
-                i = o1.value.shardTarget().shardId() - o2.value.shardTarget().shardId();
+                i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
             }
             return i;
         }

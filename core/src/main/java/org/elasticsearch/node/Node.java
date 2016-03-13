@@ -34,8 +34,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.StopWatch;
@@ -301,6 +303,10 @@ public class Node implements Closeable {
                 "node cluster service implementation must inherit from InternalClusterService";
         final InternalClusterService clusterService = (InternalClusterService) injector.getInstance(ClusterService.class);
 
+        final NodeConnectionsService nodeConnectionsService = injector.getInstance(NodeConnectionsService.class);
+        nodeConnectionsService.start();
+        clusterService.setNodeConnectionsService(nodeConnectionsService);
+
         // TODO hack around circular dependencies problems
         injector.getInstance(GatewayAllocator.class).setReallocation(clusterService, injector.getInstance(RoutingService.class));
 
@@ -318,24 +324,30 @@ public class Node implements Closeable {
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.start();
+        DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
+                .buildLocalNode(transportService.boundAddress().publishAddress());
+
+        // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
+        // playing nice with the life cycle interfaces
+        clusterService.setLocalNode(localNode);
+        transportService.setLocalNode(localNode);
+        clusterService.add(transportService.getTaskManager());
+
         clusterService.start();
 
         // start after cluster service so the local disco is known
         discovery.start();
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-
         // tribe nodes don't have a master so we shouldn't register an observer
         if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            final CountDownLatch latch = new CountDownLatch(1);
             if (observer.observedState().nodes().masterNodeId() == null) {
+                final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
-                    public void onNewClusterState(ClusterState state) {
-                        latch.countDown();
-                    }
+                    public void onNewClusterState(ClusterState state) { latch.countDown(); }
 
                     @Override
                     public void onClusterServiceClose() {
@@ -344,16 +356,17 @@ public class Node implements Closeable {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        assert false;
+                        logger.warn("timed out while waiting for initial discovery state - timeout: {}",
+                            DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                        latch.countDown();
                     }
-                    // use null timeout as we use timeout on the latchwait
-                }, MasterNodeChangePredicate.INSTANCE, null);
-            }
+                }, MasterNodeChangePredicate.INSTANCE, DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
 
-            try {
-                latch.await(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                }
             }
         }
 
@@ -401,6 +414,7 @@ public class Node implements Closeable {
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(Discovery.class).stop();
+        injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
@@ -458,6 +472,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(RoutingService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
+        toClose.add(() -> stopWatch.stop().start("node_connections_service"));
+        toClose.add(injector.getInstance(NodeConnectionsService.class));
         toClose.add(() -> stopWatch.stop().start("discovery"));
         toClose.add(injector.getInstance(Discovery.class));
         toClose.add(() -> stopWatch.stop().start("monitor"));

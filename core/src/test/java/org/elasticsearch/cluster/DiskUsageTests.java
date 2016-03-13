@@ -143,11 +143,11 @@ public class DiskUsageTests extends ESTestCase {
         };
         NodeStats[] nodeStats = new NodeStats[] {
                 new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null),
+                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null, null),
                 new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null),
+                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null, null),
                 new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null)
+                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null, null)
         };
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
         DiskUsage leastNode_1 = newLeastAvaiableUsages.get("node_1");
@@ -184,11 +184,11 @@ public class DiskUsageTests extends ESTestCase {
         };
         NodeStats[] nodeStats = new NodeStats[] {
                 new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null),
+                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null, null),
                 new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null),
+                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null, null),
                 new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
-                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null)
+                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null, null)
         };
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
         DiskUsage leastNode_1 = newLeastAvailableUsages.get("node_1");

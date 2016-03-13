@@ -188,14 +188,10 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
                 docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
             }
             indexRandom(true, docs);
-            if (compatibilityVersion().before(Version.V_1_3_0)) {
-                // issue another refresh through a new node to side step issue #6545
-                assertNoFailures(backwardsCluster().internalCluster().dataNodeClient().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
-            }
             numDocs *= 2;
         }
 
-        logger.info(" --> waiting for relocation to complete", numDocs);
+        logger.info(" --> waiting for relocation of [{}] docs to complete", numDocs);
         ensureYellow("test");// move all shards to the new node (it waits on relocation)
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {

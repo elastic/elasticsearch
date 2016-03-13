@@ -220,6 +220,13 @@ public class ScopedSettingsTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
         }
+
+        try {
+            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build());
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
+        }
     }
 
 

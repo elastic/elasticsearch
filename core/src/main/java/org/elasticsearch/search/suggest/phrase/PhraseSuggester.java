@@ -117,7 +117,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    IndexService indexService = indicesService.indexService(suggestion.getIndex());
+                    IndexService indexService = indicesService.indexService(suggestion.getShard().getIndex());
                     final ParsedQuery parsedQuery = indexService.newQueryShardContext().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }

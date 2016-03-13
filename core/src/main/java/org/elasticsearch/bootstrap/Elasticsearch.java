@@ -32,7 +32,7 @@ public final class Elasticsearch {
     /**
      * Main entry point for starting elasticsearch
      */
-    public static void main(String[] args) throws StartupError {
+    public static void main(String[] args) throws Exception {
         try {
             Bootstrap.init(args);
         } catch (Throwable t) {

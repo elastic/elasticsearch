@@ -28,7 +28,7 @@ public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompati
     public void testUpgradeStartClusterOn_0_20_6() throws Exception {
         String indexName = "unsupported-0.20.6";
 
-        logger.info("Checking static index " + indexName);
+        logger.info("Checking static index {}", indexName);
         Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"), NetworkModule.HTTP_ENABLED.getKey(), true);
         try {
             internalCluster().startNode(nodeSettings);

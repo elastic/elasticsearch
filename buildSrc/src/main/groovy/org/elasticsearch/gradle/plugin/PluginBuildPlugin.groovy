@@ -68,7 +68,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
+            provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
             provided "com.vividsolutions:jts:${project.versions.jts}"
             provided "log4j:log4j:${project.versions.log4j}"
             provided "log4j:apache-log4j-extras:${project.versions.log4j}"

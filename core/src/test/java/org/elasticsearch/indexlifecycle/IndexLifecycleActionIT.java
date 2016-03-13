@@ -77,7 +77,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
@@ -92,7 +92,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // first wait for 2 nodes in the cluster
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         final String node2 = getLocalNodeId(server_2);
@@ -171,7 +171,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // verify health
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 

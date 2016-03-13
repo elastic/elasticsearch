@@ -290,7 +290,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                                 logger.error("bulk deletion failures for [{}]/[{}] items", failedItems, bulkResponse.getItems().length);
                             }
                         } else {
-                            logger.trace("bulk deletion took " + bulkResponse.getTookInMillis() + "ms");
+                            logger.trace("bulk deletion took {}ms", bulkResponse.getTookInMillis());
                         }
                     }
 

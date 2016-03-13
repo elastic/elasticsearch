@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -45,6 +46,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -134,8 +136,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         IndexWarmer.INDEX_NORMS_LOADING_SETTING,
-        // this sucks but we can't really validate all the analyzers/similarity in here
-        Setting.groupSetting("index.similarity.", Property.IndexScope), // this allows similarity settings to be passed
+        // validate that built-in similarities don't get redefined
+        Setting.groupSetting("index.similarity.", Property.IndexScope, (s) -> {
+            Map<String, Settings> groups = s.getAsGroups();
+            for (String key : SimilarityService.BUILT_IN.keySet()) {
+                if (groups.containsKey(key)) {
+                    throw new IllegalArgumentException("illegal value for [index.similarity."+ key + "] cannot redefine built-in similarity");
+                }
+            }
+        }), // this allows similarity settings to be passed
         Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
 
     )));

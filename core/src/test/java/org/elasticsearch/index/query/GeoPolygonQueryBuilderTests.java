@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;

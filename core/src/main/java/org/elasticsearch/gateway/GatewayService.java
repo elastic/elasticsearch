@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.rest.RestStatus;
@@ -161,11 +162,14 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (state.nodes().masterNodeId() == null) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
-            logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+            logger.debug("not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
+                nodes.masterAndDataNodes().size(), recoverAfterNodes);
         } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
-            logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
+            logger.debug("not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
+                nodes.dataNodes().size(), recoverAfterDataNodes);
         } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
-            logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
+            logger.debug("not recovering from gateway, nodes_size (master) [{}] < recover_after_master_nodes [{}]",
+                nodes.masterNodes().size(), recoverAfterMasterNodes);
         } else {
             boolean enforceRecoverAfterTime;
             String reason;
@@ -207,7 +211,20 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
-                threadPool.generic().execute(() -> gateway.performStateRecovery(recoveryListener));
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("Recovery failed", t);
+                        // we reset `recovered` in the listener don't reset it here otherwise there might be a race
+                        // that resets it to false while a new recover is already running?
+                        recoveryListener.onFailure("state recovery failed: " + t.getMessage());
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        gateway.performStateRecovery(recoveryListener);
+                    }
+                });
             }
         }
     }

@@ -325,7 +325,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
         unblockNode(blockedNode);
 
-        logger.info("--> stopping node", blockedNode);
+        logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         logger.info("--> waiting for completion");
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
@@ -379,7 +379,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode(blockedNode);
-        logger.info("--> stopping node", blockedNode);
+        logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {
             DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();

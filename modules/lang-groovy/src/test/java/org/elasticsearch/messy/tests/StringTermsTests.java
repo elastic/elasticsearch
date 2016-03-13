@@ -243,7 +243,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         ExecutionMode[] executionModes = new ExecutionMode[] { null, ExecutionMode.GLOBAL_ORDINALS, ExecutionMode.GLOBAL_ORDINALS_HASH,
                 ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY };
         for (ExecutionMode executionMode : executionModes) {
-            logger.info("Execution mode:" + executionMode);
+            logger.info("Execution mode: {}", executionMode);
             SearchResponse response = client()
                     .prepareSearch("idx")
                     .setTypes("type")

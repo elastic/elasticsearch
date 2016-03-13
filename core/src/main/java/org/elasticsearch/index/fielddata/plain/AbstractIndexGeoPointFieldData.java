@@ -24,7 +24,7 @@ import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -62,7 +62,7 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
             if (termEncoding == GeoPointField.TermEncoding.PREFIX) {
                 return GeoEncodingUtils.prefixCodedToGeoCoded(term);
             } else if (termEncoding == GeoPointField.TermEncoding.NUMERIC) {
-                return NumericUtils.prefixCodedToLong(term);
+                return LegacyNumericUtils.prefixCodedToLong(term);
             }
             throw new IllegalArgumentException("GeoPoint.TermEncoding should be one of: " + GeoPointField.TermEncoding.PREFIX
                 + " or " + GeoPointField.TermEncoding.NUMERIC + " found: " + termEncoding);

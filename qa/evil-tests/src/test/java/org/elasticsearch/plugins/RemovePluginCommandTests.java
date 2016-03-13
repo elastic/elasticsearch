@@ -25,10 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -48,10 +46,9 @@ public class RemovePluginCommandTests extends ESTestCase {
         return new Environment(settings);
     }
 
-    static CliToolTestCase.CaptureOutputTerminal removePlugin(String name, Environment env) throws Exception {
-        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal(Terminal.Verbosity.VERBOSE);
-        CliTool.ExitStatus status = new RemovePluginCommand(terminal, name).execute(env.settings(), env);
-        assertEquals(CliTool.ExitStatus.OK, status);
+    static MockTerminal removePlugin(String name, Environment env) throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new RemovePluginCommand(env).execute(terminal, name);
         return terminal;
     }
 

@@ -176,7 +176,7 @@ need to specify the `type` (like `string` or `date`) since it is already known.
 [[mapper-attachments-copy-to]]
 ==== Copy To feature
 
-If you want to use http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-core-types.html#copy-to[copy_to]
+If you want to use https://www.elastic.co/guide/en/elasticsearch/reference/current/copy-to.html[copy_to]
 feature, you need to define it on each sub-field you want to copy to another field:
 
 [source,js]
@@ -404,42 +404,4 @@ It gives back:
       ]
    }
 }
---------------------------
-
-[[mapper-attachments-standalone]]
-==== Stand alone runner
-
-If you want to run some tests within your IDE, you can use `StandaloneRunner` class.
-It accepts arguments:
-
-* `-u file://URL/TO/YOUR/DOC`
-* `--size` set extracted size (default to mapper attachment size)
-* `BASE64` encoded binary
-
-Example:
-
-[source,sh]
---------------------------
-StandaloneRunner BASE64Text
-StandaloneRunner -u /tmp/mydoc.pdf
-StandaloneRunner -u /tmp/mydoc.pdf --size 1000000
---------------------------
-
-It produces something like:
-
-[source,text]
---------------------------
-## Extracted text
---------------------- BEGIN -----------------------
-This is the extracted text
----------------------- END ------------------------
-## Metadata
-- author: null
-- content_length: null
-- content_type: application/pdf
-- date: null
-- keywords: null
-- language: null
-- name: null
-- title: null
 --------------------------

@@ -58,6 +58,13 @@ class ClusterFormationTasks {
         List<NodeInfo> nodes = []
         for (int i = 0; i < config.numNodes; ++i) {
             NodeInfo node = new NodeInfo(config, i, project, task)
+            if (i == 0) {
+                if (config.seedNodePortsFile != null) {
+                    // we might allow this in the future to be set but for now we are the only authority to set this!
+                    throw new GradleException("seedNodePortsFile has a non-null value but first node has not been intialized")
+                }
+                config.seedNodePortsFile = node.transportPortsFile;
+            }
             nodes.add(node)
             startTasks.add(configureNode(project, task, node))
         }
@@ -220,20 +227,22 @@ class ClusterFormationTasks {
                 'node.testattr'                : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
-        if (node.config.numNodes == 1) {
-            esConfig['http.port'] = node.config.httpPort
-            esConfig['transport.tcp.port'] =  node.config.transportPort
-        } else {
-            // TODO: fix multi node so it doesn't use hardcoded prots
-            esConfig['http.port'] = 9400 + node.nodeNum
-            esConfig['transport.tcp.port'] =  9500 + node.nodeNum
-            esConfig['discovery.zen.ping.unicast.hosts'] = (0..<node.config.numNodes).collect{"localhost:${9500 + it}"}.join(',')
-
-        }
+        esConfig['http.port'] = node.config.httpPort
+        esConfig['transport.tcp.port'] =  node.config.transportPort
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
+            if (node.nodeNum > 0) { // multi-node cluster case, we have to wait for the seed node to startup
+                ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+                    resourceexists {
+                        file(file: node.config.seedNodePortsFile.toString())
+                    }
+                }
+                // the seed node is enough to form the cluster - all subsequent nodes will get the seed node as a unicast
+                // host and join the cluster via that.
+                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${node.config.seedNodeTransportUri()}\""
+            }
             File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')

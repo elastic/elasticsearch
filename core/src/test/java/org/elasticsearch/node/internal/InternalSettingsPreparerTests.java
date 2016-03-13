@@ -19,9 +19,13 @@
 
 package org.elasticsearch.node.internal;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -29,17 +33,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
 
@@ -81,17 +77,9 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testReplacePromptPlaceholders() {
-        final Terminal terminal = new CliToolTestCase.MockTerminal() {
-            @Override
-            public char[] readSecret(String message) {
-                return "replaced".toCharArray();
-            }
-
-            @Override
-            public String readText(String message) {
-                return "text";
-            }
-        };
+        MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("text");
+        terminal.addSecretInput("replaced");
 
         Settings.Builder builder = settingsBuilder()
                 .put(baseEnvSettings)

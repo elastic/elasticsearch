@@ -78,8 +78,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         GeoPoint[] d2Points = {new GeoPoint(5, 1), new GeoPoint(6, 2)};
         createShuffeldJSONArray(d2Builder, d2Points);
 
-        logger.info(d1Builder.string());
-        logger.info(d2Builder.string());
+        logger.info("d1: {}", d1Builder);
+        logger.info("d2: {}", d2Builder);
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));

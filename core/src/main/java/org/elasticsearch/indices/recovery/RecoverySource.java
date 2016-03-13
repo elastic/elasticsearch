@@ -83,7 +83,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
-        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex().getName());
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
         // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise

@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -83,11 +82,6 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public NodeService nodeService() {
-                return null;
-            }
-
-            @Override
             public boolean nodeHasJoinedClusterOnce() {
                 return false;
             }
@@ -99,11 +93,6 @@ public class UnicastZenPingIT extends ESTestCase {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeB).localNodeId("UZP_B").build();
-            }
-
-            @Override
-            public NodeService nodeService() {
-                return null;
             }
 
             @Override

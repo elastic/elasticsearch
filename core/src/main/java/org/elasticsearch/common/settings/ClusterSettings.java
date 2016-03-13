@@ -29,8 +29,10 @@ import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -260,7 +262,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
                     ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
-                    InternalClusterService.CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING,
+                    NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                     Transport.TRANSPORT_TCP_COMPRESS,
@@ -327,7 +329,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_SCRIPTS_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
-                    InternalClusterService.NODE_ID_SEED_SETTING,
+                    DiscoveryNodeService.NODE_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
                     DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,

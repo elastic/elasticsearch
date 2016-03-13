@@ -60,6 +60,9 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 `discovery`::
 	Statistics about the discovery
 
+`ingest`::
+    Statistics about ingest preprocessing
+
 [source,js]
 --------------------------------------------------
 # return indices and os
@@ -227,3 +230,23 @@ curl -XGET 'http://localhost:9200/_nodes/stats?pretty&groups=_all'
 # Some groups from just the indices stats
 curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
 --------------------------------------------------
+
+[float]
+[[ingest-stats]]
+=== Ingest statistics
+
+The `ingest` flag can be set to retrieve statistics that concern ingest:
+
+`ingest.total.count`::
+    The total number of document ingested during the lifetime of this node
+
+`ingest.total.time_in_millis`::
+    The total time spent on ingest preprocessing documents during the lifetime of this node
+
+`ingest.total.current`::
+    The total number of documents currently being ingested.
+
+`ingest.total.failed`::
+    The total number ingest preprocessing operations failed during the lifetime of this node
+
+On top of these overall ingest statistics, these statistics are also provided on a per pipeline basis.

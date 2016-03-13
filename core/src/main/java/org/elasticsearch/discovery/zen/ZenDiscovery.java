@@ -61,7 +61,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -149,10 +148,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
 
-    @Nullable
-    private NodeService nodeService;
-
-
     // must initialized in doStart(), when we have the routingService set
     private volatile NodeJoinController nodeJoinController;
 
@@ -202,11 +197,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
-    }
-
-    @Override
-    public void setNodeService(@Nullable NodeService nodeService) {
-        this.nodeService = nodeService;
     }
 
     @Override
@@ -302,11 +292,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public DiscoveryNodes nodes() {
         return clusterService.state().nodes();
-    }
-
-    @Override
-    public NodeService nodeService() {
-        return this.nodeService;
     }
 
     @Override
@@ -850,7 +835,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return null;
         }
         if (logger.isTraceEnabled()) {
-            StringBuilder sb = new StringBuilder("full ping responses:");
+            StringBuilder sb = new StringBuilder();
             if (fullPingResponses.length == 0) {
                 sb.append(" {none}");
             } else {
@@ -858,7 +843,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     sb.append("\n\t--> ").append(pingResponse);
                 }
             }
-            logger.trace(sb.toString());
+            logger.trace("full ping responses:{}", sb);
         }
 
         // filter responses
@@ -875,7 +860,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         if (logger.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder("filtered ping responses: (filter_client[").append(masterElectionFilterClientNodes).append("], filter_data[").append(masterElectionFilterDataNodes).append("])");
+            StringBuilder sb = new StringBuilder();
             if (pingResponses.isEmpty()) {
                 sb.append(" {none}");
             } else {
@@ -883,7 +868,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     sb.append("\n\t--> ").append(pingResponse);
                 }
             }
-            logger.debug(sb.toString());
+            logger.debug("filtered ping responses: (filter_client[{}], filter_data[{}]){}", masterElectionFilterClientNodes,
+                masterElectionFilterDataNodes, sb);
         }
 
         final DiscoveryNode localNode = clusterService.localNode();
@@ -945,7 +931,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
 
-        logger.warn(reason + ", current nodes: {}", clusterState.nodes());
+        logger.warn("{}, current nodes: {}", reason, clusterState.nodes());
         nodesFD.stop();
         masterFD.stop(reason);
 

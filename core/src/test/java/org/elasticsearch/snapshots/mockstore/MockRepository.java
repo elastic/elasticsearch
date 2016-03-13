@@ -121,7 +121,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
         randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
-        logger.info("starting mock repository with random prefix " + randomPrefix);
+        logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
@@ -177,14 +177,12 @@ public class MockRepository extends FsRepository {
     }
 
     public synchronized void unblockExecution() {
-        if (blocked) {
-            blocked = false;
-            // Clean blocking flags, so we wouldn't try to block again
-            blockOnDataFiles = false;
-            blockOnControlFiles = false;
-            blockOnInitialization = false;
-            this.notifyAll();
-        }
+        blocked = false;
+        // Clean blocking flags, so we wouldn't try to block again
+        blockOnDataFiles = false;
+        blockOnControlFiles = false;
+        blockOnInitialization = false;
+        this.notifyAll();
     }
 
     public boolean blocked() {

@@ -225,7 +225,7 @@ final class BootstrapCheck {
 
     static class MaxNumberOfThreadsCheck implements Check {
 
-        private final long maxNumberOfThreadsThreshold = 1 << 15;
+        private final long maxNumberOfThreadsThreshold = 1 << 11;
 
         @Override
         public boolean check() {

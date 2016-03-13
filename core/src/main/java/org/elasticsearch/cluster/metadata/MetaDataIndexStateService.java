@@ -38,10 +38,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service responsible for submitting open/close index requests
@@ -78,7 +82,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<String> indicesToClose = new ArrayList<>();
+                Set<String> indicesToClose = new HashSet<>();
                 for (String index : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -93,6 +97,11 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 if (indicesToClose.isEmpty()) {
                     return currentState;
                 }
+
+                // Check if index closing conflicts with any running restores
+                RestoreService.checkIndexClosing(currentState, indicesToClose);
+                // Check if index closing conflicts with any running snapshots
+                SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
                 logger.info("closing indices [{}]", indicesAsString);
 

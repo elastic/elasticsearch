@@ -4,6 +4,16 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.2.
 
+[[float]]
+=== Mapping APIs
+
+==== Geo Point Type
+
+The `geo_point` format has been changed to reduce index size and the time required to both index and query
+geo point data. To make these performance improvements possible both `doc_values` and `coerce` are required
+and therefore cannot be changed. For this reason the `doc_values` and `coerce` parameters have been removed
+from the <<geo-point, geo_point>> field mapping.
+
 [float]
 === Scripting and security
 
@@ -32,6 +42,21 @@ and these error messages would be lost to the ether. The default has
 changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the `elasticsearch.service` file.
+
+[float]
+=== Java Client
+
+Previously it was possible to iterate over `ClusterHealthResponse` to get information about `ClusterIndexHealth`.
+While this is still possible, it requires now iterating over the values returned from `getIndices()`:
+
+[source,java]
+---------------
+ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
+for (Map.Entry<String, ClusterIndexHealth> index : clusterHealthResponse.getIndices().entrySet()) {
+    String indexName = index.getKey();
+    ClusterIndexHealth health = index.getValue();
+}
+---------------
 
 [float]
 === Cloud AWS Plugin

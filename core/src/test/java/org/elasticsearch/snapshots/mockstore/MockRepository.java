@@ -176,14 +176,12 @@ public class MockRepository extends FsRepository {
     }
 
     public synchronized void unblockExecution() {
-        if (blocked) {
-            blocked = false;
-            // Clean blocking flags, so we wouldn't try to block again
-            blockOnDataFiles = false;
-            blockOnControlFiles = false;
-            blockOnInitialization = false;
-            this.notifyAll();
-        }
+        blocked = false;
+        // Clean blocking flags, so we wouldn't try to block again
+        blockOnDataFiles = false;
+        blockOnControlFiles = false;
+        blockOnInitialization = false;
+        this.notifyAll();
     }
 
     public boolean blocked() {

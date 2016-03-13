@@ -104,4 +104,4 @@ ECHO additional elements via the plugin mechanism, or if code must really be 1>&
 ECHO added to the main classpath, add jars to lib\, unsupported 1>&2
 EXIT /B 1
 )
-set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"
+set ES_PARAMS=-Delasticsearch -Ees.path.home="%ES_HOME%"

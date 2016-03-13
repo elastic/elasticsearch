@@ -259,7 +259,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]update[/\\]UpdateRequest.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]update[/\\]UpdateRequestBuilder.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]Bootstrap.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]BootstrapCLIParser.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JNAKernel32Library.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JNANatives.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JVMCheck.java" checks="LineLength" />
@@ -1597,7 +1596,6 @@
   <suppress files="plugins[/\\]repository-s3[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]blobstore[/\\]MockDefaultS3OutputStream.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-s3[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]s3[/\\]AbstractS3SnapshotRestoreTest.java" checks="LineLength" />
   <suppress files="plugins[/\\]store-smb[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]store[/\\]SmbDirectoryWrapper.java" checks="LineLength" />
-  <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]BootstrapCliParserTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]ESPolicyUnitTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]EvilSecurityTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]cli[/\\]CheckFileCommandTests.java" checks="LineLength" />

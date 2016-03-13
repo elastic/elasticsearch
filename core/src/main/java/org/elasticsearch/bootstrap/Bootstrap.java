@@ -19,21 +19,14 @@
 
 package org.elasticsearch.bootstrap;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.file.Path;
-import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
-
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -47,7 +40,13 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Internal startup code.
@@ -189,9 +188,14 @@ final class Bootstrap {
         node = new Node(nodeSettings);
     }
 
-    private static Environment initialSettings(boolean foreground) {
-        Terminal terminal = foreground ? Terminal.DEFAULT : null;
-        return InternalSettingsPreparer.prepareEnvironment(EMPTY_SETTINGS, terminal);
+    private static Environment initialSettings(boolean daemonize, String pathHome, String pidFile) {
+        Terminal terminal = daemonize ? null : Terminal.DEFAULT;
+        Settings.Builder builder = Settings.builder();
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), pathHome);
+        if (Strings.hasLength(pidFile)) {
+            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+        }
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal);
     }
 
     private void start() {
@@ -218,22 +222,19 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
-    static void init(String[] args) throws Throwable {
+    static void init(
+            final boolean daemonize,
+            final String pathHome,
+            final String pidFile,
+            final Map<String, String> esSettings) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
-        BootstrapCliParser parser = new BootstrapCliParser();
-        int status = parser.main(args, Terminal.DEFAULT);
-
-        if (parser.shouldRun() == false || status != ExitCodes.OK) {
-            exit(status);
-        }
+        elasticsearchSettings(esSettings);
 
         INSTANCE = new Bootstrap();
 
-        boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
-
-        Environment environment = initialSettings(foreground);
+        Environment environment = initialSettings(daemonize, pathHome, pidFile);
         Settings settings = environment.settings();
         LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
@@ -249,7 +250,7 @@ final class Bootstrap {
         }
 
         try {
-            if (!foreground) {
+            if (daemonize) {
                 Loggers.disableConsoleLogging();
                 closeSystOut();
             }
@@ -264,12 +265,12 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (!foreground) {
+            if (daemonize) {
                 closeSysError();
             }
         } catch (Throwable e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            if (foreground) {
+            if (!daemonize) {
                 Loggers.disableConsoleLogging();
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
@@ -289,11 +290,18 @@ final class Bootstrap {
                 logger.error("Exception", e);
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
-            if (foreground) {
+            if (!daemonize) {
                 Loggers.enableConsoleLogging();
             }
 
             throw e;
+        }
+    }
+
+    @SuppressForbidden(reason = "Sets system properties passed as CLI parameters")
+    private static void elasticsearchSettings(Map<String, String> esSettings) {
+        for (Map.Entry<String, String> esSetting : esSettings.entrySet()) {
+            System.setProperty(esSetting.getKey(), esSetting.getValue());
         }
     }
 

@@ -102,7 +102,7 @@ fi
         echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
     fi
 
-    run_elasticsearch_service 1 -Des.default.config="$CONF_FILE"
+    run_elasticsearch_service 1 -Ees.default.config="$CONF_FILE"
 
     # remove settings again otherwise cleaning up before next testrun will fail
     if is_dpkg ; then
@@ -408,7 +408,7 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Ees.logger.level=DEBUG > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "7" ] || {

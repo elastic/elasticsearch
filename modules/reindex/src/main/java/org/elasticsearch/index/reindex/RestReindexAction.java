@@ -112,6 +112,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 default:
                     throw new ElasticsearchParseException("Unknown value field [{}]", currentFieldName);
                 }
+            } else {
+                throw new ElasticsearchParseException("Unexpected token type [{}]", token);
             }
         }
     }
@@ -173,6 +175,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 default:
                     throw new ElasticsearchParseException("Unknown value field [{}]", currentFieldName);
                 }
+            } else {
+                throw new ElasticsearchParseException("Unexpected token type [{}]", token);
             }
         }
     }

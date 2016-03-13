@@ -1789,7 +1789,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .execute();
 
             logger.info("--> waiting for block to kick in");
-            waitForBlockOnAllDataNodes("test-repo", TimeValue.timeValueMinutes(1));
+            waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
 
             logger.info("--> close index while restore is running");
             try {

@@ -137,14 +137,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         IndexWarmer.INDEX_NORMS_LOADING_SETTING,
         // validate that built-in similarities don't get redefined
-        Setting.groupSetting("index.similarity.", Property.IndexScope, (s) -> {
+        Setting.groupSetting("index.similarity.", (s) -> {
             Map<String, Settings> groups = s.getAsGroups();
             for (String key : SimilarityService.BUILT_IN.keySet()) {
                 if (groups.containsKey(key)) {
                     throw new IllegalArgumentException("illegal value for [index.similarity."+ key + "] cannot redefine built-in similarity");
                 }
             }
-        }), // this allows similarity settings to be passed
+        }, Property.IndexScope), // this allows similarity settings to be passed
         Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
 
     )));

@@ -586,10 +586,10 @@ public class Setting<T> extends ToXContentToBytes {
             throw new ElasticsearchException(ex);
         }
     }
-    public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
-        return groupSetting(key, dynamic, scope, (s) -> {});
-    }
     public static Setting<Settings> groupSetting(String key, Property... properties) {
+        return groupSetting(key, (s) -> {}, properties);
+    }
+    public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
         return new Setting<Settings>(new GroupKey(key), (s) -> "", (s) -> null, properties) {
             @Override
             public boolean isGroupSetting() {

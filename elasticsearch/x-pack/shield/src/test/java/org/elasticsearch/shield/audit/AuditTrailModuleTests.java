@@ -35,7 +35,7 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put("shield.audit.enabled", false)
                 .build();
         SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
         Injector injector = Guice.createInjector(settingsModule, new AuditTrailModule(settings));
         AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
         assertThat(auditTrail, is(AuditTrail.NOOP));
@@ -57,7 +57,7 @@ public class AuditTrailModuleTests extends ESTestCase {
         ThreadPool pool = new ThreadPool("testLogFile");
         try {
             SettingsModule settingsModule = new SettingsModule(settings);
-            settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, false, Setting.Scope.CLUSTER));
+            settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
             Injector injector = Guice.createInjector(
                     settingsModule,
                     new NetworkModule(new NetworkService(settings), settings, false, null) {
@@ -89,8 +89,8 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put("client.type", "node")
                 .build();
         SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString("shield.audit.outputs", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString("shield.audit.outputs", Setting.Property.NodeScope));
         try {
             Guice.createInjector(settingsModule, new AuditTrailModule(settings));
             fail("Expect initialization to fail when an unknown audit trail output is configured");

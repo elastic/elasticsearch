@@ -94,7 +94,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Setting.Scope.CLUSTER;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class Watcher {
@@ -102,9 +101,9 @@ public class Watcher {
     public static final String NAME = "watcher";
 
     public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
-            new Setting<>("index.watcher.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
+            new Setting<>("index.watcher.plugin.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
-            new Setting<>("index.watcher.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
+            new Setting<>("index.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -191,28 +190,28 @@ public class Watcher {
         module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
         module.registerSetting(INDEX_WATCHER_VERSION_SETTING);
         module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
-        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, CLUSTER));
-        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, CLUSTER));
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, false, CLUSTER));
+        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
+        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
+        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
         module.registerSetting(SecretService.Secure.ENCRYPT_SENSITIVE_DATA_SETTING);
 
         // TODO add real settings for these
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", false, CLUSTER));
-        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", false, CLUSTER));
-        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.start_immediately", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", Setting.Property.NodeScope));
+        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.start_immediately", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", Setting.Property.NodeScope));
 
         module.registerSettingsFilter("watcher.actions.email.service.account.*.smtp.password");
         module.registerSettingsFilter("watcher.actions.slack.service.account.*.url");

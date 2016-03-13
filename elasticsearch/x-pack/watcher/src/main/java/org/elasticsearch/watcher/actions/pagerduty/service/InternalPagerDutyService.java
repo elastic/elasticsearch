@@ -18,7 +18,7 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 public class InternalPagerDutyService extends AbstractLifecycleComponent<PagerDutyService> implements PagerDutyService {
 
     public static final Setting<Settings> PAGERDUTY_ACCOUNT_SETTING =
-            Setting.groupSetting("watcher.actions.pagerduty.service.", true, Setting.Scope.CLUSTER);
+            Setting.groupSetting("watcher.actions.pagerduty.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final HttpClient httpClient;
     private volatile PagerDutyAccounts accounts;

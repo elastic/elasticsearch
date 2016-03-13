@@ -177,25 +177,25 @@ public class Shield {
         settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_DENY_SETTING);
         XPackPlugin.registerFeatureEnabledSettings(settingsModule, NAME, true);
         XPackPlugin.registerFeatureEnabledSettings(settingsModule, DLS_FLS_FEATURE, true);
-        settingsModule.registerSetting(Setting.groupSetting("shield.audit.", false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.listSetting("shield.hide_settings", Collections.emptyList(), Function.identity(), false,
-                Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.groupSetting("shield.ssl.", false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.groupSetting("shield.authc.", false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString("shield.authz.store.files.roles", false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString("shield.system_key.file", false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.groupSetting("shield.audit.", Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.listSetting("shield.hide_settings", Collections.emptyList(), Function.identity(),
+                Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.groupSetting("shield.ssl.", Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.groupSetting("shield.authc.", Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString("shield.authz.store.files.roles", Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString("shield.system_key.file", Setting.Property.NodeScope));
         settingsModule.registerSetting(Setting.boolSetting(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING,
-                ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT, false, Setting.Scope.CLUSTER));
+                ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT, Setting.Property.NodeScope));
         // FIXME need to register a real setting with the defaults here
         settingsModule.registerSetting(Setting.simpleString(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING,
-                false, Setting.Scope.CLUSTER));
+                Setting.Property.NodeScope));
         settingsModule.registerSetting(Setting.boolSetting(ShieldNettyTransport.TRANSPORT_SSL_SETTING,
-                ShieldNettyTransport.TRANSPORT_SSL_DEFAULT, false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, false,
-                Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString("shield.user", false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString("shield.encryption_key.algorithm", false, Setting.Scope.CLUSTER));
-        settingsModule.registerSetting(Setting.simpleString("shield.encryption.algorithm", false, Setting.Scope.CLUSTER));
+                ShieldNettyTransport.TRANSPORT_SSL_DEFAULT, Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING,
+                Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString("shield.user", Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString("shield.encryption_key.algorithm", Setting.Property.NodeScope));
+        settingsModule.registerSetting(Setting.simpleString("shield.encryption.algorithm", Setting.Property.NodeScope));
 
         String[] asArray = settings.getAsArray("shield.hide_settings");
         for (String pattern : asArray) {

@@ -134,7 +134,7 @@ public class XPackPlugin extends Plugin {
     public void onModule(SettingsModule module) {
 
         // we add the `xpack.version` setting to all internal indices
-        module.registerSetting(Setting.simpleString("index.xpack.version", false, Setting.Scope.INDEX));
+        module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         shield.onModule(module);
         marvel.onModule(module);
@@ -217,8 +217,8 @@ public class XPackPlugin extends Plugin {
      *          {@code "<feature>.enabled": true | false}
      */
     public static void registerFeatureEnabledSettings(SettingsModule settingsModule, String featureName, boolean defaultValue) {
-        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
         settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
-                defaultValue, false, Setting.Scope.CLUSTER));
+                defaultValue, Setting.Property.NodeScope));
     }
 }

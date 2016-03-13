@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.graph;
 
-import static org.elasticsearch.common.settings.Setting.Scope.CLUSTER;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,7 +71,7 @@ public class Graph extends Plugin {
     }    
     
     public void onModule(SettingsModule module) {
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(NAME), true, false, CLUSTER));
+        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(NAME), true, Setting.Property.NodeScope));
     }    
     
 

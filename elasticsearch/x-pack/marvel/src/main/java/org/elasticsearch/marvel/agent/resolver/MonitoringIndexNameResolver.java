@@ -153,7 +153,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
     public static abstract class Timestamped<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
 
         public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format","YYYY.MM.dd",
-                Function.identity(), false, Setting.Scope.CLUSTER);
+                Function.identity(), Setting.Property.NodeScope);
 
         private final String id;
         private final DateTimeFormatter formatter;

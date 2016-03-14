@@ -40,6 +40,9 @@ class NodeInfo {
     /** root directory all node files and operations happen under */
     File baseDir
 
+    /** shared data directory all nodes share */
+    File sharedDir
+
     /** the pid file the node will use */
     File pidFile
 
@@ -89,9 +92,10 @@ class NodeInfo {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** Creates a node to run as part of a cluster for the given task */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.sharedDir = sharedDir
         clusterName = "${task.path.replace(':', '_').substring(1)}"
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')

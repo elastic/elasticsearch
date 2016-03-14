@@ -53,12 +53,15 @@ class ClusterFormationTasks {
             // no need to add cluster formation tasks if the task won't run!
             return
         }
-        // first we remove everything in the cluster directory to ensure there are no leftovers in repos or anything
-        // this also forces unpacking of nodes and wipes logfiles etc. to prevent leftovers along those lines
+        File sharedDir = new File(project.buildDir, "cluster/shared")
+        // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
         // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
         // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${task.name}#prepareCluster.clean", type: Delete, dependsOn: task.dependsOn.collect()) {
-            delete new File(project.buildDir, "cluster");
+        Task cleanup = project.tasks.create(name: "${task.name}#prepareCluster.cleanShared", type: Delete, dependsOn: task.dependsOn.collect()) {
+            delete sharedDir
+            doLast {
+                sharedDir.mkdirs()
+            }
         }
         List<Task> startTasks = [cleanup]
         List<NodeInfo> nodes = []
@@ -93,7 +96,7 @@ class ClusterFormationTasks {
                 elasticsearchVersion = config.bwcVersion
                 configuration = project.configurations.elasticsearchBwcDistro
             }
-            NodeInfo node = new NodeInfo(config, i, project, task, elasticsearchVersion)
+            NodeInfo node = new NodeInfo(config, i, project, task, elasticsearchVersion, sharedDir)
             if (i == 0) {
                 if (config.seedNodePortsFile != null) {
                     // we might allow this in the future to be set but for now we are the only authority to set this!
@@ -252,8 +255,8 @@ class ClusterFormationTasks {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'pidfile'                      : node.pidFile,
-                'path.repo'                    : "${node.baseDir}/../repo",
-                'path.shared_data'             : "${node.baseDir}/../",
+                'path.repo'                    : "${node.sharedDir}/repo",
+                'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
                 'node.testattr'                : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'

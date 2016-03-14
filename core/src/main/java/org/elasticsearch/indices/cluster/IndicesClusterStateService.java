@@ -188,15 +188,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         // handle closed indices, since they are not allocated on a node once they are closed
         // so applyDeletedIndices might not take them into account
         for (IndexService indexService : indicesService) {
-            String index = indexService.index().getName();
+            Index index = indexService.index();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 for (Integer shardId : indexService.shardIds()) {
-                    logger.debug("[{}][{}] removing shard (index is closed)", index, shardId);
+                    logger.debug("{}[{}] removing shard (index is closed)", index, shardId);
                     try {
                         indexService.removeShard(shardId, "removing shard (index is closed)");
                     } catch (Throwable e) {
-                        logger.warn("[{}] failed to remove shard (index is closed)", e, index);
+                        logger.warn("{} failed to remove shard (index is closed)", e, index);
                     }
                 }
             }
@@ -238,13 +238,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 indexSettings = idxService.getIndexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else {
-                final IndexMetaData metaData = previousState.metaData().index(index);
-                assert metaData != null;
+                final IndexMetaData metaData = previousState.metaData().getIndexSafe(index);
                 indexSettings = new IndexSettings(metaData, settings);
                 indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
             }
             try {
-                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index.getName(), indexSettings, localNodeId);
+                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
             } catch (Throwable e) {
                 logger.debug("failed to send to master index {} deleted event", e, index);
             }
@@ -260,15 +259,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         IntHashSet newShardIds = new IntHashSet();
         for (IndexService indexService : indicesService) {
-            String indexName = indexService.index().getName();
-            IndexMetaData indexMetaData = event.state().metaData().index(indexName);
+            Index index = indexService.index();
+            IndexMetaData indexMetaData = event.state().metaData().getIndexSafe(index);
             if (indexMetaData == null) {
                 continue;
             }
             // now, go over and delete shards that needs to get deleted
             newShardIds.clear();
             for (ShardRouting shard : routingNode) {
-                if (shard.index().getName().equals(indexName)) {
+                if (shard.index().equals(index)) {
                     newShardIds.add(shard.id());
                 }
             }
@@ -276,14 +275,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (!newShardIds.contains(existingShardId)) {
                     if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] removing shard (index is closed)", indexName, existingShardId);
+                            logger.debug("{}[{}] removing shard (index is closed)", index, existingShardId);
                         }
                         indexService.removeShard(existingShardId, "removing shard (index is closed)");
                     } else {
                         // we can just remove the shard, without cleaning it locally, since we will clean it
                         // when all shards are allocated in the IndicesStore
                         if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] removing shard (not allocated)", indexName, existingShardId);
+                            logger.debug("{}[{}] removing shard (not allocated)", index, existingShardId);
                         }
                         indexService.removeShard(existingShardId, "removing shard (not allocated)");
                     }
@@ -300,7 +299,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         for (ShardRouting shard : routingNode) {
             if (!indicesService.hasIndex(shard.index())) {
-                final IndexMetaData indexMetaData = event.state().metaData().index(shard.index());
+                final IndexMetaData indexMetaData = event.state().metaData().getIndexSafe(shard.index());
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] creating index", indexMetaData.getIndex());
                 }

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -115,7 +116,13 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
                     ShardId shardId = indexShardRoutingTable.shardId();
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
-                    IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(event.state().getMetaData().index(indexRoutingTable.getIndex()), settings);
+                    final IndexSettings indexSettings;
+                    if (indexService == null) {
+                        IndexMetaData indexMetaData = event.state().getMetaData().getIndexSafe(indexRoutingTable.getIndex());
+                        indexSettings = new IndexSettings(indexMetaData, settings);
+                    } else {
+                        indexSettings = indexService.getIndexSettings();
+                    }
                     if (indicesService.canDeleteShardContent(shardId, indexSettings)) {
                         deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                     }
@@ -164,7 +171,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private void deleteShardIfExistElseWhere(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
-        String indexUUID = state.getMetaData().index(indexShardRoutingTable.shardId().getIndex()).getIndexUUID();
+        String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
             // Node can't be null, because otherwise shardCanBeDeleted() would have returned false

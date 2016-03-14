@@ -53,7 +53,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -63,7 +63,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         @SuppressWarnings("unchecked")
                 ImmutableOpenMap<String, List<AliasMetaData>> result = (ImmutableOpenMap) state.metaData().findAliases(request.aliases(), concreteIndices);
         listener.onResponse(new GetAliasesResponse(result));

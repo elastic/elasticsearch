@@ -84,20 +84,10 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
         private static final FormatDateTimeFormatter EPOCH_MILLIS_PARSER = Joda.forPattern("epoch_millis");
 
-        public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter,
-                                                  Version version) throws TimestampParsingException {
+        public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
             try {
-                // no need for unix timestamp parsing in 2.x
-                FormatDateTimeFormatter formatter = version.onOrAfter(Version.V_2_0_0_beta1) ? dateTimeFormatter : EPOCH_MILLIS_PARSER;
-                return Long.toString(formatter.parser().parseMillis(timestampAsString));
+                return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
             } catch (RuntimeException e) {
-                if (version.before(Version.V_2_0_0_beta1)) {
-                    try {
-                        return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
-                    } catch (RuntimeException e1) {
-                        throw new TimestampParsingException(timestampAsString, e1);
-                    }
-                }
                 throw new TimestampParsingException(timestampAsString, e);
             }
         }

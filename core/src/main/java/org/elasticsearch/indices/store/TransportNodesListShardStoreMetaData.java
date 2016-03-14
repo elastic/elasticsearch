@@ -134,7 +134,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
         }
-        IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.getIndexName());
+        IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.getIndex());
         if (metaData == null) {
             return new NodeStoreFilesMetaData(clusterService.localNode(), null);
         }
@@ -165,7 +165,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 }
             }
             // try and see if we an list unallocated
-            IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndexName());
+            IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
             if (metaData == null) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }

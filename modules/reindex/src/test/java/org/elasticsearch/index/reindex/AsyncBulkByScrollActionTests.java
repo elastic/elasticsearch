@@ -19,6 +19,18 @@
 
 package org.elasticsearch.index.reindex;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +38,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -69,17 +82,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import static java.util.Collections.singleton;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
@@ -413,6 +416,32 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(defaultBackoffBeforeFailing, millis);
     }
 
+    public void testRefreshIsFalseByDefault() throws Exception {
+        refreshTestCase(null, false);
+    }
+
+    public void testRefreshFalseDoesntMakeVisible() throws Exception {
+        refreshTestCase(false, false);
+    }
+
+    public void testRefreshTrueMakesVisible() throws Exception {
+        refreshTestCase(true, true);
+    }
+
+    private void refreshTestCase(Boolean refresh, boolean shouldRefresh) {
+        if (refresh != null) {
+            mainRequest.setRefresh(refresh);
+        }
+        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
+        action.addDestinationIndices(singleton("foo"));
+        action.startNormalTermination(Collections.<Failure>emptyList(), Collections.<ShardSearchFailure>emptyList(), false);
+        if (shouldRefresh) {
+            assertArrayEquals(new String[] {"foo"}, client.lastRefreshRequest.get().indices());
+        } else {
+            assertNull("No refresh was attempted", client.lastRefreshRequest.get());
+        }
+    }
+
     public void testCancelBeforeInitialSearch() throws Exception {
         cancelTaskCase(new Consumer<DummyAbstractAsyncBulkByScrollAction>() {
             @Override
@@ -471,6 +500,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         });
         // This wouldn't return if we called refresh - the action would hang waiting for the refresh that we haven't mocked.
+        assertNull("No refresh was attempted", client.lastRefreshRequest.get());
     }
 
     public void testRefuseToRunWithOldNodes() {
@@ -543,6 +573,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         private final AtomicInteger bulksAttempts = new AtomicInteger();
         private final AtomicReference<SearchRequest> lastSentSearchRequest = new AtomicReference<>();
         private final AtomicReference<SearchScrollRequest> lastSentSearchScrollRequest = new AtomicReference<>();
+        private final AtomicReference<RefreshRequest> lastRefreshRequest = new AtomicReference<>();
 
         private int bulksToReject = 0;
 
@@ -563,6 +594,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
             if (request instanceof SearchScrollRequest) {
                 lastSentSearchScrollRequest.set((SearchScrollRequest) request);
+                return;
+            }
+            if (request instanceof RefreshRequest) {
+                lastRefreshRequest.set((RefreshRequest) request);
+                listener.onResponse(null);
                 return;
             }
             if (request instanceof ClearScrollRequest) {

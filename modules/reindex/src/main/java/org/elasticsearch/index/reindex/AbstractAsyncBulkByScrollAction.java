@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -268,9 +269,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
                 }
                 // Track the indexes we've seen so we can refresh them if requested
-                destinationIndices.add(item.getIndex());
+                destinationIndicesThisBatch.add(item.getIndex());
             }
-            destinationIndices.addAll(destinationIndicesThisBatch);
+            addDestinationIndices(destinationIndicesThisBatch);
 
             if (false == failures.isEmpty()) {
                 startNormalTermination(unmodifiableList(failures), Collections.<ShardSearchFailure>emptyList(), false);
@@ -320,7 +321,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     void startNormalTermination(final List<Failure> indexingFailures, final List<ShardSearchFailure> searchFailures,
             final boolean timedOut) {
-        if (false == mainRequest.isRefresh()) {
+        if (task.isCancelled() || false == mainRequest.isRefresh()) {
             finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
         }
@@ -390,6 +391,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     BackoffPolicy backoffPolicy() {
         return exponentialBackoff(mainRequest.getRetryBackoffInitialTime(), mainRequest.getMaxRetries());
+    }
+
+    /**
+     * Add to the list of indices that were modified by this request. This is the list of indices refreshed at the end of the request if the
+     * request asks for a refresh.
+     */
+    void addDestinationIndices(Collection<String> indices) {
+        destinationIndices.addAll(indices);
     }
 
     /**

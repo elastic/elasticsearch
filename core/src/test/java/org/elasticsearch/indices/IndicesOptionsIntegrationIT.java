@@ -65,6 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
@@ -685,7 +686,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         try {
             verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(Settings.builder().put("e", "f")), false);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices [[barbaz]]"));
+            assertThat(e.getMessage(), startsWith("Can't update non dynamic settings [[index.e]] for open indices [[barbaz"));
         }
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }

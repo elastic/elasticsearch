@@ -87,7 +87,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     protected void masterOperation(IndicesShardStoresRequest request, ClusterState state, ActionListener<IndicesShardStoresResponse> listener) {
         final RoutingTable routingTables = state.routingTable();
         final RoutingNodes routingNodes = state.getRoutingNodes();
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         final Set<ShardId> shardIdsToFetch = new HashSet<>();
 
         logger.trace("using cluster state version [{}] to determine shards", state.version());
@@ -115,7 +115,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
     @Override
     protected ClusterBlockException checkBlock(IndicesShardStoresRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     private class AsyncShardStoresInfoFetches {

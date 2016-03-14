@@ -405,9 +405,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 if (table == null) {
                     continue;
                 }
-                final IndexMetaData indexMetaData = currentState.metaData().index(tribeIndex.getIndex());
+                //NOTE: we have to use the index name here since UUID are different even if the name is the same
+                final String indexName = tribeIndex.getIndex().getName();
+                final IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                 if (indexMetaData == null) {
-                    if (!droppedIndices.contains(tribeIndex.getIndex().getName())) {
+                    if (!droppedIndices.contains(indexName)) {
                         // a new index, add it, and add the tribe name as a setting
                         clusterStateChanged = true;
                         logger.info("[{}] adding index {}", tribeName, tribeIndex.getIndex());
@@ -425,7 +427,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                             logger.info("[{}] dropping index {} due to conflict with [{}]", tribeName, tribeIndex.getIndex(),
                                     existingFromTribe);
                             removeIndex(blocks, metaData, routingTable, tribeIndex);
-                            droppedIndices.add(tribeIndex.getIndex().getName());
+                            droppedIndices.add(indexName);
                         } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
                             // on conflict, prefer a tribe...
                             String preferredTribeName = onConflict.substring(ON_CONFLICT_PREFER.length());

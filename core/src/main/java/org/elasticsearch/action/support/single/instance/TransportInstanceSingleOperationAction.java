@@ -138,7 +138,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request));
+                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request).getName());
                 resolveRequest(observer.observedState(), request);
                 blockException = checkRequestBlock(observer.observedState(), request);
                 if (blockException != null) {

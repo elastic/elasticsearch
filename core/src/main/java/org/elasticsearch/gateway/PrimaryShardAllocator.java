@@ -94,7 +94,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
+            final IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
             // don't go wild here and create a new IndexSetting object for every shard this could cause a lot of garbage
             // on cluster restart if we allocate a boat load of shards
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {

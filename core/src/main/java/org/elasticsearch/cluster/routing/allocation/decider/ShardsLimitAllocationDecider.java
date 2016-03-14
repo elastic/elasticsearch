@@ -86,7 +86,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
+        IndexMetaData indexMd = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
         // execution
@@ -123,7 +123,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
+        IndexMetaData indexMd = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
         // execution

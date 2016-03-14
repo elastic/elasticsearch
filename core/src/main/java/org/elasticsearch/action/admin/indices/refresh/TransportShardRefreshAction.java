@@ -48,10 +48,9 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Basi
     @Inject
     public TransportShardRefreshAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                       MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
-                actionFilters, indexNameExpressionResolver, BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
+            actionFilters, indexNameExpressionResolver, BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
     }
 
     @Override

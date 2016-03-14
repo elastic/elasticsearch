@@ -1065,8 +1065,8 @@ public class TransportReplicationActionTests extends ESTestCase {
                ClusterService clusterService,
                ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
-                    new ShardStateAction(settings, clusterService, transportService, null, null, threadPool), null,
-                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), Request::new, Request::new, ThreadPool.Names.SAME);
+                    new ShardStateAction(settings, clusterService, transportService, null, null, threadPool),
+                new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
         @Override

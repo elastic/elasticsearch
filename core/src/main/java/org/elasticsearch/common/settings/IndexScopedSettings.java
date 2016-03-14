@@ -163,6 +163,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         return new IndexScopedSettings(settings, this, metaData);
     }
 
+    @Override
+    protected void validateSettingKey(Setting setting) {
+        if (setting.getKey().startsWith("index.") == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
+        }
+        super.validateSettingKey(setting);
+    }
+
     public boolean isPrivateSetting(String key) {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:

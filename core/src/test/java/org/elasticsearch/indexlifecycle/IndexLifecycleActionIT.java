@@ -61,18 +61,18 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexLifecycleActionIT extends ESIntegTestCase {
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
         Settings settings = settingsBuilder()
+                .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 11)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0s")
                 .build();
 
         // start one server
         logger.info("Starting sever1");
-        final String server_1 = internalCluster().startNode(settings);
+        final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test")).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
@@ -87,7 +87,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Starting server2");
         // start another server
-        String server_2 = internalCluster().startNode(settings);
+        String server_2 = internalCluster().startNode();
 
         // first wait for 2 nodes in the cluster
         logger.info("Running Cluster Health");
@@ -122,7 +122,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Starting server3");
         // start another server
-        String server_3 = internalCluster().startNode(settings);
+        String server_3 = internalCluster().startNode();
 
         // first wait for 3 nodes in the cluster
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();

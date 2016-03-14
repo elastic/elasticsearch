@@ -93,13 +93,14 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(scope = Scope.SUITE)
 public class ChildQuerySearchIT extends ESIntegTestCase {
+
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                // aggressive filter caching so that we can assert on the filter cache size
-                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
-                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-                .build();
+    public Settings indexSettings() {
+        return Settings.settingsBuilder().put(super.indexSettings())
+            // aggressive filter caching so that we can assert on the filter cache size
+            .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
+            .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+            .build();
     }
 
     public void testSelfReferentialIsForbidden() {

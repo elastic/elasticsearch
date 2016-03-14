@@ -85,6 +85,10 @@ public final class AnalysisRegistry implements Closeable {
         this.analyzers = Collections.unmodifiableMap(analyzerBuilder);
     }
 
+    public HunspellService getHunspellService() {
+        return hunspellService;
+    }
+
     /**
      * Returns a registered {@link TokenizerFactory} provider by name or <code>null</code> if the tokenizer was not registered
      */

@@ -223,7 +223,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testRandom() throws Exception {
-        boolean norms = false;
+        boolean norms = true;
         boolean stored = false;
         boolean enabled = true;
         boolean tv_stored = false;

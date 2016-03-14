@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;

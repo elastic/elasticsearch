@@ -125,7 +125,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;

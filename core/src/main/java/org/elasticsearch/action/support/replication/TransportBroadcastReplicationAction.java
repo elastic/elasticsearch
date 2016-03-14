@@ -97,7 +97,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                 @Override
                 public void onFailure(Throwable e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetaData().index(shardId.getIndexName()).getNumberOfReplicas() + 1;
+                    int totalNumCopies = clusterState.getMetaData().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ReplicationResponse.ShardInfo.Failure[] failures;
                     if (TransportActions.isShardNotAvailableException(e)) {
@@ -130,7 +130,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
      */
     protected List<ShardId> shards(Request request, ClusterState clusterState) {
         List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);
             if (indexMetaData != null) {

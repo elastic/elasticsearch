@@ -39,6 +39,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -130,6 +131,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string");
         boolean keyword = randomBoolean();
+        boolean hasNorms = keyword == false;
         boolean shouldUpgrade = true;
         if (keyword) {
             mapping.field("index", randomBoolean() ? "not_analyzed" : "no");
@@ -143,7 +145,12 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             mapping.field("doc_values", randomBoolean());
         }
         if (randomBoolean()) {
-            mapping.field("omit_norms", randomBoolean());
+            hasNorms = randomBoolean();
+            if (randomBoolean()) {
+                mapping.field("omit_norms", hasNorms == false);
+            } else {
+                mapping.field("norms", Collections.singletonMap("enabled", hasNorms));
+            }
         }
         if (randomBoolean()) {
             mapping.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
@@ -171,6 +178,9 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
                 assertThat(field, instanceOf(KeywordFieldMapper.class));
             } else {
                 assertThat(field, instanceOf(TextFieldMapper.class));
+            }
+            if (field.fieldType().indexOptions() != IndexOptions.NONE) {
+                assertEquals(hasNorms, field.fieldType().omitNorms() == false);
             }
         }
     }

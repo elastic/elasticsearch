@@ -41,6 +41,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
@@ -139,7 +140,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
 
-    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting("cluster.blocks.read_only", false, true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
+        Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
@@ -230,7 +232,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public boolean equalsAliases(MetaData other) {
         for (ObjectCursor<IndexMetaData> cursor : other.indices().values()) {
             IndexMetaData otherIndex = cursor.value;
-            IndexMetaData thisIndex= index(otherIndex.getIndex());
+            IndexMetaData thisIndex = index(otherIndex.getIndex());
             if (thisIndex == null) {
                 return false;
             }
@@ -455,7 +457,28 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     public IndexMetaData index(Index index) {
-        return index(index.getName());
+        IndexMetaData metaData = index(index.getName());
+        if (metaData != null && metaData.getIndexUUID().equals(index.getUUID())) {
+            return metaData;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the {@link IndexMetaData} for this index.
+     * @throws IndexNotFoundException if no metadata for this index is found
+     */
+    public IndexMetaData getIndexSafe(Index index) {
+        IndexMetaData metaData = index(index.getName());
+        if (metaData != null) {
+            if(metaData.getIndexUUID().equals(index.getUUID())) {
+                return metaData;
+            }
+            throw new IndexNotFoundException(index,
+                new IllegalStateException("index uuid doesn't match expected: [" + index.getUUID()
+                    + "] but got: [" + metaData.getIndexUUID() +"]"));
+        }
+        throw new IndexNotFoundException(index);
     }
 
     public ImmutableOpenMap<String, IndexMetaData> indices() {
@@ -486,20 +509,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return (T) customs.get(type);
     }
 
-    public int totalNumberOfShards() {
+
+    public int getTotalNumberOfShards() {
         return this.totalNumberOfShards;
     }
 
-    public int getTotalNumberOfShards() {
-        return totalNumberOfShards();
-    }
-
-    public int numberOfShards() {
-        return this.numberOfShards;
-    }
-
     public int getNumberOfShards() {
-        return numberOfShards();
+        return this.numberOfShards;
     }
 
     /**
@@ -840,6 +856,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
         public IndexMetaData get(String index) {
             return indices.get(index);
+        }
+
+        public IndexMetaData getSafe(Index index) {
+            IndexMetaData indexMetaData = get(index.getName());
+            if (indexMetaData != null) {
+                if(indexMetaData.getIndexUUID().equals(index.getUUID())) {
+                    return indexMetaData;
+                }
+                throw new IndexNotFoundException(index,
+                    new IllegalStateException("index uuid doesn't match expected: [" + index.getUUID()
+                        + "] but got: [" + indexMetaData.getIndexUUID() +"]"));
+            }
+            throw new IndexNotFoundException(index);
         }
 
         public Builder remove(String index) {

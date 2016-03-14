@@ -19,14 +19,10 @@
 
 package org.elasticsearch.index;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.ObjectSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
@@ -56,14 +52,13 @@ public final class IndexWarmer extends AbstractComponent {
 
     public static final Setting<MappedFieldType.Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading",
         MappedFieldType.Loading.LAZY.toString(), (s) -> MappedFieldType.Loading.parse(s, MappedFieldType.Loading.LAZY),
-        false, Setting.Scope.INDEX);
+        Property.IndexScope);
     private final List<Listener> listeners;
 
     IndexWarmer(Settings settings, ThreadPool threadPool, Listener... listeners) {
         super(settings);
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
-        list.add(new NormsWarmer(executor));
         list.add(new FieldDataWarmer(executor));
         for (Listener listener : listeners) {
             list.add(listener);
@@ -135,64 +130,6 @@ public final class IndexWarmer extends AbstractComponent {
         TerminationHandle warmNewReaders(IndexShard indexShard, Engine.Searcher searcher);
 
         TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher);
-    }
-
-    private static class NormsWarmer implements IndexWarmer.Listener {
-        private final Executor executor;
-        public NormsWarmer(Executor executor) {
-            this.executor = executor;
-        }
-        @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final MappedFieldType.Loading defaultLoading = indexShard.indexSettings().getValue(INDEX_NORMS_LOADING_SETTING);
-            final MapperService mapperService = indexShard.mapperService();
-            final ObjectSet<String> warmUp = new ObjectHashSet<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final String indexName = fieldMapper.fieldType().name();
-                    MappedFieldType.Loading normsLoading = fieldMapper.fieldType().normsLoading();
-                    if (normsLoading == null) {
-                        normsLoading = defaultLoading;
-                    }
-                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms()
-                        && normsLoading == MappedFieldType.Loading.EAGER) {
-                        warmUp.add(indexName);
-                    }
-                }
-            }
-
-            final CountDownLatch latch = new CountDownLatch(1);
-            // Norms loading may be I/O intensive but is not CPU intensive, so we execute it in a single task
-            executor.execute(() -> {
-                try {
-                    for (ObjectCursor<String> stringObjectCursor : warmUp) {
-                        final String indexName = stringObjectCursor.value;
-                        final long start = System.nanoTime();
-                        for (final LeafReaderContext ctx : searcher.reader().leaves()) {
-                            final NumericDocValues values = ctx.reader().getNormValues(indexName);
-                            if (values != null) {
-                                values.get(0);
-                            }
-                        }
-                        if (indexShard.warmerService().logger().isTraceEnabled()) {
-                            indexShard.warmerService().logger().trace("warmed norms for [{}], took [{}]", indexName,
-                                TimeValue.timeValueNanos(System.nanoTime() - start));
-                        }
-                    }
-                } catch (Throwable t) {
-                    indexShard.warmerService().logger().warn("failed to warm-up norms", t);
-                } finally {
-                    latch.countDown();
-                }
-            });
-
-            return () -> latch.await();
-        }
-
-        @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, final Engine.Searcher searcher) {
-            return TerminationHandle.NO_WAIT;
-        }
     }
 
     private static class FieldDataWarmer implements IndexWarmer.Listener {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -40,7 +41,7 @@ public class DiscoveryNodeService extends AbstractComponent {
 
     public static final Setting<Long> NODE_ID_SEED_SETTING =
             // don't use node.id.seed so it won't be seen as an attribute
-            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, false, Setting.Scope.CLUSTER);
+            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
     private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
     private final Version version;
 

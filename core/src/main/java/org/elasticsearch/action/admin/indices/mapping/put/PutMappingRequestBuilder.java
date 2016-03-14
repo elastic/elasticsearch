@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.util.Map;
 
@@ -37,6 +38,11 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
 
     public PutMappingRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    public PutMappingRequestBuilder setConcreteIndex(Index index) {
+        request.setConcreteIndex(index);
         return this;
     }
 

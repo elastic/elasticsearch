@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -49,8 +50,10 @@ import java.util.Map;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
-    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", false, false, Setting.Scope.INDEX);
-    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
+        Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
+    public static final Setting<Boolean> COERCE_SETTING =
+        Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
     public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final MappedFieldType fieldType;
@@ -200,11 +203,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T normsLoading(MappedFieldType.Loading normsLoading) {
-            this.fieldType.setNormsLoading(normsLoading);
-            return builder;
-        }
-
         public T fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;
@@ -240,6 +238,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
+            if (context.indexCreatedVersion().before(Version.V_5_0_0)) {
+                fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
+            }
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -416,15 +417,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (includeDefaults || fieldType().storeTermVectors() != defaultFieldType.storeTermVectors()) {
             builder.field("term_vector", termVectorOptionsToString(fieldType()));
         }
-        if (includeDefaults || fieldType().omitNorms() != defaultFieldType.omitNorms() || fieldType().normsLoading() != null) {
-            builder.startObject("norms");
-            if (includeDefaults || fieldType().omitNorms() != defaultFieldType.omitNorms()) {
-                builder.field("enabled", !fieldType().omitNorms());
-            }
-            if (fieldType().normsLoading() != null) {
-                builder.field(MappedFieldType.Loading.KEY, fieldType().normsLoading());
-            }
-            builder.endObject();
+        if (includeDefaults || fieldType().omitNorms() != defaultFieldType.omitNorms()) {
+            builder.field("norms", fieldType().omitNorms() == false);
         }
         if (indexed && (includeDefaults || fieldType().indexOptions() != defaultFieldType.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType().indexOptions()));

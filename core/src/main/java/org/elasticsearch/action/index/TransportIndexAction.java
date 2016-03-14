@@ -69,6 +69,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     private final TransportCreateIndexAction createIndexAction;
 
     private final ClusterService clusterService;
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
     public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -76,8 +77,9 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
                                 TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction,
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 AutoCreateIndex autoCreateIndex) {
-        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
-                actionFilters, indexNameExpressionResolver, IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX);
+        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
+            actionFilters, indexNameExpressionResolver, IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX);
+        this.mappingUpdatedAction = mappingUpdatedAction;
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
@@ -143,7 +145,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(MetaData metaData, IndexRequest request) throws Exception {
 
         // validate, if routing is required, that we got routing
-        IndexMetaData indexMetaData = metaData.index(request.shardId().getIndex());
+        IndexMetaData indexMetaData = metaData.getIndexSafe(request.shardId().getIndex());
         MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
@@ -205,8 +207,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
-            final String indexName = shardId.getIndexName();
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
+            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
             operation = prepareIndexOperationOnPrimary(request, indexShard);
             update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {

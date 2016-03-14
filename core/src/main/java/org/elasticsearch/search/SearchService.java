@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -111,11 +111,14 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-    public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING = Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
+        Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), Property.NodeScope);
+    public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), Property.NodeScope);
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
-    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING =
+        Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, Property.Dynamic, Property.NodeScope);
 
 
     private final ThreadPool threadPool;
@@ -192,7 +195,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     public void afterIndexClosed(Index index, Settings indexSettings) {
         // once an index is closed we can just clean up all the pending search context information
         // to release memory and let references to the filesystem go etc.
-        IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index.getName());
+        IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index);
         if (idxMeta != null && idxMeta.getState() == IndexMetaData.State.CLOSE) {
             // we need to check if it's really closed
             // since sometimes due to a relocation we already closed the shard and that causes the index to be closed

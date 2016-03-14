@@ -66,7 +66,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override

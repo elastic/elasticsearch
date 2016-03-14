@@ -19,12 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -87,6 +83,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -114,7 +111,7 @@ public interface Client extends ElasticsearchClient, Releasable {
             default:
                 throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
         }
-    }, false, Setting.Scope.CLUSTER);
+    }, Property.NodeScope);
 
     /**
      * The admin client that can be used to perform administrative operations.

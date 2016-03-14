@@ -554,10 +554,9 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-
-    public <T extends Writeable> T readOptionalWritable(Writeable.IOFunction<StreamInput, T> supplier) throws IOException {
+    public <T extends Writeable> T readOptionalWritable(Writeable.IOFunction<StreamInput, T> provider) throws IOException {
         if (readBoolean()) {
-            return supplier.apply(this);
+            return provider.apply(this);
         } else {
             return null;
         }

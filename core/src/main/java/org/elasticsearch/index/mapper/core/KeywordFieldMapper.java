@@ -93,14 +93,6 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         }
 
         @Override
-        protected void setupFieldType(BuilderContext context) {
-            if (!omitNormsSet && fieldType.boost() != 1.0f) {
-                fieldType.setOmitNorms(false);
-            }
-            super.setupFieldType(context);
-        }
-
-        @Override
         public KeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             KeywordFieldMapper fieldMapper = new KeywordFieldMapper(
@@ -127,6 +119,9 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
                     iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
+                    iterator.remove();
+                } else if (propName.equals("norms")) {
+                    builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode) == false);
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();

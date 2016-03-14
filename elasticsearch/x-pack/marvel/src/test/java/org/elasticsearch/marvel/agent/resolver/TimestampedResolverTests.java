@@ -80,7 +80,8 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
         }
     }
 
-    private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(MonitoredSystem id, int version, Settings settings) {
+    private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(MonitoredSystem id, int version,
+                                                                                          Settings settings) {
         return new MonitoringIndexNameResolver.Timestamped<MonitoringDoc>(id, version, settings) {
             @Override
             public String type(MonitoringDoc document) {

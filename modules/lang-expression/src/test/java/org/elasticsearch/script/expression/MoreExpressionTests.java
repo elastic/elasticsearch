@@ -385,7 +385,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                         AggregationBuilders.stats("double_agg").field("y")
                                 .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
                 .addAggregation(
-                        AggregationBuilders.stats("const_agg").field("x")
+                        AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
                                 .script(new Script("3.0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null))
                 );
 

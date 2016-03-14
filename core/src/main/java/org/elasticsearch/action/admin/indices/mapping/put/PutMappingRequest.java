@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -94,8 +95,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && (indices != null && indices.length > 0)) {
-            validationException = addValidationError("either concreteIndices or unresolved indices can be set concrete: [" + concreteIndex
-                + "] and indices: " + indices , validationException);
+            validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
+                + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
         }
         return validationException;
     }

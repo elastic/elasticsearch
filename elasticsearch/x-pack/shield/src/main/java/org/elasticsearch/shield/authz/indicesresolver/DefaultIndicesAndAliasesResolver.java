@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authz.indicesresolver;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -68,25 +69,35 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     }
 
     private Set<String> resolveIndicesAndAliases(User user, String action, IndicesRequest indicesRequest, MetaData metaData) {
-        if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
-            if (indicesRequest instanceof IndicesRequest.Replaceable) {
-                List<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-                List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(),
-                        metaData, authorizedIndices);
-                ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
-            } else {
-                assert !containsWildcards(indicesRequest) :
-                        "There are no external requests known to support wildcards that don't support replacing their indices";
+        final Set<String> indices;
+        if (indicesRequest instanceof PutMappingRequest
+                && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
+            /**
+             * This is a special case since PutMappingRequests from dynamic mapping updates have a concrete index
+             * if this index is set and it's in the list of authorized indices we are good and don't need to put
+             * the list of indices in there, if we do so it will result in an invalid request and the update will fail.
+             */
+            indices = Collections.singleton(((PutMappingRequest) indicesRequest).getConcreteIndex().getName());
+        } else {
+            if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
+                if (indicesRequest instanceof IndicesRequest.Replaceable) {
+                    List<String> authorizedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
+                            indicesRequest.indicesOptions(),
+                            metaData, authzService.authorizedIndicesAndAliases(user, action));
+                    ((IndicesRequest.Replaceable) indicesRequest).indices(authorizedIndices.toArray(new String[authorizedIndices.size()]));
+                } else {
+                    assert !containsWildcards(indicesRequest) :
+                            "There are no external requests known to support wildcards that don't support replacing their indices";
 
-                //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing
-                // their indices.
-                //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-                //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
-                // shard level requests.
+                    //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
+                    // replacing their indices.
+                    //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
+                    //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
+                    // shard level requests.
+                }
             }
+            indices = Sets.newHashSet(indicesRequest.indices());
         }
-
-        Set<String> indices = Sets.newHashSet(indicesRequest.indices());
 
         if (indicesRequest instanceof AliasesRequest) {
             //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases.

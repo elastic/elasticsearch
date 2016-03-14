@@ -53,6 +53,8 @@ public class PutMappingRequestTests extends ESTestCase {
         r.setConcreteIndex(new Index("foo", "bar"));
         ex = r.validate();
         assertNotNull("source validation should fail", ex);
-        assertTrue(ex.getMessage().contains("either concreteIndices or unresolved indices can be set"));
+        assertEquals(ex.getMessage(),
+            "Validation Failed: 1: either concrete index or unresolved indices can be set," +
+                " concrete index: [[foo/bar]] and indices: [myindex];");
     }
 }

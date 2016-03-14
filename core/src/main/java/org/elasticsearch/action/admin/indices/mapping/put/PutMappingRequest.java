@@ -94,7 +94,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && (indices != null && indices.length > 0)) {
-            validationException = addValidationError("either concreteIndices or unresolved indices can be set concrete: [" + concreteIndex + "] and indices: " + indices , validationException);
+            validationException = addValidationError("either concreteIndices or unresolved indices can be set concrete: [" + concreteIndex
+                + "] and indices: " + indices , validationException);
         }
         return validationException;
     }

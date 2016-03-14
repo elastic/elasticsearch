@@ -113,7 +113,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                 Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
-                new PluginsAndModules(), new IngestInfo());
+                new PluginsAndModules(), new IngestInfo(Collections.emptyList()));
 
     }
 

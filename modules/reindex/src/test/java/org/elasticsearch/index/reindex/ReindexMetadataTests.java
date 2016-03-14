@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
@@ -67,7 +68,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMe
 
     @Override
     protected TransportReindexAction.AsyncIndexBySearchAction action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, request(), listener());
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, Version.V_2_3_0, request(),
+                listener());
     }
 
     @Override

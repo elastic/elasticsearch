@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -60,9 +61,9 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
     private final CompiledScript script;
 
     public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
-            Client client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
+            Client client, ThreadPool threadPool, Version smallestNonClientVersion, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
-        super(task, logger, client, threadPool, mainRequest, firstSearchRequest, listener);
+        super(task, logger, client, threadPool, smallestNonClientVersion, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;
         if (mainRequest.getScript() == null) {
             script = null;

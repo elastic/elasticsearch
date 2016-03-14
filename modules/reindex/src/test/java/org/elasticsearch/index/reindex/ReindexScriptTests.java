@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -196,6 +197,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
 
     @Override
     protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, request(), listener());
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, Version.V_2_3_0, request(),
+                listener());
     }
 }

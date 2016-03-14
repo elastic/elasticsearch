@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -88,7 +90,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final Retry retry;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, Client client, ThreadPool threadPool,
-            Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+            Version smallestNonClientVersion, Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+        if (smallestNonClientVersion.before(Version.V_2_3_0)) {
+            throw new IllegalStateException(
+                    "Refusing to execute [" + mainRequest + "] because the entire cluster has not been upgraded to 2.3");
+        }
         this.task = task;
         this.logger = logger;
         this.client = client;

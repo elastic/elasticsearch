@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -92,6 +93,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
     private ThreadPool threadPool;
+    private Version smallestNonClientVersion;
     private DummyAbstractBulkByScrollRequest mainRequest;
     private SearchRequest firstSearchRequest;
     private PlainActionFuture<BulkIndexByScrollResponse> listener;
@@ -103,6 +105,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void setupForTest() {
         client = new MyMockClient(new NoOpClient(getTestName()));
         threadPool = new ThreadPool(getTestName());
+        smallestNonClientVersion = Version.V_2_3_0;
         mainRequest = new DummyAbstractBulkByScrollRequest();
         firstSearchRequest = null;
         listener = new PlainActionFuture<>();
@@ -452,6 +455,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         // This wouldn't return if we called refresh - the action would hang waiting for the refresh that we haven't mocked.
     }
 
+    public void testRefuseToRunWithOldNodes() {
+        smallestNonClientVersion = Version.V_2_2_0;
+        try {
+            new DummyAbstractAsyncBulkByScrollAction();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertEquals("Refusing to execute [DummyRequest] because the entire cluster has not been upgraded to 2.3", e.getMessage());
+        }
+    }
     private void cancelTaskCase(Consumer<DummyAbstractAsyncBulkByScrollAction> testMe) throws Exception {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         boolean previousScrollSet = usually();
@@ -476,7 +488,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private class DummyAbstractAsyncBulkByScrollAction
             extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, BulkIndexByScrollResponse> {
         public DummyAbstractAsyncBulkByScrollAction() {
-            super(AsyncBulkByScrollActionTests.this.task, logger, client, threadPool,
+            super(AsyncBulkByScrollActionTests.this.task, logger, client, threadPool, smallestNonClientVersion,
                     AsyncBulkByScrollActionTests.this.mainRequest, firstSearchRequest, listener);
         }
 
@@ -500,6 +512,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         @Override
         protected DummyAbstractBulkByScrollRequest self() {
             return this;
+        }
+
+        @Override
+        public String toString() {
+            return "DummyRequest";
         }
     }
 

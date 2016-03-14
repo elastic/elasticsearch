@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -73,7 +74,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<ReindexResponse> listener) {
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex,
                 clusterService.state());
-        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, request, listener).start();
+        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool,
+                clusterService.state().nodes().smallestNonClientNodeVersion(), request, listener).start();
     }
 
     @Override
@@ -116,8 +118,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
-                ThreadPool threadPool, ReindexRequest request, ActionListener<ReindexResponse> listener) {
-            super(task, logger, scriptService, client, threadPool, request, request.getSearchRequest(), listener);
+                ThreadPool threadPool, Version smallestNonClientVersion, ReindexRequest request, ActionListener<ReindexResponse> listener) {
+            super(task, logger, scriptService, client, threadPool, smallestNonClientVersion, request, request.getSearchRequest(), listener);
         }
 
         @Override

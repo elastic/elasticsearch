@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -48,15 +50,17 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+    private final ClusterService clusterService;
     private final Client client;
     private final ScriptService scriptService;
 
     @Inject
     public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            ScriptService scriptService) {
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client,
+            TransportService transportService, ScriptService scriptService) {
         super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, UpdateByQueryRequest.class);
+        this.clusterService = clusterService;
         this.client = client;
         this.scriptService = scriptService;
     }
@@ -64,7 +68,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request,
             ActionListener<BulkIndexByScrollResponse> listener) {
-        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, request, listener).start();
+        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool,
+                clusterService.state().nodes().smallestNonClientNodeVersion(), request, listener).start();
     }
 
     @Override
@@ -77,8 +82,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
-                ThreadPool threadPool, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-            super(task, logger, scriptService, client, threadPool, request, request.getSearchRequest(), listener);
+                ThreadPool threadPool, Version smallestNonClientVersion, UpdateByQueryRequest request,
+                ActionListener<BulkIndexByScrollResponse> listener) {
+            super(task, logger, scriptService, client, threadPool, smallestNonClientVersion, request, request.getSearchRequest(), listener);
         }
 
         @Override

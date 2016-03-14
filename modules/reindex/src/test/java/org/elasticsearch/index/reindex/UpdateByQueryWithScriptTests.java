@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.util.Consumer;
 
@@ -58,7 +59,7 @@ public class UpdateByQueryWithScriptTests
 
     @Override
     protected AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool,
-                request(), listener());
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, Version.V_2_3_0, request(),
+                listener());
     }
 }

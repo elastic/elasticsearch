@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -39,7 +40,9 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     /**
      * Disables relocation of shards that are currently being snapshotted.
      */
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING = Setting.boolSetting("cluster.routing.allocation.snapshot.relocation_enabled", false, true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.snapshot.relocation_enabled", false,
+            Property.Dynamic, Property.NodeScope);
 
     private volatile boolean enableRelocation = false;
 

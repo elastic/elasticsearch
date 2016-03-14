@@ -19,15 +19,22 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -39,13 +46,6 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.file.Path;
-import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
@@ -222,11 +222,11 @@ final class Bootstrap {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
-        BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
-        CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
+        BootstrapCliParser parser = new BootstrapCliParser();
+        int status = parser.main(args, Terminal.DEFAULT);
 
-        if (CliTool.ExitStatus.OK != status) {
-            exit(status.status());
+        if (parser.shouldRun() == false || status != ExitCodes.OK) {
+            exit(status);
         }
 
         INSTANCE = new Bootstrap();
@@ -305,14 +305,6 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#err")
     private static void closeSysError() {
         System.err.close();
-    }
-
-    @SuppressForbidden(reason = "System#err")
-    private static void sysError(String line, boolean flush) {
-        System.err.println(line);
-        if (flush) {
-            System.err.flush();
-        }
     }
 
     private static void checkForCustomConfFile() {

@@ -34,6 +34,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -194,9 +195,9 @@ public class IndexModuleTests extends ESTestCase {
 
 
     public void testListener() throws IOException {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX);
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.IndexScope);
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings, booleanSetting), null, new AnalysisRegistry(null, environment));
-        Setting<Boolean> booleanSetting2 = Setting.boolSetting("foo.bar.baz", false, true, Setting.Scope.INDEX);
+        Setting<Boolean> booleanSetting2 = Setting.boolSetting("foo.bar.baz", false, Property.Dynamic, Property.IndexScope);
         AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         module.addSettingsUpdateConsumer(booleanSetting, atomicBoolean::set);
 

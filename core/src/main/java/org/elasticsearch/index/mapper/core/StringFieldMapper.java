@@ -157,13 +157,30 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                             fieldName);
                     final Object index = node.remove("index");
                     final boolean keyword = index != null && "analyzed".equals(index) == false;
-                    // upgrade the index setting
-                    node.put("index", "no".equals(index) == false);
+                    {
+                        // upgrade the index setting
+                        node.put("index", "no".equals(index) == false);
+                    }
+                    {
+                        // upgrade norms settings
+                        Object norms = node.remove("norms");
+                        if (norms instanceof Map) {
+                            norms = ((Map<?,?>) norms).get("enabled");
+                        }
+                        if (norms != null) {
+                            node.put("norms", TypeParsers.nodeBooleanValue("norms", norms, parserContext));
+                        }
+                        Object omitNorms = node.remove("omit_norms");
+                        if (omitNorms != null) {
+                            node.put("norms", TypeParsers.nodeBooleanValue("omit_norms", omitNorms, parserContext) == false);
+                        }
+                    }
                     if (keyword) {
                         return new KeywordFieldMapper.TypeParser().parse(fieldName, node, parserContext);
                     } else {
                         return new TextFieldMapper.TypeParser().parse(fieldName, node, parserContext);
                     }
+
                 }
                 throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
                         + "or [keyword] field instead for field [" + fieldName + "]");

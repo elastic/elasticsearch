@@ -50,6 +50,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
@@ -89,7 +90,9 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
-    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
+        Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
+            Property.Dynamic, Property.NodeScope);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
@@ -436,11 +439,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         } catch (Throwable e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
-                StringBuilder sb = new StringBuilder("failed to execute cluster state update in [").append(executionTime).append("], state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
-                sb.append(previousClusterState.nodes().prettyPrint());
-                sb.append(previousClusterState.routingTable().prettyPrint());
-                sb.append(previousClusterState.getRoutingNodes().prettyPrint());
-                logger.trace(sb.toString(), e);
+                logger.trace("failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}", e, executionTime, previousClusterState.version(), source,
+                    previousClusterState.nodes().prettyPrint(), previousClusterState.routingTable().prettyPrint(), previousClusterState.getRoutingNodes().prettyPrint());
             }
             warnAboutSlowTaskIfNeeded(executionTime, source);
             batchResult = ClusterStateTaskExecutor.BatchResult.<T>builder().failures(toExecute.stream().map(updateTask -> updateTask.task)::iterator, e).build(previousClusterState);
@@ -523,9 +523,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             newClusterState.status(ClusterState.ClusterStateStatus.BEING_APPLIED);
 
             if (logger.isTraceEnabled()) {
-                StringBuilder sb = new StringBuilder("cluster state updated, source [").append(source).append("]\n");
-                sb.append(newClusterState.prettyPrint());
-                logger.trace(sb.toString());
+                logger.trace("cluster state updated, source [{}]\n{}", source, newClusterState.prettyPrint());
             } else if (logger.isDebugEnabled()) {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), source);
             }
@@ -612,11 +610,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             warnAboutSlowTaskIfNeeded(executionTime, source);
         } catch (Throwable t) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            StringBuilder sb = new StringBuilder("failed to apply updated cluster state in ").append(executionTime).append(":\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.stateUUID()).append("], source [").append(source).append("]\n");
-            sb.append(newClusterState.nodes().prettyPrint());
-            sb.append(newClusterState.routingTable().prettyPrint());
-            sb.append(newClusterState.getRoutingNodes().prettyPrint());
-            logger.warn(sb.toString(), t);
+            logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}{}{}", t, executionTime,
+                newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.nodes().prettyPrint(),
+                newClusterState.routingTable().prettyPrint(), newClusterState.getRoutingNodes().prettyPrint());
             // TODO: do we want to call updateTask.onFailure here?
         }
 

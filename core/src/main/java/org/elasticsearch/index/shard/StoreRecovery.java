@@ -128,9 +128,8 @@ final class StoreRecovery {
             assert shardState != IndexShardState.CREATED && shardState != IndexShardState.RECOVERING : "recovery process of " + shardId + " didn't get to post_recovery. shardState [" + shardState + "]";
 
             if (logger.isTraceEnabled()) {
-                StringBuilder sb = new StringBuilder();
-                sb.append("recovery completed from ").append("shard_store").append(", took [").append(timeValueMillis(recoveryState.getTimer().time())).append("]\n");
                 RecoveryState.Index index = recoveryState.getIndex();
+                StringBuilder sb = new StringBuilder();
                 sb.append("    index    : files           [").append(index.totalFileCount()).append("] with total_size [")
                         .append(new ByteSizeValue(index.totalBytes())).append("], took[")
                         .append(TimeValue.timeValueMillis(index.time())).append("]\n");
@@ -142,7 +141,7 @@ final class StoreRecovery {
                         .append(timeValueMillis(recoveryState.getVerifyIndex().checkIndexTime())).append("]\n");
                 sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().recoveredOperations())
                         .append("], took [").append(TimeValue.timeValueMillis(recoveryState.getTranslog().time())).append("]");
-                logger.trace(sb.toString());
+                logger.trace("recovery completed from [shard_store], took [{}]\n{}", timeValueMillis(recoveryState.getTimer().time()), sb);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("recovery completed from [shard_store], took [{}]", timeValueMillis(recoveryState.getTimer().time()));
             }

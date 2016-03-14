@@ -270,7 +270,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     try {
                         channel.sendResponse(e);
                     } catch (Throwable e1) {
-                        logger.warn("Failed to send response for " + actionName, e1);
+                        logger.warn("Failed to send response for {}", e1, actionName);
                     }
                 }
             });
@@ -395,7 +395,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             try {
                 channel.sendResponse(t);
             } catch (IOException responseException) {
-                logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 logger.warn("actual Exception", t);
             }
         }
@@ -1107,7 +1107,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 try {
                     channel.sendResponse(finalResponse);
                 } catch (IOException responseException) {
-                    logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                    logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 }
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on all replicas [{}] for request [{}]", transportReplicaAction, shardId, replicaRequest);

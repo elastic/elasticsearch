@@ -35,6 +35,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledFuture;
 
+import static org.elasticsearch.common.settings.Setting.Property;
+import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
+
+
 /**
  * This component is responsible for connecting to nodes once they are added to the cluster state, and disconnect when they are
  * removed. Also, it periodically checks that all connections are still open and if needed restores them.
@@ -45,7 +49,7 @@ import java.util.concurrent.ScheduledFuture;
 public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConnectionsService> {
 
     public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
-            Setting.positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), false, Setting.Scope.CLUSTER);
+            positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);
     private final ThreadPool threadPool;
     private final TransportService transportService;
 

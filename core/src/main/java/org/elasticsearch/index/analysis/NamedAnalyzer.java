@@ -93,7 +93,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     public String toString() {
         return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
     }
-    
+
     /** It is an error if this is ever used, it means we screwed up! */
     static final ReuseStrategy ERROR_STRATEGY = new Analyzer.ReuseStrategy() {
         @Override

@@ -145,7 +145,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             }
             writer.addDocument(d);
         }
-        logger.debug(hundred + " " + ten + " " + five);
+        logger.debug("{} {} {}", hundred, ten, five);
         writer.forceMerge(1, true);
         LeafReaderContext context = refreshReader();
         String[] formats = new String[] { "paged_bytes"};

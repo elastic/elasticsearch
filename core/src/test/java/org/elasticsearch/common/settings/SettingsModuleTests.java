@@ -20,6 +20,10 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.settings.Setting.Property;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -45,13 +49,13 @@ public class SettingsModuleTests extends ModuleTestCase {
         {
             Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
             SettingsModule module = new SettingsModule(settings);
-            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
         {
             Settings settings = Settings.builder().put("some.custom.setting", "false").build();
             SettingsModule module = new SettingsModule(settings);
-            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
@@ -131,12 +135,11 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testRegisterSettingsFilter() {
         Settings settings = Settings.builder().put("foo.bar", "false").put("bar.foo", false).put("bar.baz", false).build();
         SettingsModule module = new SettingsModule(settings);
-        module.registerSetting(Setting.boolSetting("foo.bar", true, false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting("bar.foo", true, false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting("bar.baz", true, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("foo.bar", true, Property.NodeScope));
+        module.registerSetting(Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered));
+        module.registerSetting(Setting.boolSetting("bar.baz", true, Property.NodeScope));
 
         module.registerSettingsFilter("foo.*");
-        module.registerSettingsFilterIfMissing("bar.foo");
         try {
             module.registerSettingsFilter("bar.foo");
             fail();
@@ -148,5 +151,25 @@ public class SettingsModuleTests extends ModuleTestCase {
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("bar.baz"));
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().get("bar.baz").equals("false"));
 
+    }
+
+    public void testMutuallyExclusiveScopes() {
+        new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.NodeScope));
+        new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.IndexScope));
+
+        // Those should fail
+        try {
+            new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar"));
+            fail("No scope should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("No scope found for setting"));
+        }
+        // Those should fail
+        try {
+            new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope));
+            fail("Multiple scopes should fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+        }
     }
 }

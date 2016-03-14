@@ -71,7 +71,7 @@ public class TypeParsers {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TypeParsers.class));
     private static final Set<String> BOOLEAN_STRINGS = new HashSet<>(Arrays.asList("true", "false"));
 
-    private static boolean nodeBooleanValue(String name, Object node, Mapper.TypeParser.ParserContext parserContext) {
+    public static boolean nodeBooleanValue(String name, Object node, Mapper.TypeParser.ParserContext parserContext) {
         // Hook onto ParseFieldMatcher so that parsing becomes strict when setting index.query.parse.strict
         if (parserContext.parseFieldMatcher().isStrict()) {
             return XContentMapValues.nodeBooleanValue(node);
@@ -98,9 +98,6 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("coerce")) {
                 builder.coerce(nodeBooleanValue("coerce", propNode, parserContext));
-                iterator.remove();
-            } else if (propName.equals("omit_norms")) {
-                builder.omitNorms(nodeBooleanValue("omit_norms", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
@@ -187,6 +184,37 @@ public class TypeParsers {
         }
     }
 
+    public static boolean parseNorms(FieldMapper.Builder builder, String propName, Object propNode, Mapper.TypeParser.ParserContext parserContext) {
+        if (propName.equals("norms")) {
+            if (propNode instanceof Map) {
+                final Map<String, Object> properties = nodeMapValue(propNode, "norms");
+                for (Iterator<Entry<String, Object>> propsIterator = properties.entrySet().iterator(); propsIterator.hasNext();) {
+                    Entry<String, Object> entry2 = propsIterator.next();
+                    final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
+                    final Object propNode2 = entry2.getValue();
+                    if (propName2.equals("enabled")) {
+                        builder.omitNorms(!lenientNodeBooleanValue(propNode2));
+                        propsIterator.remove();
+                    } else if (propName2.equals(Loading.KEY)) {
+                        // ignore for bw compat
+                        propsIterator.remove();
+                    }
+                }
+                DocumentMapperParser.checkNoRemainingFields(propName, properties, parserContext.indexVersionCreated());
+                DEPRECATION_LOGGER.deprecated("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
+            } else {
+                builder.omitNorms(nodeBooleanValue("norms", propNode, parserContext) == false);
+            }
+            return true;
+        } else if (propName.equals("omit_norms")) {
+            builder.omitNorms(nodeBooleanValue("norms", propNode, parserContext));
+            DEPRECATION_LOGGER.deprecated("[omit_norms] is deprecated, please use [norms] instead with the opposite boolean value");
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     /**
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
@@ -194,6 +222,14 @@ public class TypeParsers {
     public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
+        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+            Map.Entry<String, Object> entry = iterator.next();
+            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final Object propNode = entry.getValue();
+            if (parseNorms(builder, propName, propNode, parserContext)) {
+                iterator.remove();
+            }
+        }
     }
 
     /**
@@ -217,24 +253,8 @@ public class TypeParsers {
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("omit_norms")) {
-                builder.omitNorms(nodeBooleanValue("omit_norms", propNode, parserContext));
-                iterator.remove();
-            } else if (propName.equals("norms")) {
-                final Map<String, Object> properties = nodeMapValue(propNode, "norms");
-                for (Iterator<Entry<String, Object>> propsIterator = properties.entrySet().iterator(); propsIterator.hasNext();) {
-                    Entry<String, Object> entry2 = propsIterator.next();
-                    final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
-                    final Object propNode2 = entry2.getValue();
-                    if (propName2.equals("enabled")) {
-                        builder.omitNorms(!lenientNodeBooleanValue(propNode2));
-                        propsIterator.remove();
-                    } else if (propName2.equals(Loading.KEY)) {
-                        builder.normsLoading(Loading.parse(nodeStringValue(propNode2, null), null));
-                        propsIterator.remove();
-                    }
-                }
-                DocumentMapperParser.checkNoRemainingFields(propName, properties, parserContext.indexVersionCreated());
+            } else if (parserContext.indexVersionCreated().before(Version.V_5_0_0)
+                    && parseNorms(builder, propName, propNode, parserContext)) {
                 iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
@@ -256,7 +276,7 @@ public class TypeParsers {
                         (indexVersionCreated.after(Version.V_2_0_1) && indexVersionCreated.before(Version.V_2_1_0))) {
                         throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] which is within a multi field.");
                     } else {
-                        ESLoggerFactory.getLogger("mapping [" + parserContext.type() + "]").warn("Found a copy_to in field [" + name + "] which is within a multi field. This feature has been removed and the copy_to will be removed from the mapping.");
+                        ESLoggerFactory.getLogger("mapping [" + parserContext.type() + "]").warn("Found a copy_to in field [{}] which is within a multi field. This feature has been removed and the copy_to will be removed from the mapping.", name);
                     }
                 } else {
                     parseCopyFields(propNode, builder);

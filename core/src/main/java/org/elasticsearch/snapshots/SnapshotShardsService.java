@@ -343,9 +343,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                 indexShardRepository.snapshot(snapshotId, shardId, snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("snapshot (").append(snapshotId.getSnapshot()).append(") completed to ").append(indexShardRepository).append(", took [").append(TimeValue.timeValueMillis(snapshotStatus.time())).append("]\n");
                     sb.append("    index    : version [").append(snapshotStatus.indexVersion()).append("], number_of_files [").append(snapshotStatus.numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.totalSize())).append("]\n");
-                    logger.debug(sb.toString());
+                    logger.debug("snapshot ({}) completed to {}, took [{}]\n{}", snapshotId.getSnapshot(), indexShardRepository,
+                        TimeValue.timeValueMillis(snapshotStatus.time()), sb);
                 }
             } finally {
                 indexShard.releaseSnapshot(snapshotIndexCommit);

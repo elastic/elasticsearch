@@ -46,6 +46,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -83,10 +84,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.intSetting("script.cache.max_size", 100, 0, false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
+        Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
+    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final String SCRIPT_INDEX = ".scripts";
-    public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING = Setting.boolSetting("script.auto_reload_enabled", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING =
+        Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope);
 
     private final String defaultLang;
 

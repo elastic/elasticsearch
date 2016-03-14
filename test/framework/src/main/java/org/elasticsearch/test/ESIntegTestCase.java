@@ -78,6 +78,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -198,7 +199,7 @@ import static org.hamcrest.Matchers.startsWith;
  * should be used, here is an example:
  * <pre>
  *
- * {@literal @}ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
+ * {@literal @}NodeScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
  * </pre>
@@ -209,7 +210,7 @@ import static org.hamcrest.Matchers.startsWith;
  * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
  * that are created before the tests start.
  *  <pre>
- * {@literal @}ClusterScope(scope=Scope.SUITE, numDataNodes=3)
+ * {@literal @}NodeScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
@@ -270,7 +271,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The value of this seed can be used to initialize a random context for a specific index.
      * It's set once per test via a generic index template.
      */
-    public static final Setting<Long> INDEX_TEST_SEED_SETTING = Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, false, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_TEST_SEED_SETTING =
+        Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, Property.IndexScope);
 
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the
@@ -883,7 +885,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
                         .append("] id [").append(hit.id()).append("]");
             }
-            logger.warn(sb.toString());
+            logger.warn("{}", sb);
             fail(failMsg);
         }
     }

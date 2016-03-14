@@ -36,7 +36,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,7 +49,6 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.process.ProcessProbe;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -137,20 +136,20 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     /**
      * Maximum number of data nodes that should run in an environment.
      */
-    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1, false,
-            Scope.CLUSTER);
+    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1,
+            Property.NodeScope);
 
     /**
      * If true automatically append node id to custom data paths.
      */
-    public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH = Setting.boolSetting("node.add_id_to_custom_path", true, false,
-            Scope.CLUSTER);
+    public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH =
+        Setting.boolSetting("node.add_id_to_custom_path", true, Property.NodeScope);
 
     /**
      * If true the [verbose] SegmentInfos.infoStream logging is sent to System.out.
      */
-    public static final Setting<Boolean> ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING = Setting
-            .boolSetting("node.enable_lucene_segment_infos_trace", false, false, Scope.CLUSTER);
+    public static final Setting<Boolean> ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING =
+        Setting.boolSetting("node.enable_lucene_segment_infos_trace", false, Property.NodeScope);
 
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
@@ -225,7 +224,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
             maybeLogPathDetails();
             maybeLogHeapDetails();
-            
+
             applySegmentInfosTrace(settings);
             assertCanWrite();
             success = true;
@@ -250,7 +249,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         // We do some I/O in here, so skip this if DEBUG/INFO are not enabled:
         if (logger.isDebugEnabled()) {
             // Log one line per path.data:
-            StringBuilder sb = new StringBuilder("node data locations details:");
+            StringBuilder sb = new StringBuilder();
             for (NodePath nodePath : nodePaths) {
                 sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
 
@@ -278,7 +277,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                     .append(fsPath.getType())
                     .append(']');
             }
-            logger.debug(sb.toString());
+            logger.debug("node data locations details:{}", sb);
         } else if (logger.isInfoEnabled()) {
             FsInfo.Path totFSPath = new FsInfo.Path();
             Set<String> allTypes = new HashSet<>();
@@ -306,14 +305,8 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             }
 
             // Just log a 1-line summary:
-            logger.info(String.format(Locale.ROOT,
-                                      "using [%d] data paths, mounts [%s], net usable_space [%s], net total_space [%s], spins? [%s], types [%s]",
-                                      nodePaths.length,
-                                      allMounts,
-                                      totFSPath.getAvailable(),
-                                      totFSPath.getTotal(),
-                                      toString(allSpins),
-                                      toString(allTypes)));
+            logger.info("using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], spins? [{}], types [{}]",
+                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allSpins), toString(allTypes));
         }
     }
 

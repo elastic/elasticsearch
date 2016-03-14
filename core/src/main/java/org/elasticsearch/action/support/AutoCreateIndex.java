@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -39,7 +40,8 @@ import java.util.List;
  */
 public final class AutoCreateIndex {
 
-    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING = new Setting<>("action.auto_create_index", "true", AutoCreate::new, false, Setting.Scope.CLUSTER);
+    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
+        new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope);
 
     private final boolean dynamicMappingDisabled;
     private final IndexNameExpressionResolver resolver;

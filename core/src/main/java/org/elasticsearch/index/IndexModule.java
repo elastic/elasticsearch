@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -65,13 +66,16 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
-    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>("index.store.type", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING =
+        new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope);
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     public static final String INDEX_QUERY_CACHE = "index";
     public static final String NONE_QUERY_CACHE = "none";
-    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING = new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING =
+        new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), Property.IndexScope);
     // for test purposes only
-    public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING = Setting.boolSetting("index.queries.cache.everything", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING =
+        Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
     private final AnalysisRegistry analysisRegistry;

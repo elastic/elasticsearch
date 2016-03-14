@@ -761,7 +761,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -817,7 +817,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -855,7 +855,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -889,7 +889,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
@@ -1448,7 +1448,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        logger.info("--> checking snapshot status for all currently running and snapshot with empty repository", blockedNode);
+        logger.info("--> checking snapshot status for all currently running and snapshot with empty repository");
         response = client.admin().cluster().prepareSnapshotStatus().execute().actionGet();
         assertThat(response.getSnapshots().size(), equalTo(1));
         snapshotStatus = response.getSnapshots().get(0);
@@ -1461,7 +1461,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        logger.info("--> checking that _current returns the currently running snapshot", blockedNode);
+        logger.info("--> checking that _current returns the currently running snapshot");
         GetSnapshotsResponse getResponse = client.admin().cluster().prepareGetSnapshots("test-repo").setCurrentSnapshot().execute().actionGet();
         assertThat(getResponse.getSnapshots().size(), equalTo(1));
         SnapshotInfo snapshotInfo = getResponse.getSnapshots().get(0);
@@ -1475,7 +1475,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> done");
 
 
-        logger.info("--> checking snapshot status again after snapshot is done", blockedNode);
+        logger.info("--> checking snapshot status again after snapshot is done");
         response = client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap").execute().actionGet();
         snapshotStatus = response.getSnapshots().get(0);
         assertThat(snapshotStatus.getIndices().size(), equalTo(1));
@@ -1486,11 +1486,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(indexStatus.getShardsStats().getDoneShards(), equalTo(snapshotInfo.successfulShards()));
         assertThat(indexStatus.getShards().size(), equalTo(snapshotInfo.totalShards()));
 
-        logger.info("--> checking snapshot status after it is done with empty repository", blockedNode);
+        logger.info("--> checking snapshot status after it is done with empty repository");
         response = client.admin().cluster().prepareSnapshotStatus().execute().actionGet();
         assertThat(response.getSnapshots().size(), equalTo(0));
 
-        logger.info("--> checking that _current no longer returns the snapshot", blockedNode);
+        logger.info("--> checking that _current no longer returns the snapshot");
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("_current").execute().actionGet().getSnapshots().isEmpty(), equalTo(true));
 
         try {
@@ -1862,41 +1862,44 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         } else {
             waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
         }
-        if (allowPartial) {
-            // partial snapshots allow close / delete operations
-            if (randomBoolean()) {
-                logger.info("--> delete index while partial snapshot is running");
-                client.admin().indices().prepareDelete("test-idx-1").get();
-            } else {
-                logger.info("--> close index while partial snapshot is running");
-                client.admin().indices().prepareClose("test-idx-1").get();
-            }
-        } else {
-            // non-partial snapshots do not allow close / delete operations on indices where snapshot has not been completed
-            if (randomBoolean()) {
-                try {
-                    logger.info("--> delete index while non-partial snapshot is running");
+        try {
+            if (allowPartial) {
+                // partial snapshots allow close / delete operations
+                if (randomBoolean()) {
+                    logger.info("--> delete index while partial snapshot is running");
                     client.admin().indices().prepareDelete("test-idx-1").get();
-                    fail("Expected deleting index to fail during snapshot");
-                } catch (IllegalArgumentException e) {
-                    assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [test-idx-1]"));
+                } else {
+                    logger.info("--> close index while partial snapshot is running");
+                    client.admin().indices().prepareClose("test-idx-1").get();
                 }
             } else {
-                try {
-                    logger.info("--> close index while non-partial snapshot is running");
-                    client.admin().indices().prepareClose("test-idx-1").get();
-                    fail("Expected closing index to fail during snapshot");
-                } catch (IllegalArgumentException e) {
-                    assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [test-idx-1]"));
+                // non-partial snapshots do not allow close / delete operations on indices where snapshot has not been completed
+                if (randomBoolean()) {
+                    try {
+                        logger.info("--> delete index while non-partial snapshot is running");
+                        client.admin().indices().prepareDelete("test-idx-1").get();
+                        fail("Expected deleting index to fail during snapshot");
+                    } catch (IllegalArgumentException e) {
+                        assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [test-idx-1]"));
+                    }
+                } else {
+                    try {
+                        logger.info("--> close index while non-partial snapshot is running");
+                        client.admin().indices().prepareClose("test-idx-1").get();
+                        fail("Expected closing index to fail during snapshot");
+                    } catch (IllegalArgumentException e) {
+                        assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [test-idx-1]"));
+                    }
                 }
             }
-        }
-        if (initBlocking) {
-            logger.info("--> unblock running master node");
-            unblockNode(internalCluster().getMasterName());
-        } else {
-            logger.info("--> unblock all data nodes");
-            unblockAllDataNodes("test-repo");
+        } finally {
+            if (initBlocking) {
+                logger.info("--> unblock running master node");
+                unblockNode(internalCluster().getMasterName());
+            } else {
+                logger.info("--> unblock all data nodes");
+                unblockAllDataNodes("test-repo");
+            }
         }
         logger.info("--> waiting for snapshot to finish");
         CreateSnapshotResponse createSnapshotResponse = future.get();
@@ -1946,24 +1949,27 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         blockAllDataNodes("test-repo");
         logger.info("--> execution will be blocked on all data nodes");
 
-        logger.info("--> start restore");
-        ListenableActionFuture<RestoreSnapshotResponse> restoreFut = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .execute();
-
-        logger.info("--> waiting for block to kick in");
-        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueSeconds(60));
-
-        logger.info("--> close index while restore is running");
+        final ListenableActionFuture<RestoreSnapshotResponse> restoreFut;
         try {
-            client.admin().indices().prepareClose("test-idx-1").get();
-            fail("Expected closing index to fail during restore");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [test-idx-1]"));
-        }
+            logger.info("--> start restore");
+            restoreFut = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+                .setWaitForCompletion(true)
+                .execute();
 
-        logger.info("--> unblocking all data nodes");
-        unblockAllDataNodes("test-repo");
+            logger.info("--> waiting for block to kick in");
+            waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
+
+            logger.info("--> close index while restore is running");
+            try {
+                client.admin().indices().prepareClose("test-idx-1").get();
+                fail("Expected closing index to fail during restore");
+            } catch (IllegalArgumentException e) {
+                assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [test-idx-1]"));
+            }
+        } finally {
+            logger.info("--> unblocking all data nodes");
+            unblockAllDataNodes("test-repo");
+        }
 
         logger.info("--> wait for restore to finish");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreFut.get();
@@ -2159,7 +2165,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     public void testListCorruptedSnapshot() throws Exception {
         Client client = client();
         Path repo = randomRepoPath();
-        logger.info("-->  creating repository at " + repo.toAbsolutePath());
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)

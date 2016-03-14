@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -52,20 +53,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
-    public static final Setting<Integer> EXPECTED_NODES_SETTING = Setting.intSetting(
-            "gateway.expected_nodes", -1, -1, false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING = Setting.intSetting(
-            "gateway.expected_data_nodes", -1, -1, false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> EXPECTED_MASTER_NODES_SETTING = Setting.intSetting(
-            "gateway.expected_master_nodes", -1, -1, false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING = Setting.positiveTimeSetting(
-            "gateway.recover_after_time", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> RECOVER_AFTER_NODES_SETTING = Setting.intSetting(
-            "gateway.recover_after_nodes", -1, -1, false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING = Setting.intSetting(
-            "gateway.recover_after_data_nodes", -1, -1, false, Setting.Scope.CLUSTER);
-    public static final Setting<Integer> RECOVER_AFTER_MASTER_NODES_SETTING = Setting.intSetting(
-            "gateway.recover_after_master_nodes", 0, 0, false, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> EXPECTED_NODES_SETTING =
+        Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING =
+        Setting.intSetting("gateway.expected_data_nodes", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> EXPECTED_MASTER_NODES_SETTING =
+        Setting.intSetting("gateway.expected_master_nodes", -1, -1, Property.NodeScope);
+    public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING =
+        Setting.positiveTimeSetting("gateway.recover_after_time", TimeValue.timeValueMillis(0), Property.NodeScope);
+    public static final Setting<Integer> RECOVER_AFTER_NODES_SETTING =
+        Setting.intSetting("gateway.recover_after_nodes", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING =
+        Setting.intSetting("gateway.recover_after_data_nodes", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> RECOVER_AFTER_MASTER_NODES_SETTING =
+        Setting.intSetting("gateway.recover_after_master_nodes", 0, 0, Property.NodeScope);
 
     public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
@@ -161,11 +162,14 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (state.nodes().masterNodeId() == null) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
-            logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+            logger.debug("not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
+                nodes.masterAndDataNodes().size(), recoverAfterNodes);
         } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
-            logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
+            logger.debug("not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
+                nodes.dataNodes().size(), recoverAfterDataNodes);
         } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
-            logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
+            logger.debug("not recovering from gateway, nodes_size (master) [{}] < recover_after_master_nodes [{}]",
+                nodes.masterNodes().size(), recoverAfterMasterNodes);
         } else {
             boolean enforceRecoverAfterTime;
             String reason;

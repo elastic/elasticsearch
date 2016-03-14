@@ -46,7 +46,15 @@ public class SortModeTest extends ESTestCase {
             assertEquals(mode, SortMode.fromString(mode.toString()));
             assertEquals(mode, SortMode.fromString(mode.toString().toUpperCase()));
         }
+    }
 
+    public void testParseNull() {
+        exceptionRule.expect(NullPointerException.class);
+        exceptionRule.expectMessage("input string is null");
+        SortMode.fromString(null);
+    }
+
+    public void testIllegalArgument() {
         exceptionRule.expect(IllegalArgumentException.class);
         exceptionRule.expectMessage("Unknown SortMode [xyz]");
         SortMode.fromString("xyz");

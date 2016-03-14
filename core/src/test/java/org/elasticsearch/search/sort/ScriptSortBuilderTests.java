@@ -20,8 +20,17 @@
 package org.elasticsearch.search.sort;
 
 
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 
@@ -59,7 +68,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
             result.order(original.order());
-            result.sortMode(original.sortMode());
+            if (original.sortMode() != null) {
+                result.sortMode(original.sortMode());
+            }
             result.setNestedFilter(original.getNestedFilter());
             result.setNestedPath(original.getNestedPath());
             return result;
@@ -86,6 +97,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         return result;
     }
 
+    @Rule
+    public ExpectedException exceptionRule = ExpectedException.none();
+
     public void testScriptSortType() {
         // we rely on these ordinals in serialization, so changing them breaks bwc.
         assertEquals(0, ScriptSortType.STRING.ordinal());
@@ -100,5 +114,128 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
+    }
+
+    public void testScriptSortTypeNull() {
+        exceptionRule.expect(NullPointerException.class);
+        exceptionRule.expectMessage("input string is null");
+        ScriptSortType.fromString(null);
+    }
+
+    public void testScriptSortTypeIllegalArgument() {
+        exceptionRule.expect(IllegalArgumentException.class);
+        exceptionRule.expectMessage("Unknown ScriptSortType [xyz]");
+        ScriptSortType.fromString("xyz");
+    }
+
+    public void testParseJson() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String scriptSort = "{\n" +
+                "\"_script\" : {\n" +
+                    "\"type\" : \"number\",\n" +
+                    "\"script\" : {\n" +
+                        "\"inline\": \"doc['field_name'].value * factor\",\n" +
+                        "\"params\" : {\n" +
+                            "\"factor\" : 1.1\n" +
+                            "}\n" +
+                    "},\n" +
+                    "\"mode\" : \"max\",\n" +
+                    "\"order\" : \"asc\"\n" +
+                "} }\n";
+        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        context.reset(parser);
+        ScriptSortBuilder builder = ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        assertEquals("doc['field_name'].value * factor", builder.script().getScript());
+        assertNull(builder.script().getLang());
+        assertEquals(1.1, builder.script().getParams().get("factor"));
+        assertEquals(ScriptType.INLINE, builder.script().getType());
+        assertEquals(ScriptSortType.NUMBER, builder.type());
+        assertEquals(SortOrder.ASC, builder.order());
+        assertEquals(SortMode.MAX, builder.sortMode());
+        assertNull(builder.getNestedFilter());
+        assertNull(builder.getNestedPath());
+    }
+
+    public void testParseJsonOldStyle() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String scriptSort = "{\n" +
+                "\"_script\" : {\n" +
+                    "\"type\" : \"number\",\n" +
+                    "\"script\" : \"doc['field_name'].value * factor\",\n" +
+                    "\"params\" : {\n" +
+                        "\"factor\" : 1.1\n" +
+                    "},\n" +
+                    "\"mode\" : \"max\",\n" +
+                    "\"order\" : \"asc\"\n" +
+                "} }\n";
+        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        context.reset(parser);
+        ScriptSortBuilder builder = ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        assertEquals("doc['field_name'].value * factor", builder.script().getScript());
+        assertNull(builder.script().getLang());
+        assertEquals(1.1, builder.script().getParams().get("factor"));
+        assertEquals(ScriptType.INLINE, builder.script().getType());
+        assertEquals(ScriptSortType.NUMBER, builder.type());
+        assertEquals(SortOrder.ASC, builder.order());
+        assertEquals(SortMode.MAX, builder.sortMode());
+        assertNull(builder.getNestedFilter());
+        assertNull(builder.getNestedPath());
+    }
+
+    public void testParseBadFieldNameExceptions() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String scriptSort = "{\"_script\" : {" + "\"bad_field\" : \"number\"" + "} }";
+        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        context.reset(parser);
+        exceptionRule.expect(ParsingException.class);
+        exceptionRule.expectMessage("failed to parse field [bad_field]");
+        ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+    }
+
+    public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+
+        String scriptSort = "{\"_script\" : {" + "\"bad_field\" : { \"order\" : \"asc\" } } }";
+        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        context.reset(parser);
+        exceptionRule.expect(ParsingException.class);
+        exceptionRule.expectMessage("failed to parse field [bad_field]");
+        ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+    }
+
+    public void testParseUnexpectedToken() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+
+        String scriptSort = "{\"_script\" : {" + "\"script\" : [ \"order\" : \"asc\" ] } }";
+        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        context.reset(parser);
+        exceptionRule.expect(ParsingException.class);
+        exceptionRule.expectMessage("unexpected token [START_ARRAY]");
+        ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
     }
 }

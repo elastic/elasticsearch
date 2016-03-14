@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,8 +60,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
     private ScriptSortType type;
 
-    // TODO make this an enum
-    private String sortMode;
+    private SortMode sortMode;
 
     private QueryBuilder<?> nestedFilter;
 
@@ -109,7 +109,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */
-    public ScriptSortBuilder sortMode(String sortMode) {
+    public ScriptSortBuilder sortMode(SortMode sortMode) {
+        Objects.requireNonNull(sortMode, "sort mode cannot be null.");
         this.sortMode = sortMode;
         return this;
     }
@@ -117,7 +118,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     /**
      * Get the sort mode.
      */
-    public String sortMode() {
+    public SortMode sortMode() {
         return this.sortMode;
     }
 
@@ -179,7 +180,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         ParseFieldMatcher parseField = context.parseFieldMatcher();
         Script script = null;
         ScriptSortType type = null;
-        String sortMode = null;
+        SortMode sortMode = null;
         SortOrder order = null;
         QueryBuilder<?> nestedFilter = null;
         String nestedPath = null;
@@ -197,6 +198,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
                     params = parser.map();
                 } else if (parseField.match(currentName, NESTED_FILTER_FIELD)) {
                     nestedFilter = context.parseInnerQueryBuilder();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseField.match(currentName, ORDER_FIELD)) {
@@ -206,10 +209,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
                 } else if (parseField.match(currentName, TYPE_FIELD)) {
                     type = ScriptSortType.fromString(parser.text());
                 } else if (parseField.match(currentName, SORTMODE_FIELD)) {
-                    sortMode = parser.text();
+                    sortMode = SortMode.fromString(parser.text());
                 } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unexpected token [" + token + "]");
             }
         }
 
@@ -266,7 +273,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         script.writeTo(out);
         type.writeTo(out);
         order.writeTo(out);
-        out.writeOptionalString(sortMode);
+        out.writeBoolean(sortMode != null);
+        if (sortMode != null) {
+            sortMode.writeTo(out);
+        }
         out.writeOptionalString(nestedPath);
         boolean hasNestedFilter = nestedFilter != null;
         out.writeBoolean(hasNestedFilter);
@@ -279,7 +289,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     public ScriptSortBuilder readFrom(StreamInput in) throws IOException {
         ScriptSortBuilder builder = new ScriptSortBuilder(Script.readScript(in), ScriptSortType.PROTOTYPE.readFrom(in));
         builder.order(SortOrder.readOrderFrom(in));
-        builder.sortMode = in.readOptionalString();
+        if (in.readBoolean()) {
+            builder.sortMode(SortMode.PROTOTYPE.readFrom(in));
+        }
         builder.nestedPath = in.readOptionalString();
         if (in.readBoolean()) {
             builder.nestedFilter = in.readQuery();

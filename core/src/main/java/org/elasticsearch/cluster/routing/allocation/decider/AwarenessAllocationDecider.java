@@ -153,7 +153,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "no allocation awareness enabled");
         }
 
-        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.index());
+        IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
         int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute

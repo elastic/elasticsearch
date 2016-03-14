@@ -125,7 +125,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
-                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndexName()); // it's a mystery why this is sometimes null
+                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex()); // it's a mystery why this is sometimes null
                 if (metaData != null) {
                     ShardPath shardPath = null;
                     try {

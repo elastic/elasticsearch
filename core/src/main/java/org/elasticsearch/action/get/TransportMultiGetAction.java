@@ -69,7 +69,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 continue;
             }
             item.routing(clusterState.metaData().resolveIndexRouting(item.parent(), item.routing(), item.index()));
-            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item);
+            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
             if (item.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type())) {
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(concreteSingleIndex, item.type(), item.id(),
                         new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]"))));

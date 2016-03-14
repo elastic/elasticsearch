@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -305,7 +306,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
                 if (context.parseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
-                    throw new IllegalArgumentException("Expected " + NESTED_FILTER.getPreferredName() + " element.");
+                    throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element.");
                 }
             } else if (token.isValue()) {
                 if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {

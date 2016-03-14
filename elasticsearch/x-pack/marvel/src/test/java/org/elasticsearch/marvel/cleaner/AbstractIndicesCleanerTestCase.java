@@ -233,8 +233,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         MonitoringDoc monitoringDoc = randomMonitoringDoc();
         monitoringDoc.setTimestamp(creationDate.getMillis());
 
-        MonitoringIndexNameResolver.Timestamped resolver = new MockTimestampedIndexNameResolver(randomFrom(MonitoredSystem.values()),
-                version);
+        MonitoringIndexNameResolver.Timestamped resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, version);
         createIndex(resolver.index(monitoringDoc), creationDate);
     }
 

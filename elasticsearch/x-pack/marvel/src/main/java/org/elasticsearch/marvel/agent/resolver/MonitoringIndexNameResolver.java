@@ -156,12 +156,14 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format","YYYY.MM.dd",
                 Function.identity(), Setting.Property.NodeScope);
 
-        private final MonitoredSystem id;
+        private final MonitoredSystem system;
         private final DateTimeFormatter formatter;
+        private final String index;
 
-        public Timestamped(MonitoredSystem id, int version, Settings settings) {
+        public Timestamped(MonitoredSystem system, int version, Settings settings) {
             super(version);
-            this.id = id;
+            this.system = system;
+            this.index = String.join(DELIMITER, PREFIX, system.getSystem(), String.valueOf(getVersion()));
             String format = INDEX_NAME_TIME_FORMAT_SETTING.get(settings);
             try {
                 this.formatter = DateTimeFormat.forPattern(format).withZoneUTC();
@@ -172,12 +174,12 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
 
         @Override
         public String index(T document) {
-            return String.join(DELIMITER, PREFIX, id.getSystem(), String.valueOf(getVersion()), formatter.print(document.getTimestamp()));
+            return String.join(DELIMITER, index, formatter.print(document.getTimestamp()));
         }
 
         @Override
         public String indexPattern() {
-            return String.join(DELIMITER, PREFIX, "*", String.valueOf(getVersion()), "*");
+            return String.join(DELIMITER, index, "*");
         }
 
         @Override
@@ -187,7 +189,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         }
 
         String getId() {
-            return id.getSystem();
+            return system.getSystem();
         }
     }
 }

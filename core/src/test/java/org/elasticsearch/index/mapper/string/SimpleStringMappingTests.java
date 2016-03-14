@@ -564,7 +564,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("different [omit_norms]"));
+            assertThat(e.getMessage(), containsString("different [norms]"));
         }
     }
 

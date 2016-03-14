@@ -19,10 +19,11 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.groupSetting;
@@ -35,13 +36,19 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
  */
 final public class TransportSettings {
 
-    public static final Setting<List<String>> HOST = listSetting("transport.host", emptyList(), s -> s, false, Scope.CLUSTER);
-    public static final Setting<List<String>> PUBLISH_HOST = listSetting("transport.publish_host", HOST, s -> s, false, Scope.CLUSTER);
-    public static final Setting<List<String>> BIND_HOST = listSetting("transport.bind_host", HOST, s -> s, false, Scope.CLUSTER);
-    public static final Setting<String> PORT = new Setting<>("transport.tcp.port", "9300-9400", s -> s, false, Scope.CLUSTER);
-    public static final Setting<Integer> PUBLISH_PORT = intSetting("transport.publish_port", -1, -1, false, Scope.CLUSTER);
+    public static final Setting<List<String>> HOST =
+        listSetting("transport.host", emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> PUBLISH_HOST =
+        listSetting("transport.publish_host", HOST, Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> BIND_HOST =
+        listSetting("transport.bind_host", HOST, Function.identity(), Property.NodeScope);
+    public static final Setting<String> PORT =
+        new Setting<>("transport.tcp.port", "9300-9400", Function.identity(), Property.NodeScope);
+    public static final Setting<Integer> PUBLISH_PORT =
+        intSetting("transport.publish_port", -1, -1, Property.NodeScope);
     public static final String DEFAULT_PROFILE = "default";
-    public static final Setting<Settings> TRANSPORT_PROFILES_SETTING = groupSetting("transport.profiles.", true, Scope.CLUSTER);
+    public static final Setting<Settings> TRANSPORT_PROFILES_SETTING =
+        groupSetting("transport.profiles.", Property.Dynamic, Property.NodeScope);
 
     private TransportSettings() {
 

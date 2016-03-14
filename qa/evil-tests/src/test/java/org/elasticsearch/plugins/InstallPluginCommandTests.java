@@ -44,11 +44,8 @@ import java.util.zip.ZipOutputStream;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.MockTerminal;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -119,8 +116,7 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     static MockTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
         MockTerminal terminal = new MockTerminal();
-        CliTool.ExitStatus status = new InstallPluginCommand(terminal, pluginUrl, true).execute(env.settings(), env);
-        assertEquals(CliTool.ExitStatus.OK, status);
+        new InstallPluginCommand(env).execute(terminal, pluginUrl, true);
         return terminal;
     }
 
@@ -468,6 +464,18 @@ public class InstallPluginCommandTests extends ESTestCase {
         });
         assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
         assertInstallCleaned(env);
+    }
+
+    public void testZipRelativeOutsideEntryName() throws Exception {
+        Path zip = createTempDir().resolve("broken.zip");
+        try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
+            stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
+        }
+        String pluginZip = zip.toUri().toURL().toString();
+        IOException e = expectThrows(IOException.class, () -> {
+            installPlugin(pluginZip, createEnv());
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
     }
 
     // TODO: test batch flag?

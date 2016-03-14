@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
@@ -67,7 +68,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             default:
                 throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,node]");
         }
-    }, false, Setting.Scope.INDEX);
+    }, Property.IndexScope);
 
     private static final IndexFieldData.Builder MISSING_DOC_VALUES_BUILDER = (indexProperties, fieldType, cache, breakerService, mapperService1) -> {
         throw new IllegalStateException("Can't load fielddata on [" + fieldType.name()

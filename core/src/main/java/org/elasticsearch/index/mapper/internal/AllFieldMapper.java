@@ -305,7 +305,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
             builder.field("store_term_vector_payloads", fieldType().storeTermVectorPayloads());
         }
         if (includeDefaults || fieldType().omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", fieldType().omitNorms());
+            builder.field("norms", !fieldType().omitNorms());
         }
         
         doXContentAnalyzers(builder, includeDefaults);

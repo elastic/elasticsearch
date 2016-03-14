@@ -132,9 +132,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
-                    .startObject("norms")
-                        .field("enabled", false)
-                    .endObject()
+                    .field("norms", false)
                 .endObject().endObject()
                 .endObject().endObject().string();
 
@@ -386,4 +384,5 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPositions(), equalTo(true));
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
+
 }

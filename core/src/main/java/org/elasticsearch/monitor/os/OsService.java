@@ -21,6 +21,7 @@ package org.elasticsearch.monitor.os;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
@@ -38,7 +39,8 @@ public class OsService extends AbstractComponent {
     private SingleObjectCache<OsStats> osStatsCache;
 
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1), false, Setting.Scope.CLUSTER);
+        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
+            Property.NodeScope);
 
     public OsService(Settings settings) {
         super(settings);

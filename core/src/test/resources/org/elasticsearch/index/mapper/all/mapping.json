@@ -2,7 +2,7 @@
     "person":{
         "_all":{
             "enabled":true,
-            "omit_norms":true
+            "norms":false
         },
         "properties":{
             "name":{

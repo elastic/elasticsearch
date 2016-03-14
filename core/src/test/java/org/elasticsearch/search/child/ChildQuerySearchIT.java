@@ -51,7 +51,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -576,20 +575,20 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreMode(ScoreMode.Max))
                 .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("Score based on join value p1"));
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), containsString("join value p1"));
 
         searchResponse = client().prepareSearch("test")
                 .setExplain(true)
                 .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).score(true))
                 .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("Score based on join value p1"));
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), containsString("join value p1"));
 
         ExplainResponse explainResponse = client().prepareExplain("test", "parent", parentId)
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreMode(ScoreMode.Max))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().getDetails()[0].getDescription(), equalTo("Score based on join value p1"));
+        assertThat(explainResponse.getExplanation().getDetails()[0].getDescription(), containsString("join value p1"));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {

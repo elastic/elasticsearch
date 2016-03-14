@@ -55,6 +55,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -131,17 +132,23 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class Node implements Closeable {
 
-    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NODE_CLIENT_SETTING = Setting.boolSetting("node.client", false, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting("node.master", true, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NODE_LOCAL_SETTING = Setting.boolSetting("node.local", false, false, Setting.Scope.CLUSTER);
-    public static final Setting<String> NODE_MODE_SETTING = new Setting<>("node.mode", "network", Function.identity(), false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
-    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
+        Setting.boolSetting("node.portsfile", false, Property.NodeScope);
+    public static final Setting<Boolean> NODE_CLIENT_SETTING =
+        Setting.boolSetting("node.client", false, Property.NodeScope);
+    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_MASTER_SETTING =
+        Setting.boolSetting("node.master", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_LOCAL_SETTING =
+        Setting.boolSetting("node.local", false, Property.NodeScope);
+    public static final Setting<String> NODE_MODE_SETTING =
+        new Setting<>("node.mode", "network", Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> NODE_INGEST_SETTING =
+        Setting.boolSetting("node.ingest", true, Property.NodeScope);
+    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     // this sucks that folks can mistype client etc and get away with it.
     // TODO: we should move this to node.attribute.${name} = ${value} instead.
-    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", false, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", Property.NodeScope);
 
 
     private static final String CLIENT_TYPE = "node";

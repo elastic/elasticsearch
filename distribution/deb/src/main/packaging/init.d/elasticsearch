@@ -99,7 +99,7 @@ fi
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
-DAEMON_OPTS="-d -p $PID_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.conf=$CONF_DIR"
+DAEMON_OPTS="-d -p $PID_FILE -D es.default.path.home=$ES_HOME -D es.default.path.logs=$LOG_DIR -D es.default.path.data=$DATA_DIR -D es.default.path.conf=$CONF_DIR"
 
 export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE

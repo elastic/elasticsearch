@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -62,7 +62,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
             default:
                 throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
         }
-    }, false, Setting.Scope.INDEX);
+    }, Property.IndexScope);
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 

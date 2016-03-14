@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -79,22 +80,27 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        SearchRequest searchRequest;
-        searchRequest = RestSearchAction.parseSearchRequest(request, parseFieldMatcher);
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(searchRequest, request, parseFieldMatcher, null);
         client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
-    public static SearchRequest parseSearchRequest(RestRequest request, ParseFieldMatcher parseFieldMatcher) {
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        SearchRequest searchRequest = new SearchRequest(indices);
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, ParseFieldMatcher parseFieldMatcher,
+            BytesReference bodyContent) {
+        searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         // get the content, and put it in the body
         // add content/source as template if template flag is set
         boolean isTemplateRequest = request.path().endsWith("/template");
-        if (RestActions.hasBodyContent(request)) {
+        if (bodyContent == null) {
+            if (RestActions.hasBodyContent(request)) {
+                bodyContent = RestActions.getRestContent(request);
+            }
+        }
+        if (bodyContent != null) {
             if (isTemplateRequest) {
-                searchRequest.templateSource(RestActions.getRestContent(request));
+                searchRequest.templateSource(bodyContent);
             } else {
-                searchRequest.source(RestActions.getRestContent(request));
+                searchRequest.source(bodyContent);
             }
         }
 
@@ -121,8 +127,6 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-
-        return searchRequest;
     }
 
     public static SearchSourceBuilder parseSearchSource(RestRequest request) {

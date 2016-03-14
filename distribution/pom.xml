@@ -20,7 +20,7 @@
              2. add the module dependency to unpack-modules  -->
 
         <!-- pipe-separated list of modules. for license checking. -->
-        <packaging.module.list>lang-groovy|lang-expression</packaging.module.list>
+        <packaging.module.list>lang-groovy|lang-expression|reindex</packaging.module.list>
 
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
         <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
@@ -188,6 +188,14 @@
                                     <type>zip</type>
                                     <overWrite>true</overWrite>
                                     <outputDirectory>${project.build.directory}/modules/lang-groovy</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.module</groupId>
+                                    <artifactId>reindex</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${project.build.directory}/modules/reindex</outputDirectory>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

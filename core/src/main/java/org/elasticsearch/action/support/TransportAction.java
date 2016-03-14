@@ -19,13 +19,18 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -68,6 +73,11 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * This is a typical behavior.
      */
     public final Task execute(Request request, final ActionListener<Response> listener) {
+        /*
+         * While this version of execute could delegate to the TaskListener version of execute that'd add yet another layer of wrapping on
+         * the listener and prevent us from using the listener bare if there isn't a task. That just seems like too many objects. Thus the
+         * two versions of this method.
+         */
         final Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
             execute(null, request, listener);
@@ -86,6 +96,28 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 }
             });
         }
+        return task;
+    }
+
+    public final Task execute(Request request, final TaskListener<Response> listener) {
+        final Task task = taskManager.register("transport", actionName, request);
+        execute(task, request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                if (task != null) {
+                    taskManager.unregister(task);
+                }
+                listener.onResponse(task, response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                if (task != null) {
+                    taskManager.unregister(task);
+                }
+                listener.onFailure(task, e);
+            }
+        });
         return task;
     }
 

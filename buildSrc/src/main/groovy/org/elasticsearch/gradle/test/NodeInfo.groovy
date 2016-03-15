@@ -130,7 +130,6 @@ class NodeInfo {
             'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
         args.addAll("-E", "es.node.portsfile=true")
-        args.addAll(config.esSettings.collectMany { key, value -> ["-E", "${key}=${value}" ] })
         env.put('ES_JAVA_OPTS', config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" "))
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion.old.context;
+package org.elasticsearch.search.suggest.context;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
@@ -57,14 +57,14 @@ public abstract class ContextBuilder<E extends ContextMapping> {
     }
 
     /**
-     * Create a new {@link CategoryContextMapping}
+     * Create a new {@link CategoryMapping}
      */
     public static CategoryContextMapping.Builder category(String name) {
         return new CategoryContextMapping.Builder(name, null);
     }
 
     /**
-     * Create a new {@link CategoryContextMapping} with default category
+     * Create a new {@link CategoryMapping} with default category
      *
      * @param defaultCategory category to use, if it is not provided
      */

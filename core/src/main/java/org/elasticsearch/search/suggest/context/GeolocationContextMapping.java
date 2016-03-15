@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion.old.context;
+package org.elasticsearch.search.suggest.context;
 
 import com.carrotsearch.hppc.IntHashSet;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;

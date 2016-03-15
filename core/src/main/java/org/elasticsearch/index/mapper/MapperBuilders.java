@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.ByteFieldMapper;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
@@ -104,10 +102,6 @@ public final class MapperBuilders {
 
     public static GeoShapeFieldMapper.Builder geoShapeField(String name) {
         return new GeoShapeFieldMapper.Builder(name);
-    }
-
-    public static OldCompletionFieldMapper.Builder oldCompletionField(String name) {
-        return new OldCompletionFieldMapper.Builder(name);
     }
 
     public static CompletionFieldMapper.Builder completionField(String name) {

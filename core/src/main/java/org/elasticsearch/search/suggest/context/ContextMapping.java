@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion.old.context;
+package org.elasticsearch.search.suggest.context;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -61,7 +61,7 @@ public abstract class ContextMapping implements ToXContent {
 
     /** Dummy Context Config matching the Dummy Mapping by providing an empty context*/
     public static final SortedMap<String, ContextConfig> EMPTY_CONFIG = Maps.newTreeMap();
-    
+
     /** Dummy Context matching the Dummy Mapping by not wrapping a {@link TokenStream} */
     public static final Context EMPTY_CONTEXT = new Context(EMPTY_CONFIG, null);
 
@@ -69,12 +69,12 @@ public abstract class ContextMapping implements ToXContent {
     public static final String FIELD_MISSING = "default";
     public static final String FIELD_TYPE = "type";
 
-    protected final String type; // Type of the Contextmapping 
+    protected final String type; // Type of the Contextmapping
     protected final String name;
 
     /**
      * Define a new context mapping of a specific type
-     * 
+     *
      * @param type
      *            name of the new context mapping
      */
@@ -110,11 +110,11 @@ public abstract class ContextMapping implements ToXContent {
     /**
      * A {@link ContextMapping} combined with the information provided by a document
      * form a {@link ContextConfig} which is used to build the underlying FST.
-     * 
-     * @param parseContext context of parsing phase 
+     *
+     * @param parseContext context of parsing phase
      * @param parser {@link XContentParser} used to read and setup the configuration
      * @return A {@link ContextConfig} related to <b>this</b> mapping
-     * 
+     *
      * @throws IOException
      * @throws ElasticsearchParseException
      */
@@ -124,12 +124,12 @@ public abstract class ContextMapping implements ToXContent {
 
     /**
      * Parse a query according to the context. Parsing starts at parsers <b>current</b> position
-     * 
-     * @param name name of the context 
+     *
+     * @param name name of the context
      * @param parser {@link XContentParser} providing the data of the query
-     * 
+     *
      * @return {@link ContextQuery} according to this mapping
-     * 
+     *
      * @throws IOException
      * @throws ElasticsearchParseException
      */
@@ -138,22 +138,22 @@ public abstract class ContextMapping implements ToXContent {
     /**
      * Since every context mapping is assumed to have a name given by the field name of an context object, this
      * method is used to build the value used to serialize the mapping
-     * 
+     *
      * @param builder builder to append the mapping to
      * @param params parameters passed to the builder
-     * 
+     *
      * @return the builder used
-     * 
+     *
      * @throws IOException
      */
     protected abstract XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException;
 
     /**
      * Test equality of two mapping
-     * 
+     *
      * @param thisMappings first mapping
      * @param otherMappings second mapping
-     * 
+     *
      * @return true if both arguments are equal
      */
     public static boolean mappingsAreEqual(SortedMap<String, ? extends ContextMapping> thisMappings, SortedMap<String, ? extends ContextMapping> otherMappings) {
@@ -173,7 +173,7 @@ public abstract class ContextMapping implements ToXContent {
      * A collection of {@link ContextMapping}s, their {@link ContextConfig}uration and a
      * Document form a complete {@link Context}. Since this Object provides all information used
      * to setup a suggestion, it can be used to wrap the entire {@link TokenStream} used to build a
-     * path within the {@link FST}.   
+     * path within the {@link FST}.
      */
     public static class Context {
 
@@ -189,9 +189,9 @@ public abstract class ContextMapping implements ToXContent {
         /**
          * Wrap the {@link TokenStream} according to the provided informations of {@link ContextConfig}
          * and a related {@link Document}.
-         *  
-         * @param tokenStream {@link TokenStream} to wrap 
-         * 
+         *
+         * @param tokenStream {@link TokenStream} to wrap
+         *
          * @return wrapped token stream
          */
         public TokenStream wrapTokenStream(TokenStream tokenStream) {
@@ -212,10 +212,10 @@ public abstract class ContextMapping implements ToXContent {
         /**
          * Wrap a {@link TokenStream} for building suggestions to use context informations
          * provided by a document or a {@link ContextMapping}
-         *  
+         *
          * @param doc document related to the stream
          * @param stream original stream used to build the underlying {@link FST}
-         * 
+         *
          * @return A new {@link TokenStream} providing additional context information
          */
         protected abstract TokenStream wrapTokenStream(Document doc, TokenStream stream);
@@ -243,10 +243,10 @@ public abstract class ContextMapping implements ToXContent {
         /**
          * Create a automaton for a given context query this automaton will be used
          * to find the matching paths with the fst
-         * 
+         *
          * @param preserveSep set an additional char (<code>XAnalyzingSuggester.SEP_LABEL</code>) between each context query
          * @param queries list of {@link ContextQuery} defining the lookup context
-         * 
+         *
          * @return Automaton matching the given Query
          */
         public static Automaton toAutomaton(boolean preserveSep, Iterable<ContextQuery> queries) {
@@ -276,13 +276,13 @@ public abstract class ContextMapping implements ToXContent {
         protected abstract Automaton toAutomaton();
 
         /**
-         * Parse a set of {@link ContextQuery} according to a given mapping 
+         * Parse a set of {@link ContextQuery} according to a given mapping
          * @param mappings List of mapping defined y the suggest field
          * @param parser parser holding the settings of the queries. The parsers
          *        current token is assumed hold an array. The number of elements
-         *        in this array must match the number of elements in the mappings.   
+         *        in this array must match the number of elements in the mappings.
          * @return List of context queries
-         * 
+         *
          * @throws IOException if something unexpected happened on the underlying stream
          * @throws ElasticsearchParseException if the list of queries could not be parsed
          */

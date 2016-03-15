@@ -36,12 +36,10 @@ public class SuggestionSearchContext {
     public Map<String, SuggestionContext> suggestions() {
         return suggestions;
     }
-    
+
     public static class SuggestionContext {
-        
+
         private BytesRef text;
-        private BytesRef prefix;
-        private BytesRef regex;
         private final Suggester suggester;
         private String field;
         private Analyzer analyzer;
@@ -49,29 +47,13 @@ public class SuggestionSearchContext {
         private int shardSize = -1;
         private int shardId;
         private String index;
-        
+
         public BytesRef getText() {
             return text;
         }
 
         public void setText(BytesRef text) {
             this.text = text;
-        }
-
-        public BytesRef getPrefix() {
-            return prefix;
-        }
-
-        public void setPrefix(BytesRef prefix) {
-            this.prefix = prefix;
-        }
-
-        public BytesRef getRegex() {
-            return regex;
-        }
-
-        public void setRegex(BytesRef regex) {
-            this.regex = regex;
         }
 
         public SuggestionContext(Suggester suggester) {
@@ -119,7 +101,7 @@ public class SuggestionSearchContext {
             }
             this.shardSize = shardSize;
         }
-        
+
         public void setShard(int shardId) {
             this.shardId = shardId;
         }
@@ -127,11 +109,11 @@ public class SuggestionSearchContext {
         public void setIndex(String index) {
             this.index = index;
         }
-        
+
         public String getIndex() {
             return index;
         }
-        
+
         public int getShard() {
             return shardId;
         }

@@ -908,7 +908,8 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"input\": [\n" +
                 "      \"Nevermind\",\n" +
                 "      \"Nirvana\"\n" +
-                "    ]\n" +
+                "    ],\n" +
+                "    \"output\": \"Nirvana - Nevermind\"\n" +
                 "  }\n" +
                 "}";
 

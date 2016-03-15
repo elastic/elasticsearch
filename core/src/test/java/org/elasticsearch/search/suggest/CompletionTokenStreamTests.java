@@ -31,8 +31,8 @@ import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IntsRef;
-import org.elasticsearch.search.suggest.completion.old.CompletionTokenStream;
-import org.elasticsearch.search.suggest.completion.old.CompletionTokenStream.ByteTermAttribute;
+import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
+import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ByteTermAttribute;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
@@ -93,7 +93,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         MockTokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
         tokenizer.setReader(new StringReader(valueBuilder.toString()));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
-       
+
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
@@ -101,7 +101,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
                 return finiteStrings;
             }
         });
-        
+
         suggestTokenStream.reset();
         ByteTermAttribute attr = suggestTokenStream.addAttribute(ByteTermAttribute.class);
         PositionIncrementAttribute posAttr = suggestTokenStream.addAttribute(PositionIncrementAttribute.class);
@@ -118,7 +118,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         assertEquals(count, maxPos);
 
     }
-    
+
     @Test(expected = IllegalArgumentException.class)
     public void testInValidNumberOfExpansions() throws IOException {
         Builder builder = new SynonymMap.Builder(true);
@@ -133,7 +133,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         MockTokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
         tokenizer.setReader(new StringReader(valueBuilder.toString()));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
-       
+
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
@@ -141,7 +141,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
                 return finiteStrings;
             }
         });
-        
+
         suggestTokenStream.reset();
         suggestTokenStream.incrementToken();
         suggestTokenStream.close();

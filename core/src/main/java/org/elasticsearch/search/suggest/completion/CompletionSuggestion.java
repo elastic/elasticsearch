@@ -18,95 +18,29 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.search.suggest.Lookup;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Map;
 
 /**
- * Suggestion response for {@link CompletionSuggester} results
- *
- * Response format for each entry:
- * {
- *     "text" : STRING
- *     "score" : FLOAT
- *     "contexts" : CONTEXTS
- * }
- *
- * CONTEXTS : {
- *     "CONTEXT_NAME" : ARRAY,
- *     ..
- * }
  *
  */
 public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    public static final int TYPE = 4;
+    public static final int TYPE = 2;
 
     public CompletionSuggestion() {
     }
 
     public CompletionSuggestion(String name, int size) {
         super(name, size);
-    }
-
-    private class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
-
-        public OptionPriorityQueue(int maxSize) {
-            super(maxSize);
-        }
-
-        @Override
-        protected boolean lessThan(Entry.Option a, Entry.Option b) {
-            int cmp = sortComparator().compare(a, b);
-            if (cmp != 0) {
-                return cmp > 0;
-            }
-            return Lookup.CHARSEQUENCE_COMPARATOR.compare(a.getText().string(), b.getText().string()) > 0;
-        }
-
-        public Entry.Option[] get() {
-            int size = size();
-            Entry.Option[] results = new Entry.Option[size];
-            for (int i = size - 1; i >= 0; i--) {
-                results[i] = pop();
-            }
-            return results;
-        }
-    }
-
-    @Override
-    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
-        if (toReduce.size() == 1) {
-            return toReduce.get(0);
-        } else {
-            // combine suggestion entries from participating shards on the coordinating node
-            // the global top <code>size</code> entries are collected from the shard results
-            // using a priority queue
-            OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size);
-            for (Suggest.Suggestion<Entry> entries : toReduce) {
-                assert entries.getEntries().size() == 1 : "CompletionSuggestion must have only one entry";
-                for (Entry.Option option : entries.getEntries().get(0)) {
-                    if (option == priorityQueue.insertWithOverflow(option)) {
-                        // if the current option has overflown from pq,
-                        // we can assume all of the successive options
-                        // from this shard result will be overflown as well
-                        break;
-                    }
-                }
-            }
-            Entry options = this.entries.get(0);
-            options.getOptions().clear();
-            Collections.addAll(options.getOptions(), priorityQueue.get());
-            return this;
-        }
     }
 
     @Override
@@ -119,7 +53,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         return new Entry();
     }
 
-    public static class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
+    public static class Entry extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);
@@ -134,33 +68,41 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             return new Option();
         }
 
-        public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts;
-            private Map<String, List<Object>> payload;
+        public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
+            private BytesReference payload;
 
-            public Option(Text text, float score, Map<String, Set<CharSequence>> contexts, Map<String, List<Object>> payload) {
+            public Option(Text text, float score, BytesReference payload) {
                 super(text, score);
                 this.payload = payload;
-                this.contexts = contexts;
             }
+
 
             protected Option() {
                 super();
             }
 
-            @Override
-            protected void mergeInto(Suggest.Suggestion.Entry.Option otherOption) {
-                // Completion suggestions are reduced by
-                // org.elasticsearch.search.suggest.completion.CompletionSuggestion.reduce()
-                throw new UnsupportedOperationException();
+            public void setPayload(BytesReference payload) {
+                this.payload = payload;
             }
 
-            public Map<String, List<Object>> getPayload() {
+            public BytesReference getPayload() {
                 return payload;
             }
 
-            public Map<String, Set<CharSequence>> getContexts() {
-                return contexts;
+            public String getPayloadAsString() {
+                return payload.toUtf8();
+            }
+
+            public long getPayloadAsLong() {
+                return Long.parseLong(payload.toUtf8());
+            }
+
+            public double getPayloadAsDouble() {
+                return Double.parseDouble(payload.toUtf8());
+            }
+
+            public Map<String, Object> getPayloadAsMap() {
+                return XContentHelper.convertToMap(payload, false).v2();
             }
 
             @Override
@@ -171,27 +113,8 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 super.innerToXContent(builder, params);
-                if (payload.size() > 0) {
-                    builder.startObject("payload");
-                    for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                        builder.startArray(entry.getKey());
-                        for (Object payload : entry.getValue()) {
-                            builder.value(payload);
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
-                }
-                if (contexts.size() > 0) {
-                    builder.startObject("contexts");
-                    for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
-                        builder.startArray(entry.getKey());
-                        for (CharSequence context : entry.getValue()) {
-                            builder.value(context.toString());
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
+                if (payload != null && payload.length() > 0) {
+                    builder.rawField("payload", payload);
                 }
                 return builder;
             }
@@ -199,78 +122,14 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             public void readFrom(StreamInput in) throws IOException {
                 super.readFrom(in);
-                int payloadSize = in.readInt();
-                this.payload = new LinkedHashMap<>(payloadSize);
-                for (int i = 0; i < payloadSize; i++) {
-                    String payloadName = in.readString();
-                    int nValues = in.readVInt();
-                    List<Object> values = new ArrayList<>(nValues);
-                    for (int j = 0; j < nValues; j++) {
-                        values.add(in.readGenericValue());
-                    }
-                    this.payload.put(payloadName, values);
-                }
-                int contextSize = in.readInt();
-                this.contexts = new LinkedHashMap<>(contextSize);
-                for (int i = 0; i < contextSize; i++) {
-                    String contextName = in.readString();
-                    int nContexts = in.readVInt();
-                    Set<CharSequence> contexts = new HashSet<>(nContexts);
-                    for (int j = 0; j < nContexts; j++) {
-                        contexts.add(in.readString());
-                    }
-                    this.contexts.put(contextName, contexts);
-                }
+                payload = in.readBytesReference();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
-                out.writeInt(payload.size());
-                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                    out.writeString(entry.getKey());
-                    List<Object> values = entry.getValue();
-                    out.writeVInt(values.size());
-                    for (Object value : values) {
-                        out.writeGenericValue(value);
-                    }
-                }
-                out.writeInt(contexts.size());
-                for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
-                    out.writeString(entry.getKey());
-                    out.writeVInt(entry.getValue().size());
-                    for (CharSequence ctx : entry.getValue()) {
-                        out.writeString(ctx.toString());
-                    }
-                }
+                out.writeBytesReference(payload);
             }
-
-            @Override
-            public String toString() {
-                StringBuilder stringBuilder = new StringBuilder();
-                stringBuilder.append("text:");
-                stringBuilder.append(getText());
-                stringBuilder.append(" score:");
-                stringBuilder.append(getScore());
-                stringBuilder.append(" payload:[");
-                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                    stringBuilder.append(" ");
-                    stringBuilder.append(entry.getKey());
-                    stringBuilder.append(":");
-                    stringBuilder.append(entry.getValue());
-                }
-                stringBuilder.append("]");
-                stringBuilder.append(" context:[");
-                for (Map.Entry<String, Set<CharSequence>> entry: contexts.entrySet()) {
-                    stringBuilder.append(" ");
-                    stringBuilder.append(entry.getKey());
-                    stringBuilder.append(":");
-                    stringBuilder.append(entry.getValue());
-                }
-                stringBuilder.append("]");
-                return stringBuilder.toString();
-            }
-
         }
     }
 

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion.old;
+package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -27,8 +27,8 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import java.io.IOException;
 
 /**
- * A form of {@link CompletionSuggestionBuilder} that supports fuzzy queries allowing 
- * matches on typos. 
+ * A form of {@link CompletionSuggestionBuilder} that supports fuzzy queries allowing
+ * matches on typos.
  * Various settings control when and how fuzziness is counted.
  */
 public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionFuzzyBuilder> {
@@ -61,10 +61,10 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
     }
 
     /**
-     * Sets if transpositions (swapping one character for another) counts as one character 
+     * Sets if transpositions (swapping one character for another) counts as one character
      * change or two.
-     * Defaults to true, meaning it uses the fuzzier option of counting transpositions as 
-     * a single change.   
+     * Defaults to true, meaning it uses the fuzzier option of counting transpositions as
+     * a single change.
      */
     public CompletionSuggestionFuzzyBuilder setFuzzyTranspositions(boolean fuzzyTranspositions) {
         this.fuzzyTranspositions = fuzzyTranspositions;
@@ -77,7 +77,7 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
 
     /**
      * Sets the minimum length of input string before fuzzy suggestions are returned, defaulting
-     * to 3.   
+     * to 3.
      */
     public CompletionSuggestionFuzzyBuilder setFuzzyMinLength(int fuzzyMinLength) {
         this.fuzzyMinLength = fuzzyMinLength;
@@ -101,7 +101,7 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
     }
 
     /**
-     * Set to true if all measurements (like edit distance, transpositions and lengths) are in unicode 
+     * Set to true if all measurements (like edit distance, transpositions and lengths) are in unicode
      * code points (actual letters) instead of bytes. Default is false.
      */
     public CompletionSuggestionFuzzyBuilder setUnicodeAware(boolean unicodeAware) {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion.old.context;
+package org.elasticsearch.search.suggest.context;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
@@ -113,7 +113,7 @@ public class CategoryContextMapping extends ContextMapping {
     /**
      * Load the specification of a {@link CategoryContextMapping}
      *
-     * @param name
+     * @param field
      *            name of the field to use. If <code>null</code> default field
      *            will be used
      * @return new {@link CategoryContextMapping}

@@ -624,12 +624,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
-            if (indexService != null && nodeEnv.hasNodeFile()) {
-                return indexService.hasShard(shardId.id()) == false;
-            } else if (nodeEnv.hasNodeFile()) {
-                if (indexSettings.hasCustomDataPath()) {
+           if (nodeEnv.hasNodeFile()) {
+                final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
+                if (isAllocated) {
+                    return false; // we are allocated - can't delete the shard
+                } else if (indexSettings.hasCustomDataPath()) {
+                    // lets see if it's on a custom path (return false if the shared doesn't exist)
+                    // we don't need to delete anything that is not there
                     return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
                 } else {
+                    // lets see if it's path is available (return false if the shared doesn't exist)
+                    // we don't need to delete anything that is not there
                     return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
                 }
             }

@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -68,14 +69,15 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         index(index, "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
-        assertIndexDirectoryDeleted(node2, index);
+        Index resolveIndex = resolveIndex(index);
+        assertIndexDirectoryDeleted(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2)).get();
         client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
         ensureGreen();
-        assertIndexDirectoryDeleted(node1, index);
+        assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
         assertIndexInMetaState(masterNode, index);
     }
@@ -146,10 +148,10 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.OPEN));
     }
 
-    protected void assertIndexDirectoryDeleted(final String nodeName, final String indexName) throws Exception {
+    protected void assertIndexDirectoryDeleted(final String nodeName, final Index index) throws Exception {
         assertBusy(() -> {
             logger.info("checking if index directory exists...");
-            assertFalse("Expecting index directory of " + indexName + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, indexName));
+            assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, index));
         }
         );
     }
@@ -168,9 +170,9 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
 
-    private boolean indexDirectoryExists(String nodeName, String indexName) {
+    private boolean indexDirectoryExists(String nodeName, Index index) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
-        for (Path path : nodeEnv.indexPaths(indexName)) {
+        for (Path path : nodeEnv.indexPaths(index)) {
             if (Files.exists(path)) {
                 return true;
             }

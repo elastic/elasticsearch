@@ -41,6 +41,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.IndexFolderUpgrader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -105,6 +106,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     List<String> indexes;
     List<String> unsupportedIndexes;
+    static String singleDataPathNodeName;
+    static String multiDataPathNodeName;
     static Path singleDataPath;
     static Path[] multiDataPath;
 
@@ -127,6 +130,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @AfterClass
     public static void tearDownStatics() {
+        singleDataPathNodeName = null;
+        multiDataPathNodeName = null;
         singleDataPath = null;
         multiDataPath = null;
     }
@@ -157,7 +162,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // find single data path dir
-        Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNode.get()).nodeDataPaths();
+        singleDataPathNodeName = singleDataPathNode.get();
+        Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNodeName).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         singleDataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
         assertFalse(Files.exists(singleDataPath));
@@ -165,7 +171,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.info("--> Single data path: {}", singleDataPath);
 
         // find multi data path dirs
-        nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNode.get()).nodeDataPaths();
+        multiDataPathNodeName = multiDataPathNode.get();
+        nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNodeName).nodeDataPaths();
         assertEquals(2, nodePaths.length);
         multiDataPath = new Path[] {nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER),
                                    nodePaths[1].resolve(NodeEnvironment.INDICES_FOLDER)};
@@ -176,6 +183,13 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
 
         replicas.get(); // wait for replicas
+    }
+
+    void upgradeIndexFolder() throws Exception {
+        final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNodeName);
+        IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
+        final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNodeName);
+        IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnv);
     }
 
     String loadIndex(String indexFile) throws Exception {
@@ -296,6 +310,10 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     void assertOldIndexWorks(String index) throws Exception {
         Version version = extractVersion(index);
         String indexName = loadIndex(index);
+        // we explicitly upgrade the index folders as these indices
+        // are imported as dangling indices and not available on
+        // node startup
+        upgradeIndexFolder();
         importIndex(indexName);
         assertIndexSanity(indexName, version);
         assertBasicSearchWorks(indexName);

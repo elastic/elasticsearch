@@ -92,22 +92,22 @@ public class DiskUsageTests extends ESTestCase {
     }
 
     public void testFillShardLevelInfo() {
-        final Index index = new Index("test", "_na_");
+        final Index index = new Index("test", "0xdeadbeef");
         ShardRouting test_0 = ShardRouting.newUnassigned(index, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         ShardRoutingHelper.initialize(test_0, "node1");
         ShardRoutingHelper.moveToStarted(test_0);
-        Path test0Path = createTempDir().resolve("indices").resolve("test").resolve("0");
+        Path test0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
         commonStats0.store = new StoreStats(100, 1);
         ShardRouting test_1 = ShardRouting.newUnassigned(index, 1, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         ShardRoutingHelper.initialize(test_1, "node2");
         ShardRoutingHelper.moveToStarted(test_1);
-        Path test1Path = createTempDir().resolve("indices").resolve("test").resolve("1");
+        Path test1Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("1");
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000, 1);
         ShardStats[] stats  = new ShardStats[] {
-                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, "0xdeadbeef", test_0.shardId()), commonStats0 , null),
-                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, "0xdeadbeef", test_1.shardId()), commonStats1 , null)
+                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null),
+                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null)
         };
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();

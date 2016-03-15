@@ -20,11 +20,9 @@ package org.elasticsearch.percolator;
 
 import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
@@ -38,17 +36,15 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -83,7 +79,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -94,10 +89,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -113,19 +105,19 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("field1", "value").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -173,7 +165,8 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setGetRequest(Requests.getRequest("test").type("type").id("5"))
                     .execute().actionGet();
             fail("Exception should have been thrown");
-        } catch (DocumentMissingException e) {
+        } catch (ResourceNotFoundException e) {
+            assertThat(e.getMessage(), equalTo("percolate document [test/type/5] doesn't exist"));
         }
     }
 
@@ -194,7 +187,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(response.getMatches(), emptyArray());
 
         // add first query...
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "test1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "test1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
                 .execute().actionGet();
         refresh();
@@ -207,7 +200,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
 
         // add second query...
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "test2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
         refresh();
@@ -221,7 +214,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("test1", "test2"));
 
 
-        client().prepareDelete("test", PercolatorService.TYPE_NAME, "test2").execute().actionGet();
+        client().prepareDelete("test", PercolatorFieldMapper.TYPE_NAME, "test2").execute().actionGet();
         refresh();
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -239,7 +232,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .setRouting(Integer.toString(i % 2))
                     .execute().actionGet();
@@ -282,7 +275,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         client().prepareIndex("my-queries-index", "test", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> register a query");
-        client().prepareIndex("my-queries-index", PercolatorService.TYPE_NAME, "kuku1")
+        client().prepareIndex("my-queries-index", PercolatorFieldMapper.TYPE_NAME, "kuku1")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -296,7 +289,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         client().prepareIndex("my-queries-index", "test", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> register a query");
-        client().prepareIndex("my-queries-index", PercolatorService.TYPE_NAME, "kuku2")
+        client().prepareIndex("my-queries-index", PercolatorFieldMapper.TYPE_NAME, "kuku2")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -323,7 +316,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject()
                         .field("source", "productizer")
                         .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("filingcategory:s")))
@@ -351,7 +344,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -359,7 +352,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
         refresh();
         SearchResponse countResponse = client().prepareSearch().setSize(0)
-                .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
+                .setQuery(matchAllQuery()).setTypes(PercolatorFieldMapper.TYPE_NAME)
                 .execute().actionGet();
         assertThat(countResponse.getHits().totalHits(), equalTo(1L));
 
@@ -388,7 +381,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().admin().indices().prepareDelete("test").execute().actionGet();
         logger.info("--> make sure percolated queries for it have been deleted as well");
         countResponse = client().prepareSearch().setSize(0)
-                .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
+                .setQuery(matchAllQuery()).setTypes(PercolatorFieldMapper.TYPE_NAME)
                 .execute().actionGet();
         assertHitCount(countResponse, 0L);
     }
@@ -398,7 +391,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> register a query 1");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -407,7 +400,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         logger.info("--> register a query 2");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "bubu")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "bubu")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "green")
                         .field("query", termQuery("field1", "value2"))
@@ -441,7 +434,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> register a query 1");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -458,7 +451,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("kuku"));
 
         logger.info("--> register a query 2");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "bubu")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "bubu")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "green")
                         .field("query", termQuery("field1", "value2"))
@@ -475,7 +468,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("bubu"));
 
         logger.info("--> register a query 3");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "susu")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "susu")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "red")
                         .field("query", termQuery("field1", "value2"))
@@ -495,7 +488,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("susu"));
 
         logger.info("--> deleting query 1");
-        client().prepareDelete("test", PercolatorService.TYPE_NAME, "kuku").setRefresh(true).execute().actionGet();
+        client().prepareDelete("test", PercolatorFieldMapper.TYPE_NAME, "kuku").setRefresh(true).execute().actionGet();
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -512,7 +505,10 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test2", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -528,67 +524,7 @@ public class PercolatorIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
-        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries));
-        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0L));
-        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
-        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1L));
-
-        NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        long percolateCount = 0;
-        for (NodeStats nodeStats : nodesResponse) {
-            percolateCount += nodeStats.getIndices().getPercolate().getCount();
-        }
-        assertThat(percolateCount, equalTo((long) numShards.numPrimaries));
-
-        logger.info("--> Second percolate request");
-        response = client().preparePercolate()
-                .setIndices("test").setDocumentType("type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
-                .execute().actionGet();
-        assertMatchCount(response, 1L);
-        assertThat(response.getMatches(), arrayWithSize(1));
-        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
-
-        indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
-        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries * 2));
-        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0L));
-        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
-        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1L));
-
-        percolateCount = 0;
-        nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        for (NodeStats nodeStats : nodesResponse) {
-            percolateCount += nodeStats.getIndices().getPercolate().getCount();
-        }
-        assertThat(percolateCount, equalTo((long) numShards.numPrimaries *2));
-
-        // We might be faster than 1 ms, so run upto 1000 times until have spend 1ms or more on percolating
-        boolean moreThanOneMs = false;
-        int counter = 3; // We already ran two times.
-        do {
-            indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
-            if (indicesResponse.getTotal().getPercolate().getTimeInMillis() > 0) {
-                moreThanOneMs = true;
-                break;
-            }
-
-            logger.info("--> {}th percolate request", counter);
-            response = client().preparePercolate()
-                    .setIndices("test").setDocumentType("type")
-                    .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
-                    .execute().actionGet();
-            assertThat(response.getMatches(), arrayWithSize(1));
-            assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
-        } while (++counter <= 1000);
-        assertTrue("Something is off, we should have spent at least 1ms on percolating...", moreThanOneMs);
-
-        long percolateSumTime = 0;
-        nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        for (NodeStats nodeStats : nodesResponse) {
-            percolateCount += nodeStats.getIndices().getPercolate().getCount();
-            percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
-        }
-        assertThat(percolateSumTime, greaterThan(0L));
+        assertThat(indicesResponse.getTotal().getPercolatorCache().getNumQueries(), equalTo((long)numShards.dataCopies)); // number of copies
     }
 
     public void testPercolatingExistingDocs() throws Exception {
@@ -602,19 +538,19 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -667,19 +603,19 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").setRouting("1").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -732,19 +668,19 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
 
         logger.info("--> registering queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -788,7 +724,7 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> registering queries");
         for (int i = 1; i <= 10; i++) {
             String index = i % 2 == 0 ? "test1" : "test2";
-            client().prepareIndex(index, PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex(index, PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
@@ -861,15 +797,15 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testPercolateWithAliasFilter() throws Exception {
         assertAcked(prepareCreate("my-index")
-                        .addMapping(PercolatorService.TYPE_NAME, "a", "type=keyword")
+                        .addMapping(PercolatorFieldMapper.TYPE_NAME, "a", "type=keyword")
                         .addAlias(new Alias("a").filter(QueryBuilders.termQuery("a", "a")))
                         .addAlias(new Alias("b").filter(QueryBuilders.termQuery("a", "b")))
                         .addAlias(new Alias("c").filter(QueryBuilders.termQuery("a", "c")))
         );
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("my-index", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("a", "a").endObject())
                 .get();
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("my-index", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("a", "b").endObject())
                 .get();
         refresh();
@@ -944,19 +880,19 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("field1", "value").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -1000,7 +936,8 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setGetRequest(Requests.getRequest("test").type("type").id("5"))
                     .execute().actionGet();
             fail("Exception should have been thrown");
-        } catch (DocumentMissingException e) {
+        } catch (ResourceNotFoundException e) {
+            assertThat(e.getMessage(), equalTo("percolate document [test/type/5] doesn't exist"));
         }
     }
 
@@ -1015,19 +952,19 @@ public class PercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -1075,7 +1012,7 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> register {} queries", totalQueries);
         for (int level = 1; level <= numLevels; level++) {
             for (int query = 1; query <= numQueriesPerLevel; query++) {
-                client().prepareIndex("my-index", PercolatorService.TYPE_NAME, level + "-" + query)
+                client().prepareIndex("my-index", PercolatorFieldMapper.TYPE_NAME, level + "-" + query)
                         .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", level).endObject())
                         .execute().actionGet();
             }
@@ -1169,7 +1106,7 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> register {} queries", numQueries);
         for (int i = 0; i < numQueries; i++) {
             int value = randomInt(10);
-            client().prepareIndex("my-index", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("my-index", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", i).field("field1", value).endObject())
                     .execute().actionGet();
             if (!controlMap.containsKey(value)) {
@@ -1250,10 +1187,10 @@ public class PercolatorIT extends ESIntegTestCase {
         createIndex("my-index");
         ensureGreen();
 
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("my-index", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
                 .execute().actionGet();
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("my-index", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 2).endObject())
                 .execute().actionGet();
         refresh();
@@ -1271,33 +1208,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(response.getMatches()[1].getScore(), equalTo(1f));
     }
 
-    public void testPercolateSortingUnsupportedField() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", "field", "type=text")
-                .addMapping(PercolatorService.TYPE_NAME, "level", "type=integer", "query", "type=object,enabled=false")
-                .get();
-        ensureGreen();
-
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
-                .get();
-        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 2).endObject())
-                .get();
-        refresh();
-
-        PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSize(2)
-                .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
-                .addSort(SortBuilders.fieldSort("level"))
-                .get();
-
-        assertThat(response.getShardFailures().length, equalTo(getNumShards("my-index").numPrimaries));
-        assertThat(response.getShardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(response.getShardFailures()[0].reason(), containsString("Only _score desc is supported"));
-    }
-
     public void testPercolateOnEmptyIndex() throws Exception {
         client().admin().indices().prepareCreate("my-index").execute().actionGet();
         ensureGreen();
@@ -1306,7 +1216,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level").missing(0.0)))
                 .execute().actionGet();
         assertMatchCount(response, 0L);
     }
@@ -1322,19 +1232,19 @@ public class PercolatorIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", "field1", fieldMapping.toString()));
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "brown fox")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "lazy dog")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "jumps")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "dog")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "5")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "5")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "fox")).endObject())
                 .execute().actionGet();
         refresh();
@@ -1525,7 +1435,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject()
                         .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.queryStringQuery("root"))
@@ -1579,10 +1489,10 @@ public class PercolatorIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .get();
         refresh();
@@ -1602,7 +1512,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen();
 
         try {
-            client().prepareIndex("test", PercolatorService.TYPE_NAME)
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME)
                     .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "value")).endObject())
                     .get();
             fail();
@@ -1611,7 +1521,7 @@ public class PercolatorIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex("test", PercolatorService.TYPE_NAME)
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME)
                     .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(0).to(1)).endObject())
                     .get();
             fail();
@@ -1626,10 +1536,10 @@ public class PercolatorIT extends ESIntegTestCase {
                 .get();
         ensureGreen();
 
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", rangeQuery("timestamp").from("now-1d").to("now")).endObject())
                 .get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeQuery("timestamp").from("now-1d").to("now"))).endObject())
                 .get();
         refresh();
@@ -1654,7 +1564,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("nestedindex").addMapping("company", mapping));
         ensureGreen("nestedindex");
 
-        client().prepareIndex("nestedindex", PercolatorService.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
+        client().prepareIndex("nestedindex", PercolatorFieldMapper.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
                 .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND)).scoreMode(ScoreMode.Avg)).endObject()).get();
 
         refresh();
@@ -1783,12 +1693,12 @@ public class PercolatorIT extends ESIntegTestCase {
                 "}";
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
         ensureGreen("test");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q1).setId("q1").get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q2).setId("q2").get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q3).setId("q3").get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q4).setId("q4").get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q5).setId("q5").get();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q6).setId("q6").get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME).setSource(q1).setId("q1").get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME).setSource(q2).setId("q2").get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME).setSource(q3).setId("q3").get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME).setSource(q4).setId("q4").get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME).setSource(q5).setId("q5").get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME).setSource(q6).setId("q6").get();
         refresh();
         PercolateResponse response = client().preparePercolate()
                 .setIndices("test").setDocumentType("doc")
@@ -1822,7 +1732,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .put("index.percolator.map_unmapped_fields_as_string", true);
         assertAcked(prepareCreate("test")
                 .setSettings(settings));
-        client().prepareIndex("test", PercolatorService.TYPE_NAME)
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME)
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject()).get();
         refresh();
         logger.info("--> Percolate doc with field1=value");
@@ -1842,7 +1752,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .setSettings(settings)
             .addMapping("type", "location", "type=geo_shape"));
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
             .setSource(jsonBuilder().startObject().field("query", geoShapeQuery("location", ShapeBuilders.newEnvelope(new Coordinate(0d, 50d), new Coordinate(2d, 40d)))).endObject())
             .get();
         refresh();
@@ -1878,7 +1788,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("index").addMapping("mapping", mapping));
         try {
-            client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+            client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
                     .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new QueryInnerHits())).endObject())
                     .execute().actionGet();
             fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
@@ -1893,14 +1803,14 @@ public class PercolatorIT extends ESIntegTestCase {
         // the percolate api
 
         assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent").addMapping("parent"));
-        client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", hasChildQuery("child", matchAllQuery())).endObject())
                 .execute().actionGet();
     }
 
     public void testPercolateDocumentWithParentField() throws Exception {
         assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent").addMapping("parent"));
-        client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         refresh();
@@ -1915,7 +1825,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testFilterByNow() throws Exception {
-        client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("created", "2015-07-10T14:41:54+0000").endObject())
                 .get();
         refresh();

@@ -38,7 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -347,7 +347,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source).execute().actionGet();
         }
 
-        client().prepareIndex(INDEX, PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex(INDEX, PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
 

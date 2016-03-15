@@ -1,12 +1,8 @@
-[[percolate]]
-== Percolate API
+[[java-query-percolator-query]]
+==== Percolator query
 
-The percolator allows one to register queries against an index, and then
-send `percolate` requests which include a doc, getting back the
-queries that match on that doc out of the set of registered queries.
-
-Read the main {ref}/search-percolate.html[percolate]
-documentation before reading this guide.
+See:
+ * {ref}/query-percolator-query.html[Percolator Query]
 
 [source,java]
 --------------------------------------------------
@@ -37,14 +33,12 @@ docBuilder.field("doc").startObject(); //This is needed to designate the documen
 docBuilder.field("content", "This is amazing!");
 docBuilder.endObject(); //End of the doc field
 docBuilder.endObject(); //End of the JSON root object
-//Percolate
-PercolateResponse response = client.preparePercolate()
-                        .setIndices("myIndexName")
-                        .setDocumentType("myDocumentType")
-                        .setSource(docBuilder).execute().actionGet();
+// Percolate, by executing the percolator query in the query dsl:
+SearchResponse response = client().prepareSearch("myIndexName")
+        .setQuery(QueryBuilders.percolatorQuery("myDocumentType", docBuilder.bytes()))
+        .get();
 //Iterate over the results
-for(PercolateResponse.Match match : response) {
-    //Handle the result which is the name of
-    //the query in the percolator
+for(SearchHit hit : response.getHits()) {
+    // Percolator queries as hit
 }
 --------------------------------------------------

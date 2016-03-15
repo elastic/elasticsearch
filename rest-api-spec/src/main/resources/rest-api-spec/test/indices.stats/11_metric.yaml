@@ -31,7 +31,6 @@ setup:
   - is_true:  _all.total.warmer
   - is_true:  _all.total.query_cache
   - is_true:  _all.total.fielddata
-  - is_true:  _all.total.percolate
   - is_true:  _all.total.completion
   - is_true:  _all.total.segments
   - is_true:  _all.total.translog
@@ -54,7 +53,6 @@ setup:
   - is_true:  _all.total.warmer
   - is_true:  _all.total.query_cache
   - is_true:  _all.total.fielddata
-  - is_true:  _all.total.percolate
   - is_true:  _all.total.completion
   - is_true:  _all.total.segments
   - is_true:  _all.total.translog
@@ -77,7 +75,6 @@ setup:
   - is_false:  _all.total.warmer
   - is_false:  _all.total.query_cache
   - is_false:  _all.total.fielddata
-  - is_false:  _all.total.percolate
   - is_false:  _all.total.completion
   - is_false:  _all.total.segments
   - is_false:  _all.total.translog
@@ -100,7 +97,6 @@ setup:
   - is_false:  _all.total.warmer
   - is_false:  _all.total.query_cache
   - is_false:  _all.total.fielddata
-  - is_false:  _all.total.percolate
   - is_false:  _all.total.completion
   - is_false:  _all.total.segments
   - is_false:  _all.total.translog
@@ -124,7 +120,6 @@ setup:
   - is_false:  _all.total.warmer
   - is_false:  _all.total.query_cache
   - is_false:  _all.total.fielddata
-  - is_false:  _all.total.percolate
   - is_false:  _all.total.completion
   - is_false:  _all.total.segments
   - is_false:  _all.total.translog

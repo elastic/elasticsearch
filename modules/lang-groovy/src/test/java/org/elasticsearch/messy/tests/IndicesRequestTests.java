@@ -67,10 +67,6 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.percolate.MultiPercolateAction;
-import org.elasticsearch.action.percolate.MultiPercolateRequest;
-import org.elasticsearch.action.percolate.PercolateAction;
-import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -85,7 +81,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -462,51 +457,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(validateQueryRequest, validateQueryShardAction);
-    }
-
-    public void testPercolate() {
-        String percolateShardAction = PercolateAction.NAME + "[s]";
-        interceptTransportActions(percolateShardAction);
-
-        client().prepareIndex("test-get", "type", "1").setSource("field","value").get();
-
-        PercolateRequest percolateRequest = new PercolateRequest().indices(randomIndicesOrAliases()).documentType("type");
-        if (randomBoolean()) {
-            percolateRequest.getRequest(new GetRequest("test-get", "type", "1"));
-        } else {
-            percolateRequest.source("\"field\":\"value\"");
-        }
-        internalCluster().clientNodeClient().percolate(percolateRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(percolateRequest, percolateShardAction);
-    }
-
-    public void testMultiPercolate() {
-        String multiPercolateShardAction = MultiPercolateAction.NAME + "[shard][s]";
-        interceptTransportActions(multiPercolateShardAction);
-
-        client().prepareIndex("test-get", "type", "1").setSource("field", "value").get();
-
-        MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
-        List<String> indices = new ArrayList<>();
-        int numRequests = iterations(1, 30);
-        for (int i = 0; i < numRequests; i++) {
-            String[] indicesOrAliases = randomIndicesOrAliases();
-            Collections.addAll(indices, indicesOrAliases);
-            PercolateRequest percolateRequest = new PercolateRequest().indices(indicesOrAliases).documentType("type");
-            if (randomBoolean()) {
-                percolateRequest.getRequest(new GetRequest("test-get", "type", "1"));
-            } else {
-                percolateRequest.source("\"field\":\"value\"");
-            }
-            multiPercolateRequest.add(percolateRequest);
-        }
-
-        internalCluster().clientNodeClient().multiPercolate(multiPercolateRequest).actionGet();
-
-        clearInterceptedActions();
-        assertIndicesSubset(indices, multiPercolateShardAction);
     }
 
     public void testOpenIndex() {

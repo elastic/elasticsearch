@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.percolator;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
@@ -31,51 +30,48 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
-final class PercolatorQuery extends Query {
+public final class PercolatorQuery extends Query implements Accountable {
 
-    public static final float MATCH_COST =
-            (1 << 14) // stored field access cost, approximated by the number of bytes in a block
-            + 1000;   // cost of matching the query against the document, arbitrary as it would be really complex to estimate
+    // cost of matching the query against the document, arbitrary as it would be really complex to estimate
+    public static final float MATCH_COST = 1000;
 
-    static class Builder {
+    public static class Builder {
 
+        private final String docType;
+        private final QueryRegistry queryRegistry;
+        private final BytesReference documentSource;
         private final IndexSearcher percolatorIndexSearcher;
-        private final Map<BytesRef, Query> percolatorQueries;
 
-        private Query percolateQuery;
         private Query queriesMetaDataQuery;
         private final Query percolateTypeQuery;
 
         /**
-         * @param percolatorIndexSearcher The index searcher on top of the in-memory index that holds the document being percolated
-         * @param percolatorQueries All the registered percolator queries
-         * @param percolateTypeQuery A query that identifies all document containing percolator queries
+         * @param docType                   The type of the document being percolated
+         * @param queryRegistry             The registry holding all the percolator queries as Lucene queries.
+         * @param documentSource            The source of the document being percolated
+         * @param percolatorIndexSearcher   The index searcher on top of the in-memory index that holds the document being percolated
+         * @param percolateTypeQuery        A query that identifies all document containing percolator queries
          */
-        Builder(IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries, Query percolateTypeQuery) {
-            this.percolatorIndexSearcher = percolatorIndexSearcher;
-            this.percolatorQueries = percolatorQueries;
-            this.percolateTypeQuery = percolateTypeQuery;
-        }
-
-        /**
-         * Optionally sets a query that reduces the number of queries to percolate based on custom metadata attached
-         * on the percolator documents.
-         */
-        void setPercolateQuery(Query percolateQuery) {
-            this.percolateQuery = percolateQuery;
+        public Builder(String docType, QueryRegistry queryRegistry, BytesReference documentSource, IndexSearcher percolatorIndexSearcher,
+                Query percolateTypeQuery) {
+            this.docType = Objects.requireNonNull(docType);
+            this.documentSource = Objects.requireNonNull(documentSource);
+            this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
+            this.queryRegistry = Objects.requireNonNull(queryRegistry);
+            this.percolateTypeQuery = Objects.requireNonNull(percolateTypeQuery);
         }
 
         /**
@@ -85,39 +81,43 @@ final class PercolatorQuery extends Query {
          * @param extractedTermsFieldName The name of the field to get the extracted terms from
          * @param unknownQueryFieldname The field used to mark documents whose queries couldn't all get extracted
          */
-        void extractQueryTermsQuery(String extractedTermsFieldName, String unknownQueryFieldname) throws IOException {
-            this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryTermsQuery(percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName, unknownQueryFieldname);
+        public void extractQueryTermsQuery(String extractedTermsFieldName, String unknownQueryFieldname) throws IOException {
+            this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryTermsQuery(
+                    percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName, unknownQueryFieldname
+            );
         }
 
-        PercolatorQuery build() {
+        public PercolatorQuery build() {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(percolateTypeQuery, FILTER);
             if (queriesMetaDataQuery != null) {
                 builder.add(queriesMetaDataQuery, FILTER);
             }
-            if (percolateQuery != null){
-                builder.add(percolateQuery, MUST);
-            }
-            return new PercolatorQuery(builder.build(), percolatorIndexSearcher, percolatorQueries);
+            return new PercolatorQuery(docType, queryRegistry, documentSource, builder.build(), percolatorIndexSearcher);
         }
 
     }
 
+    private final String documentType;
+    private final QueryRegistry queryRegistry;
+    private final BytesReference documentSource;
     private final Query percolatorQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
-    private final Map<BytesRef, Query> percolatorQueries;
 
-    private PercolatorQuery(Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher, Map<BytesRef, Query> percolatorQueries) {
+    private PercolatorQuery(String documentType, QueryRegistry queryRegistry, BytesReference documentSource,
+                            Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
+        this.documentType = documentType;
+        this.documentSource = documentSource;
         this.percolatorQueriesQuery = percolatorQueriesQuery;
+        this.queryRegistry = queryRegistry;
         this.percolatorIndexSearcher = percolatorIndexSearcher;
-        this.percolatorQueries = percolatorQueries;
     }
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
-            return new PercolatorQuery(rewritten, percolatorIndexSearcher, percolatorQueries);
+            return new PercolatorQuery(documentType, queryRegistry, documentSource, rewritten, percolatorIndexSearcher);
         } else {
             return this;
         }
@@ -160,7 +160,7 @@ final class PercolatorQuery extends Query {
                     return null;
                 }
 
-                final LeafReader leafReader = leafReaderContext.reader();
+                final QueryRegistry.Leaf percolatorQueries = queryRegistry.getQueries(leafReaderContext);
                 return new Scorer(this) {
 
                     @Override
@@ -173,7 +173,7 @@ final class PercolatorQuery extends Query {
                         return new TwoPhaseIterator(approximation.iterator()) {
                             @Override
                             public boolean matches() throws IOException {
-                                return matchDocId(approximation.docID(), leafReader);
+                                return matchDocId(approximation.docID());
                             }
 
                             @Override
@@ -198,27 +198,30 @@ final class PercolatorQuery extends Query {
                         return approximation.docID();
                     }
 
-                    boolean matchDocId(int docId, LeafReader leafReader) throws IOException {
-                        SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(UidFieldMapper.NAME);
-                        leafReader.document(docId, singleFieldsVisitor);
-                        BytesRef percolatorQueryId = new BytesRef(singleFieldsVisitor.uid().id());
-                        return matchQuery(percolatorQueryId);
+                    boolean matchDocId(int docId) throws IOException {
+                        Query query = percolatorQueries.getQuery(docId);
+                        if (query != null) {
+                            return Lucene.exists(percolatorIndexSearcher, query);
+                        } else {
+                            return false;
+                        }
                     }
                 };
             }
         };
     }
 
-    boolean matchQuery(BytesRef percolatorQueryId) throws IOException {
-        Query percolatorQuery = percolatorQueries.get(percolatorQueryId);
-        if (percolatorQuery != null) {
-            return Lucene.exists(percolatorIndexSearcher, percolatorQuery);
-        } else {
-            return false;
-        }
+    public IndexSearcher getPercolatorIndexSearcher() {
+        return percolatorIndexSearcher;
     }
 
-    private final Object instance = new Object();
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public BytesReference getDocumentSource() {
+        return documentSource;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -228,19 +231,46 @@ final class PercolatorQuery extends Query {
 
         PercolatorQuery that = (PercolatorQuery) o;
 
-        return instance.equals(that.instance);
+        if (!documentType.equals(that.documentType)) return false;
+        return documentSource.equals(that.documentSource);
 
     }
 
     @Override
     public int hashCode() {
         int result = super.hashCode();
-        result = 31 * result + instance.hashCode();
+        result = 31 * result + documentType.hashCode();
+        result = 31 * result + documentSource.hashCode();
         return result;
     }
 
     @Override
     public String toString(String s) {
-        return "PercolatorQuery{inner={" + percolatorQueriesQuery.toString(s)  + "}}";
+        return "PercolatorQuery{document_type={" + documentType + "},document_source={" + documentSource.toUtf8() +
+                "},inner={" + percolatorQueriesQuery.toString(s)  + "}}";
     }
+
+    @Override
+    public long ramBytesUsed() {
+        long sizeInBytes = 0;
+        if (documentSource.hasArray()) {
+            sizeInBytes += documentSource.array().length;
+        } else {
+            sizeInBytes += documentSource.length();
+        }
+        return sizeInBytes;
+    }
+
+    public interface QueryRegistry {
+
+        Leaf getQueries(LeafReaderContext ctx);
+
+        interface Leaf {
+
+            Query getQuery(int docId);
+
+        }
+
+    }
+
 }

@@ -43,9 +43,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
-import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -297,7 +297,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
             assert mappingType != null;
 
-            if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
+            if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorFieldMapper.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
             MetaData.Builder builder = MetaData.builder(metaData);

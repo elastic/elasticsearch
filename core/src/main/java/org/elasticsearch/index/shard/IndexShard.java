@@ -81,9 +81,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolateStats;
-import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -104,7 +102,6 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -137,7 +134,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
-    private final PercolatorQueriesRegistry percolatorQueriesRegistry;
     private final IndexFieldDataService indexFieldDataService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
@@ -197,7 +193,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                       @Nullable EngineFactory engineFactory,
-                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider, SearchSlowLog slowLog, Engine.Warmer warmer, IndexingOperationListener... listeners) {
+                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider,
+                      SearchSlowLog slowLog, Engine.Warmer warmer, IndexingOperationListener... listeners) {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(mapperService, logger);
@@ -242,8 +239,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.suspendableRefContainer = new SuspendableRefContainer();
         this.searcherWrapper = indexSearcherWrapper;
-        QueryShardContext queryShardContext = new QueryShardContext(indexSettings, indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryShardContext);
     }
 
     public Store store() {
@@ -472,12 +467,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
-            final boolean isPercolatorQuery = percolatorQueriesRegistry.isPercolatorQuery(index);
             Engine engine = getEngine();
             created = engine.index(index);
-            if (isPercolatorQuery) {
-                percolatorQueriesRegistry.updatePercolateQuery(engine, index.id());
-            }
             index.endTime(System.nanoTime());
         } catch (Throwable ex) {
             indexingOperationListeners.postIndex(index, ex);
@@ -515,12 +506,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
-            final boolean isPercolatorQuery = percolatorQueriesRegistry.isPercolatorQuery(delete);
             Engine engine = getEngine();
             engine.delete(delete);
-            if (isPercolatorQuery) {
-                percolatorQueriesRegistry.updatePercolateQuery(engine, delete.id());
-            }
             delete.endTime(System.nanoTime());
         } catch (Throwable ex) {
             indexingOperationListeners.postDelete(delete, ex);
@@ -638,10 +625,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public FieldDataStats fieldDataStats(String... fields) {
         return shardFieldData.stats(fields);
-    }
-
-    public PercolatorQueriesRegistry percolateRegistry() {
-        return percolatorQueriesRegistry;
     }
 
     public TranslogStats translogStats() {
@@ -788,18 +771,15 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine, percolatorQueriesRegistry);
+                    IOUtils.close(engine);
                 }
             }
         }
     }
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
-        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
+        if (mapperService.hasMapping(PercolatorFieldMapper.TYPE_NAME)) {
             refresh("percolator_load_queries");
-            try (Engine.Searcher searcher = getEngine().acquireSearcher("percolator_load_queries")) {
-                this.percolatorQueriesRegistry.loadQueries(searcher.reader());
-            }
         }
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -1094,10 +1074,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Translog getTranslog() {
         return getEngine().getTranslog();
-    }
-
-    public PercolateStats percolateStats() {
-        return percolatorQueriesRegistry.stats();
     }
 
     public IndexEventListener getIndexEventListener() {

@@ -222,20 +222,8 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("merges.total_time", "sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.current", "sibling:pri;alias:pc,percolateCurrent;default:false;text-align:right;desc:number of current percolations");
-        table.addCell("pri.percolate.current", "default:false;text-align:right;desc:number of current percolations");
-
-        table.addCell("percolate.memory_size", "sibling:pri;alias:pm,percolateMemory;default:false;text-align:right;desc:memory used by percolations");
-        table.addCell("pri.percolate.memory_size", "default:false;text-align:right;desc:memory used by percolations");
-
         table.addCell("percolate.queries", "sibling:pri;alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
         table.addCell("pri.percolate.queries", "default:false;text-align:right;desc:number of registered percolation queries");
-
-        table.addCell("percolate.time", "sibling:pri;alias:pti,percolateTime;default:false;text-align:right;desc:time spent percolating");
-        table.addCell("pri.percolate.time", "default:false;text-align:right;desc:time spent percolating");
-
-        table.addCell("percolate.total", "sibling:pri;alias:pto,percolateTotal;default:false;text-align:right;desc:total percolations");
-        table.addCell("pri.percolate.total", "default:false;text-align:right;desc:total percolations");
 
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
@@ -436,20 +424,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalTime());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getCurrent());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getCurrent());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getMemorySize());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getMemorySize());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getNumQueries());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getNumQueries());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getTime());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getTime());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getCount());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolatorCache().getNumQueries());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolatorCache().getNumQueries());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotal());

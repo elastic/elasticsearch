@@ -29,8 +29,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.percolate.PercolateAction;
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -125,20 +127,20 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTransportReplicationAllShardsTasks() {
-        registerTaskManageListeners(PercolateAction.NAME);  // main task
-        registerTaskManageListeners(PercolateAction.NAME + "[s]"); // shard level tasks
+        registerTaskManageListeners(FieldStatsAction.NAME);  // main task
+        registerTaskManageListeners(FieldStatsAction.NAME + "[s]"); // shard level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().preparePercolate().setIndices("test").setDocumentType("foo").setSource("{}").get();
+        client().prepareFieldStats().setFields("field").get();
 
         // the percolate operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
-        assertEquals(1, numberOfEvents(PercolateAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(FieldStatsAction.NAME, Tuple::v1));
         // and then one operation per shard
-        assertEquals(numberOfShards.totalNumShards, numberOfEvents(PercolateAction.NAME + "[s]", Tuple::v1));
+        assertEquals(numberOfShards.totalNumShards, numberOfEvents(FieldStatsAction.NAME + "[s]", Tuple::v1));
 
         // the shard level tasks should have the main task as a parent
-        assertParentTask(findEvents(PercolateAction.NAME + "[s]", Tuple::v1), findEvents(PercolateAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(FieldStatsAction.NAME + "[s]", Tuple::v1), findEvents(FieldStatsAction.NAME, Tuple::v1).get(0));
     }
 
     public void testTransportBroadcastByNodeTasks() {

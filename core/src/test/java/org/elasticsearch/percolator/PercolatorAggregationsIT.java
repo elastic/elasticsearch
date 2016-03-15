@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -69,7 +70,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             String value = values[i % numUniqueQueries];
             expectedCount[i % numUniqueQueries]++;
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject()).execute()
                     .actionGet();
         }
@@ -134,7 +135,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             String value = values[i % numUniqueQueries];
             expectedCount[i % numUniqueQueries]++;
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject()).execute()
                     .actionGet();
         }
@@ -212,7 +213,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         for (int i = 0; i < numQueries; i++) {
             String value = "value0";
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", i % 3 == 0 ? "b" : "a").endObject())
                     .execute()
                     .actionGet();

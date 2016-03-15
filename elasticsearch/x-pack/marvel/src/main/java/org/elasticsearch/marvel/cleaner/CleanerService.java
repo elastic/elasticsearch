@@ -67,7 +67,9 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     @Override
     protected void doClose() {
         logger.debug("closing cleaning service");
-        runnable.cancel();
+        if (runnable != null) {
+            runnable.cancel();
+        }
         logger.debug("cleaning service closed");
     }
 

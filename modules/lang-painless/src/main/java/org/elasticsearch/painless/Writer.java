@@ -1477,7 +1477,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtbrace(final ExtbraceContext ctx) {
-        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = ctx.expression();
 
         visit(exprctx);
         writeLoadStoreExternal(ctx);

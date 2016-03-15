@@ -38,8 +38,6 @@ import org.objectweb.asm.tree.analysis.BasicInterpreter;
 import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.tree.analysis.Frame;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileVisitResult;
@@ -59,6 +57,7 @@ public class ESLoggerUsageChecker {
     public static final List<String> LOGGER_METHODS = Arrays.asList("trace", "debug", "info", "warn", "error");
     public static final String IGNORE_CHECKS_ANNOTATION = "org.elasticsearch.common.SuppressLoggerChecks";
 
+    @SuppressForbidden(reason = "command line tool")
     public static void main(String... args) throws Exception {
         System.out.println("checking for wrong usages of ESLogger...");
         boolean[] wrongUsageFound = new boolean[1];

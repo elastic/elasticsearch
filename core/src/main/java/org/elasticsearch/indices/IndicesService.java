@@ -120,7 +120,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final TimeValue shardsClosedTimeout;
 
     private volatile Map<String, IndexServiceInjectorPair> indices = ImmutableMap.of();
-    
+
     static class IndexServiceInjectorPair {
         private final IndexService indexService;
         private final Injector injector;
@@ -138,7 +138,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             return injector;
         }
     }
-    
+
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
 
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -350,7 +350,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new MapperServiceModule());
         modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexModule(indexSettings));
-        
+
         pluginsService.processModules(modules);
 
         Injector indexInjector;
@@ -640,13 +640,19 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private boolean canDeleteShardContent(ShardId shardId, Settings indexSettings) {
         final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(shardId.getIndex());
         if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
-            if (indexServiceInjectorPair != null && nodeEnv.hasNodeFile()) {
-                final IndexService indexService = indexServiceInjectorPair.getIndexService();
-                return indexService.hasShard(shardId.id()) == false;
-            } else if (nodeEnv.hasNodeFile()) {
+             if (nodeEnv.hasNodeFile()) {
+                boolean isAllocated = indexServiceInjectorPair != null && indexServiceInjectorPair
+                    .getIndexService().hasShard(shardId.getId());
+                if (isAllocated) {
+                    return false; // we are allocated - can't delete the shard
+                }
                 if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
+                    // lets see if it's on a custom path (return false if the shared doesn't exist)
+                    // we don't need to delete anything that is not there
                     return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
                 } else {
+                    // lets see if it's path is available (return false if the shared doesn't exist)
+                    // we don't need to delete anything that is not there
                     return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
                 }
             }

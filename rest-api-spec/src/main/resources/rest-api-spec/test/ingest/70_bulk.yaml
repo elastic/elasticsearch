@@ -76,11 +76,12 @@ setup:
   - do:
       nodes.stats:
         metric: [ ingest ]
-  - gte: {nodes.$master.ingest.total.count: 1}
+  #we can't assert anything here since we might have more than one node in the cluster
+  - gte: {nodes.$master.ingest.total.count: 0}
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline1.count: 1}
+  - gte: {nodes.$master.ingest.pipelines.pipeline1.count: 0}
   - match: {nodes.$master.ingest.pipelines.pipeline1.failed: 0}
   - gte: {nodes.$master.ingest.pipelines.pipeline1.time_in_millis: 0}
   - match: {nodes.$master.ingest.pipelines.pipeline1.current: 0}
@@ -113,11 +114,12 @@ setup:
   - do:
       nodes.stats:
         metric: [ ingest ]
-  - gte: {nodes.$master.ingest.total.count: 1}
+  #we can't assert anything here since we might have more than one node in the cluster
+  - gte: {nodes.$master.ingest.total.count: 0}
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline2.count: 1}
+  - gte: {nodes.$master.ingest.pipelines.pipeline2.count: 0}
   - match: {nodes.$master.ingest.pipelines.pipeline2.failed: 0}
   - gte: {nodes.$master.ingest.pipelines.pipeline2.time_in_millis: 0}
   - match: {nodes.$master.ingest.pipelines.pipeline2.current: 0}

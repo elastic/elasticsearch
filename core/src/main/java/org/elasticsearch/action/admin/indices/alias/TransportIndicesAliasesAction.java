@@ -90,11 +90,11 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             //expand indices
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), action.indices());
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
             //collect the aliases
             Collections.addAll(aliases, action.aliases());
             for (String index : concreteIndices) {
-                for (String alias : action.concreteAliases(state.metaData(), index)) { 
+                for (String alias : action.concreteAliases(state.metaData(), index)) {
                     AliasAction finalAction = new AliasAction(action.aliasAction());
                     finalAction.index(index);
                     finalAction.alias(alias);

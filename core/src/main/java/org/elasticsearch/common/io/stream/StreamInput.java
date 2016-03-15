@@ -65,6 +65,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -553,9 +554,9 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    public <T extends Writeable> T readOptionalWritable(T prototype) throws IOException {
+    public <T extends Writeable> T readOptionalWritable(Writeable.IOFunction<StreamInput, T> provider) throws IOException {
         if (readBoolean()) {
-            return (T) prototype.readFrom(this);
+            return provider.apply(this);
         } else {
             return null;
         }

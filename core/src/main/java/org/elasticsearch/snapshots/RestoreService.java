@@ -778,18 +778,19 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      * Check if any of the indices to be closed are currently being restored from a snapshot and fail closing if such an index
      * is found as closing an index that is being restored makes the index unusable (it cannot be recovered).
      */
-    public static void checkIndexClosing(ClusterState currentState, Set<String> indices) {
+    public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
         RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
         if (restore != null) {
-            Set<String> indicesToFail = null;
+            Set<Index> indicesToFail = null;
             for (RestoreInProgress.Entry entry : restore.entries()) {
                 for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
                     if (!shard.value.state().completed()) {
-                        if (indices.contains(shard.key.getIndexName())) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
+                        if (indexMetaData != null && indices.contains(indexMetaData)) {
                             if (indicesToFail == null) {
                                 indicesToFail = new HashSet<>();
                             }
-                            indicesToFail.add(shard.key.getIndexName());
+                            indicesToFail.add(shard.key.getIndex());
                         }
                     }
                 }

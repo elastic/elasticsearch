@@ -106,7 +106,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             if (request.indices().length > 0) {
-                String[] indices = indexNameExpressionResolver.concreteIndices(currentState, request);
+                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {

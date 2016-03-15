@@ -32,6 +32,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.joda.time.DateTimeZone;
@@ -66,10 +67,19 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
+     * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
+     * are encapsulated in the specified request.
+     */
+    public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        Context context = new Context(state, request.indicesOptions());
+        return concreteIndexNames(context, request.indices());
+    }
+
+    /**
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request.
      */
-    public String[] concreteIndices(ClusterState state, IndicesRequest request) {
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions());
         return concreteIndices(context, request.indices());
     }
@@ -87,7 +97,25 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public String[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
+    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(state, options);
+        return concreteIndexNames(context, indexExpressions);
+    }
+
+    /**
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
+     *
+     * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param indexExpressions  expressions that can be resolved to alias or index names.
+     * @return the resolved concrete indices based on the cluster state, indices options and index expressions
+     * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
+     * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
+     * contains no indices and the indices options in the context don't allow such a case.
+     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     * indices options in the context don't allow such a case.
+     */
+    public Index[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options);
         return concreteIndices(context, indexExpressions);
     }
@@ -105,12 +133,21 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public String[] concreteIndices(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
+    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
         Context context = new Context(state, options, startTime);
-        return concreteIndices(context, indexExpressions);
+        return concreteIndexNames(context, indexExpressions);
     }
 
-    String[] concreteIndices(Context context, String... indexExpressions) {
+    String[] concreteIndexNames(Context context, String... indexExpressions) {
+        Index[] indexes = concreteIndices(context, indexExpressions);
+        String[] names = new String[indexes.length];
+        for (int i = 0; i < indexes.length; i++) {
+            names[i] = indexes[i].getName();
+        }
+        return names;
+    }
+
+    Index[] concreteIndices(Context context, String... indexExpressions) {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{MetaData.ALL};
         }
@@ -136,11 +173,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 infe.setResources("index_expression", indexExpressions);
                 throw infe;
             } else {
-                return Strings.EMPTY_ARRAY;
+                return Index.EMPTY_ARRAY;
             }
         }
 
-        final Set<String> concreteIndices = new HashSet<>(expressions.size());
+        final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             if (aliasOrIndex == null) {
@@ -169,11 +206,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                         throw new IndexClosedException(index.getIndex());
                     } else {
                         if (options.forbidClosedIndices() == false) {
-                            concreteIndices.add(index.getIndex().getName());
+                            concreteIndices.add(index.getIndex());
                         }
                     }
                 } else if (index.getState() == IndexMetaData.State.OPEN) {
-                    concreteIndices.add(index.getIndex().getName());
+                    concreteIndices.add(index.getIndex());
                 } else {
                     throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                 }
@@ -185,7 +222,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             infe.setResources("index_expression", indexExpressions);
             throw infe;
         }
-        return concreteIndices.toArray(new String[concreteIndices.size()]);
+        return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
     /**
@@ -200,9 +237,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @throws IllegalArgumentException if the index resolution lead to more than one index
      * @return the concrete index obtained as a result of the index resolution
      */
-    public String concreteSingleIndex(ClusterState state, IndicesRequest request) {
+    public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
         String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
-        String[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
+        Index[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {
             throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
         }
@@ -395,7 +432,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         if (routing != null) {
             Set<String> r = Strings.splitStringByCommaToSet(routing);
             Map<String, Set<String>> routings = new HashMap<>();
-            String[] concreteIndices = metaData.concreteAllIndices();
+            String[] concreteIndices = metaData.getConcreteAllIndices();
             for (String index : concreteIndices) {
                 routings.put(index, r);
             }
@@ -435,7 +472,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      */
     boolean isPatternMatchingAllIndices(MetaData metaData, String[] indicesOrAliases, String[] concreteIndices) {
         // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
-        if (concreteIndices.length == metaData.concreteAllIndices().length && indicesOrAliases.length > 0) {
+        if (concreteIndices.length == metaData.getConcreteAllIndices().length && indicesOrAliases.length > 0) {
 
             //we might have something like /-test1,+test1 that would identify all indices
             //or something like /-test1 with test1 index missing and IndicesOptions.lenient()
@@ -691,11 +728,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
         private List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData, boolean assertEmpty) {
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.concreteAllIndices());
+                return Arrays.asList(metaData.getConcreteAllIndices());
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metaData.concreteAllOpenIndices());
+                return Arrays.asList(metaData.getConcreteAllOpenIndices());
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.concreteAllClosedIndices());
+                return Arrays.asList(metaData.getConcreteAllClosedIndices());
             } else {
                 assert assertEmpty : "Shouldn't end up here";
                 return Collections.emptyList();
@@ -867,7 +904,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * Returns <code>true</code> iff the given expression resolves to the given index name otherwise <code>false</code>
      */
     public final boolean matchesIndex(String indexName, String expression, ClusterState state) {
-        final String[] concreteIndices = concreteIndices(state, IndicesOptions.lenientExpandOpen(), expression);
+        final String[] concreteIndices = concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), expression);
         for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, indexName)) {
                 return true;

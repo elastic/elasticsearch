@@ -112,14 +112,16 @@ class ExpressionSearchScript implements SearchScript {
 
             @Override
             public void setNextVar(String name, Object value) {
-                assert(specialValue != null);
                 // this should only be used for the special "_value" variable used in aggregations
                 assert(name.equals("_value"));
 
-                if (value instanceof Number) {
-                    specialValue.setValue(((Number)value).doubleValue());
-                } else {
-                    throw new ScriptException("Cannot use expression with text variable using " + compiledScript);
+                // _value isn't used in script if specialValue == null
+                if (specialValue != null) {
+                    if (value instanceof Number) {
+                        specialValue.setValue(((Number)value).doubleValue());
+                    } else {
+                        throw new ScriptException("Cannot use expression with text variable using " + compiledScript);
+                    }
                 }
             }
         };

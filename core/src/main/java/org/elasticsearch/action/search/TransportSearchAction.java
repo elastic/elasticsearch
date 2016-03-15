@@ -64,7 +64,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // optimize search type for cases where there is only one shard group to search on
         try {
             ClusterState clusterState = clusterService.state();
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, searchRequest);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState,
                     searchRequest.routing(), searchRequest.indices());
             int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, routingMap);

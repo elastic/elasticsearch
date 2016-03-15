@@ -33,9 +33,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Handles writing and loading both {@link MetaData} and {@link IndexMetaData}
@@ -45,7 +48,7 @@ public class MetaStateService extends AbstractComponent {
     static final String FORMAT_SETTING = "gateway.format";
 
     static final String GLOBAL_STATE_FILE_PREFIX = "global-";
-    private static final String INDEX_STATE_FILE_PREFIX = "state-";
+    public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
     private final NodeEnvironment nodeEnv;
 
@@ -91,14 +94,12 @@ public class MetaStateService extends AbstractComponent {
         } else {
             metaDataBuilder = MetaData.builder();
         }
-
-        final Set<String> indices = nodeEnv.findAllIndices();
-        for (String index : indices) {
-            IndexMetaData indexMetaData = loadIndexState(index);
-            if (indexMetaData == null) {
-                logger.debug("[{}] failed to find metadata for existing index location", index);
-            } else {
+        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
+            IndexMetaData indexMetaData = indexStateFormat.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            if (indexMetaData != null) {
                 metaDataBuilder.put(indexMetaData, false);
+            } else {
+                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
             }
         }
         return metaDataBuilder.build();
@@ -108,8 +109,33 @@ public class MetaStateService extends AbstractComponent {
      * Loads the index state for the provided index name, returning null if doesn't exists.
      */
     @Nullable
-    IndexMetaData loadIndexState(String index) throws IOException {
+    IndexMetaData loadIndexState(Index index) throws IOException {
         return indexStateFormat.loadLatestState(logger, nodeEnv.indexPaths(index));
+    }
+
+    /**
+     * Loads all indices states available on disk
+     */
+    List<IndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
+        List<IndexMetaData> indexMetaDataList = new ArrayList<>();
+        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
+            if (excludeIndexPathIdsPredicate.test(indexFolderName)) {
+                continue;
+            }
+            IndexMetaData indexMetaData = indexStateFormat.loadLatestState(logger,
+                nodeEnv.resolveIndexFolder(indexFolderName));
+            if (indexMetaData != null) {
+                final String indexPathId = indexMetaData.getIndex().getUUID();
+                if (indexFolderName.equals(indexPathId)) {
+                    indexMetaDataList.add(indexMetaData);
+                } else {
+                    throw new IllegalStateException("[" + indexFolderName+ "] invalid index folder name, rename to [" + indexPathId + "]");
+                }
+            } else {
+                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
+            }
+        }
+        return indexMetaDataList;
     }
 
     /**
@@ -129,13 +155,22 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Writes the index state.
      */
-    void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
-        logger.trace("[{}] writing state, reason [{}]", indexMetaData.getIndex(), reason);
+    void writeIndex(String reason, IndexMetaData indexMetaData) throws IOException {
+        writeIndex(reason, indexMetaData, nodeEnv.indexPaths(indexMetaData.getIndex()));
+    }
+
+    /**
+     * Writes the index state in <code>locations</code>, use {@link #writeGlobalState(String, MetaData)}
+     * to write index state in index paths
+     */
+    void writeIndex(String reason, IndexMetaData indexMetaData, Path[] locations) throws IOException {
+        final Index index = indexMetaData.getIndex();
+        logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            indexStateFormat.write(indexMetaData, indexMetaData.getVersion(), nodeEnv.indexPaths(indexMetaData.getIndex().getName()));
+            indexStateFormat.write(indexMetaData, indexMetaData.getVersion(), locations);
         } catch (Throwable ex) {
-            logger.warn("[{}]: failed to write index state", ex, indexMetaData.getIndex());
-            throw new IOException("failed to write state for [" + indexMetaData.getIndex() + "]", ex);
+            logger.warn("[{}]: failed to write index state", ex, index);
+            throw new IOException("failed to write state for [" + index + "]", ex);
         }
     }
 

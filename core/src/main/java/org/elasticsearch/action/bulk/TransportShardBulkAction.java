@@ -47,7 +47,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -75,17 +74,19 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
 
     private final UpdateHelper updateHelper;
     private final boolean allowIdGeneration;
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
-                actionFilters, indexNameExpressionResolver,
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
+            actionFilters, indexNameExpressionResolver,
                 BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
+        this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
     @Override

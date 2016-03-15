@@ -1880,7 +1880,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         client.admin().indices().prepareDelete("test-idx-1").get();
                         fail("Expected deleting index to fail during snapshot");
                     } catch (IllegalArgumentException e) {
-                        assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [test-idx-1]"));
+                        assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [[test-idx-1/"));
                     }
                 } else {
                     try {
@@ -1888,7 +1888,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         client.admin().indices().prepareClose("test-idx-1").get();
                         fail("Expected closing index to fail during snapshot");
                     } catch (IllegalArgumentException e) {
-                        assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [test-idx-1]"));
+                        assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [[test-idx-1/"));
                     }
                 }
             }
@@ -1964,9 +1964,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 client.admin().indices().prepareClose("test-idx-1").get();
                 fail("Expected closing index to fail during restore");
             } catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [test-idx-1]"));
+                assertThat(e.getMessage(), containsString("Cannot close indices that are being restored: [[test-idx-1/"));
             }
         } finally {
+            // unblock even if the try block fails otherwise we will get bogus failures when we delete all indices in test teardown.
             logger.info("--> unblocking all data nodes");
             unblockAllDataNodes("test-repo");
         }

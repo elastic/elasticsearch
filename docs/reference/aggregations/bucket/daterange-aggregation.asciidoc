@@ -118,7 +118,7 @@ Any characters in the pattern that are not in the ranges of ['a'..'z'] and ['A'.
 Dates can be converted from another time zone to UTC by specifying the `time_zone` parameter.
 
 Time zones may either be specified as an ISO 8601 UTC offset (e.g. +01:00 or -08:00) or as one of
-the the http://joda-time.sourceforge.net/timezones.html[time zone ids] from the TZ database.
+the http://www.joda.org/joda-time/timezones.html[time zone ids] from the TZ database.
 
 The `time_zone` parameter is also applied to rounding in date math expressions. As an example,
 to round to the beginning of the day in the CET time zone, you can do the following:

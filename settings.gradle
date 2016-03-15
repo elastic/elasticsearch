@@ -39,6 +39,7 @@ List projects = [
   'plugins:repository-s3',
   'plugins:jvm-example',
   'plugins:store-smb',
+  'qa:backwards-5.0',
   'qa:evil-tests',
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',

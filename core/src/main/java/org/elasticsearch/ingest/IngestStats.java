@@ -31,11 +31,17 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class IngestStats implements Writeable<IngestStats>, ToXContent {
-
-    public final static IngestStats PROTO = new IngestStats(null, null);
-
     private final Stats totalStats;
     private final Map<String, Stats> statsPerPipeline;
+
+    public IngestStats(StreamInput in) throws IOException {
+        this.totalStats = new Stats(in);
+        int size = in.readVInt();
+        this.statsPerPipeline = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            statsPerPipeline.put(in.readString(), new Stats(in));
+        }
+    }
 
     public IngestStats(Stats totalStats, Map<String, Stats> statsPerPipeline) {
         this.totalStats = totalStats;
@@ -58,16 +64,7 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
 
     @Override
     public IngestStats readFrom(StreamInput in) throws IOException {
-        Stats totalStats = Stats.PROTO.readFrom(in);
-        totalStats.readFrom(in);
-        int size = in.readVInt();
-        Map<String, Stats> statsPerPipeline = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            Stats stats = Stats.PROTO.readFrom(in);
-            statsPerPipeline.put(in.readString(), stats);
-            stats.readFrom(in);
-        }
-        return new IngestStats(totalStats, statsPerPipeline);
+        return new IngestStats(in);
     }
 
     @Override
@@ -99,12 +96,17 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
 
     public static class Stats implements Writeable<Stats>, ToXContent {
 
-        private final static Stats PROTO = new Stats(0, 0, 0, 0);
-
         private final long ingestCount;
         private final long ingestTimeInMillis;
         private final long ingestCurrent;
         private final long ingestFailedCount;
+
+        public Stats(StreamInput in) throws IOException {
+            ingestCount = in.readVLong();
+            ingestTimeInMillis = in.readVLong();
+            ingestCurrent = in.readVLong();
+            ingestFailedCount = in.readVLong();
+        }
 
         public Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
             this.ingestCount = ingestCount;
@@ -144,11 +146,7 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
 
         @Override
         public Stats readFrom(StreamInput in) throws IOException {
-            long ingestCount = in.readVLong();
-            long ingestTimeInMillis = in.readVLong();
-            long ingestCurrent = in.readVLong();
-            long ingestFailedCount = in.readVLong();
-            return new Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
+            return new Stats(in);
         }
 
         @Override

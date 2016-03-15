@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +43,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractSortTestCase<T extends SortBuilder & NamedWriteable<T> & SortElementParserTemp<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderParser<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -56,6 +56,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & NamedWriteabl
         namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
@@ -86,6 +87,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & NamedWriteabl
             builder.endObject();
 
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
+            ParsingException except = new ParsingException(itemParser.getTokenLocation(), "mytext", itemParser.getTokenLocation());
+            System.out.println(except.getMessage());
             itemParser.nextToken();
 
             /*
@@ -155,7 +158,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & NamedWriteabl
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
                         original.getWriteableName());
-                return prototype.readFrom(in);
+                T copy = (T) prototype.readFrom(in);
+                return copy;
             }
         }
     }

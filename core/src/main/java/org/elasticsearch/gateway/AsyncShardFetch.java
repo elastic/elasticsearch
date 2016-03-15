@@ -269,7 +269,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     // visible for testing
     void asyncFetch(final ShardId shardId, final String[] nodesIds, final MetaData metaData) {
-        IndexMetaData indexMetaData = metaData.index(shardId.getIndex());
+        IndexMetaData indexMetaData = metaData.getIndexSafe(shardId.getIndex());
         logger.trace("{} fetching [{}] from {}", shardId, type, nodesIds);
         action.list(shardId, indexMetaData, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
             @Override

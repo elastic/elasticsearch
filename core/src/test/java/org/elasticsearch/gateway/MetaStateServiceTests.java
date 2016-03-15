@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,15 +44,15 @@ public class MetaStateServiceTests extends ESTestCase {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
             IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
-            metaStateService.writeIndex("test_write", index, null);
-            assertThat(metaStateService.loadIndexState("test1"), equalTo(index));
+            metaStateService.writeIndex("test_write", index);
+            assertThat(metaStateService.loadIndexState(index.getIndex()), equalTo(index));
         }
     }
 
     public void testLoadMissingIndex() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
-            assertThat(metaStateService.loadIndexState("test1"), nullValue());
+            assertThat(metaStateService.loadIndexState(new Index("test1", "test1UUID")), nullValue());
         }
     }
 
@@ -94,7 +95,7 @@ public class MetaStateServiceTests extends ESTestCase {
                     .build();
 
             metaStateService.writeGlobalState("test_write", metaData);
-            metaStateService.writeIndex("test_write", index, null);
+            metaStateService.writeIndex("test_write", index);
 
             MetaData loadedState = metaStateService.loadFullState();
             assertThat(loadedState.persistentSettings(), equalTo(metaData.persistentSettings()));

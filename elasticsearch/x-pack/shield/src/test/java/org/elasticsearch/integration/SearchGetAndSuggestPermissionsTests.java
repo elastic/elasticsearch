@@ -38,15 +38,18 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
                 "\n" +
                 "search_role:\n" +
                 "  indices:\n" +
-                "    'a': search\n" +
+                "    - names: 'a'\n" +
+                "      privileges: [ search ]\n" +
                 "\n" +
                 "get_role:\n" +
                 "  indices:\n" +
-                "    'a': get\n" +
+                "    - names: 'a'\n" +
+                "      privileges: [ get ]\n" +
                 "\n" +
                 "suggest_role:\n" +
                 "  indices:\n" +
-                "    'a': suggest\n";
+                "    - names: 'a'\n" +
+                "      privileges: [ suggest ]\n";
     }
 
     @Override

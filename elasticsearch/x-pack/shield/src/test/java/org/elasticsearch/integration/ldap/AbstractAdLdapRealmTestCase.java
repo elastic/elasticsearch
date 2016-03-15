@@ -93,21 +93,25 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
         return super.configRoles() +
                 "\n" +
                 "Avengers:\n" +
-                "  cluster: NONE\n" +
+                "  cluster: [ NONE ]\n" +
                 "  indices:\n" +
-                "    'avengers': ALL\n" +
+                "    - names: 'avengers'\n" +
+                "      privileges: [ all ]\n" +
                 "SHIELD:\n" +
-                "  cluster: NONE\n" +
-                "  indices:\n " +
-                "    '" + SHIELD_INDEX + "': ALL\n" +
+                "  cluster: [ NONE ]\n" +
+                "  indices:\n" +
+                "    - names: '" + SHIELD_INDEX + "'\n" +
+                "      privileges: [ all ]\n" +
                 "Gods:\n" +
-                "  cluster: NONE\n" +
+                "  cluster: [ NONE ]\n" +
                 "  indices:\n" +
-                "    '" + ASGARDIAN_INDEX + "': ALL\n" +
+                "    - names: '" + ASGARDIAN_INDEX + "'\n" +
+                "      privileges: [ all ]\n" +
                 "Philanthropists:\n" +
-                "  cluster: NONE\n" +
+                "  cluster: [ NONE ]\n" +
                 "  indices:\n" +
-                "    '" + PHILANTHROPISTS_INDEX + "': ALL\n";
+                "    - names: '" + PHILANTHROPISTS_INDEX + "'\n" +
+                "      privileges: [ all ]\n";
     }
 
     protected void assertAccessAllowed(String user, String index) throws IOException {

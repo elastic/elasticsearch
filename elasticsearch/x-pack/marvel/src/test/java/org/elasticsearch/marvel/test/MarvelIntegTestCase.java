@@ -436,20 +436,21 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, " +
-                        "cluster:monitor/health, cluster:monitor/stats, cluster:monitor/task, cluster:admin/settings/update, " +
-                        "cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, " +
-                        "indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
+                    " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
+                    " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
+                    " 'cluster:monitor/task']\n" +
                 "  indices:\n" +
-                "    '*': all\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ all ]\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
                 "transport_client:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
                 ;
 
 

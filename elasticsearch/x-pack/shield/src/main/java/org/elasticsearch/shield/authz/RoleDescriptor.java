@@ -10,15 +10,19 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
@@ -132,48 +136,69 @@ public class RoleDescriptor implements ToXContent {
         out.writeStringArray(descriptor.runAs);
     }
 
-    public static RoleDescriptor parse(String name, BytesReference source) throws Exception {
+    public static RoleDescriptor parse(String name, BytesReference source) throws IOException {
         assert name != null;
         try (XContentParser parser = XContentHelper.createParser(source)) {
-            XContentParser.Token token = parser.nextToken(); // advancing to the START_OBJECT token
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
-            }
-            String currentFieldName = null;
-            IndicesPrivileges[] indicesPrivileges = null;
-            String[] clusterPrivileges = null;
-            String[] runAsUsers = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INDICES)) {
-                    indicesPrivileges = parseIndices(name, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.RUN_AS)) {
-                    runAsUsers = XContentUtils.readStringArray(parser, true);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
-                    clusterPrivileges = XContentUtils.readStringArray(parser, true);
-                } else {
-                    throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
-                }
-            }
-            return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAsUsers);
+            return parse(name, parser);
         }
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser) throws Exception {
+    public static RoleDescriptor parse(String name, XContentParser parser) throws IOException {
+        // validate name
+        Validation.Error validationError = Validation.Roles.validateRoleName(name);
+        if (validationError != null) {
+            ValidationException ve = new ValidationException();
+            ve.addValidationError(validationError.toString());
+            throw ve;
+        }
+
+        // advance to the START_OBJECT token if needed
+        XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
+        }
+        String currentFieldName = null;
+        IndicesPrivileges[] indicesPrivileges = null;
+        String[] clusterPrivileges = null;
+        String[] runAsUsers = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INDICES)) {
+                indicesPrivileges = parseIndices(name, parser);
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.RUN_AS)) {
+                runAsUsers = readStringArray(name, parser, true);
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
+                clusterPrivileges = readStringArray(name, parser, true);
+            } else {
+                throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
+            }
+        }
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAsUsers);
+    }
+
+    private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
+        try {
+            return XContentUtils.readStringArray(parser, allowNull);
+        } catch (ElasticsearchParseException e) {
+            // re-wrap in order to add the role name
+            throw new ElasticsearchParseException("failed to parse role [{}]", e, roleName);
+        }
+    }
+
+    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value " +
                     "to be an array, but found [{}] instead", roleName, parser.currentName(), parser.currentToken());
         }
         List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             privileges.add(parseIndex(roleName, parser));
         }
         return privileges.toArray(new IndicesPrivileges[privileges.size()]);
     }
 
-    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser) throws Exception {
+    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value to " +
@@ -191,7 +216,7 @@ public class RoleDescriptor implements ToXContent {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     names = new String[] { parser.text() };
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    names = XContentUtils.readStringArray(parser, false);
+                    names = readStringArray(roleName, parser, false);
                     if (names.length == 0) {
                         throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. [{}] cannot be an empty " +
                                 "array", roleName, currentFieldName);
@@ -201,15 +226,21 @@ public class RoleDescriptor implements ToXContent {
                             "value to be a string or an array of strings, but found [{}] instead", roleName, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.QUERY)) {
-                query = parser.textOrNull();
+                if (token == XContentParser.Token.START_OBJECT) {
+                    XContentBuilder builder = JsonXContent.contentBuilder();
+                    XContentHelper.copyCurrentStructure(builder.generator(), parser);
+                    query = builder.string();
+                } else {
+                    query = parser.textOrNull();
+                }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
-                privileges = XContentUtils.readStringArray(parser, false);
+                privileges = readStringArray(roleName, parser, true);
                 if (names.length == 0) {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. [{}] cannot be an empty " +
                             "array", roleName, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELDS)) {
-                fields = XContentUtils.readStringArray(parser, true);
+                fields = readStringArray(roleName, parser, true);
             } else {
                 throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. unexpected field [{}]",
                         roleName, currentFieldName);

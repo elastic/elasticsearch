@@ -80,41 +80,42 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
     protected String configRoles() {
         return super.configRoles() +
                 "\nrole1:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "     '*':\n" +
-                "        privileges: ALL\n" +
-                "        fields: field1\n" +
+                "      - names: '*'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        fields: [ field1 ]\n" +
                 "role2:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "     '*':\n" +
-                "        privileges: ALL\n" +
-                "        fields: field2\n" +
+                "      - names: '*'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        fields: [ field2 ]\n" +
                 "role3:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "     '*':\n" +
-                "        privileges: ALL\n" +
-                "        fields: \n" +
-                "           - field1\n" +
-                "           - field2\n" +
+                "     - names: '*'\n" +
+                "       privileges: [ ALL ]\n" +
+                "       fields:\n" +
+                "         - field1\n" +
+                "         - field2\n" +
                 "role4:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "     '*':\n" +
-                "        privileges: ALL\n" +
-                "        fields:\n" +
+                "      - names: '*'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        fields: []\n" +
                 "role5:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "     '*': ALL\n" +
+                "     - names: '*'\n" +
+                "       privileges: [ALL]\n" +
                 "role6:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "    '*':\n" +
-                "        privileges: ALL\n" +
-                "        fields: 'field*'\n";
+                "      - names: '*'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        fields: [ 'field*' ]\n";
     }
 
     @Override

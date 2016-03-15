@@ -685,19 +685,20 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, " +
-                        "cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, " +
-                        "indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
+                        " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
+                        " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete' ]\n" +
                 "  indices:\n" +
-                "    '*': all\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ all ]\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'manage_watcher', 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
                 "transport_client:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
+                "  cluster: [ 'monitor_watcher', 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
                 ;
 
 

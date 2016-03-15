@@ -67,9 +67,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public static final String CONFIG_ROLE_ALLOW_ALL =
             DEFAULT_ROLE + ":\n" +
-                    "  cluster: ALL\n" +
+                    "  cluster: [ ALL ]\n" +
                     "  indices:\n" +
-                    "    '*': ALL\n" +
+                    "    - names: '*'\n" +
+                    "      privileges: [ ALL ]\n" +
             DEFAULT_TRANSPORT_CLIENT_ROLE + ":\n" +
                     "  cluster:\n" +
                     "    - cluster:monitor/nodes/info\n" +

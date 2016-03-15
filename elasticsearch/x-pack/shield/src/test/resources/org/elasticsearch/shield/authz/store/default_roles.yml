@@ -1,48 +1,126 @@
 admin:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*': all
+    - names: '*'
+      privileges:
+        - all
 
 # monitoring cluster privileges
 # All operations on all indices
 power_user:
-  cluster: monitor
+  cluster:
+    - monitor
   indices:
-    '*': all
+    - names: '*'
+      privileges:
+        - all
 
-# Only operations on indices
+# Read-only operations on indices
 user:
   indices:
-    '*': read
+    - names: '*'
+      privileges:
+        - read
 
-# The required role for kibana 3 users
-kibana3:
-  cluster: cluster:monitor/nodes/info
-  indices:
-    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
-    'kibana-int': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+# Defines the required permissions for transport clients
+transport_client:
+  cluster:
+      - cluster:monitor/nodes/liveness
+      #uncomment the following for sniffing
+      #- cluster:monitor/state
 
-# The required role for kibana 4 users
+# The required permissions for kibana 4 users.
 kibana4:
-  cluster: cluster:monitor/nodes/info
+  cluster:
+      - cluster:monitor/nodes/info
+      - cluster:monitor/health
   indices:
-    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
-    '.kibana': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+    - names: '*'
+      privileges:
+        - indices:admin/mappings/fields/get
+        - indices:admin/validate/query
+        - indices:data/read/search
+        - indices:data/read/msearch
+        - indices:data/read/field_stats
+        - indices:admin/get
+    - names: '.kibana'
+      privileges:
+        - indices:admin/exists
+        - indices:admin/mapping/put
+        - indices:admin/mappings/fields/get
+        - indices:admin/refresh
+        - indices:admin/validate/query
+        - indices:data/read/get
+        - indices:data/read/mget
+        - indices:data/read/search
+        - indices:data/write/delete
+        - indices:data/write/index
+        - indices:data/write/update
+
+# The required permissions for the kibana 4 server
+kibana4_server:
+  cluster:
+      - cluster:monitor/nodes/info
+      - cluster:monitor/health
+  indices:
+    - names: '.kibana'
+      privileges:
+        - indices:admin/create
+        - indices:admin/exists
+        - indices:admin/mapping/put
+        - indices:admin/mappings/fields/get
+        - indices:admin/refresh
+        - indices:admin/validate/query
+        - indices:data/read/get
+        - indices:data/read/mget
+        - indices:data/read/search
+        - indices:data/write/delete
+        - indices:data/write/index
+        - indices:data/write/update
 
 # The required role for logstash users
 logstash:
-  cluster: indices:admin/template/get, indices:admin/template/put
+  cluster:
+    - indices:admin/template/get
+    - indices:admin/template/put
   indices:
-    'logstash-*': indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, create_index
+    - names: 'logstash-*'
+      privileges:
+        - indices:data/write/bulk
+        - indices:data/write/delete
+        - indices:data/write/update
+        - indices:data/read/search
+        - indices:data/read/scroll
+        - create_index
 
-# Monitoring role, allowing all operations
-# on the monitoring indices
+# Monitoring user role. Assign to monitoring users.
 monitoring_user:
   indices:
-    '.monitoring-*': all
+    - names: '.monitoring-*'
+      privileges:
+        - read
+    - names: '.kibana'
+      privileges:
+        - indices:admin/exists
+        - indices:admin/mappings/fields/get
+        - indices:admin/validate/query
+        - indices:data/read/get
+        - indices:data/read/mget
+        - indices:data/read/search
 
-# Monitoring Agent users
-monitoring_agent:
-  cluster: indices:admin/template/get, indices:admin/template/put
+# Monitoring remote agent role. Assign to the agent user on the remote monitoring cluster
+# to which the monitoring agent will export all its data
+remote_monitoring_agent:
+  cluster:
+    - indices:admin/template/put
+    - indices:admin/template/get
   indices:
-    '.monitoring-*': indices:data/write/bulk, create_index
+    - names: '.monitoring-*'
+      privileges:
+        - all
+
+# Allows all operations required to manage ingest pipelines
+ingest_admin:
+  cluster:
+    - manage_pipeline

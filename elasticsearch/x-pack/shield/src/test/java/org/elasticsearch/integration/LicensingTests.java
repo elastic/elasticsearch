@@ -56,20 +56,26 @@ import static org.hamcrest.Matchers.notNullValue;
 public class LicensingTests extends ShieldIntegTestCase {
     public static final String ROLES =
             ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
-                    "  cluster: all\n" +
+                    "  cluster: [ all ]\n" +
                     "  indices:\n" +
-                    "    '*': manage\n" +
-                    "    '/.*/': write\n" +
-                    "    'test': read\n" +
-                    "    'test1': read\n" +
+                    "    - names: '*'\n" +
+                    "      privileges: [manage]\n" +
+                    "    - names: '/.*/'\n" +
+                    "      privileges: [write]\n" +
+                    "    - names: 'test'\n" +
+                    "      privileges: [read]\n" +
+                    "    - names: 'test1'\n" +
+                    "      privileges: [read]\n" +
                     "\n" +
                     "role_a:\n" +
                     "  indices:\n" +
-                    "    'a': all\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [all]\n" +
                     "\n" +
                     "role_b:\n" +
                     "  indices:\n" +
-                    "    'b': all\n";
+                    "    - names: 'b'\n" +
+                    "      privileges: [all]\n";
 
     public static final String USERS =
             ShieldSettingsSource.CONFIG_STANDARD_USER +

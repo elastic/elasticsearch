@@ -80,30 +80,30 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
 
         return super.configRoles() +
                 "\nrole1:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "    '*':\n" +
-                "      privileges: ALL\n" +
-                "      fields:\n" + roleFields.toString() +
+                "    - names: '*'\n" +
+                "      privileges: [ ALL ]\n" +
+                "      fields:\n" +roleFields.toString() +
                 "role2:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "    test:\n" +
-                "      privileges: ALL\n" +
+                "    - names: test\n" +
+                "      privileges: [ ALL ]\n" +
                 "      fields:\n" +
                 "        - field1\n" +
                 "role3:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "    test:\n" +
-                "      privileges: ALL\n" +
+                "    - names: test\n" +
+                "      privileges: [ ALL ]\n" +
                 "      fields:\n" +
                 "        - field2\n" +
                 "role4:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "    test:\n" +
-                "      privileges: ALL\n" +
+                "    - names: test\n" +
+                "      privileges: [ ALL ]\n" +
                 "      fields:\n" +
                 "        - field3\n";
     }

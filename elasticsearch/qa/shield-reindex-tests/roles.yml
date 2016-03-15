@@ -1,51 +1,77 @@
 admin:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*':
-      privileges: all
-  run_as: '*'
+    - names: '*'
+      privileges: [ all ]
+  run_as:
+    - '*'
 
 # Search and write on both source and destination indices. It should work if you could just search on the source and
 # write to the destination but that isn't how shield works.
 minimal:
   indices:
-    source:
-      privileges: search, write, create_index, indices:admin/refresh
-    dest:
-      privileges: search, write, create_index, indices:admin/refresh
+    - names: source
+      privileges:
+        - search
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - search
+        - write
+        - create_index
+        - indices:admin/refresh
 
 # Read only operations on indices
 readonly:
   indices:
-    '*':
-      privileges: search
+    - names: '*'
+      privileges: [ search ]
 
 # Write operations on destination index, none on source index
 dest_only:
   indices:
-    dest:
-      privileges: write
+    - names: dest
+      privileges: [ write ]
 
 # Search and write on both source and destination indices with document level security filtering out some docs.
 can_not_see_hidden_docs:
   indices:
-    source:
-      privileges: search, write, create_index, indices:admin/refresh
+    - names: source
+      privileges:
+        - search
+        - write
+        - create_index
+        - indices:admin/refresh
       query:
         bool:
           must_not:
             match:
               hidden: true
-    dest:
-      privileges: search, write, create_index, indices:admin/refresh
+    - names: dest
+      privileges:
+        - search
+        - write
+        - create_index
+        - indices:admin/refresh
 
 # Search and write on both source and destination indices with field level security.
 can_not_see_hidden_fields:
   indices:
-    source:
-      privileges: search, write, create_index, indices:admin/refresh
+    - names: source
+      privileges:
+        - search
+        - write
+        - create_index
+        - indices:admin/refresh
       fields:
          - foo
          - bar
-    dest:
-      privileges: search, write, create_index, indices:admin/refresh
+    - names: dest
+      privileges:
+        - search
+        - write
+        - create_index
+        - indices:admin/refresh

@@ -1,18 +1,31 @@
 admin:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*': all
+    - names: '*'
+      privileges:
+        - all
 
 watcher_manager:
-  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/health
+  cluster:
+    - manage_watcher
+    - cluster:monitor/nodes/info
+    - cluster:monitor/health
   indices:
-    '.watcher-history-*': all
-  run_as: powerless_user, watcher_manager
+    - names: '.watcher-history-*'
+      privileges:
+        - all
+  run_as:
+    - powerless_user
+    - watcher_manager
 
 watcher_monitor:
-  cluster: monitor_watcher
+  cluster:
+    - monitor_watcher
   indices:
-    '.watcher-history-*': read
+    - names: '.watcher-history-*'
+      privileges:
+        - read
 
 crappy_role:
   cluster:

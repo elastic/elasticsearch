@@ -58,25 +58,32 @@ public class IndexAliasesTests extends ShieldIntegTestCase {
                 //role that has create index only privileges
                 "create_only:\n" +
                 "  indices:\n" +
-                "    '*': create_index\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ create_index ]\n" +
                 //role that has create index and managa aliases on test_*, not enough to manage aliases outside of test_* namespace
                 "create_test_aliases_test:\n" +
                 "  indices:\n" +
-                "    'test_*': create_index,manage_aliases\n" +
+                "    - names: 'test_*'\n" +
+                "      privileges: [ create_index, manage_aliases ]\n" +
                 //role that has create index on test_* and manage aliases on alias_*, can't create aliases pointing to test_* though
                 "create_test_aliases_alias:\n" +
                 "  indices:\n" +
-                "    'test_*': create_index\n" +
-                "    'alias_*': manage_aliases\n" +
+                "    - names: 'test_*'\n" +
+                "      privileges: [ create_index ]\n" +
+                "    - names: 'alias_*'\n" +
+                "      privileges: [ manage_aliases ]\n" +
                 //role that has create index on test_* and manage_aliases on both alias_* and test_*
                 "create_test_aliases_test_alias:\n" +
                 "  indices:\n" +
-                "    'test_*': create_index\n" +
-                "    'alias_*,test_*': manage_aliases\n" +
+                "    - names: 'test_*'\n" +
+                "      privileges: [ create_index ]\n" +
+                "    - names: [ 'alias_*', 'test_*' ]\n" +
+                "      privileges: [ manage_aliases ]\n" +
                 //role that has manage_aliases only on both test_* and alias_*
                 "aliases_only:\n" +
                 "  indices:\n" +
-                "    'alias_*,test_*': manage_aliases\n";
+                "    - names: [ 'alias_*', 'test_*']\n" +
+                "      privileges: [ manage_aliases ]\n";
     }
 
     @Before

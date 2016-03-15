@@ -58,7 +58,8 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
             "    - cluster:admin/indices/scroll/clear_all \n" +
             "denied_role:\n" +
             "  indices:\n" +
-            "    '*': ALL\n";
+            "    - names: '*'" +
+            "      privileges: [ALL]\n";
     }
 
     @Before

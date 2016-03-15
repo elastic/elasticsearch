@@ -1,4 +1,4 @@
-# you can override this using by setting a system property, for example -Des.logger.level=DEBUG
+# you can override this using by setting a system property, for example -Ees.logger.level=DEBUG
 es.logger.level: INFO
 rootLogger: ${es.logger.level}, console, file
 logger:

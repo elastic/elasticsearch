@@ -242,7 +242,7 @@ Like all node settings, it can also be specified on the command line as:
 
 [source,sh]
 -----------------------
-./bin/elasticsearch --path.data /var/elasticsearch/data
+./bin/elasticsearch -Ees.path.data=/var/elasticsearch/data
 -----------------------
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting

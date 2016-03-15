@@ -35,8 +35,9 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
 
     protected Map<String, ValuesSourceConfig<VS>> configs;
 
-    public MultiValuesSourceAggregatorFactory(String name, Type type, Map<String, ValuesSourceConfig<VS>> configs, AggregationContext context,
-                                              AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public MultiValuesSourceAggregatorFactory(String name, Type type, Map<String, ValuesSourceConfig<VS>> configs,
+        AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactoriesBuilder, metaData);
         this.configs = configs;
     }
@@ -62,6 +63,6 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
                                                  Map<String, Object> metaData) throws IOException;
 
     protected abstract Aggregator doCreateInternal(Map<String, VS> valuesSources, Aggregator parent, boolean collectsFromSingleBucket,
-                                                   List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
 }

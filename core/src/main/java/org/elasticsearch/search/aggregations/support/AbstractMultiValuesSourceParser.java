@@ -248,7 +248,7 @@ public abstract class AbstractMultiValuesSourceParser<VS extends ValuesSource>
      * @return the created factory
      */
     protected abstract MultiValuesSourceAggregatorBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                                               ValueType targetValueType, Map<ParseField, Object> otherOptions);
+        ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link AbstractMultiValuesSourceParser} to parse extra

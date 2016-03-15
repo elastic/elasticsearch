@@ -34,10 +34,13 @@ import java.util.Map;
 
 /**
  */
-public class MultiFieldStatsAggregatorFactory extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, MultiFieldStatsAggregatorFactory> {
+public class MultiFieldStatsAggregatorFactory
+    extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, MultiFieldStatsAggregatorFactory> {
 
-    public MultiFieldStatsAggregatorFactory(String name, InternalAggregation.Type type, Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, AggregationContext context,
-                                            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public MultiFieldStatsAggregatorFactory(String name, InternalAggregation.Type type,
+                                            Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, AggregationContext context,
+                                            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                            Map<String, Object> metaData) throws IOException {
         super(name, type, configs, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -48,8 +51,9 @@ public class MultiFieldStatsAggregatorFactory extends MultiValuesSourceAggregato
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent, boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent,
+                                          boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
         return new MultiFieldStatsAggregator(name, valuesSources, context, parent, pipelineAggregators, metaData);
     }
 }

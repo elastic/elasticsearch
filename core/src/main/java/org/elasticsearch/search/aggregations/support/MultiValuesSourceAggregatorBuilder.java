@@ -44,7 +44,12 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -61,7 +66,8 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
+                type + "] cannot accept sub-aggregations");
         }
     }
 
@@ -201,7 +207,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
 
     @Override
     protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
-                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
         MultiValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
@@ -221,8 +227,8 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
     }
 
     protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context,
-                                                                            Map<String, ValuesSourceConfig<VS>> configs,
-                                                                            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+        Map<String, ValuesSourceConfig<VS>> configs, AggregatorFactory<?> parent,
+        AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig<VS> config(AggregationContext context, String field, Script script) {
 
@@ -402,7 +408,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
     }
 
     protected abstract MultiValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                                                                                ValueType targetValueType, StreamInput in) throws IOException;
+        ValueType targetValueType, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

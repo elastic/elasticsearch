@@ -34,8 +34,7 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements SortBuilderParser<ScoreSortBuilder>,
-    SortElementParserTemp<ScoreSortBuilder> {
+public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements SortBuilderParser<ScoreSortBuilder> {
 
     private static final String NAME = "_score";
     static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();

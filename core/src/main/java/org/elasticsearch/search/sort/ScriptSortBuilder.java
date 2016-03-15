@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,8 +43,7 @@ import java.util.Objects;
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
-public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements NamedWriteable<ScriptSortBuilder>,
-    SortElementParserTemp<ScriptSortBuilder> {
+public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements SortBuilderParser<ScriptSortBuilder> {
 
     private static final String NAME = "_script";
     static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);
@@ -72,8 +70,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
      * @param script
      *            The script to use.
      * @param type
-     *            The type of the script, can be either {@link ScriptSortParser#STRING_SORT_TYPE} or
-     *            {@link ScriptSortParser#NUMBER_SORT_TYPE}
+     *            The type of the script, can be either {@link ScriptSortType#STRING} or
+     *            {@link ScriptSortType#NUMBER}
      */
     public ScriptSortBuilder(Script script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");

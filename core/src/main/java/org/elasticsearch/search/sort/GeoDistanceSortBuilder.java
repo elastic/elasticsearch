@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,8 +54,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private GeoDistance geoDistance = GeoDistance.DEFAULT;
     private DistanceUnit unit = DistanceUnit.DEFAULT;
 
-    // TODO there is an enum that covers that parameter which we should be using here
-    private String sortMode = null;
+    private SortMode sortMode = null;
     @SuppressWarnings("rawtypes")
     private QueryBuilder nestedFilter;
     private String nestedPath;
@@ -204,9 +202,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */
-    public GeoDistanceSortBuilder sortMode(String sortMode) {
-        MultiValueMode temp = MultiValueMode.fromString(sortMode);
-        if (temp == MultiValueMode.SUM) {
+    public GeoDistanceSortBuilder sortMode(SortMode sortMode) {
+        Objects.requireNonNull(sortMode, "sort mode cannot be null");
+        if (sortMode == SortMode.SUM) {
             throw new IllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
         this.sortMode = sortMode;
@@ -214,7 +212,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /** Returns which distance to use for sorting in the case a document contains multiple geo points. */
-    public String sortMode() {
+    public SortMode sortMode() {
         return this.sortMode;
     }
 
@@ -345,7 +343,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         geoDistance.writeTo(out);
         unit.writeTo(out);
         order.writeTo(out);
-        out.writeOptionalString(sortMode);
+        out.writeBoolean(this.sortMode != null);
+        if (this.sortMode != null) {
+            sortMode.writeTo(out);
+        }
         if (nestedFilter != null) {
             out.writeBoolean(true);
             out.writeQuery(nestedFilter);
@@ -367,9 +368,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         result.geoDistance(GeoDistance.readGeoDistanceFrom(in));
         result.unit(DistanceUnit.readDistanceUnit(in));
         result.order(SortOrder.readOrderFrom(in));
-        String sortMode = in.readOptionalString();
-        if (sortMode != null) {
-            result.sortMode(sortMode);
+        if (in.readBoolean()) {
+            result.sortMode = SortMode.PROTOTYPE.readFrom(in);
         }
         if (in.readBoolean()) {
             result.setNestedFilter(in.readQuery());
@@ -388,7 +388,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
-        MultiValueMode sortMode = null;
+        SortMode sortMode = null;
         QueryBuilder<?> nestedFilter = null;
         String nestedPath = null;
 
@@ -437,7 +437,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                         ignoreMalformed = ignore_malformed_value;
                     }
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
-                    sortMode = MultiValueMode.fromString(parser.text());
+                    sortMode = SortMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     nestedPath = parser.text();
                 } else {
@@ -454,7 +454,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         result.unit(unit);
         result.order(order);
         if (sortMode != null) {
-            result.sortMode(sortMode.name());
+            result.sortMode(sortMode);
         }
         result.setNestedFilter(nestedFilter);
         result.setNestedPath(nestedPath);

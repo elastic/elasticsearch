@@ -23,7 +23,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-public class SortModeTest extends ESTestCase {
+import java.util.Locale;
+
+public class SortModeTests extends ESTestCase {
 
     @Rule
     public ExpectedException exceptionRule = ExpectedException.none();
@@ -44,7 +46,7 @@ public class SortModeTest extends ESTestCase {
 
         for (SortMode mode : SortMode.values()) {
             assertEquals(mode, SortMode.fromString(mode.toString()));
-            assertEquals(mode, SortMode.fromString(mode.toString().toUpperCase()));
+            assertEquals(mode, SortMode.fromString(mode.toString().toUpperCase(Locale.ROOT)));
         }
     }
 

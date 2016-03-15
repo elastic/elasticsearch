@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -87,8 +86,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
             builder.endObject();
 
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
-            ParsingException except = new ParsingException(itemParser.getTokenLocation(), "mytext", itemParser.getTokenLocation());
-            System.out.println(except.getMessage());
             itemParser.nextToken();
 
             /*
@@ -158,7 +155,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
                         original.getWriteableName());
-                T copy = (T) prototype.readFrom(in);
+                T copy = prototype.readFrom(in);
                 return copy;
             }
         }

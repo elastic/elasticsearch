@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,6 +42,8 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
     static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
+    private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
+    private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
 
     public ScoreSortBuilder() {
         // order defaults to desc when sorting on the _score
@@ -82,6 +86,14 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
             }
         }
         return result;
+    }
+
+    public SortField build(QueryShardContext context) {
+        if (order == SortOrder.DESC) {
+            return SORT_SCORE;
+        } else {
+            return SORT_SCORE_REVERSE;
+        }
     }
 
     @Override

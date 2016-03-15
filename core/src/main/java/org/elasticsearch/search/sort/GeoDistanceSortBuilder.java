@@ -19,8 +19,16 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,8 +36,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -405,13 +422,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                // the json in the format of -> field : { lat : 30, lon : 12 }
                 if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    // TODO Note to remember: while this is kept as a QueryBuilder internally,
-                    // we need to make sure to call toFilter() on it once on the shard
-                    // (e.g. in the new build() method)
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
+                    // the json in the format of -> field : { lat : 30, lon : 12 }
                     fieldName = currentName;
                     GeoPoint point = new GeoPoint();
                     GeoUtils.parseGeoPoint(parser, point);
@@ -461,7 +475,89 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         result.coerce(coerce);
         result.ignoreMalformed(ignoreMalformed);
         return result;
+    }
 
+    @Override
+    public SortField build(QueryShardContext context) throws IOException {
+        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
+        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
+        List<GeoPoint> localPoints = new ArrayList<GeoPoint>();
+        for (GeoPoint geoPoint : this.points) {
+            localPoints.add(new GeoPoint(geoPoint));
+        }
+
+        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
+            for (GeoPoint point : localPoints) {
+                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                    throw new ElasticsearchParseException("illegal latitude value [{}] for [GeoDistanceSort]", point.lat());
+                }
+                if (point.lon() > 180.0 || point.lon() < -180) {
+                    throw new ElasticsearchParseException("illegal longitude value [{}] for [GeoDistanceSort]", point.lon());
+                }
+            }
+        }
+
+        if (coerce) {
+            for (GeoPoint point : localPoints) {
+                GeoUtils.normalizePoint(point, coerce, coerce);
+            }
+        }
+
+        boolean reverse = (order == SortOrder.DESC);
+        final MultiValueMode finalSortMode;
+        if (sortMode == null) {
+            finalSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
+        } else {
+            finalSortMode = MultiValueMode.fromString(sortMode.toString());
+        }
+
+        if (sortMode == SortMode.SUM) {
+            throw new IllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
+        }
+
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
+        }
+        final IndexGeoPointFieldData geoIndexFieldData = context.getForField(fieldType);
+        final FixedSourceDistance[] distances = new FixedSourceDistance[localPoints.size()];
+        for (int i = 0; i< localPoints.size(); i++) {
+            distances[i] = geoDistance.fixedSourceDistance(localPoints.get(i).lat(), localPoints.get(i).lon(), unit);
+        }
+
+        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+
+        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource() {
+
+            @Override
+            public SortField.Type reducedType() {
+                return SortField.Type.DOUBLE;
+            }
+
+            @Override
+            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                return new FieldComparator.DoubleComparator(numHits, null, null) {
+                    @Override
+                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
+                        final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
+                        final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(geoPointValues, distances);
+                        final NumericDoubleValues selectedValues;
+                        if (nested == null) {
+                            selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
+                        } else {
+                            final BitSet rootDocs = nested.rootDocs(context);
+                            final DocIdSetIterator innerDocs = nested.innerDocs(context);
+                            selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE, rootDocs, innerDocs,
+                                    context.reader().maxDoc());
+                        }
+                        return selectedValues.getRawDoubleValues();
+                    }
+                };
+            }
+
+        };
+
+        return new SortField(fieldName, geoDistanceComparatorSource, reverse);
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {

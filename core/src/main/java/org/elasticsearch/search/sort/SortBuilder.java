@@ -19,18 +19,49 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
  *
  */
 public abstract class SortBuilder<T extends SortBuilder<?>> implements ToXContent {
+
+    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder<?> nestedFilter) throws IOException {
+        Nested nested = null;
+        if (nestedPath != null) {
+            BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
+            ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);
+            if (nestedObjectMapper == null) {
+                throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
+            }
+            if (!nestedObjectMapper.nested().isNested()) {
+                throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
+            }
+            Query innerDocumentsQuery;
+            if (nestedFilter != null) {
+                innerDocumentsQuery = nestedFilter.toFilter(context);
+            } else {
+                innerDocumentsQuery = nestedObjectMapper.nestedTypeFilter();
+            }
+            nested = new Nested(rootDocumentsFilter,  innerDocumentsQuery);
+        }
+        return nested;
+    }
 
     protected SortOrder order = SortOrder.ASC;
     public static final ParseField ORDER_FIELD = new ParseField("order");

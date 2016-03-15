@@ -33,18 +33,28 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuilder> {
 
     @Override
     protected ScriptSortBuilder createTestItem() {
+        ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
-                randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+                type);
         if (randomBoolean()) {
-            builder.order(RandomSortDataGenerator.order(builder.order()));
+                builder.order(RandomSortDataGenerator.order(builder.order()));
         }
         if (randomBoolean()) {
-            builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+            if (type == ScriptSortType.NUMBER) {
+                builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+            } else {
+                Set<SortMode> exceptThis = new HashSet<>();
+                exceptThis.add(SortMode.SUM);
+                exceptThis.add(SortMode.AVG);
+                builder.sortMode(RandomSortDataGenerator.mode(exceptThis));
+            }
         }
         if (randomBoolean()) {
             builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));

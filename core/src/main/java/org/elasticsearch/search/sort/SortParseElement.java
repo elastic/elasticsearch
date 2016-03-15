@@ -30,10 +30,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class SortParseElement implements SearchParseElement {
 
-    public static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
+    private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
     private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
@@ -75,26 +76,8 @@ public class SortParseElement implements SearchParseElement {
     }
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
-        XContentParser.Token token = parser.currentToken();
-        List<SortField> sortFields = new ArrayList<>(2);
-        if (token == XContentParser.Token.START_ARRAY) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    addCompoundSortField(parser, context, sortFields);
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, null, null, null, null);
-                } else {
-                    throw new IllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
-                }
-            }
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            addSortField(context, sortFields, parser.text(), false, null, null, null, null);
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            addCompoundSortField(parser, context, sortFields);
-        } else {
-            throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
-        }
+    public void parse(XContentParser parser, SearchContext context) throws IOException {
+        List<SortField> sortFields = parse(parser, context.getQueryShardContext());
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really need sorting
             boolean sort;
@@ -114,7 +97,30 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addCompoundSortField(XContentParser parser, SearchContext context, List<SortField> sortFields) throws Exception {
+    List<SortField> parse(XContentParser parser, QueryShardContext context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        List<SortField> sortFields = new ArrayList<>(2);
+        if (token == XContentParser.Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    addCompoundSortField(parser, context, sortFields);
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    addSortField(context, sortFields, parser.text(), false, null, null, null, null);
+                } else {
+                    throw new IllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
+                }
+            }
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            addSortField(context, sortFields, parser.text(), false, null, null, null, null);
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            addCompoundSortField(parser, context, sortFields);
+        } else {
+            throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
+        }
+        return sortFields;
+    }
+
+    private void addCompoundSortField(XContentParser parser, QueryShardContext context, List<SortField> sortFields) throws IOException {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -138,7 +144,7 @@ public class SortParseElement implements SearchParseElement {
                     addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedFilterParseHelper);
                 } else {
                     if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).parse(parser, context.getQueryShardContext()));
+                        sortFields.add(PARSERS.get(fieldName).parse(parser, context));
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -160,7 +166,7 @@ public class SortParseElement implements SearchParseElement {
                                     sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     if (nestedFilterParseHelper == null) {
-                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context.getQueryShardContext());
+                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context);
                                     }
                                     nestedFilterParseHelper.setPath(parser.text());
                                 } else {
@@ -169,7 +175,7 @@ public class SortParseElement implements SearchParseElement {
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
                                     if (nestedFilterParseHelper == null) {
-                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context.getQueryShardContext());
+                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context);
                                     }
                                     nestedFilterParseHelper.filter();
                                 } else {
@@ -184,7 +190,7 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String unmappedType, @Nullable final String missing, MultiValueMode sortMode, NestedInnerQueryParseSupport nestedHelper) throws IOException {
+    private void addSortField(QueryShardContext context, List<SortField> sortFields, String fieldName, boolean reverse, String unmappedType, @Nullable final String missing, MultiValueMode sortMode, NestedInnerQueryParseSupport nestedHelper) throws IOException {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -198,17 +204,17 @@ public class SortParseElement implements SearchParseElement {
                 sortFields.add(SORT_DOC);
             }
         } else {
-            MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+            MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
                 if (unmappedType != null) {
-                    fieldType = context.mapperService().unmappedFieldType(unmappedType);
+                    fieldType = context.getMapperService().unmappedFieldType(unmappedType);
                 } else {
-                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on", null);
+                    throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
                 }
             }
 
             if (!fieldType.isSortable()) {
-                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]", null);
+                throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
             }
 
             // Enable when we also know how to detect fields that do tokenize, but only emit one token
@@ -230,7 +236,7 @@ public class SortParseElement implements SearchParseElement {
 
             final Nested nested;
             if (nestedHelper != null && nestedHelper.getPath() != null) {
-                BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
+                BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
                 Query innerDocumentsQuery;
                 if (nestedHelper.filterFound()) {
                     innerDocumentsQuery = nestedHelper.getInnerFilter();
@@ -242,7 +248,7 @@ public class SortParseElement implements SearchParseElement {
                 nested = null;
             }
 
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldType)
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.getForField(fieldType)
                     .comparatorSource(missing, sortMode, nested);
             sortFields.add(new SortField(fieldType.name(), fieldComparatorSource, reverse));
         }

@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -109,7 +110,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
-                .addSort(new ScriptSortBuilder(new Script("doc['str_value'].value"), "string")).execute().actionGet();
+                .addSort(new ScriptSortBuilder(new Script("doc['str_value'].value"), ScriptSortType.STRING)).execute().actionGet();
         assertHitCount(searchResponse, 10);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
@@ -217,7 +218,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo((double) i, TOLERANCE));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo(i, TOLERANCE));
         }
     }
 
@@ -326,7 +327,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
         refresh();
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery())
-                .addSort(SortBuilders.scriptSort(new Script("\u0027\u0027"), "string")).setSize(10).execute().actionGet();
+                .addSort(SortBuilders.scriptSort(new Script("\u0027\u0027"), ScriptSortType.STRING)).setSize(10).execute().actionGet();
         assertNoFailures(searchResponse);
     }
 }

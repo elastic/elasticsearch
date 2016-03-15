@@ -53,9 +53,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
 
     private String unmappedType;
 
-    private String sortMode;
+    private SortMode sortMode;
 
-    private QueryBuilder nestedFilter;
+    private QueryBuilder<?> nestedFilter;
 
     private String nestedPath;
 
@@ -65,7 +65,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
         this.order(template.order());
         this.missing(template.missing());
         this.unmappedType(template.unmappedType());
-        this.sortMode(template.sortMode());
+        if (template.sortMode != null) {
+            this.sortMode(template.sortMode());
+        }
         this.setNestedFilter(template.getNestedFilter());
         this.setNestedPath(template.getNestedPath());
     }
@@ -134,12 +136,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
      * Defines what values to pick in the case a document contains multiple
      * values for the targeted sort field. Possible values: min, max, sum and
      * avg
-     * 
-     * TODO would love to see an enum here
+     *
      * <p>
      * The last two values are only applicable for number based fields.
      */
-    public FieldSortBuilder sortMode(String sortMode) {
+    public FieldSortBuilder sortMode(SortMode sortMode) {
+        Objects.requireNonNull(sortMode, "sort mode cannot be null");
         this.sortMode = sortMode;
         return this;
     }
@@ -148,14 +150,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
      * Returns what values to pick in the case a document contains multiple
      * values for the targeted sort field.
      */
-    public String sortMode() {
+    public SortMode sortMode() {
         return this.sortMode;
     }
 
     /**
      * Sets the nested filter that the nested objects should match with in order
      * to be taken into account for sorting.
-     * 
+     *
      * TODO should the above getters and setters be deprecated/ changed in
      * favour of real getters and setters?
      */
@@ -263,7 +265,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
             out.writeBoolean(false);
         }
 
-        out.writeOptionalString(this.sortMode);
+        out.writeBoolean(this.sortMode != null);
+        if (this.sortMode != null) {
+           this.sortMode.writeTo(out);
+        }
         out.writeOptionalString(this.unmappedType);
     }
 
@@ -272,7 +277,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
         String fieldName = in.readString();
         FieldSortBuilder result = new FieldSortBuilder(fieldName);
         if (in.readBoolean()) {
-            QueryBuilder query = in.readQuery();
+            QueryBuilder<?> query = in.readQuery();
             result.setNestedFilter(query);
         }
         result.setNestedPath(in.readOptionalString());
@@ -281,7 +286,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
         if (in.readBoolean()) {
             result.order(SortOrder.readOrderFrom(in));
         }
-        result.sortMode(in.readOptionalString());
+        if (in.readBoolean()) {
+            result.sortMode(SortMode.PROTOTYPE.readFrom(in));
+        }
         result.unmappedType(in.readOptionalString());
         return result;
     }
@@ -290,11 +297,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
     public FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
-        QueryBuilder nestedFilter = null;
+        QueryBuilder<?> nestedFilter = null;
         String nestedPath = null;
         Object missing = null;
         SortOrder order = null;
-        String sortMode = null;
+        SortMode sortMode = null;
         String unmappedType = null;
 
         String currentFieldName = null;
@@ -328,7 +335,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
                         throw new IllegalStateException("Sort order " + sortOrder + " not supported.");
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
-                    sortMode = parser.text();
+                    sortMode = SortMode.fromString(parser.text());
                 } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
                     unmappedType = parser.text();
                 } else {

@@ -211,3 +211,7 @@ For simplicity, only one way of adding the ids to the existing list (empty by de
 
 The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
 
+===== SortBuilders
+
+The `sortMode` setter in `FieldSortBuilder`, `GeoDistanceSortBuilder` and `ScriptSortBuilder` now
+accept a `SortMode` enum instead of a String constant. Also the getter returns the same enum type.

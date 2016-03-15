@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -55,6 +54,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
         namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
@@ -155,7 +155,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
                         original.getWriteableName());
-                T copy = (T) prototype.readFrom(in);
+                T copy = prototype.readFrom(in);
                 return copy;
             }
         }

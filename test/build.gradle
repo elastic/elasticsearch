@@ -29,7 +29,6 @@ subprojects {
   
   // the main files are actually test files, so use the appropriate forbidden api sigs
   forbiddenApisMain {
-    bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
                       PrecommitTasks.getResource('/forbidden/es-signatures.txt'),
                       PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]

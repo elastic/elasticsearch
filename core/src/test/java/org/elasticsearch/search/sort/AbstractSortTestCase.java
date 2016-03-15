@@ -86,8 +86,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
             builder.endObject();
 
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
-            ParsingException except = new ParsingException(itemParser.getTokenLocation(), "mytext", itemParser.getTokenLocation());
-            System.out.println(except.getMessage());
             itemParser.nextToken();
 
             /*

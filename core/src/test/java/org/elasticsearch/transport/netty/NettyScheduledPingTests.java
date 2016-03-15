@@ -86,8 +86,8 @@ public class NettyScheduledPingTests extends ESTestCase {
                 try {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             }
         });
@@ -113,8 +113,8 @@ public class NettyScheduledPingTests extends ESTestCase {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            exp.printStackTrace();
-                            assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                            logger.error("Unexpected failure", exp);
+                            fail("got exception instead of a response: " + exp.getMessage());
                         }
                     }).txGet();
         }

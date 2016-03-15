@@ -166,7 +166,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         byte[] data = bos.bytes().toBytes();
         String sData = new String(data, "UTF8");
-        System.out.println("DATA: " + sData);
+        assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
     }
 
     public void testFieldCaseConversion() throws Exception {

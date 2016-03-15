@@ -137,8 +137,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 try {
                     channel.sendResponse(new StringMessageResponse("hello " + request.message));
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             }
         });
@@ -162,8 +162,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        exp.printStackTrace();
-                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                        logger.error("Unexpected failure", exp);
+                        fail("got exception instead of a response: " + exp.getMessage());
                     }
                 });
 
@@ -193,8 +193,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        exp.printStackTrace();
-                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                        logger.error("Unexpected failure", exp);
+                        fail("got exception instead of a response: " + exp.getMessage());
                     }
                 });
 
@@ -218,7 +218,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.getThreadContext().putHeader("test.pong.user", "pong_user");
                 channel.sendResponse(response);
             } catch (IOException e) {
-                assertThat(e.getMessage(), false, equalTo(true));
+                logger.error("Unexpected failure", e);
+                fail(e.getMessage());
             }
         });
         final Object context = new Object();
@@ -245,7 +246,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                logger.error("Unexpected failure", exp);
+                fail("got exception instead of a response: " + exp.getMessage());
             }
         };
         StringMessageRequest ping = new StringMessageRequest("ping");
@@ -317,8 +319,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 try {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.builder().withCompress(true).build());
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             }
         });
@@ -341,8 +343,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        exp.printStackTrace();
-                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                        logger.error("Unexpected failure", exp);
+                        fail("got exception instead of a response: " + exp.getMessage());
                     }
                 });
 
@@ -364,8 +366,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 try {
                     channel.sendResponse(new StringMessageResponse("hello " + request.message), TransportResponseOptions.builder().withCompress(true).build());
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             }
         });
@@ -389,8 +391,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        exp.printStackTrace();
-                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                        logger.error("Unexpected failure", exp);
+                        fail("got exception instead of a response: " + exp.getMessage());
                     }
                 });
 
@@ -552,8 +554,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 try {
                     channel.sendResponse(new StringMessageResponse("hello " + request.message));
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             }
         });
@@ -613,7 +615,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            exp.printStackTrace();
+                            logger.error("Unexpected failure", exp);
                             fail("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage());
                         }
                     });
@@ -959,8 +961,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                fail();
+                logger.error("Unexpected failure", exp);
+                fail("got exception instead of a response: " + exp.getMessage());
             }
 
             @Override
@@ -1000,8 +1002,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                fail();
+                logger.error("Unexpected failure", exp);
+                fail("got exception instead of a response: " + exp.getMessage());
             }
 
             @Override
@@ -1044,8 +1046,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                fail();
+                logger.error("Unexpected failure", exp);
+                fail("got exception instead of a response: " + exp.getMessage());
             }
 
             @Override
@@ -1084,8 +1086,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                exp.printStackTrace();
-                fail();
+                logger.error("Unexpected failure", exp);
+                fail("got exception instead of a response: " + exp.getMessage());
             }
 
             @Override

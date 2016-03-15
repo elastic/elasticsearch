@@ -17,16 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.smoketest;
+package org.elasticsearch.backwards;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class MultiNodeBackwardsIT extends ESRestTestCase {
 
     public MultiNodeBackwardsIT(RestTestCandidate testCandidate) {

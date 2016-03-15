@@ -45,7 +45,7 @@ class Elasticsearch extends Command {
     private final OptionSpec<String> pidfileOption;
     private final OptionSpec<KeyValuePair> propertyOption;
 
-    /** no instantiation */
+    // visible for testing
     Elasticsearch() {
         super("starts elasticsearch");
         // TODO: in jopt-simple 5.0, make this mutually exclusive with all other options

@@ -24,7 +24,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
@@ -43,13 +48,13 @@ public class MultiFieldStatsAggregatorBuilder
 
     @Override
     protected MultiFieldStatsAggregatorFactory innerBuild(AggregationContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
-                                                          AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+         AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MultiFieldStatsAggregatorFactory(name, type, configs, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
     protected MultiValuesSourceAggregatorBuilder<Numeric, MultiFieldStatsAggregatorBuilder> innerReadFrom(String name,
-                                                                                                          ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
+         ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
         return new MultiFieldStatsAggregatorBuilder(name);
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Interface for MultiFieldStats Metric Aggregation
@@ -31,19 +32,19 @@ public interface MultiFieldStats extends Aggregation {
     /** return total field count (differs from docCount if there are missing values) */
     long getFieldCount(String field);
     /** return the field mean */
-    double getMean(String field);
+    Double getMean(String field);
     /** return the field variance */
-    double getVariance(String field);
+    Double getVariance(String field);
     /** return the skewness of the distribution */
-    double getSkewness(String field);
+    Double getSkewness(String field);
     /** return the kurtosis of the distribution */
-    double getKurtosis(String field);
+    Double getKurtosis(String field);
     /** return the upper triangle of the covariance matrix */
-    HashMap<String, HashMap<String, Double>> getCovariance();
+    Map<String, HashMap<String, Double>> getCovariance();
     /** return the covariance between field x and field y */
-    double getCovariance(String fieldX, String fieldY);
+    Double getCovariance(String fieldX, String fieldY);
     /** return the upper triangle of the pearson product-moment correlation matrix */
-    HashMap<String, HashMap<String, Double>> getCorrelation();
+    Map<String, HashMap<String, Double>> getCorrelation();
     /** return the correlation coefficient of field x and field y */
-    double getCorrelation(String fieldX, String fieldY);
+    Double getCorrelation(String fieldX, String fieldY);
 }

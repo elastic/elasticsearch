@@ -46,14 +46,15 @@ public class MultiFieldStatsAggregator extends MetricsAggregator {
     final Map<String, ValuesSource.Numeric> valuesSources;
 
     /** array of descriptive stats, per shard, needed to compute the correlation */
-    ObjectArray<MultiFieldStatsResults> correlationStats;
+    ObjectArray<RunningStats> stats;
 
     public MultiFieldStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
-                                     Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                                     Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                     Map<String,Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSources = valuesSources;
         if (valuesSources != null && !valuesSources.isEmpty()) {
-            correlationStats = context.bigArrays().newObjectArray(1);
+            stats = context.bigArrays().newObjectArray(1);
         }
     }
 
@@ -86,14 +87,14 @@ public class MultiFieldStatsAggregator extends MetricsAggregator {
                 // get fields
                 Map<String, Double> fields = getFields(doc);
                 if (fields != null) {
-                    correlationStats = bigArrays.grow(correlationStats, bucket + 1);
-                    MultiFieldStatsResults correlationStat = correlationStats.get(bucket);
-                    if (correlationStat == null) {
-                        correlationStat = new MultiFieldStatsResults();
+                    stats = bigArrays.grow(stats, bucket + 1);
+                    RunningStats stat = stats.get(bucket);
+                    if (stat == null) {
+                        stat = new RunningStats();
                     }
                     // add document fields to correlation stats
-                    correlationStat.add(fields);
-                    correlationStats.set(bucket, correlationStat);
+                    stat.add(fields);
+                    stats.set(bucket, stat);
                 }
             }
 
@@ -117,7 +118,9 @@ public class MultiFieldStatsAggregator extends MetricsAggregator {
                     // get the field value (multi-value is the average of all the values)
                     double fieldValue = 0;
                     for (int i = 0; i < valuesCount; ++i) {
-                        fieldValue += doubleValues.valueAt(i);
+                        if (Double.isNaN(doubleValues.valueAt(i)) == false) {
+                            fieldValue += doubleValues.valueAt(i);
+                        }
                     }
                     fields.put(fieldName, fieldValue / valuesCount);
                 }
@@ -128,20 +131,19 @@ public class MultiFieldStatsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSources == null || bucket >= correlationStats.size()) {
+        if (valuesSources == null || bucket >= stats.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMultiFieldStats(name, correlationStats.size(), correlationStats.get(bucket),
-            pipelineAggregators(), metaData());
+        return new InternalMultiFieldStats(name, stats.size(), stats.get(bucket), null, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMultiFieldStats(name, 0, null, pipelineAggregators(), metaData());
+        return new InternalMultiFieldStats(name, 0, null, null, pipelineAggregators(), metaData());
     }
 
     @Override
     public void doClose() {
-        Releasables.close(correlationStats);
+        Releasables.close(stats);
     }
 }

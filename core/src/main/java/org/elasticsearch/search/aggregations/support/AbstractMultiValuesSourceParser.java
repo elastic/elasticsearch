@@ -30,7 +30,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -73,8 +77,8 @@ public abstract class AbstractMultiValuesSourceParser<VS extends ValuesSource>
     private ValuesSourceType valuesSourceType = null;
     private ValueType targetValueType = null;
 
-    private AbstractMultiValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware, ValuesSourceType valuesSourceType,
-                                            ValueType targetValueType) {
+    private AbstractMultiValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware,
+                                            ValuesSourceType valuesSourceType, ValueType targetValueType) {
         this.timezoneAware = timezoneAware;
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
@@ -83,7 +87,8 @@ public abstract class AbstractMultiValuesSourceParser<VS extends ValuesSource>
     }
 
     @Override
-    public final MultiValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public final MultiValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, XContentParser parser,
+                                                                 QueryParseContext context)
             throws IOException {
 
         List<String> fields = null;

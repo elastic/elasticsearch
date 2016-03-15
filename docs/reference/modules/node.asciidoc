@@ -40,10 +40,19 @@ A tribe node, configured via the `tribe.*` settings, is a special type  of
 client node that can connect to multiple clusters and perform search and other
 operations across all connected clusters.
 
+<<ingest,Ingest node>>::
+
+A node that has `node.ingest` set to `true` (default). Ingest nodes are able
+to apply an <<pipeline,ingest pipeline>> to a document in order to transform
+and enrich the document before indexing. With a heavy ingest load, it makes
+sense to use dedicated ingest nodes and to mark the master and data nodes as
+`node.ingest: false`.
+
 By default a node is both a master-eligible node and a data node. This is very
 convenient for small clusters but, as the cluster grows, it becomes important
 to consider separating dedicated master-eligible nodes from dedicated data
 nodes.
+
 
 [NOTE]
 [[coordinating-node]]

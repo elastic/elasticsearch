@@ -432,7 +432,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         if (routing != null) {
             Set<String> r = Strings.splitStringByCommaToSet(routing);
             Map<String, Set<String>> routings = new HashMap<>();
-            String[] concreteIndices = metaData.concreteAllIndices();
+            String[] concreteIndices = metaData.getConcreteAllIndices();
             for (String index : concreteIndices) {
                 routings.put(index, r);
             }
@@ -472,7 +472,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      */
     boolean isPatternMatchingAllIndices(MetaData metaData, String[] indicesOrAliases, String[] concreteIndices) {
         // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
-        if (concreteIndices.length == metaData.concreteAllIndices().length && indicesOrAliases.length > 0) {
+        if (concreteIndices.length == metaData.getConcreteAllIndices().length && indicesOrAliases.length > 0) {
 
             //we might have something like /-test1,+test1 that would identify all indices
             //or something like /-test1 with test1 index missing and IndicesOptions.lenient()
@@ -728,11 +728,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
         private List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData, boolean assertEmpty) {
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.concreteAllIndices());
+                return Arrays.asList(metaData.getConcreteAllIndices());
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metaData.concreteAllOpenIndices());
+                return Arrays.asList(metaData.getConcreteAllOpenIndices());
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.concreteAllClosedIndices());
+                return Arrays.asList(metaData.getConcreteAllClosedIndices());
             } else {
                 assert assertEmpty : "Shouldn't end up here";
                 return Collections.emptyList();

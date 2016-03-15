@@ -202,8 +202,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override
     synchronized protected void doStop() {
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
-            onGoingTimeout.cancel();
-            onGoingTimeout.listener.onClose();
+            try {
+                onGoingTimeout.cancel();
+                onGoingTimeout.listener.onClose();
+            } catch (Exception ex) {
+                logger.debug("failed to notify listeners on shutdown", ex);
+            }
         }
         ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
         remove(localNodeMasterListeners);

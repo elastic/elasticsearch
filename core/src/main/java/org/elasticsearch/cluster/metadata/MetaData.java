@@ -370,24 +370,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     /**
      * Returns all the concrete indices.
      */
-    public String[] concreteAllIndices() {
-        return allIndices;
-    }
-
     public String[] getConcreteAllIndices() {
-        return concreteAllIndices();
-    }
-
-    public String[] concreteAllOpenIndices() {
-        return allOpenIndices;
+        return allIndices;
     }
 
     public String[] getConcreteAllOpenIndices() {
         return allOpenIndices;
-    }
-
-    public String[] concreteAllClosedIndices() {
-        return allClosedIndices;
     }
 
     public String[] getConcreteAllClosedIndices() {
@@ -795,9 +783,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     metaData.getIndices(),
                     metaData.getTemplates(),
                     metaData.getCustoms(),
-                    metaData.concreteAllIndices(),
-                    metaData.concreteAllOpenIndices(),
-                    metaData.concreteAllClosedIndices(),
+                    metaData.getConcreteAllIndices(),
+                    metaData.getConcreteAllOpenIndices(),
+                    metaData.getConcreteAllClosedIndices(),
                     metaData.getAliasAndIndexLookup());
         } else {
             // No changes:

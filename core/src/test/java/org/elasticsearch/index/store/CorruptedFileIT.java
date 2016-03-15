@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -571,8 +572,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
     private Map<String, List<Path>> findFilesToCorruptForReplica() throws IOException {
         Map<String, List<Path>> filesToNodes = new HashMap<>();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index test = state.metaData().index("test").getIndex();
         for (ShardRouting shardRouting : state.getRoutingTable().allShards("test")) {
-            if (shardRouting.primary() == true) {
+            if (shardRouting.primary()) {
                 continue;
             }
             assertTrue(shardRouting.assignedToNode());
@@ -582,8 +584,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             filesToNodes.put(nodeStats.getNode().getName(), files);
             for (FsInfo.Path info : nodeStats.getFs()) {
                 String path = info.getPath();
-                final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
-                Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
+                Path file = PathUtils.get(path).resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
                 if (Files.exists(file)) { // multi data path might only have one path in use
                     try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                         for (Path item : stream) {
@@ -604,6 +605,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index test = state.metaData().index("test").getIndex();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
@@ -616,8 +618,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
-            Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
+            Path file = PathUtils.get(path).resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
             if (Files.exists(file)) { // multi data path might only have one path in use
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                     for (Path item : stream) {
@@ -676,12 +677,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
-
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final Index test = state.metaData().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().length, equalTo(1));
         List<Path> files = new ArrayList<>();
         for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            Path file = PathUtils.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
+            Path file = PathUtils.get(path).resolve("indices/" + test.getUUID() + "/" + Integer.toString(routing.getId()) + "/index");
             if (Files.exists(file)) { // multi data path might only have one path in use
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                     for (Path item : stream) {

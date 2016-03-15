@@ -34,6 +34,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.IndexFolderUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
@@ -86,6 +87,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             try {
                 ensureNoPre019State();
                 pre20Upgrade();
+                IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);
                 long startNS = System.nanoTime();
                 metaStateService.loadFullState();
                 logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
@@ -130,7 +132,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         for (IndexMetaData indexMetaData : newMetaData) {
                             IndexMetaData indexMetaDataOnDisk = null;
                             if (indexMetaData.getState().equals(IndexMetaData.State.CLOSE)) {
-                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex().getName());
+                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex());
                             }
                             if (indexMetaDataOnDisk != null) {
                                 newPreviouslyWrittenIndices.add(indexMetaDataOnDisk.getIndex());
@@ -158,7 +160,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             // check and write changes in indices
             for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
                 try {
-                    metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.newMetaData, indexMetaWrite.previousMetaData);
+                    metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.newMetaData);
                 } catch (Throwable e) {
                     success = false;
                 }
@@ -166,7 +168,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
 
         danglingIndicesState.processDanglingIndices(newMetaData);
-
         if (success) {
             previousMetaData = newMetaData;
             previouslyWrittenIndices = unmodifiableSet(relevantIndices);
@@ -233,7 +234,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         // We successfully checked all indices for backward compatibility and found no non-upgradable indices, which
         // means the upgrade can continue. Now it's safe to overwrite index metadata with the new version.
         for (IndexMetaData indexMetaData : updateIndexMetaData) {
-            metaStateService.writeIndex("upgrade", indexMetaData, null);
+            // since we still haven't upgraded the index folders, we write index state in the old folder
+            metaStateService.writeIndex("upgrade", indexMetaData, nodeEnv.resolveIndexFolder(indexMetaData.getIndex().getName()));
         }
     }
 

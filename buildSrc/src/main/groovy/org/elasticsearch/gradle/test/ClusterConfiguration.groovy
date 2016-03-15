@@ -23,8 +23,6 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
-import java.time.LocalDateTime
-
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
 
@@ -33,6 +31,12 @@ class ClusterConfiguration {
 
     @Input
     int numNodes = 1
+
+    @Input
+    int numBwcNodes = 0
+
+    @Input
+    String bwcVersion = null
 
     @Input
     int httpPort = 0

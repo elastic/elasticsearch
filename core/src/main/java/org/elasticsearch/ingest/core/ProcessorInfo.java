@@ -22,16 +22,18 @@ package org.elasticsearch.ingest.core;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class ProcessorInfo implements Streamable, ToXContent {
+public class ProcessorInfo implements Writeable<ProcessorInfo>, ToXContent, Comparable<ProcessorInfo> {
 
-    private String type;
+    private final String type;
 
-    ProcessorInfo() {
+    public ProcessorInfo(StreamInput input) throws IOException {
+        type = input.readString();
     }
 
     public ProcessorInfo(String type) {
@@ -46,8 +48,8 @@ public class ProcessorInfo implements Streamable, ToXContent {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.type = in.readString();
+    public ProcessorInfo readFrom(StreamInput in) throws IOException {
+        return new ProcessorInfo(in);
     }
 
     @Override
@@ -77,5 +79,10 @@ public class ProcessorInfo implements Streamable, ToXContent {
     @Override
     public int hashCode() {
         return type.hashCode();
+    }
+
+    @Override
+    public int compareTo(ProcessorInfo o) {
+        return type.compareTo(o.type);
     }
 }

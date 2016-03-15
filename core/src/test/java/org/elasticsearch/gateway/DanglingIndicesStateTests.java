@@ -29,6 +29,7 @@ import org.hamcrest.Matchers;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -53,6 +54,47 @@ public class DanglingIndicesStateTests extends ESTestCase {
             assertTrue(danglingState.getDanglingIndices().isEmpty());
         }
     }
+    public void testDanglingIndicesDiscovery() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+
+            assertTrue(danglingState.getDanglingIndices().isEmpty());
+            MetaData metaData = MetaData.builder().build();
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+            Map<Index, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+            assertTrue(newDanglingIndices.containsKey(dangledIndex.getIndex()));
+            metaData = MetaData.builder().put(dangledIndex, false).build();
+            newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+            assertFalse(newDanglingIndices.containsKey(dangledIndex.getIndex()));
+        }
+    }
+
+    public void testInvalidIndexFolder() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+
+            MetaData metaData = MetaData.builder().build();
+            final String uuid = "test1UUID";
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, uuid);
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+            for (Path path : env.resolveIndexFolder(uuid)) {
+                if (Files.exists(path)) {
+                    Files.move(path, path.resolveSibling("invalidUUID"), StandardCopyOption.ATOMIC_MOVE);
+                }
+            }
+            try {
+                danglingState.findNewDanglingIndices(metaData);
+                fail("no exception thrown for invalid folder name");
+            } catch (IllegalStateException e) {
+                assertThat(e.getMessage(), equalTo("[invalidUUID] invalid index folder name, rename to [test1UUID]"));
+            }
+        }
+    }
 
     public void testDanglingProcessing() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
@@ -61,15 +103,16 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             MetaData metaData = MetaData.builder().build();
 
-            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
-            metaStateService.writeIndex("test_write", dangledIndex, null);
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
 
             // check that several runs when not in the metadata still keep the dangled index around
             int numberOfChecks = randomIntBetween(1, 10);
             for (int i = 0; i < numberOfChecks; i++) {
-                Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+                Map<Index, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
                 assertThat(newDanglingIndices.size(), equalTo(1));
-                assertThat(newDanglingIndices.keySet(), Matchers.hasItems("test1"));
+                assertThat(newDanglingIndices.keySet(), Matchers.hasItems(dangledIndex.getIndex()));
                 assertTrue(danglingState.getDanglingIndices().isEmpty());
             }
 
@@ -77,7 +120,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
                 danglingState.findNewAndAddDanglingIndices(metaData);
 
                 assertThat(danglingState.getDanglingIndices().size(), equalTo(1));
-                assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems("test1"));
+                assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems(dangledIndex.getIndex()));
             }
 
             // simulate allocation to the metadata
@@ -85,35 +128,15 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             // check that several runs when in the metadata, but not cleaned yet, still keeps dangled
             for (int i = 0; i < numberOfChecks; i++) {
-                Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+                Map<Index, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
                 assertTrue(newDanglingIndices.isEmpty());
 
                 assertThat(danglingState.getDanglingIndices().size(), equalTo(1));
-                assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems("test1"));
+                assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems(dangledIndex.getIndex()));
             }
 
             danglingState.cleanupAllocatedDangledIndices(metaData);
             assertTrue(danglingState.getDanglingIndices().isEmpty());
-        }
-    }
-
-    public void testRenameOfIndexState() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
-
-            MetaData metaData = MetaData.builder().build();
-
-            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
-            metaStateService.writeIndex("test_write", dangledIndex, null);
-
-            for (Path path : env.indexPaths("test1")) {
-                Files.move(path, path.getParent().resolve("test1_renamed"));
-            }
-
-            Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
-            assertThat(newDanglingIndices.size(), equalTo(1));
-            assertThat(newDanglingIndices.keySet(), Matchers.hasItems("test1_renamed"));
         }
     }
 }

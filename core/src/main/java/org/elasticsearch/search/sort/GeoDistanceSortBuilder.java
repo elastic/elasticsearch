@@ -23,11 +23,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,8 +42,7 @@ import java.util.Objects;
 /**
  * A geo distance based sorting on a geo point like field.
  */
-public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder>
-        implements ToXContent, NamedWriteable<GeoDistanceSortBuilder>, SortElementParserTemp<GeoDistanceSortBuilder> {
+public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> implements SortBuilderParser<GeoDistanceSortBuilder> {
     public static final String NAME = "_geo_distance";
     public static final boolean DEFAULT_COERCE = false;
     public static final boolean DEFAULT_IGNORE_MALFORMED = false;

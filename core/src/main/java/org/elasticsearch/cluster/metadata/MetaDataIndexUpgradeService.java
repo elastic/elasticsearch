@@ -266,47 +266,16 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
+
             Settings settings = indexMetaData.getSettings();
-            Settings.Builder newSettings = null;
-            for(String byteSizeSetting : INDEX_BYTES_SIZE_SETTINGS) {
-                String value = settings.get(byteSizeSetting);
-                if (value != null) {
-                    try {
-                        Long.parseLong(value);
-                    } catch (NumberFormatException nfe) {
-                        continue;
-                    }
-                    // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                    logger.warn("byte-sized index setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", byteSizeSetting, value);
-                    if (newSettings == null) {
-                        newSettings = Settings.builder();
-                        newSettings.put(settings);
-                    }
-                    newSettings.put(byteSizeSetting, value + "b");
-                }
-            }
-            for(String timeSetting : INDEX_TIME_SETTINGS) {
-                String value = settings.get(timeSetting);
-                if (value != null) {
-                    try {
-                        Long.parseLong(value);
-                    } catch (NumberFormatException nfe) {
-                        continue;
-                    }
-                    // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                    logger.warn("time index setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", timeSetting, value);
-                    if (newSettings == null) {
-                        newSettings = Settings.builder();
-                        newSettings.put(settings);
-                    }
-                    newSettings.put(timeSetting, value + "ms");
-                }
-            }
+            Settings newSettings = MetaData.addDefaultUnitsIfNeeded(
+                    INDEX_TIME_SETTINGS, INDEX_BYTES_SIZE_SETTINGS, logger, settings);
+
             if (newSettings != null) {
                 // At least one setting was changed:
                 return IndexMetaData.builder(indexMetaData)
                     .version(indexMetaData.getVersion())
-                    .settings(newSettings.build())
+                    .settings(newSettings)
                     .build();
             }
         }

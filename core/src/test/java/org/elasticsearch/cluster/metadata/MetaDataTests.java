@@ -20,10 +20,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class MetaDataTests extends ESTestCase {
 
@@ -41,4 +44,15 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+
+    @Test
+    public void testMetaDataTemplateUpgrade() throws Exception {
+        MetaData metaData = MetaData.builder()
+                .put(IndexTemplateMetaData.builder("t1").settings(
+                        Settings.builder().put("index.translog.interval", 8000))).build();
+
+        MetaData newMd = MetaData.addDefaultUnitsIfNeeded(Loggers.getLogger(MetaDataTests.class), metaData);
+
+        assertThat(newMd.getTemplates().get("t1").getSettings().get("index.translog.interval"), is("8000ms"));
+    }
 }

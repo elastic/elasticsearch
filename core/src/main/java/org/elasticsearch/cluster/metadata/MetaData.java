@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
@@ -44,16 +45,10 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -63,18 +58,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 
 import static org.elasticsearch.common.settings.Settings.*;
 
@@ -762,51 +746,80 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                                     DiscoverySettings.PUBLISH_TIMEOUT,
                                     InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD);
 
-    /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
-     *  specify a unit. */
-    public static MetaData addDefaultUnitsIfNeeded(ESLogger logger, MetaData metaData) {
-        Settings.Builder newPersistentSettings = null;
-        for(Map.Entry<String,String> ent : metaData.persistentSettings().getAsMap().entrySet()) {
-            String settingName = ent.getKey();
-            String settingValue = ent.getValue();
-            if (CLUSTER_BYTES_SIZE_SETTINGS.contains(settingName)) {
-                try {
-                    Long.parseLong(settingValue);
-                } catch (NumberFormatException nfe) {
-                    continue;
-                }
-                // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", settingName, settingValue);
-                if (newPersistentSettings == null) {
-                    newPersistentSettings = Settings.builder();
-                    newPersistentSettings.put(metaData.persistentSettings());
-                }
-                newPersistentSettings.put(settingName, settingValue + "b");
+
+    /** As of 2.0 we require units for time and byte-sized settings.
+     * This methods adds default units to any settings that are part of timeSettings or byteSettings and don't specify a unit.
+     **/
+    @Nullable
+    public static Settings addDefaultUnitsIfNeeded(Set<String> timeSettings, Set<String> byteSettings, ESLogger logger, Settings settings) {
+        Settings.Builder newSettingsBuilder = null;
+        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            String settingName = entry.getKey();
+            String settingValue = entry.getValue();
+
+            String newSettingValue = convertedValue(timeSettings, settingName, settingValue, logger, "ms", "time");
+            if (settingValue.equals(newSettingValue) == false) {
+                newSettingsBuilder = initSettingsBuilder(settings, newSettingsBuilder);
+                newSettingsBuilder.put(settingName, newSettingValue);
             }
-            if (CLUSTER_TIME_SETTINGS.contains(settingName)) {
-                try {
-                    Long.parseLong(settingValue);
-                } catch (NumberFormatException nfe) {
-                    continue;
-                }
-                // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                logger.warn("time cluster setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", settingName, settingValue);
-                if (newPersistentSettings == null) {
-                    newPersistentSettings = Settings.builder();
-                    newPersistentSettings.put(metaData.persistentSettings());
-                }
-                newPersistentSettings.put(settingName, settingValue + "ms");
+
+            newSettingValue = convertedValue(byteSettings, settingName, settingValue, logger, "b", "byte-sized");
+            if (settingValue.equals(newSettingValue) == false) {
+                newSettingsBuilder = initSettingsBuilder(settings, newSettingsBuilder);
+                newSettingsBuilder.put(settingName, newSettingValue);
             }
         }
 
-        if (newPersistentSettings != null) {
+        if (newSettingsBuilder == null) {
+            return settings;
+        }
+        return newSettingsBuilder.build();
+    }
+
+    private static Settings.Builder initSettingsBuilder(Settings settings, Settings.Builder newSettingsBuilder) {
+        if (newSettingsBuilder == null) {
+            newSettingsBuilder = Settings.builder();
+            newSettingsBuilder.put(settings);
+        }
+        return newSettingsBuilder;
+    }
+
+    private static String convertedValue(Set<String> settingsThatRequireUnits,
+                                         String settingName,
+                                         String settingValue,
+                                         ESLogger logger,
+                                         String unit,
+                                         String unitName) {
+        if (settingsThatRequireUnits.contains(settingName) == false) {
+            return settingValue;
+        }
+        try {
+            Long.parseLong(settingValue);
+        } catch (NumberFormatException e) {
+            return settingValue;
+        }
+        // It's a naked number that previously would be interpreted as default unit; now we add it:
+        logger.warn("{} setting [{}] with value [{}] is missing units; assuming default units ({}) but in future versions this will be a hard error",
+                unitName, settingName, settingValue, unit);
+        return settingValue + unit;
+    }
+
+    /** As of 2.0 we require units for time and byte-sized settings. This methods adds default units to any
+     * persistent settings and template settings that don't specify a unit.
+     **/
+    public static MetaData addDefaultUnitsIfNeeded(ESLogger logger, MetaData metaData) {
+        Settings newPersistentSettings = addDefaultUnitsIfNeeded(
+                CLUSTER_TIME_SETTINGS, CLUSTER_BYTES_SIZE_SETTINGS, logger, metaData.persistentSettings());
+        ImmutableOpenMap<String, IndexTemplateMetaData> templates = updateTemplates(logger, metaData.getTemplates());
+
+        if (newPersistentSettings != null || templates != null) {
             return new MetaData(
                     metaData.clusterUUID(),
                     metaData.version(),
                     metaData.transientSettings(),
-                    newPersistentSettings.build(),
+                    MoreObjects.firstNonNull(newPersistentSettings, metaData.persistentSettings()),
                     metaData.getIndices(),
-                    metaData.getTemplates(),
+                    MoreObjects.firstNonNull(templates, metaData.getTemplates()),
                     metaData.getCustoms(),
                     metaData.concreteAllIndices(),
                     metaData.concreteAllOpenIndices(),
@@ -816,6 +829,43 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // No changes:
             return metaData;
         }
+    }
+
+    @Nullable
+    private static ImmutableOpenMap<String, IndexTemplateMetaData> updateTemplates(
+            ESLogger logger, ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+
+        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> builder = null;
+        for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : templates) {
+            IndexTemplateMetaData templateMetaData = cursor.value;
+            Settings currentSettings = templateMetaData.getSettings();
+            Settings newSettings = addDefaultUnitsIfNeeded(
+                    MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS,
+                    MetaDataIndexUpgradeService.INDEX_BYTES_SIZE_SETTINGS,
+                    logger,
+                    currentSettings);
+
+
+            if (newSettings != currentSettings) {
+                if (builder == null) {
+                    builder = ImmutableOpenMap.builder();
+                    builder.putAll(templates);
+                }
+                builder.put(cursor.key, new IndexTemplateMetaData(
+                        templateMetaData.name(),
+                        templateMetaData.order(),
+                        templateMetaData.template(),
+                        newSettings,
+                        templateMetaData.mappings(),
+                        templateMetaData.aliases(),
+                        templateMetaData.customs()
+                ));
+            }
+        }
+        if (builder == null) {
+            return null;
+        }
+        return builder.build();
     }
 
     public static class Builder {

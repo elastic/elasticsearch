@@ -31,13 +31,14 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
@@ -89,7 +90,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         assertThat(mapper, instanceOf(LongFieldMapper.class));
 
         mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
-        assertThat(mapper, instanceOf(DoubleFieldMapper.class));
+        assertThat(mapper, instanceOf(FloatFieldMapper.class));
     }
 
     public void testNumericDetectionDefault() throws Exception {
@@ -478,7 +479,8 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         Document luceneDoc = doc.docs().get(0);
 
         assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("double"));
+        assertThat(luceneDoc.getField("double").numericValue(), instanceOf(Float.class));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("double"));
         assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
     }
 

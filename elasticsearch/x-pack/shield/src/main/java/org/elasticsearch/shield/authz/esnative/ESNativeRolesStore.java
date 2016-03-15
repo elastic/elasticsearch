@@ -44,7 +44,6 @@ import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.shield.action.role.DeleteRoleRequest;
 import org.elasticsearch.shield.action.role.PutRoleRequest;
-import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.store.RolesStore;
@@ -52,6 +51,7 @@ import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -101,8 +101,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     private volatile boolean shieldIndexExists = false;
 
     @Inject
-    public ESNativeRolesStore(Settings settings, Provider<InternalClient> clientProvider,
-                              Provider<AuthenticationService> authProvider, ThreadPool threadPool) {
+    public ESNativeRolesStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
         super(settings);
         this.clientProvider = clientProvider;
         this.threadPool = threadPool;
@@ -192,8 +191,12 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
             // This function is MADNESS! But it works, don't think about it too hard...
             client.search(request, new ActionListener<SearchResponse>() {
+
+                private SearchResponse lastResponse = null;
+
                 @Override
                 public void onResponse(SearchResponse resp) {
+                    lastResponse = resp;
                     boolean hasHits = resp.getHits().getHits().length > 0;
                     if (hasHits) {
                         for (SearchHit hit : resp.getHits().getHits()) {
@@ -206,19 +209,9 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                                 .setScroll(scrollKeepAlive).request();
                         client.searchScroll(scrollRequest, this);
                     } else {
-                        ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(resp.getScrollId()).request();
-                        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
-                            @Override
-                            public void onResponse(ClearScrollResponse response) {
-                                // cool, it cleared, we don't really care though...
-                            }
-
-                            @Override
-                            public void onFailure(Throwable t) {
-                                // Not really much to do here except for warn about it...
-                                logger.warn("failed to clear scroll after retrieving all roles", t);
-                            }
-                        });
+                        if (resp.getScrollId() != null) {
+                            clearScollRequest(resp.getScrollId());
+                        }
                         // Finally, return the list of users
                         listener.onResponse(Collections.unmodifiableList(roles));
                     }
@@ -226,18 +219,22 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
                 @Override
                 public void onFailure(Throwable t) {
+                    // attempt to clear the scroll request
+                    if (lastResponse != null && lastResponse.getScrollId() != null) {
+                        clearScollRequest(lastResponse.getScrollId());
+                    }
+
                     if (t instanceof IndexNotFoundException) {
                         logger.trace("could not retrieve roles because security index does not exist");
+                        // since this is expected to happen at times, we just call the listener with an empty list
+                        listener.onResponse(Collections.<RoleDescriptor>emptyList());
                     } else {
-                        logger.info("failed to retrieve roles", t);
+                        listener.onFailure(t);
                     }
-                    // We don't invoke the onFailure listener here, instead
-                    // we call the response with an empty list
-                    listener.onResponse(Collections.emptyList());
                 }
             });
         } catch (Exception e) {
-            logger.error("unable to retrieve roles", e);
+            logger.error("unable to retrieve roles {}", e, Arrays.toString(names));
             listener.onFailure(e);
         }
     }
@@ -283,7 +280,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
-            logger.trace("attempted to put role before service was started");
+            logger.trace("attempted to put role [{}] before service was started", request.name());
             listener.onResponse(false);
         }
         try {
@@ -302,12 +299,12 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
                         @Override
                         public void onFailure(Throwable e) {
-                            logger.error("failed to put role to the index", e);
+                            logger.error("failed to put role [{}]", e, request.name());
                             listener.onFailure(e);
                         }
                     });
         } catch (Exception e) {
-            logger.error("unable to put role", e);
+            logger.error("unable to put role [{}]", e, request.name());
             listener.onFailure(e);
         }
 
@@ -336,14 +333,18 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
                         @Override
                         public void onFailure(Throwable t) {
-                            logger.info("failed to retrieve role", t);
+                            if (t instanceof IndexNotFoundException) {
+                                logger.trace("failed to retrieve role [{}] since security index does not exist", t, roleId);
+                            } else {
+                                logger.error("failed to retrieve role [{}]", t, roleId);
+                            }
                         }
                     }, latch));
 
                     try {
                         latch.await(30, TimeUnit.SECONDS);
                     } catch (InterruptedException e) {
-                        logger.info("timed out retrieving role");
+                        logger.error("timed out retrieving role [{}]", roleId);
                     }
 
                     GetResponse response = getRef.get();
@@ -371,13 +372,29 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
             GetRequest request = client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role).request();
             client.get(request, listener);
         } catch (IndexNotFoundException e) {
-            logger.trace("security index does not exist", e);
+            logger.trace("unable to retrieve role [{}] since security index does not exist", e, role);
             listener.onResponse(new GetResponse(
                     new GetResult(ShieldTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role, -1, false, null, null)));
         } catch (Exception e) {
             logger.error("unable to retrieve role", e);
             listener.onFailure(e);
         }
+    }
+
+    private void clearScollRequest(final String scrollId) {
+        ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(scrollId).request();
+        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
+            @Override
+            public void onResponse(ClearScrollResponse response) {
+                // cool, it cleared, we don't really care though...
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                // Not really much to do here except for warn about it...
+                logger.warn("failed to clear scroll [{}] after retrieving roles", t, scrollId);
+            }
+        });
     }
 
     // FIXME hack for testing
@@ -452,7 +469,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         try {
             return RoleDescriptor.parse(name, sourceBytes);
         } catch (Exception e) {
-            logger.warn("unable to deserialize role from response", e);
+            logger.error("error in the format of data for role [{}]", e, name);
             return null;
         }
     }

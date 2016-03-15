@@ -46,6 +46,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
@@ -215,6 +217,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             .numberOfShards(1).numberOfReplicas(0).build();
 
     public static final String KEY_ACTIVE_ALLOCATIONS = "active_allocations";
+    public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -1023,4 +1026,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return builder.build();
     }
 
+    private static final ToXContent.Params FORMAT_PARAMS = new MapParams(Collections.singletonMap("binary", "true"));
+
+    /**
+     * State format for {@link IndexMetaData} to write to and load from disk
+     */
+    public static final MetaDataStateFormat<IndexMetaData> FORMAT = new MetaDataStateFormat<IndexMetaData>(XContentType.SMILE, INDEX_STATE_FILE_PREFIX) {
+
+        @Override
+        public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
+            Builder.toXContent(state, builder, FORMAT_PARAMS);
+        }
+
+        @Override
+        public IndexMetaData fromXContent(XContentParser parser) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+    };
 }

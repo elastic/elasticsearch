@@ -234,8 +234,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     // If the latest version doesn't use the legacy format while previous versions do, then fail hard
     public void testLatestVersionDoesNotUseLegacy() throws IOException {
-        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
+        MetaDataStateFormat<MetaData> format = metaDataFormat(randomFrom(XContentType.values()));
         final Path[] dirs = new Path[2];
         dirs[0] = createTempDir();
         dirs[1] = createTempDir();
@@ -252,9 +251,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (int i = 0; i < numLegacyFiles; ++i) {
             final Path dir2 = randomFrom(dirs);
             final int v2 = v1 + 1 + randomInt(10);
-            try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaStateService.GLOBAL_STATE_FILE_PREFIX + v2)))) {
+            try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(),
+                Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaData.GLOBAL_STATE_FILE_PREFIX + v2)))) {
                 xcontentBuilder.startObject();
-                MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
+                format.toXContent(xcontentBuilder, randomMeta());
                 xcontentBuilder.endObject();
             }
         }
@@ -279,8 +279,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     // If both the legacy and the new format are available for the latest version, prefer the new format
     public void testPrefersNewerFormat() throws IOException {
-        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
+        MetaDataStateFormat<MetaData> format = metaDataFormat(randomFrom(XContentType.values()));
         final Path[] dirs = new Path[2];
         dirs[0] = createTempDir();
         dirs[1] = createTempDir();
@@ -296,9 +295,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final Path dir2 = randomFrom(dirs);
         MetaData meta2 = randomMeta();
         assertFalse(meta2.clusterUUID().equals(uuid));
-        try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaStateService.GLOBAL_STATE_FILE_PREFIX + v)))) {
+        try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaData.FORMAT.format(),
+            Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaData.GLOBAL_STATE_FILE_PREFIX + v)))) {
             xcontentBuilder.startObject();
-            MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
+            format.toXContent(xcontentBuilder, randomMeta());
             xcontentBuilder.endObject();
         }
 
@@ -312,7 +312,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
     }
 
     public void testLoadState() throws IOException {
-        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
         int numLegacy = randomIntBetween(0, numStates);
@@ -321,7 +320,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             meta.add(randomMeta());
         }
         Set<Path> corruptedFiles = new HashSet<>();
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
+        MetaDataStateFormat<MetaData> format = metaDataFormat(randomFrom(XContentType.values()));
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
@@ -331,9 +330,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-"+j);
                     Files.createFile(file); // randomly create 0-byte files -- there is extra logic to skip them
                 } else {
-                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(type, Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
+                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaData.FORMAT.format(),
+                        Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
                         xcontentBuilder.startObject();
-                        MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, params);
+                        format.toXContent(xcontentBuilder, meta.get(j));
                         xcontentBuilder.endObject();
                     }
                 }
@@ -380,7 +380,20 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
             }
         }
+    }
 
+    private static MetaDataStateFormat<MetaData> metaDataFormat(XContentType format) {
+        return new MetaDataStateFormat<MetaData>(format, MetaData.GLOBAL_STATE_FILE_PREFIX) {
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return MetaData.Builder.fromXContent(parser);
+            }
+        };
     }
 
     private MetaData randomMeta() throws IOException {

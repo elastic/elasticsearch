@@ -139,8 +139,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testFirstSearchRequestHasContextFromMainRequest() {
         firstSearchRequest = new SearchRequest();
         new DummyAbstractAsyncBulkByScrollAction().initialSearch();
-        assertEquals(mainRequest.getContext(), client.lastSentSearchRequest.get().getContext());
-        assertEquals(mainRequest.getHeaders(), client.lastSentSearchRequest.get().getHeaders());
+        // Actual assertions done by the client instance
     }
 
     public void testScrollResponseSetsTotal() {
@@ -160,8 +159,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         action.setScroll(scrollId());
         action.startNextScroll();
-        assertEquals(mainRequest.getContext(), client.lastSentSearchScrollRequest.get().getContext());
-        assertEquals(mainRequest.getHeaders(), client.lastSentSearchScrollRequest.get().getHeaders());
+        // Actual assertions done by the client instance
     }
 
     public void testEachScrollResponseIsABatch() {
@@ -382,7 +380,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 successLatch.countDown();
             }
         };
-        BulkRequest request = new BulkRequest();
+        BulkRequest request = new BulkRequest(mainRequest);
         for (int i = 0; i < size + 1; i++) {
             request.add(new IndexRequest("index", "type", "id" + i));
         }
@@ -568,7 +566,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    private static class MyMockClient extends FilterClient {
+    private class MyMockClient extends FilterClient {
         private final List<String> scrollsCleared = new ArrayList<>();
         private final AtomicInteger bulksAttempts = new AtomicInteger();
         private final AtomicReference<SearchRequest> lastSentSearchRequest = new AtomicReference<>();
@@ -588,6 +586,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
                 > void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            assertEquals(request + "preserved context", mainRequest.getContext(), request.getContext());
+            assertEquals(request + "preserved headers", mainRequest.getHeaders(), request.getHeaders());
             if (request instanceof SearchRequest) {
                 lastSentSearchRequest.set((SearchRequest) request);
                 return;

@@ -156,7 +156,7 @@ public class Retry {
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
-            BulkRequest requestToReissue = new BulkRequest();
+            BulkRequest requestToReissue = new BulkRequest(currentBulkRequest);
             int index = 0;
             for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
                 if (bulkItemResponse.isFailed()) {

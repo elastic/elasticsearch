@@ -40,16 +40,31 @@ import java.io.IOException;
 public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse,
         TA extends TransportAction<Request, Response>> extends BaseRestHandler {
     private final ClusterService clusterService;
+    private final RestController controller;
     private final TA action;
 
     protected AbstractBaseReindexRestHandler(Settings settings, RestController controller, Client client, ClusterService clusterService,
             TA action) {
         super(settings, controller, client);
         this.clusterService = clusterService;
+        this.controller = controller;
         this.action = action;
     }
 
     protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
+        /*
+         * Copy the HeadersAndContext from the request to the internalRequest so things that rely on context don't complain. Normally
+         * requests don't have to do this because they receive a wrapped client implementation that does it transparently. We can't do that
+         * because we need a task listener which is not exposed by the client interface.
+         */
+        for (String usefulHeader : controller.relevantHeaders()) {
+            String headerValue = request.header(usefulHeader);
+            if (headerValue != null) {
+                internalRequest.putHeader(usefulHeader, headerValue);
+            }
+        }
+        internalRequest.copyContextFrom(request);
+
         if (request.paramAsBoolean("wait_for_completion", true)) {
             action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
             return;

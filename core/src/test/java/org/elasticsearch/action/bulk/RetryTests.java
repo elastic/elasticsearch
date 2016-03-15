@@ -30,6 +30,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.apache.lucene.util.TestUtil.randomSimpleString;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -63,6 +65,11 @@ public class RetryTests extends ESTestCase {
         request.add(new UpdateRequest("shop", "products", "3"));
         request.add(new UpdateRequest("shop", "products", "4"));
         request.add(new UpdateRequest("shop", "products", "5"));
+
+        // Add a dummy header and context so we can assert that we kept it
+        request.putHeader(randomSimpleString(random()), randomSimpleString(random()));
+        request.putInContext(new Object(), new Object());
+
         return request;
     }
 
@@ -177,6 +184,7 @@ public class RetryTests extends ESTestCase {
 
     private static class MockBulkClient extends NoOpClient {
         private int numberOfCallsToFail;
+        private BulkRequest firstRequest;
 
         private MockBulkClient(String testName, int numberOfCallsToFail) {
             super(testName);
@@ -192,6 +200,12 @@ public class RetryTests extends ESTestCase {
 
         @Override
         public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+            if (firstRequest == null) {
+                firstRequest = request;
+            } else {
+                assertEquals(firstRequest.getHeaders(), request.getHeaders());
+                assertEquals(firstRequest.getContext(), request.getContext());
+            }
             // do everything synchronously, that's fine for a test
             boolean shouldFail = numberOfCallsToFail > 0;
             numberOfCallsToFail--;

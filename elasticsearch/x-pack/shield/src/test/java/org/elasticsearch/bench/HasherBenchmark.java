@@ -8,11 +8,13 @@ package org.elasticsearch.bench;
 import org.elasticsearch.common.Randomness;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 
+@SuppressForbidden(reason = "benchmark")
 public class HasherBenchmark {
 
     private static final int WARMING_ITERS = 1000;
@@ -63,6 +65,7 @@ public class HasherBenchmark {
         return metrics;
     }
 
+    @SuppressForbidden(reason = "benchmark")
     private static class Metrics {
 
         final String name;

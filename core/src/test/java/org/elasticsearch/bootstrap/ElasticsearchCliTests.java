@@ -45,14 +45,10 @@ public class ElasticsearchCliTests extends ESTestCase {
     public void testVersion() throws Exception {
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-d");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "--daemonize");
-        runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-H", "/tmp/home");
-        runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "--path.home", "/tmp/home");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-p", "/tmp/pid");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "--pidfile", "/tmp/pid");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("--version", "-d");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("--version", "--daemonize");
-        runTestThatVersionIsMutuallyExclusiveToOtherOptions("--version", "-H", "/tmp/home");
-        runTestThatVersionIsMutuallyExclusiveToOtherOptions("--version", "--path.home", "/tmp/home");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("--version", "-p", "/tmp/pid");
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("--version", "--pidfile", "/tmp/pid");
         runTestThatVersionIsReturned("-V");
@@ -77,7 +73,7 @@ public class ElasticsearchCliTests extends ESTestCase {
     }
 
     private void runTestVersion(int expectedStatus, Consumer<String> outputConsumer, String... args) throws Exception {
-        runTest(expectedStatus, false, outputConsumer, (foreground, pathHome, pidFile, esSettings) -> {}, args);
+        runTest(expectedStatus, false, outputConsumer, (foreground, pidFile, esSettings) -> {}, args);
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
@@ -92,7 +88,7 @@ public class ElasticsearchCliTests extends ESTestCase {
                 expectedStatus,
                 expectedInit,
                 outputConsumer,
-                (foreground, pathHome, pidFile, esSettings) -> assertThat(pidFile, equalTo("/tmp/pid")),
+                (foreground, pidFile, esSettings) -> assertThat(pidFile, equalTo("/tmp/pid")),
                 args);
     }
 
@@ -107,7 +103,7 @@ public class ElasticsearchCliTests extends ESTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pathHome, pidFile, esSettings) -> assertThat(foreground, equalTo(!expectedDaemonize)),
+                (foreground, pidFile, esSettings) -> assertThat(foreground, equalTo(!expectedDaemonize)),
                 args);
     }
 
@@ -116,7 +112,7 @@ public class ElasticsearchCliTests extends ESTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pathHome, pidFile, esSettings) -> {
+                (foreground, pidFile, esSettings) -> {
                     assertThat(esSettings.size(), equalTo(2));
                     assertThat(esSettings, hasEntry("es.foo", "bar"));
                     assertThat(esSettings, hasEntry("es.baz", "qux"));
@@ -136,7 +132,7 @@ public class ElasticsearchCliTests extends ESTestCase {
                 ExitCodes.USAGE,
                 false,
                 output -> assertThat(output, containsString("Elasticsearch settings must be prefixed with [es.] but was [")),
-                (foreground, pathHome, pidFile, esSettings) -> {},
+                (foreground, pidFile, esSettings) -> {},
                 args
         );
     }
@@ -146,7 +142,7 @@ public class ElasticsearchCliTests extends ESTestCase {
                 ExitCodes.USAGE,
                 false,
                 output -> assertThat(output, containsString("Elasticsearch setting [es.foo] must not be empty")),
-                (foreground, pathHome, pidFile, esSettings) -> {},
+                (foreground, pidFile, esSettings) -> {},
                 "-E", "es.foo="
         );
     }
@@ -156,12 +152,12 @@ public class ElasticsearchCliTests extends ESTestCase {
                 ExitCodes.USAGE,
                 false,
                 output -> assertThat(output, containsString("network.host is not a recognized option")),
-                (foreground, pathHome, pidFile, esSettings) -> {},
+                (foreground, pidFile, esSettings) -> {},
                 "--network.host");
     }
 
     private interface InitConsumer {
-        void accept(final boolean foreground, final String pathHome, final String pidFile, final Map<String, String> esSettings);
+        void accept(final boolean foreground, final String pidFile, final Map<String, String> esSettings);
     }
 
     private void runTest(
@@ -175,9 +171,9 @@ public class ElasticsearchCliTests extends ESTestCase {
             final AtomicBoolean init = new AtomicBoolean();
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
-                void init(final boolean daemonize, final String pathHome, final String pidFile, final Map<String, String> esSettings) {
+                void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
                     init.set(true);
-                    initConsumer.accept(!daemonize, pathHome, pidFile, esSettings);
+                    initConsumer.accept(!daemonize, pidFile, esSettings);
                 }
             }, terminal);
             assertThat(status, equalTo(expectedStatus));

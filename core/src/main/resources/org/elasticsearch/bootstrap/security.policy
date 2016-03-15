@@ -72,9 +72,6 @@ grant {
   // set by ESTestCase to improve test reproducibility
   // TODO: set this with gradle or some other way that repros with seed?
   permission java.util.PropertyPermission "es.processors.override", "write";
-  // set by CLIToolTestCase
-  // TODO: do this differently? or test commandline tools differently?
-  permission java.util.PropertyPermission "es.default.path.home", "write";
 
   // TODO: these simply trigger a noisy warning if its unable to clear the properties
   // fix that in randomizedtesting

@@ -41,7 +41,6 @@ class Elasticsearch extends Command {
 
     private final OptionSpec<Void> versionOption;
     private final OptionSpec<Void> daemonizeOption;
-    private final OptionSpec<String> pathHomeOption;
     private final OptionSpec<String> pidfileOption;
     private final OptionSpec<KeyValuePair> propertyOption;
 
@@ -53,8 +52,6 @@ class Elasticsearch extends Command {
             "Prints elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
             "Starts Elasticsearch in the background");
-        // TODO: in jopt-simple 5.0 this option type can be a Path
-        pathHomeOption = parser.acceptsAll(Arrays.asList("H", "path.home"), "").withRequiredArg();
         // TODO: in jopt-simple 5.0 this option type can be a Path
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
@@ -80,7 +77,7 @@ class Elasticsearch extends Command {
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         if (options.has(versionOption)) {
-            if (options.has(daemonizeOption) || options.has(pathHomeOption) || options.has(pidfileOption)) {
+            if (options.has(daemonizeOption) || options.has(pidfileOption)) {
                 throw new UserError(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
             }
             terminal.println("Version: " + org.elasticsearch.Version.CURRENT
@@ -90,7 +87,6 @@ class Elasticsearch extends Command {
         }
 
         final boolean daemonize = options.has(daemonizeOption);
-        final String pathHome = pathHomeOption.value(options);
         final String pidFile = pidfileOption.value(options);
 
         final Map<String, String> esSettings = new HashMap<>();
@@ -104,12 +100,12 @@ class Elasticsearch extends Command {
             esSettings.put(kvp.key, kvp.value);
         }
 
-        init(daemonize, pathHome, pidFile, esSettings);
+        init(daemonize, pidFile, esSettings);
     }
 
-    void init(final boolean daemonize, final String pathHome, final String pidFile, final Map<String, String> esSettings) {
+    void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
         try {
-            Bootstrap.init(!daemonize, pathHome, pidFile, esSettings);
+            Bootstrap.init(!daemonize, pidFile, esSettings);
         } catch (final Throwable t) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

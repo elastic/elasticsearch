@@ -188,10 +188,9 @@ final class Bootstrap {
         node = new Node(nodeSettings);
     }
 
-    private static Environment initialSettings(boolean foreground, String pathHome, String pidFile) {
+    private static Environment initialSettings(boolean foreground, String pidFile) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
-        builder.put(Environment.PATH_HOME_SETTING.getKey(), pathHome);
         if (Strings.hasLength(pidFile)) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
@@ -224,7 +223,6 @@ final class Bootstrap {
      */
     static void init(
             final boolean foreground,
-            final String pathHome,
             final String pidFile,
             final Map<String, String> esSettings) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
@@ -234,7 +232,7 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialSettings(foreground, pathHome, pidFile);
+        Environment environment = initialSettings(foreground, pidFile);
         Settings settings = environment.settings();
         LogConfigurator.configure(settings, true);
         checkForCustomConfFile();

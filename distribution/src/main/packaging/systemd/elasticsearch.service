@@ -21,7 +21,6 @@ ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
 
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
                                                 -p ${PID_DIR}/elasticsearch.pid \
-                                                -Ees.default.path.home=${ES_HOME} \
                                                 -Ees.default.path.logs=${LOG_DIR} \
                                                 -Ees.default.path.data=${DATA_DIR} \
                                                 -Ees.default.path.conf=${CONF_DIR}

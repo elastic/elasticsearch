@@ -271,7 +271,7 @@ public class Watcher {
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[.watches,.triggered_watches,.watcher-history*]", (Object) settings);
+                "[.watches,.triggered_watches,.watcher-history*]", (Object) value);
         if (Booleans.isExplicitFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }

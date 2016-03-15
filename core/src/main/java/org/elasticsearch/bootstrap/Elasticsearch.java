@@ -109,7 +109,7 @@ class Elasticsearch extends Command {
 
     void init(final boolean daemonize, final String pathHome, final String pidFile, final Map<String, String> esSettings) {
         try {
-            Bootstrap.init(daemonize, pathHome, pidFile, esSettings);
+            Bootstrap.init(!daemonize, pathHome, pidFile, esSettings);
         } catch (final Throwable t) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

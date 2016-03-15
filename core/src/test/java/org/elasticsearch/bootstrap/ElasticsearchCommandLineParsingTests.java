@@ -77,7 +77,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
     }
 
     private void runTestVersion(int expectedStatus, Consumer<String> outputConsumer, String... args) throws Exception {
-        runTest(expectedStatus, false, outputConsumer, (daemonize, pathHome, pidFile, esSettings) -> {}, args);
+        runTest(expectedStatus, false, outputConsumer, (foreground, pathHome, pidFile, esSettings) -> {}, args);
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
@@ -92,7 +92,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 expectedStatus,
                 expectedInit,
                 outputConsumer,
-                (daemonize, pathHome, pidFile, esSettings) -> assertThat(pidFile, equalTo("/tmp/pid")),
+                (foreground, pathHome, pidFile, esSettings) -> assertThat(pidFile, equalTo("/tmp/pid")),
                 args);
     }
 
@@ -107,7 +107,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (daemonize, pathHome, pidFile, esSettings) -> assertThat(daemonize, equalTo(expectedDaemonize)),
+                (foreground, pathHome, pidFile, esSettings) -> assertThat(foreground, equalTo(!expectedDaemonize)),
                 args);
     }
 
@@ -116,7 +116,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (daemonize, pathHome, pidFile, esSettings) -> {
+                (foreground, pathHome, pidFile, esSettings) -> {
                     assertThat(esSettings.size(), equalTo(2));
                     assertThat(esSettings, hasEntry("es.foo", "bar"));
                     assertThat(esSettings, hasEntry("es.baz", "qux"));
@@ -136,7 +136,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 ExitCodes.USAGE,
                 false,
                 output -> assertThat(output, containsString("Elasticsearch settings must be prefixed with [es.] but was [")),
-                (daemonize, pathHome, pidFile, esSettings) -> {},
+                (foreground, pathHome, pidFile, esSettings) -> {},
                 args
         );
     }
@@ -146,7 +146,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 ExitCodes.USAGE,
                 false,
                 output -> assertThat(output, containsString("Elasticsearch setting [es.foo] must not be empty")),
-                (daemonize, pathHome, pidFile, esSettings) -> {},
+                (foreground, pathHome, pidFile, esSettings) -> {},
                 "-E", "es.foo="
         );
     }
@@ -156,12 +156,12 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 ExitCodes.USAGE,
                 false,
                 output -> assertThat(output, containsString("network.host is not a recognized option")),
-                (daemonize, pathHome, pidFile, esSettings) -> {},
+                (foreground, pathHome, pidFile, esSettings) -> {},
                 "--network.host");
     }
 
     private interface InitConsumer {
-        void accept(final boolean daemonize, final String pathHome, final String pidFile, final Map<String, String> esSettings);
+        void accept(final boolean foreground, final String pathHome, final String pidFile, final Map<String, String> esSettings);
     }
 
     private void runTest(
@@ -177,7 +177,7 @@ public class ElasticsearchCommandLineParsingTests extends ESTestCase {
                 @Override
                 void init(final boolean daemonize, final String pathHome, final String pidFile, final Map<String, String> esSettings) {
                     init.set(true);
-                    initConsumer.accept(daemonize, pathHome, pidFile, esSettings);
+                    initConsumer.accept(!daemonize, pathHome, pidFile, esSettings);
                 }
             }, terminal);
             assertThat(status, equalTo(expectedStatus));

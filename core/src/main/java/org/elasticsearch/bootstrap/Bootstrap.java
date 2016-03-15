@@ -188,8 +188,8 @@ final class Bootstrap {
         node = new Node(nodeSettings);
     }
 
-    private static Environment initialSettings(boolean daemonize, String pathHome, String pidFile) {
-        Terminal terminal = daemonize ? null : Terminal.DEFAULT;
+    private static Environment initialSettings(boolean foreground, String pathHome, String pidFile) {
+        Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), pathHome);
         if (Strings.hasLength(pidFile)) {
@@ -223,7 +223,7 @@ final class Bootstrap {
      * to startup elasticsearch.
      */
     static void init(
-            final boolean daemonize,
+            final boolean foreground,
             final String pathHome,
             final String pidFile,
             final Map<String, String> esSettings) throws Throwable {
@@ -234,7 +234,7 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialSettings(daemonize, pathHome, pidFile);
+        Environment environment = initialSettings(foreground, pathHome, pidFile);
         Settings settings = environment.settings();
         LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
@@ -250,7 +250,7 @@ final class Bootstrap {
         }
 
         try {
-            if (daemonize) {
+            if (!foreground) {
                 Loggers.disableConsoleLogging();
                 closeSystOut();
             }
@@ -265,12 +265,12 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (daemonize) {
+            if (!foreground) {
                 closeSysError();
             }
         } catch (Throwable e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            if (!daemonize) {
+            if (foreground) {
                 Loggers.disableConsoleLogging();
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
@@ -290,7 +290,7 @@ final class Bootstrap {
                 logger.error("Exception", e);
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
-            if (!daemonize) {
+            if (foreground) {
                 Loggers.enableConsoleLogging();
             }
 

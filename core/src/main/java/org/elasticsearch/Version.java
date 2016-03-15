@@ -83,6 +83,8 @@ public class Version {
                 return V_5_0_0;
             case V_2_3_0_ID:
                 return V_2_3_0;
+            case V_2_2_1_ID:
+                return V_2_2_1;
             case V_2_2_0_ID:
                 return V_2_2_0;
             case V_2_1_2_ID:

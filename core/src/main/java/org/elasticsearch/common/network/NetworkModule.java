@@ -19,12 +19,25 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.tasks.Task;
 
 /**
  *
  */
 public class NetworkModule extends AbstractModule {
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public NetworkModule(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        registerTaskStatus(ReplicationTask.Status.PROTOTYPE);
+    }
+
+    public void registerTaskStatus(Task.Status prototype) {
+        namedWriteableRegistry.registerPrototype(Task.Status.class, prototype);
+    }
 
     @Override
     protected void configure() {

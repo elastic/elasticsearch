@@ -36,6 +36,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -128,6 +129,7 @@ public class TransportClient extends AbstractClient {
             Version version = Version.CURRENT;
 
             final ThreadPool threadPool = new ThreadPool(settings);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
 
             boolean success = false;
             try {
@@ -139,10 +141,10 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new SettingsModule(this.settings));
-                modules.add(new NetworkModule());
+                modules.add(new NetworkModule(namedWriteableRegistry));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new TransportModule(this.settings));
+                modules.add(new TransportModule(this.settings, namedWriteableRegistry));
                 modules.add(new SearchModule() {
                     @Override
                     protected void configure() {

@@ -48,16 +48,19 @@ public class TransportModule extends AbstractModule {
 
     private final Map<String, Class<? extends TransportService>> transportServices = Maps.newHashMap();
     private final Map<String, Class<? extends Transport>> transports = Maps.newHashMap();
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     private Class<? extends TransportService> configuredTransportService;
     private Class<? extends Transport> configuredTransport;
     private String configuredTransportServiceSource;
     private String configuredTransportSource;
 
-    public TransportModule(Settings settings) {
+    public TransportModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
         this.settings = settings;
         this.logger = Loggers.getLogger(getClass(), settings);
         addTransport(LOCAL_TRANSPORT, LocalTransport.class);
         addTransport(NETTY_TRANSPORT, NettyTransport.class);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     public void addTransportService(String name, Class<? extends TransportService> clazz) {
@@ -91,7 +94,7 @@ public class TransportModule extends AbstractModule {
             }
         }
 
-        bind(NamedWriteableRegistry.class).asEagerSingleton();
+        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
         if (configuredTransport != null) {
             logger.info("Using [{}] as transport, overridden by [{}]", configuredTransport.getName(), configuredTransportSource);
             bind(Transport.class).to(configuredTransport).asEagerSingleton();

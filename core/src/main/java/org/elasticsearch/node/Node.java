@@ -36,6 +36,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -167,6 +168,7 @@ public class Node implements Releasable {
         }
 
         final ThreadPool threadPool = new ThreadPool(settings);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
 
         boolean success = false;
         try {
@@ -180,7 +182,7 @@ public class Node implements Releasable {
             modules.add(new PluginsModule(pluginsService));
             modules.add(new SettingsModule(this.settings));
             modules.add(new NodeModule(this));
-            modules.add(new NetworkModule());
+            modules.add(new NetworkModule(namedWriteableRegistry));
             modules.add(new ScriptModule(this.settings));
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
@@ -189,7 +191,7 @@ public class Node implements Releasable {
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new RestModule(this.settings));
-            modules.add(new TransportModule(settings));
+            modules.add(new TransportModule(settings, namedWriteableRegistry));
             if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 modules.add(new HttpServerModule(settings));
             }

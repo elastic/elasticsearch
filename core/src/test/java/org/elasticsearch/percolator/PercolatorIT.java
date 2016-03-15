@@ -2067,5 +2067,30 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
     }
 
+    @Test
+    public void testGeoPoint() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("type", "location", "type=geo_point"));
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", geoBoundingBoxQuery("location")
+                        .topLeft(42.36, -71.09)
+                        .bottomRight(42.355, -71.085)
+                ).endObject())
+                .get();
+        refresh();
+
+        PercolateResponse response1 = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject()
+                        .startObject("location")
+                            .field("lon", -71.0875)
+                            .field("lat", 42.3575)
+                        .endObject()))
+                .execute().actionGet();
+        assertMatchCount(response1, 1L);
+        assertThat(response1.getMatches().length, equalTo(1));
+        assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
+    }
+
 }
 

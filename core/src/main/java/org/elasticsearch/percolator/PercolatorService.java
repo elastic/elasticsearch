@@ -22,8 +22,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.index.memory.ExtendedMemoryIndex;
-import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.index.memory.ForkedMemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -126,7 +125,7 @@ public class PercolatorService extends AbstractComponent {
     private final ScriptService scriptService;
     private final MappingUpdatedAction mappingUpdatedAction;
 
-    private final CloseableThreadLocal<MemoryIndex> cache;
+    private final CloseableThreadLocal<ForkedMemoryIndex> cache;
 
     private final ParseFieldMatcher parseFieldMatcher;
 
@@ -150,11 +149,11 @@ public class PercolatorService extends AbstractComponent {
         this.sortParseElement = new SortParseElement();
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
-        cache = new CloseableThreadLocal<MemoryIndex>() {
+        cache = new CloseableThreadLocal<ForkedMemoryIndex>() {
             @Override
-            protected MemoryIndex initialValue() {
+            protected ForkedMemoryIndex initialValue() {
                 // TODO: should we expose payloads as an option? should offsets be turned on always?
-                return new ExtendedMemoryIndex(true, false, maxReuseBytes);
+                return new ForkedMemoryIndex(true, false, maxReuseBytes);
             }
         };
         single = new SingleDocumentPercolatorIndex(cache);

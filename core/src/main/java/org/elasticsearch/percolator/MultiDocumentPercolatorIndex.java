@@ -23,6 +23,7 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.memory.ForkedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CloseableThreadLocal;
@@ -42,9 +43,9 @@ import java.util.List;
  */
 class MultiDocumentPercolatorIndex implements PercolatorIndex {
 
-    private final CloseableThreadLocal<MemoryIndex> cache;
+    private final CloseableThreadLocal<ForkedMemoryIndex> cache;
 
-    MultiDocumentPercolatorIndex(CloseableThreadLocal<MemoryIndex> cache) {
+    MultiDocumentPercolatorIndex(CloseableThreadLocal<ForkedMemoryIndex> cache) {
         this.cache = cache;
     }
 
@@ -54,16 +55,16 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         List<ParseContext.Document> docs = parsedDocument.docs();
         int rootDocIndex = docs.size() - 1;
         assert rootDocIndex > 0;
-        MemoryIndex rootDocMemoryIndex = null;
+        ForkedMemoryIndex rootDocMemoryIndex = null;
         for (int i = 0; i < docs.size(); i++) {
             ParseContext.Document d = docs.get(i);
-            MemoryIndex memoryIndex;
+            ForkedMemoryIndex memoryIndex;
             if (rootDocIndex == i) {
                 // the last doc is always the rootDoc, since that is usually the biggest document it make sense
                 // to reuse the MemoryIndex it uses
                 memoryIndex = rootDocMemoryIndex = cache.get();
             } else {
-                memoryIndex = new MemoryIndex(true);
+                memoryIndex = new ForkedMemoryIndex(true);
             }
             Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
             memoryIndices[i] = indexDoc(d, analyzer, memoryIndex).createSearcher().getIndexReader();
@@ -80,31 +81,21 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
     }
 
-    MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, MemoryIndex memoryIndex) {
+    ForkedMemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, ForkedMemoryIndex memoryIndex) {
         for (IndexableField field : d.getFields()) {
-            if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
+            if (field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
-            try {
-                // TODO: instead of passing null here, we can have a CTL<Map<String,TokenStream>> and pass previous,
-                // like the indexer does
-                try (TokenStream tokenStream = field.tokenStream(analyzer, null)) {
-                    if (tokenStream != null) {
-                        memoryIndex.addField(field.name(), tokenStream, field.boost());
-                    }
-                 }
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to create token stream", e);
-            }
+            memoryIndex.addField(field, analyzer);
         }
         return memoryIndex;
     }
 
     private class DocSearcher extends Engine.Searcher {
 
-        private final MemoryIndex rootDocMemoryIndex;
+        private final ForkedMemoryIndex rootDocMemoryIndex;
 
-        private DocSearcher(IndexSearcher searcher, MemoryIndex rootDocMemoryIndex) {
+        private DocSearcher(IndexSearcher searcher, ForkedMemoryIndex rootDocMemoryIndex) {
             super("percolate", searcher);
             this.rootDocMemoryIndex = rootDocMemoryIndex;
         }

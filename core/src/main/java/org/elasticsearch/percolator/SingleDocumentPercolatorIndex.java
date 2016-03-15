@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.memory.ForkedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
@@ -39,28 +40,22 @@ import java.io.IOException;
  */
 class SingleDocumentPercolatorIndex implements PercolatorIndex {
 
-    private final CloseableThreadLocal<MemoryIndex> cache;
+    private final CloseableThreadLocal<ForkedMemoryIndex> cache;
 
-    SingleDocumentPercolatorIndex(CloseableThreadLocal<MemoryIndex> cache) {
+    SingleDocumentPercolatorIndex(CloseableThreadLocal<ForkedMemoryIndex> cache) {
         this.cache = cache;
     }
 
     @Override
     public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
-        MemoryIndex memoryIndex = cache.get();
+        ForkedMemoryIndex memoryIndex = cache.get();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-            if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
+            if (field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
             try {
                 Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
-                // TODO: instead of passing null here, we can have a CTL<Map<String,TokenStream>> and pass previous,
-                // like the indexer does
-                try (TokenStream tokenStream = field.tokenStream(analyzer, null)) {
-                    if (tokenStream != null) {
-                        memoryIndex.addField(field.name(), tokenStream, field.boost());
-                    }
-                 }
+                memoryIndex.addField(field, analyzer);
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to create token stream for [" + field.name() + "]", e);
             }
@@ -70,9 +65,9 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
 
     private class DocEngineSearcher extends Engine.Searcher {
 
-        private final MemoryIndex memoryIndex;
+        private final ForkedMemoryIndex memoryIndex;
 
-        public DocEngineSearcher(MemoryIndex memoryIndex) {
+        public DocEngineSearcher(ForkedMemoryIndex memoryIndex) {
             super("percolate", memoryIndex.createSearcher());
             this.memoryIndex = memoryIndex;
         }

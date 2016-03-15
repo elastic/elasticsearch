@@ -22,7 +22,8 @@ public class MarvelPluginClientTests extends ESTestCase {
                 .build();
 
         Marvel plugin = new Marvel(settings);
-        assertThat(plugin.isEnabled(), is(false));
+        assertThat(plugin.isEnabled(), is(true));
+        assertThat(plugin.isTransportClient(), is(true));
         Collection<Module> modules = plugin.nodeModules();
         assertThat(modules.size(), is(0));
     }
@@ -34,6 +35,7 @@ public class MarvelPluginClientTests extends ESTestCase {
                 .build();
         Marvel plugin = new Marvel(settings);
         assertThat(plugin.isEnabled(), is(true));
+        assertThat(plugin.isTransportClient(), is(false));
         Collection<Module> modules = plugin.nodeModules();
         assertThat(modules.size(), is(5));
     }

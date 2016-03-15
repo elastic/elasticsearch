@@ -6,15 +6,10 @@
 package org.elasticsearch.marvel.support.init.proxy;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 
 public class MonitoringClientProxy extends ClientProxy {
-
-    @Inject
-    public MonitoringClientProxy() {
-    }
 
     /**
      * Creates a proxy to the given internal client (can be used for testing)

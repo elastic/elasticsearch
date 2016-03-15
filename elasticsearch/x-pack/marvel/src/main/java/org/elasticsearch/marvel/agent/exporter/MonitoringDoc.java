@@ -22,8 +22,6 @@ import java.io.IOException;
  */
 public class MonitoringDoc implements Writeable<MonitoringDoc> {
 
-    private static final MonitoringDoc PROTO = new MonitoringDoc();
-
     private final String monitoringId;
     private final String monitoringVersion;
 
@@ -31,14 +29,16 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
     private long timestamp;
     private Node sourceNode;
 
-    // Used by {@link #PROTO} instance and tests
-    MonitoringDoc() {
-        this(null, null);
-    }
-
     public MonitoringDoc(String monitoringId, String monitoringVersion) {
         this.monitoringId = monitoringId;
         this.monitoringVersion = monitoringVersion;
+    }
+
+    public MonitoringDoc(StreamInput in) throws IOException {
+        this(in.readOptionalString(), in.readOptionalString());
+        clusterUUID = in.readOptionalString();
+        timestamp = in.readVLong();
+        sourceNode = in.readOptionalWritable(Node::new);
     }
 
     public String getClusterUUID() {
@@ -80,7 +80,7 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
 
     @Override
     public String toString() {
-        return "marvel document [class=" + getClass().getName() +
+        return "monitoring document [class=" + getClass().getSimpleName() +
                 ", monitoring id=" + getMonitoringId() +
                 ", monitoring version=" + getMonitoringVersion() +
                 "]";
@@ -92,32 +92,15 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
         out.writeOptionalString(getMonitoringVersion());
         out.writeOptionalString(getClusterUUID());
         out.writeVLong(getTimestamp());
-        if (getSourceNode() != null) {
-            out.writeBoolean(true);
-            getSourceNode().writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(getSourceNode());
     }
 
     @Override
     public MonitoringDoc readFrom(StreamInput in) throws IOException {
-        MonitoringDoc doc = new MonitoringDoc(in.readOptionalString(), in.readOptionalString());
-        doc.setClusterUUID(in.readOptionalString());
-        doc.setTimestamp(in.readVLong());
-        if (in.readBoolean()) {
-            doc.setSourceNode(Node.PROTO.readFrom(in));
-        }
-        return doc;
-    }
-
-    public static MonitoringDoc readMonitoringDoc(StreamInput in) throws IOException {
-        return PROTO.readFrom(in);
+        return new MonitoringDoc(in);
     }
 
     public static class Node implements Writeable<Node>, ToXContent {
-
-        public static final Node PROTO = new Node();
 
         private String uuid;
         private String host;
@@ -125,10 +108,6 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
         private String ip;
         private String name;
         private ImmutableOpenMap<String, String> attributes;
-
-        // Used by the {@link #PROTO} instance
-        Node() {
-        }
 
         public Node(String uuid, String host, String transportAddress, String ip, String name,
                     ImmutableOpenMap<String, String> attributes) {
@@ -145,6 +124,20 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
                 }
             }
             this.attributes = builder.build();
+        }
+
+        public Node(StreamInput in) throws IOException {
+            uuid = in.readOptionalString();
+            host = in.readOptionalString();
+            transportAddress = in.readOptionalString();
+            ip = in.readOptionalString();
+            name = in.readOptionalString();
+            int size = in.readVInt();
+            ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder(size);
+            for (int i = 0; i < size; i++) {
+                attributes.put(in.readOptionalString(), in.readOptionalString());
+            }
+            this.attributes = attributes.build();
         }
 
         public String getUUID() {
@@ -208,19 +201,7 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
 
         @Override
         public Node readFrom(StreamInput in) throws IOException {
-            Node node = new Node();
-            node.uuid = in.readOptionalString();
-            node.host = in.readOptionalString();
-            node.transportAddress = in.readOptionalString();
-            node.ip = in.readOptionalString();
-            node.name = in.readOptionalString();
-            int size = in.readVInt();
-            ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder(size);
-            for (int i = 0; i < size; i++) {
-                attributes.put(in.readOptionalString(), in.readOptionalString());
-            }
-            node.attributes = attributes.build();
-            return node;
+            return new Node(in);
         }
 
         @Override

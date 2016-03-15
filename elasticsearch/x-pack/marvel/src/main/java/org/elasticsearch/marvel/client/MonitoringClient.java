@@ -5,8 +5,16 @@
  */
 package org.elasticsearch.marvel.client;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.marvel.action.MonitoringBulkAction;
+import org.elasticsearch.marvel.action.MonitoringBulkRequest;
+import org.elasticsearch.marvel.action.MonitoringBulkRequestBuilder;
+import org.elasticsearch.marvel.action.MonitoringBulkResponse;
+
+import java.util.Map;
 
 public class MonitoringClient {
 
@@ -17,5 +25,36 @@ public class MonitoringClient {
         this.client = client;
     }
 
-    // to be implemented: specific API for monitoring
+
+    /**
+     * Creates a request builder that bulk index monitoring documents.
+     *
+     * @return The request builder
+     */
+    public MonitoringBulkRequestBuilder prepareMonitoringBulk() {
+        return new MonitoringBulkRequestBuilder(client);
+    }
+
+    /**
+     * Executes a bulk of index operations that concern monitoring documents.
+     *
+     * @param request  The monitoring bulk request
+     * @param listener A listener to be notified with a result
+     */
+    public void bulk(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
+        client.execute(MonitoringBulkAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Executes a bulk of index operations that concern monitoring documents.
+     *
+     * @param request  The monitoring bulk request
+     */
+    public ActionFuture<MonitoringBulkResponse> bulk(MonitoringBulkRequest request) {
+        return client.execute(MonitoringBulkAction.INSTANCE, request);
+    }
+
+    public MonitoringClient filterWithHeader(Map<String, String> headers) {
+        return new MonitoringClient(client.filterWithHeader(headers));
+    }
 }

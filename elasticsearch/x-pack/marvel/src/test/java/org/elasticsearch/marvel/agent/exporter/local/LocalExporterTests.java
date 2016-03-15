@@ -18,6 +18,7 @@ import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringDoc;
+import org.elasticsearch.marvel.agent.exporter.ExportException;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -39,7 +40,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -167,7 +167,14 @@ public class LocalExporterTests extends MarvelIntegTestCase {
             logger.debug("--> exporting a second monitoring doc");
             exporter.export(Collections.singletonList(newRandomMarvelDoc()));
         } catch (ElasticsearchException e) {
-            assertThat(e.getMessage(), allOf(containsString("failure in bulk execution"), containsString("IndexClosedException[closed]")));
+            assertThat(e.getMessage(), containsString("failed to flush export bulk [_local]"));
+            assertThat(e.getCause(), instanceOf(ExportException.class));
+
+            ExportException cause = (ExportException) e.getCause();
+            assertTrue(cause.hasExportExceptions());
+            for (ExportException c : cause) {
+                assertThat(c.getMessage(), containsString("IndexClosedException[closed]"));
+            }
             assertNull(exporter.getBulk().requestBuilder);
         }
     }

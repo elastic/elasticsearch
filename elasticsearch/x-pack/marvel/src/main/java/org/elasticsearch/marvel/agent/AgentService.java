@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
+import org.elasticsearch.marvel.agent.exporter.ExportException;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
@@ -199,6 +200,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                         exporters.export(docs);
                     }
 
+                } catch (ExportException e) {
+                    logger.error("exception when exporting documents", e);
                 } catch (InterruptedException e) {
                     logger.trace("interrupted");
                     Thread.currentThread().interrupt();

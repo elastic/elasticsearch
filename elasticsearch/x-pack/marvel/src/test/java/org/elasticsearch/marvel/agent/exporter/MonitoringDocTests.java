@@ -43,7 +43,7 @@ public class MonitoringDocTests extends ESTestCase {
 
             StreamInput streamInput = StreamInput.wrap(output.bytes());
             streamInput.setVersion(randomVersion(random()));
-            MonitoringDoc monitoringDoc2 = MonitoringDoc.readMonitoringDoc(streamInput);
+            MonitoringDoc monitoringDoc2 = new MonitoringDoc(streamInput);
 
             assertThat(monitoringDoc2.getMonitoringId(), equalTo(monitoringDoc.getMonitoringId()));
             assertThat(monitoringDoc2.getMonitoringVersion(), equalTo(monitoringDoc.getMonitoringVersion()));
@@ -64,7 +64,7 @@ public class MonitoringDocTests extends ESTestCase {
     public void testSetSourceNode() {
         int iterations = randomIntBetween(5, 50);
         for (int i = 0; i < iterations; i++) {
-            MonitoringDoc monitoringDoc = new MonitoringDoc();
+            MonitoringDoc monitoringDoc = new MonitoringDoc(null, null);
 
             if (randomBoolean()) {
                 DiscoveryNode discoveryNode = newRandomDiscoveryNode();

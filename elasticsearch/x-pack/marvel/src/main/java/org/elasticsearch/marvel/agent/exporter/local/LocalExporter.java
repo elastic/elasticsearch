@@ -282,7 +282,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                 .distinct()
                                                 .toArray(String[]::new);
 
-                MonitoringDoc monitoringDoc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
+                MonitoringDoc monitoringDoc = new MonitoringDoc(null, null);
                 monitoringDoc.setTimestamp(System.currentTimeMillis());
 
                 // Get the names of the current monitoring indices

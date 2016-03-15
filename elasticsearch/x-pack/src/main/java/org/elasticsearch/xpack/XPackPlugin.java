@@ -163,6 +163,7 @@ public class XPackPlugin extends Plugin {
 
     public void onModule(NetworkModule module) {
         licensing.onModule(module);
+        marvel.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
@@ -170,6 +171,7 @@ public class XPackPlugin extends Plugin {
 
     public void onModule(ActionModule module) {
         licensing.onModule(module);
+        marvel.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);

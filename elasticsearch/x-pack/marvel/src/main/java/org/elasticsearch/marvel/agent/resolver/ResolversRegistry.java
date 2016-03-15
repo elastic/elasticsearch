@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.marvel.agent.resolver;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.action.MonitoringBulkDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateNodeMonitoringDoc;
@@ -19,6 +21,7 @@ import org.elasticsearch.marvel.agent.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterInfoResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterStateNodeResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterStateResolver;
@@ -46,8 +49,8 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
         // register built-in defaults resolvers
         registerBuiltIn(ES, MarvelTemplateUtils.TEMPLATE_VERSION, settings);
 
-        // register resolvers for external applications, something like:
-        //registrations.add(resolveByIdVersion(MonitoringIds.KIBANA, "4.4.1", new KibanaDocResolver(KIBANA, 0, settings)));
+        // register resolvers for external applications
+        registerKibana(settings);
     }
 
     /**
@@ -67,6 +70,14 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
     }
 
     /**
+     * Registers resolvers for Kibana
+     */
+    private void registerKibana(Settings settings) {
+        final MonitoringBulkResolver kibana =  new MonitoringBulkResolver(MonitoredSystem.KIBANA, 0, settings);
+        registrations.add(resolveByClassSystemVersion(MonitoringBulkDoc.class, MonitoredSystem.KIBANA, Version.CURRENT, kibana));
+    }
+
+    /**
      * @return a Resolver that is able to resolver the given monitoring document
      */
     public MonitoringIndexNameResolver getResolver(MonitoringDoc document) {
@@ -75,8 +86,7 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
                 return registration.resolver();
             }
         }
-        throw new IllegalArgumentException("No resolver found for monitoring document [class=" + document.getClass().getName()
-                + ", id=" + document.getMonitoringId() + ", version=" + document.getMonitoringVersion() + "]");
+        throw new IllegalArgumentException("No resolver found for monitoring document");
     }
 
     @Override
@@ -86,6 +96,23 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
 
     static Registration resolveByClass(Class<? extends MonitoringDoc> type, MonitoringIndexNameResolver resolver) {
         return new Registration(resolver, type::isInstance);
+    }
+
+    static Registration resolveByClassSystemVersion(Class<? extends MonitoringDoc> type, MonitoredSystem system, Version version,
+                                                     MonitoringIndexNameResolver  resolver) {
+        return new Registration(resolver, doc -> {
+            try {
+                if (type.isInstance(doc) == false) {
+                    return false;
+                }
+                if (system != MonitoredSystem.fromSystem(doc.getMonitoringId())) {
+                    return false;
+                }
+                return version == Version.fromString(doc.getMonitoringVersion());
+            } catch (Exception e) {
+                return false;
+            }
+        });
     }
 
     static class Registration {
@@ -106,5 +133,4 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
             return resolver;
         }
     }
-
 }

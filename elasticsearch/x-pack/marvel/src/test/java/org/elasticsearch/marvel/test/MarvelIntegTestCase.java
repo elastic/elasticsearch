@@ -442,9 +442,9 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
-                    " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
-                    " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
-                    " 'cluster:monitor/task']\n" +
+                " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
+                " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
+                " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ all ]\n" +

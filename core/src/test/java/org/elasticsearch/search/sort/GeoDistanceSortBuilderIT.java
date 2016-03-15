@@ -263,6 +263,14 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                         new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
+
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", 2.0, 2.0)
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE)
+                                .ignoreMalformed(true).coerce(true))).execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
     }
 
     private static void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {

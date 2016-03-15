@@ -4,6 +4,17 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 5.0.
 
+[float]
+=== Indices created before 5.0
+
+Elasticsearch 5.0 can read indices created in version 2.0 and above.  If any
+of your indices were created before 2.0 you will need to upgrade to the
+latest 2.x version of Elasticsearch first, in order to upgrade your indices or
+to delete the old indices. Elasticsearch will not start in the presence of old
+indices. To upgrade 2.x indices, first start a node which have access to all
+the data folders and let it upgrade all the indices before starting up rest of
+the cluster.
+
 [IMPORTANT]
 .Reindex indices from Elasticseach 1.x or before
 =========================================

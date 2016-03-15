@@ -20,7 +20,7 @@ Group=elasticsearch
 ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
 
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
-                                                -Ees.pidfile=${PID_DIR}/elasticsearch.pid \
+                                                -p ${PID_DIR}/elasticsearch.pid \
                                                 -Ees.default.path.home=${ES_HOME} \
                                                 -Ees.default.path.logs=${LOG_DIR} \
                                                 -Ees.default.path.data=${DATA_DIR} \

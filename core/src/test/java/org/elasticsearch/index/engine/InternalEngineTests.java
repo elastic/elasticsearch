@@ -477,7 +477,7 @@ public class InternalEngineTests extends ESTestCase {
 
             if (flush) {
                 // we should have had just 1 merge, so last generation should be exact
-                assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
+                assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
         }
     }
@@ -831,6 +831,56 @@ public class InternalEngineTests extends ESTestCase {
                     Engine.SyncedFlushResult.SUCCESS);
             assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
             assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        }
+    }
+
+    public void testRenewSyncFlush() throws Exception {
+        final int iters = randomIntBetween(2, 5); // run this a couple of times to get some coverage
+        for (int i = 0; i < iters; i++) {
+            try (Store store = createStore();
+                 InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+                         new LogDocMergePolicy()), false)) {
+                final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+                ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+                Engine.Index doc1 = new Engine.Index(newUid("1"), doc);
+                engine.index(doc1);
+                engine.flush();
+                Engine.Index doc2 = new Engine.Index(newUid("2"), doc);
+                engine.index(doc2);
+                engine.flush();
+                final boolean forceMergeFlushes = randomBoolean();
+                engine.index(new Engine.Index(newUid("3"), doc));
+                Engine.CommitId commitID = engine.flush();
+                assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                        Engine.SyncedFlushResult.SUCCESS);
+                assertEquals(3, engine.segments(false).size());
+
+                engine.forceMerge(forceMergeFlushes, 1, false, false, false);
+                if (forceMergeFlushes == false) {
+                    engine.refresh("make all segments visible");
+                    assertEquals(4, engine.segments(false).size());
+                    assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+                    assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+                    assertTrue(engine.tryRenewSyncCommit());
+                    assertEquals(1, engine.segments(false).size());
+                } else {
+                    assertEquals(1, engine.segments(false).size());
+                }
+                assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+                assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+
+                if (randomBoolean()) {
+                    Engine.Index doc4 = new Engine.Index(newUid("4"), doc);
+                    engine.index(doc4);
+                } else {
+                    Engine.Delete delete = new Engine.Delete(doc1.type(), doc1.id(), doc1.uid());
+                    engine.delete(delete);
+                }
+                assertFalse(engine.tryRenewSyncCommit());
+                engine.flush();
+                assertNull(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID));
+                assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
+            }
         }
     }
 

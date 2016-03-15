@@ -862,7 +862,9 @@ public class InternalEngine extends Engine {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
                 }
                 if (flush) {
-                    flush(true, true);
+                    if (tryRenewSyncCommit() == false) {
+                        flush(false, true);
+                    }
                 }
                 if (upgrade) {
                     logger.info("finished segment upgrade");
@@ -1278,4 +1280,28 @@ public class InternalEngine extends Engine {
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
     }
+
+    final boolean tryRenewSyncCommit() {
+        boolean renewed = false;
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
+            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+                logger.trace("start renewing sync commit [{}]", syncId);
+                commitIndexWriter(indexWriter, translog, syncId);
+                logger.debug("successfully sync committed. sync id [{}].", syncId);
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                renewed = true;
+            }
+        } catch (IOException ex) {
+            maybeFailEngine("renew sync commit", ex);
+            throw new EngineException(shardId, "failed to renew sync commit", ex);
+        }
+        if (renewed) { // refresh outside of the write lock
+            refresh("renew sync commit");
+        }
+
+        return renewed;
+    }
+
 }

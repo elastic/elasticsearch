@@ -153,7 +153,7 @@ on startup if it is set too low.
 
 ==== Removed es.netty.gathering
 
-Disabling Netty from using NIO gathring could be done via the escape
+Disabling Netty from using NIO gathering could be done via the escape
 hatch of setting the system property "es.netty.gathering" to "false".
 Time has proven enabling gathering by default is a non-issue and this
 non-documented setting has been removed.

@@ -20,10 +20,10 @@
 package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 
@@ -32,29 +32,29 @@ import java.io.IOException;
  */
 public final class ShardSuggestRequest extends BroadcastShardRequest {
 
-    private BytesReference suggestSource;
+    private SuggestBuilder suggest;
 
     public ShardSuggestRequest() {
     }
 
     ShardSuggestRequest(ShardId shardId, SuggestRequest request) {
         super(shardId, request);
-        this.suggestSource = request.suggest();
+        this.suggest = request.suggest();
     }
 
-    public BytesReference suggest() {
-        return suggestSource;
+    public SuggestBuilder suggest() {
+        return suggest;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        suggestSource = in.readBytesReference();
+        suggest = SuggestBuilder.PROTOTYPE.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesReference(suggestSource);
+        suggest.writeTo(out);
     }
 }

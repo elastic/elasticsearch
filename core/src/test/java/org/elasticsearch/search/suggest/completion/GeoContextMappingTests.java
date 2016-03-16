@@ -202,15 +202,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().value("ezs42e44yx96");
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1 + 8));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
+        assertThat(internalQueryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("ezs42e");
         addNeighbors("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
-        for (ContextMapping.QueryContext queryContext : queryContexts) {
-            assertThat(queryContext.context, isIn(locations));
-            assertThat(queryContext.boost, equalTo(1));
-            assertThat(queryContext.isPrefix, equalTo(false));
+        for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
+            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.boost, equalTo(1));
+            assertThat(internalQueryContext.isPrefix, equalTo(false));
         }
     }
 
@@ -221,15 +221,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1 + 8));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
+        assertThat(internalQueryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
         addNeighbors("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
-        for (ContextMapping.QueryContext queryContext : queryContexts) {
-            assertThat(queryContext.context, isIn(locations));
-            assertThat(queryContext.boost, equalTo(1));
-            assertThat(queryContext.isPrefix, equalTo(false));
+        for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
+            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.boost, equalTo(1));
+            assertThat(internalQueryContext.isPrefix, equalTo(false));
         }
     }
 
@@ -244,8 +244,8 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
+        assertThat(internalQueryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
         locations.add("w");
@@ -254,10 +254,10 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         addNeighbors("wh", 2, locations);
         locations.add("wh0");
         addNeighbors("wh0", 3, locations);
-        for (ContextMapping.QueryContext queryContext : queryContexts) {
-            assertThat(queryContext.context, isIn(locations));
-            assertThat(queryContext.boost, equalTo(10));
-            assertThat(queryContext.isPrefix, equalTo(queryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+        for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
+            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.boost, equalTo(10));
+            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
         }
     }
 
@@ -282,8 +282,8 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 1 + 8));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
+        assertThat(internalQueryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 1 + 8));
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
@@ -296,15 +296,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         secondLocations.add("w5cx04");
         secondLocations.add("w5cx0");
         addNeighbors("w5cx0", 5, secondLocations);
-        for (ContextMapping.QueryContext queryContext : queryContexts) {
-            if (firstLocations.contains(queryContext.context)) {
-                assertThat(queryContext.boost, equalTo(10));
-            } else if (secondLocations.contains(queryContext.context)) {
-                assertThat(queryContext.boost, equalTo(2));
+        for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
+            if (firstLocations.contains(internalQueryContext.context)) {
+                assertThat(internalQueryContext.boost, equalTo(10));
+            } else if (secondLocations.contains(internalQueryContext.context)) {
+                assertThat(internalQueryContext.boost, equalTo(2));
             } else {
-                fail(queryContext.context + " was not expected");
+                fail(internalQueryContext.context + " was not expected");
             }
-            assertThat(queryContext.isPrefix, equalTo(queryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
         }
     }
 
@@ -325,8 +325,8 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
+        assertThat(internalQueryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8));
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
@@ -336,15 +336,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
         addNeighbors("w5cx04", 6, secondLocations);
-        for (ContextMapping.QueryContext queryContext : queryContexts) {
-            if (firstLocations.contains(queryContext.context)) {
-                assertThat(queryContext.boost, equalTo(10));
-            } else if (secondLocations.contains(queryContext.context)) {
-                assertThat(queryContext.boost, equalTo(1));
+        for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
+            if (firstLocations.contains(internalQueryContext.context)) {
+                assertThat(internalQueryContext.boost, equalTo(10));
+            } else if (secondLocations.contains(internalQueryContext.context)) {
+                assertThat(internalQueryContext.boost, equalTo(1));
             } else {
-                fail(queryContext.context + " was not expected");
+                fail(internalQueryContext.context + " was not expected");
             }
-            assertThat(queryContext.isPrefix, equalTo(queryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
         }
     }
 }

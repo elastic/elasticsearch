@@ -39,6 +39,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.context.QueryContext;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
@@ -280,6 +283,14 @@ public abstract class StreamInput extends InputStream {
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
             return readString();
+        }
+        return null;
+    }
+
+    @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
         }
         return null;
     }
@@ -709,10 +720,24 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a {@link SuggestionBuilder} from the current stream
+     */
+    public SuggestionBuilder<?> readSuggestion() throws IOException {
+        return readNamedWriteable(SuggestionBuilder.class);
+    }
+
+    /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SmoothingModel} from the current stream
+     */
+    public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
+        return readNamedWriteable(SmoothingModel.class);
     }
 
     /**

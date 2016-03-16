@@ -16,15 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest;
 
+package org.elasticsearch.search.suggest.completion.context;
+
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-public interface SuggestContextParser {
-    SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService indexFieldDataService) throws IOException;
+/**
+ * Interface for serializing/de-serializing completion query context
+ */
+public interface QueryContext extends ToXContent {
 
+    QueryContext fromXContext(XContentParser parser) throws IOException;
 }

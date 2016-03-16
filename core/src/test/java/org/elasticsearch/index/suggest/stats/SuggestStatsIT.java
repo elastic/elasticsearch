@@ -139,9 +139,9 @@ public class SuggestStatsIT extends ESIntegTestCase {
     private SuggestRequestBuilder addSuggestions(SuggestRequestBuilder request, int i) {
         for (int s = 0; s < randomIntBetween(2, 10); s++) {
             if (randomBoolean()) {
-                request.addSuggestion(new PhraseSuggestionBuilder("s" + s).field("f").text("test" + i + " test" + (i - 1)));
+                request.addSuggestion("s" + s, new PhraseSuggestionBuilder("f").text("test" + i + " test" + (i - 1)));
             } else {
-                request.addSuggestion(new TermSuggestionBuilder("s" + s).field("f").text("test" + i));
+                request.addSuggestion("s" + s, new TermSuggestionBuilder("f").text("test" + i));
             }
         }
         return request;

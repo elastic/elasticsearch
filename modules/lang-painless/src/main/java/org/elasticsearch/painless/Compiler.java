@@ -160,7 +160,7 @@ final class Compiler {
             //    throw new RuntimeException(e);
             // }
 
-            final Class<? extends Executable> clazz = loader.define(Writer.CLASS_NAME, bytes);
+            final Class<? extends Executable> clazz = loader.define(WriterConstants.CLASS_NAME, bytes);
             final java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(Definition.class, String.class, String.class);
 

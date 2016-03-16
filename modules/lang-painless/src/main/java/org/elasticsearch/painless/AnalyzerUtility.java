@@ -122,8 +122,7 @@ class AnalyzerUtility {
             if (source == null) {
                 throw new IllegalArgumentException("Argument name [" + name + "] already defined within the scope.");
             } else {
-                throw new IllegalArgumentException(
-                    Metadata.error(source) + "Variable name [" + name + "] already defined within the scope.");
+                throw new IllegalArgumentException(error(source) + "Variable name [" + name + "] already defined within the scope.");
             }
         }
 

@@ -44,12 +44,24 @@ public final class SettingsFilter extends AbstractComponent {
      */
     public static String SETTINGS_FILTER_PARAM = "settings_filter";
 
+    public static String[] DEFAULT_SETTINGS_FILTERS = new String[]{
+            "password",
+            "*.password",
+            "key",
+            "*.key",
+            "service_api_key",
+            "*.service_api_key",
+            "access_key",
+            "*.access_key",
+            "secret_key",
+            "*.secret_key"
+    };
+
     private final Set<String> patterns;
     private final String patternString;
 
     public SettingsFilter(Settings settings, Collection<String> patterns) {
         super(settings);
-        HashSet<String> set = new HashSet<>();
         for (String pattern : patterns) {
             if (isValidPattern(pattern) == false) {
                 throw new IllegalArgumentException("invalid pattern: " + pattern);

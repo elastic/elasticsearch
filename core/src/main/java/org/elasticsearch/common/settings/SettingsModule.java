@@ -47,6 +47,9 @@ public class SettingsModule extends AbstractModule {
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             registerSetting(setting);
         }
+        for (String filter : SettingsFilter.DEFAULT_SETTINGS_FILTERS) {
+            registerSettingsFilter(filter);
+        }
     }
 
     @Override

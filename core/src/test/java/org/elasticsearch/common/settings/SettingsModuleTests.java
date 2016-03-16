@@ -23,7 +23,6 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -151,6 +150,23 @@ public class SettingsModuleTests extends ModuleTestCase {
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("bar.baz"));
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().get("bar.baz").equals("false"));
 
+    }
+
+    public void testDefaultSettingsFilters() {
+        final String secret = "secret";
+
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (String filter : SettingsFilter.DEFAULT_SETTINGS_FILTERS) {
+            settingsBuilder.put(filter.replace("*.", randomFrom("", "foo.", "bar.baz.")), secret);
+        }
+
+        Settings settings = settingsBuilder.build();
+        SettingsModule module = new SettingsModule(settings);
+        for (String settingName : settings.getAsMap().keySet()) {
+            module.registerSetting(Setting.simpleString(settingName, Property.NodeScope));
+        }
+
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().size() == 0);
     }
 
     public void testMutuallyExclusiveScopes() {

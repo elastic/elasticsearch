@@ -154,8 +154,6 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.name())) {
                 fields.add(fieldType.name());
-            } else if (Regex.simpleMatch(pattern, fieldType.name())) {
-                fields.add(fieldType.name());
             }
         }
         return fields;

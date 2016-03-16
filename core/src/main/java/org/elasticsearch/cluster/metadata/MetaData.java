@@ -51,6 +51,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.store.IndexStoreConfig;
@@ -152,6 +153,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
+
+    public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
     private final String clusterUUID;
     private final long version;
@@ -1160,4 +1163,28 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             return PROTO.readFrom(in);
         }
     }
+
+    private final static ToXContent.Params FORMAT_PARAMS;
+    static {
+        Map<String, String> params = new HashMap<>(2);
+        params.put("binary", "true");
+        params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+        FORMAT_PARAMS = new MapParams(params);
+    }
+
+    /**
+     * State format for {@link MetaData} to write to and load from disk
+     */
+    public final static MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX) {
+
+        @Override
+        public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+            Builder.toXContent(state, builder, FORMAT_PARAMS);
+        }
+
+        @Override
+        public MetaData fromXContent(XContentParser parser) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+    };
 }

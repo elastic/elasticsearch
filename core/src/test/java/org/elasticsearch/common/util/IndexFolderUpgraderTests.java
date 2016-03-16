@@ -30,14 +30,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -63,24 +58,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.core.Is.is;
-
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class IndexFolderUpgraderTests extends ESTestCase {
-
-    private static MetaDataStateFormat<IndexMetaData> indexMetaDataStateFormat =
-        new MetaDataStateFormat<IndexMetaData>(XContentType.SMILE, MetaStateService.INDEX_STATE_FILE_PREFIX) {
-
-        @Override
-        public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
-            IndexMetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
-        }
-
-        @Override
-        public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            return IndexMetaData.Builder.fromXContent(parser);
-        }
-    };
 
     /**
      * tests custom data paths are upgraded
@@ -244,7 +223,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             assertEquals(indexFolders.size(), 1);
 
             // ensure index metadata is moved
-            IndexMetaData indexMetaData = indexMetaDataStateFormat.loadLatestState(logger,
+            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger,
                 nodeEnvironment.resolveIndexFolder(indexFolders.iterator().next()));
             assertNotNull(indexMetaData);
             Index index = indexMetaData.getIndex();
@@ -277,7 +256,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) {
-            indexMetaDataStateFormat.write(indexState, 1, nodeEnvironment.indexPaths(index));
+            IndexMetaData.FORMAT.write(indexState, 1, nodeEnvironment.indexPaths(index));
             assertFalse(IndexFolderUpgrader.needsUpgrade(index, index.getUUID()));
         }
     }
@@ -286,7 +265,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                             int numIdxFiles, int numTranslogFiles) throws IOException {
         final Index index = indexSettings.getIndex();
         // ensure index state can be loaded
-        IndexMetaData loadLatestState = indexMetaDataStateFormat.loadLatestState(logger, nodeEnv.indexPaths(index));
+        IndexMetaData loadLatestState = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
         assertNotNull(loadLatestState);
         assertEquals(loadLatestState.getIndex(), index);
         for (int shardId = 0; shardId < indexSettings.getNumberOfShards(); shardId++) {
@@ -326,7 +305,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
         for (int i = 0; i < nodePaths.length; i++) {
             oldIndexPaths[i] = nodePaths[i].indicesPath.resolve(indexSettings.getIndex().getName());
         }
-        indexMetaDataStateFormat.write(indexSettings.getIndexMetaData(), 1, oldIndexPaths);
+        IndexMetaData.FORMAT.write(indexSettings.getIndexMetaData(), 1, oldIndexPaths);
         for (int id = 0; id < indexSettings.getNumberOfShards(); id++) {
             Path oldIndexPath = randomFrom(oldIndexPaths);
             ShardId shardId = new ShardId(indexSettings.getIndex(), id);

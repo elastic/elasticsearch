@@ -353,6 +353,9 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             CountResponse countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
             assertSimpleSort("num_double", "num_int");
+            if (compatibilityVersion().onOrBefore(Version.V_2_0_2)) {
+                flush();
+            }
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
             countResponse = client().prepareCount().get();

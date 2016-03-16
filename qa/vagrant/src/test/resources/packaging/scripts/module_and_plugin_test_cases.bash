@@ -395,10 +395,6 @@ fi
     remove_plugin repository-s3
 }
 
-@test "[$GROUP] remove site example plugin" {
-    remove_plugin site-example
-}
-
 @test "[$GROUP] remove store-smb plugin" {
     remove_plugin store-smb
 }

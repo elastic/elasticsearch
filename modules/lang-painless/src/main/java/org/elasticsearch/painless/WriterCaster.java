@@ -47,7 +47,7 @@ class WriterCaster {
         }
     }
 
-    void writeCast(final Cast cast) {
+    private void writeCast(final Cast cast) {
         final Type from = cast.from;
         final Type to = cast.to;
 
@@ -66,7 +66,7 @@ class WriterCaster {
         }
     }
 
-    void writeTransform(final Transform transform) {
+    private void writeTransform(final Transform transform) {
         if (transform.upcast != null) {
             execute.checkCast(transform.upcast.type);
         }

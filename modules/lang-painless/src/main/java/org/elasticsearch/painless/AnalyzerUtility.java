@@ -22,6 +22,8 @@ package org.elasticsearch.painless;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.PainlessParser.ExpressionContext;
+import org.elasticsearch.painless.PainlessParser.PrecedenceContext;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -51,14 +53,14 @@ class AnalyzerUtility {
 
     /**
      * The ANTLR parse tree is modified in one single case; a parent node needs to check a child node to see if it's
-     * a precedence node, and if so, it must be removed from the tree permanently. Once the ANTLR tree is built,
+     * a precedence node, and if so, it must be removed from the tree permanently.  Once the ANTLR tree is built,
      * precedence nodes are no longer necessary to maintain the correct ordering of the tree, so they only
      * add a level of indirection where complicated decisions about metadata passing would have to be made.  This
      * method removes the need for those decisions.
      * @param source The child ANTLR node to check for precedence.
      * @return The updated child ANTLR node.
      */
-    static PainlessParser.ExpressionContext updateExpressionTree(PainlessParser.ExpressionContext source) {
+    static ExpressionContext updateExpressionTree(ExpressionContext source) {
         // Check to see if the ANTLR node is a precedence node.
         if (source instanceof PainlessParser.PrecedenceContext) {
             final ParserRuleContext parent = source.getParent();
@@ -74,8 +76,8 @@ class AnalyzerUtility {
             }
 
             // If there are multiple precedence nodes in a row, remove them all.
-            while (source instanceof PainlessParser.PrecedenceContext) {
-                source = ((PainlessParser.PrecedenceContext)source).expression();
+            while (source instanceof PrecedenceContext) {
+                source = ((PrecedenceContext)source).expression();
             }
 
             // Update the parent node with the child of the precedence node.

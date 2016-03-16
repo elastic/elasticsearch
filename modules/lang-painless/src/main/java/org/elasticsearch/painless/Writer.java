@@ -638,6 +638,11 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitEmptyscope(final EmptyscopeContext ctx) {
+        throw new UnsupportedOperationException(Metadata.error(ctx) + "Unexpected writer state.");
+    }
+
+    @Override
     public Void visitInitializer(InitializerContext ctx) {
         final DeclarationContext declctx = ctx.declaration();
         final ExpressionContext exprctx = ctx.expression();

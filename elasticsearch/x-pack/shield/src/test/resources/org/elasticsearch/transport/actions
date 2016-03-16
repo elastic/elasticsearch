@@ -72,9 +72,9 @@ indices:data/write/index
 indices:data/write/script/delete
 indices:data/write/script/put
 indices:data/write/update
-cluster:admin/plugin/license/get
-cluster:admin/plugin/license/delete
-cluster:admin/plugin/license/put
+cluster:monitor/xpack/license/get
+cluster:admin/xpack/license/delete
+cluster:admin/xpack/license/put
 cluster:admin/shield/realm/cache/clear
 cluster:admin/shield/roles/cache/clear
 cluster:admin/shield/user/put

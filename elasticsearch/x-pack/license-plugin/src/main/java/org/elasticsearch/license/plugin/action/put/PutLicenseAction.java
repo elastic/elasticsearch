@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class PutLicenseAction extends Action<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
-    public static final String NAME = "cluster:admin/plugin/license/put";
+    public static final String NAME = "cluster:admin/xpack/license/put";
 
     private PutLicenseAction() {
         super(NAME);

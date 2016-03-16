@@ -17,6 +17,11 @@ method.
 The `name` setting has been removed and is replaced by `node.name`. Usage of
 `-Dname=some_node_name` is not supported anymore.
 
+==== Gateway settings
+
+The `gateway.format` setting for configuring global and index state serialization
+format has been removed. By default, `smile` is used as the format.
+
 ==== Transport Settings
 
 All settings with a `netty` infix have been replaced by their already existing

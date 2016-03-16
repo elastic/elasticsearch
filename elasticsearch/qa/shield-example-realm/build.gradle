@@ -17,10 +17,10 @@ integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     // TODO: these should be settings?
-    systemProperty 'es.shield.authc.realms.custom.order', '0'
-    systemProperty 'es.shield.authc.realms.custom.type', 'custom'
-    systemProperty 'es.shield.authc.realms.esusers.order', '1'
-    systemProperty 'es.shield.authc.realms.esusers.type', 'esusers'
+    setting 'shield.authc.realms.custom.order', '0'
+    setting 'shield.authc.realms.custom.type', 'custom'
+    setting 'shield.authc.realms.esusers.order', '1'
+    setting 'shield.authc.realms.esusers.type', 'esusers'
 
     setupCommand 'setupDummyUser',
                  'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'

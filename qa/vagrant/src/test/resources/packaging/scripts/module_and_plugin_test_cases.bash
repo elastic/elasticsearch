@@ -220,6 +220,17 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
+@test "[$GROUP] install ingest-attachment plugin" {
+    # we specify the version on the poi-3.13.jar so that the test does
+    # not spuriously pass if the jar is missing but the other poi jars
+    # are present
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.13.jar
+}
+
+@test "[$GROUP] install ingest-geoip plugin" {
+    install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+}
+
 @test "[$GROUP] check ingest-grok module" {
     check_module ingest-grok jcodings-*.jar joni-*.jar
 }
@@ -264,6 +275,10 @@ fi
 
 @test "[$GROUP] check reindex module" {
     check_module reindex
+}
+
+@test "[$GROUP] install repository-hdfs plugin" {
+    install_and_check_plugin repository hdfs hadoop-client-*.jar hadoop-common-*.jar hadoop-annotations-*.jar hadoop-auth-*.jar hadoop-hdfs-*.jar htrace-core-*.jar guava-*.jar protobuf-java-*.jar commons-logging-*.jar commons-cli-*.jar commons-collections-*.jar commons-configuration-*.jar commons-io-*.jar commons-lang-*.jar servlet-api-*.jar slf4j-api-*.jar
 }
 
 @test "[$GROUP] install size mapper plugin" {
@@ -340,6 +355,14 @@ fi
     remove_plugin discovery-ec2
 }
 
+@test "[$GROUP] remove ingest-attachment plugin" {
+    remove_plugin ingest-attachment
+}
+
+@test "[$GROUP] remove ingest-geoip plugin" {
+    remove_plugin ingest-geoip
+}
+
 @test "[$GROUP] remove javascript plugin" {
     remove_plugin lang-javascript
 }
@@ -362,6 +385,10 @@ fi
 
 @test "[$GROUP] remove repository-azure plugin" {
     remove_plugin repository-azure
+}
+
+@test "[$GROUP] remove repository-hdfs plugin" {
+    remove_plugin repository-hdfs
 }
 
 @test "[$GROUP] remove repository-s3 plugin" {

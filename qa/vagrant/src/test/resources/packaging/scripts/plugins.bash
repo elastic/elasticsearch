@@ -32,7 +32,7 @@ install_plugin() {
 
     assert_file_exist "$path"
 
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$path"
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"

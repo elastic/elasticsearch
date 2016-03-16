@@ -33,13 +33,14 @@
 ##################################
 # Common test cases for both tar and rpm/deb based plugin tests
 ##################################
-# This file is symlinked to both 25_tar_plugins.bats and 50_plugins.bats so its
+# This file is symlinked to both 25_tar_plugins.bats and 50_modules_and_plugins.bats so its
 # executed twice - once to test plugins using the tar distribution and once to
 # test files using the rpm distribution or the deb distribution, whichever the
 # system uses.
 
 # Load test utilities
 load packaging_test_utils
+load modules
 load plugins
 
 setup() {
@@ -219,16 +220,30 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install lang-expression plugin" {
-    install_and_check_plugin lang expression
+@test "[$GROUP] check ingest-grok module" {
+    check_module ingest-grok jcodings-*.jar joni-*.jar
 }
 
-@test "[$GROUP] install lang-groovy plugin" {
-    install_and_check_plugin lang groovy
+@test "[$GROUP] check lang-expression module" {
+    # we specify the version on the asm-5.0.4.jar so that the test does
+    # not spuriously pass if the jar is missing but the other asm jars
+    # are present
+    check_secure_module lang-expression antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar lucene-expressions-*.jar
 }
 
-@test "[$GROUP] install lang-painless plugin" {
-    install_and_check_plugin lang painless
+@test "[$GROUP] check lang-groovy module" {
+    check_secure_module lang-groovy groovy-*-indy.jar
+}
+
+@test "[$GROUP] check lang-mustache module" {
+    check_secure_module lang-mustache compiler-*.jar
+}
+
+@test "[$GROUP] check lang-painless module" {
+    # we specify the version on the asm-5.0.4.jar so that the test does
+    # not spuriously pass if the jar is missing but the other asm jars
+    # are present
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar
 }
 
 @test "[$GROUP] install javascript plugin" {
@@ -245,6 +260,10 @@ fi
 
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
+}
+
+@test "[$GROUP] check reindex module" {
+    check_module reindex
 }
 
 @test "[$GROUP] install size mapper plugin" {
@@ -319,18 +338,6 @@ fi
 
 @test "[$GROUP] remove discovery-ec2 plugin" {
     remove_plugin discovery-ec2
-}
-
-@test "[$GROUP] remove lang-expression plugin" {
-    remove_plugin lang-expression
-}
-
-@test "[$GROUP] remove lang-groovy plugin" {
-    remove_plugin lang-groovy
-}
-
-@test "[$GROUP] remove lang-painless plugin" {
-    remove_plugin lang-painless
 }
 
 @test "[$GROUP] remove javascript plugin" {

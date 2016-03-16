@@ -110,9 +110,7 @@ public class LogConfigurator {
         if (resolveConfig) {
             resolveConfig(environment, settingsBuilder);
         }
-        settingsBuilder
-                .putProperties("elasticsearch.", BootstrapInfo.getSystemProperties())
-                .putProperties("es.", BootstrapInfo.getSystemProperties());
+        settingsBuilder.putProperties("es.", BootstrapInfo.getSystemProperties());
         // add custom settings after config was added so that they are not overwritten by config
         settingsBuilder.put(settings);
         settingsBuilder.replacePropertyPlaceholders();

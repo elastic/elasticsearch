@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
+
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
@@ -91,6 +92,7 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -152,14 +154,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final Map<String, SearchParseElement> elementParsers;
 
     private final ParseFieldMatcher parseFieldMatcher;
-    private AggregatorParsers aggParsers;
+    private final AggregatorParsers aggParsers;
+    private final Suggesters suggesters;
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-            ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
-            QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers) {
+                         ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
+                         QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings);
         this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -557,7 +561,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers));
+                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers, suggesters));
                 }
             }
             parseSource(context, request.source());
@@ -720,26 +724,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.suggest() != null) {
-            XContentParser suggestParser = null;
             try {
-                suggestParser = XContentFactory.xContent(source.suggest()).createParser(source.suggest());
-                suggestParser.nextToken();
-                this.elementParsers.get("suggest").parse(suggestParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = suggestParser != null ? suggestParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
+                context.suggest(source.suggest().build(queryShardContext));
+            } catch (IOException e) {
+                throw new SearchContextException(context, "failed to create SuggestionSearchContext", e);
             }
         }
         if (source.rescores() != null) {
             try {
                 for (RescoreBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.build(context.getQueryShardContext()));
+                    context.addRescore(rescore.build(queryShardContext));
                 }
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
@@ -764,7 +758,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                context.highlight(highlightBuilder.build(context.getQueryShardContext()));
+                context.highlight(highlightBuilder.build(queryShardContext));
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }
@@ -804,6 +798,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     } else {
                         SearchParseElement parseElement = this.elementParsers.get(currentFieldName);
                         if (parseElement == null) {
+                            if (currentFieldName != null && currentFieldName.equals("suggest")) {
+                                throw new SearchParseException(context,
+                                    "suggest is not supported in [ext], please use SearchSourceBuilder#suggest(SuggestBuilder) instead",
+                                    extParser.getTokenLocation());
+                            }
                             throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
                                     extParser.getTokenLocation());
                         } else {

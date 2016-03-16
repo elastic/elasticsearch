@@ -170,17 +170,8 @@ public final class SuggestUtils {
         }
     }
 
-    public static Suggest.Suggestion.Sort resolveSort(String sortVal) {
-        if ("score".equals(sortVal)) {
-            return Suggest.Suggestion.Sort.SCORE;
-        } else if ("frequency".equals(sortVal)) {
-            return Suggest.Suggestion.Sort.FREQUENCY;
-        } else {
-            throw new IllegalArgumentException("Illegal suggest sort " + sortVal);
-        }
-    }
-
     public static StringDistance resolveDistance(String distanceVal) {
+        distanceVal = distanceVal.toLowerCase(Locale.US);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
         } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
@@ -224,24 +215,24 @@ public final class SuggestUtils {
             } else if (parseFieldMatcher.match(fieldName, Fields.SUGGEST_MODE)) {
                 suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.SORT)) {
-                suggestion.sort(SuggestUtils.resolveSort(parser.text()));
+                suggestion.sort(SortBy.resolve(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
-            suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
+                suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_EDITS)) {
-            suggestion.maxEdits(parser.intValue());
+                suggestion.maxEdits(parser.intValue());
                 if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
                     throw new IllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
                 }
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_INSPECTIONS)) {
-            suggestion.maxInspections(parser.intValue());
+                suggestion.maxInspections(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_TERM_FREQ)) {
-            suggestion.maxTermFreq(parser.floatValue());
+                suggestion.maxTermFreq(parser.floatValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.PREFIX_LENGTH)) {
-            suggestion.prefixLength(parser.intValue());
+                suggestion.prefixLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_WORD_LENGTH)) {
-            suggestion.minQueryLength(parser.intValue());
+                suggestion.minWordLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
-            suggestion.minDocFreq(parser.floatValue());
+                suggestion.minDocFreq(parser.floatValue());
             } else {
                 return false;
             }
@@ -268,9 +259,7 @@ public final class SuggestUtils {
            return false;
         }
         return true;
-
     }
-
 
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults
@@ -290,7 +279,6 @@ public final class SuggestUtils {
             suggestion.setShardSize(Math.max(suggestion.getSize(), 5));
         }
     }
-
 
     public static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {

@@ -1100,7 +1100,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
             Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = masterClusterState.toString().length();
+            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
             String masterId = masterClusterState.nodes().masterNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
@@ -1108,7 +1108,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // remove local node reference
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                final int localClusterStateSize = localClusterState.toString().length();
+                final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
                 if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().masterNodeId())) {

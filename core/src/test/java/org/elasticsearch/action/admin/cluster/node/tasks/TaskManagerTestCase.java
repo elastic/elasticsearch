@@ -183,7 +183,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             transportService = new TransportService(settings,
                 new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                threadPool, new NamedWriteableRegistry()) {
+                threadPool) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {

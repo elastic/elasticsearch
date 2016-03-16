@@ -1,0 +1,344 @@
+[[release-notes-2.3.0]]
+== 2.3.0 Release Notes
+
+[[breaking-2.3.0]]
+[float]
+=== Breaking changes
+
+Allocation::
+* Speed up shard balancer by reusing shard model while moving shards that can no longer be allocated to a node {pull}16926[#16926]
+
+Mapping::
+* Add per-index setting to limit number of nested fields {pull}15989[#15989] (issue: {issue}14983[#14983])
+
+
+
+[[deprecation-2.3.0]]
+[float]
+=== Deprecations
+
+Geo::
+* Deprecate lat_lon and precision_step {pull}17018[#17018] (issue: {issue}16910[#16910])
+* Deprecate geo_point mapping params {pull}17015[#17015] (issue: {issue}16910[#16910])
+
+Plugin Discovery Multicast::
+* Deprecate Discovery Multicast Plugin {pull}16949[#16949] (issue: {issue}16910[#16910])
+
+Query DSL::
+* Add deprecation logging for deprecated queries. {pull}16901[#16901] (issue: {issue}16885[#16885])
+
+
+
+[[feature-2.3.0]]
+[float]
+=== New features
+
+Reindex API::
+* Backport reindex to 2.x {pull}17060[#17060]
+
+Task Manager::
+* Backport of task management api to 2x {pull}16959[#16959]
+
+
+
+[[enhancement-2.3.0]]
+[float]
+=== Enhancements
+
+Allocation::
+* Skip capturing least/most FS info for an FS with no total {pull}16001[#16001] (issue: {issue}15919[#15919])
+* Speed improvements for BalancedShardsAllocator {pull}15678[#15678] (issue: {issue}6372[#6372])
+
+Cache::
+* Make TermsQuery considered costly. {pull}16851[#16851]
+
+Cluster::
+* Shard state action request logging {pull}16396[#16396]
+* Safe cluster state task notifications {pull}15777[#15777]
+
+Core::
+* Remove log4j exception hiding {pull}16834[#16834]
+* Avoid cloning MessageDigest instances {pull}16479[#16479]
+* Add a hard check to ensure we are running with the expected lucene version {pull}16305[#16305] (issue: {issue}16301[#16301])
+
+Exceptions::
+* Added file name to exceptions when failing to read index state {pull}16850[#16850] (issue: {issue}16713[#16713])
+* Add Exception class name to message in `NotSerializableExceptionWrapper` {pull}16325[#16325]
+
+Geo::
+* Upgrade GeoPointField to use Lucene 5.5 PrefixEncoding {pull}16482[#16482]
+
+Internal::
+* Cleanup search sub transport actions and collapse o.e.action.search.type package into o.e.action.search {pull}16758[#16758] (issue: {issue}11710[#11710])
+
+Java API::
+* TransportClient: Add exception when using plugin.types, to help migration to addPlugin {pull}15943[#15943] (issue: {issue}15693[#15693])
+* [GEO-JavaApi] ShapeBuilder.new{Geometry} should accept initialization parameters [ISSUE] {pull}10458[#10458]
+
+Logging::
+* Log suppressed stack traces under DEBUG {pull}16627[#16627] (issues: {issue}12991[#12991], {issue}15329[#15329], {issue}16622[#16622])
+
+Mapping::
+* Add deprecation logging for mapping transform {pull}16952[#16952] (issue: {issue}16910[#16910])
+* Expose the reason why a mapping merge is issued. {pull}16059[#16059] (issue: {issue}15989[#15989])
+* Add sub-fields support to `bool` fields. {pull}15636[#15636] (issue: {issue}6587[#6587])
+* Improve cross-type dynamic mapping updates. {pull}15633[#15633] (issue: {issue}15568[#15568])
+* Make mapping updates more robust. {pull}15539[#15539]
+
+Network::
+* Add additional fallback to http.publish_port and restrict fallback to transport.publish_port {pull}16626[#16626] (issue: {issue}14535[#14535])
+
+Packaging::
+* Windows service: Use JAVA_HOME environment variable in registry {pull}16552[#16552] (issue: {issue}13521[#13521])
+* Default standard output to the journal in systemd {pull}16159[#16159] (issues: {issue}15315[#15315], {issue}16134[#16134])
+* Use egrep instead of grep -E for Solaris {pull}15755[#15755] (issue: {issue}15628[#15628])
+
+Percolator::
+* Forked memory index to add support for doc values. {pull}17105[#17105] (issue: {issue}16832[#16832])
+
+Plugin Cloud AWS::
+* Add ap-northeast-2 (seoul) endpoints for EC2 discovery and S3 snapshots {pull}16167[#16167] (issue: {issue}16166[#16166])
+
+Plugin Cloud Azure::
+* Add timeout settings (default to 5 minutes) {pull}15950[#15950] (issues: {issue}14277[#14277], {issue}15080[#15080])
+
+Plugin Ingest Attachment::
+* Fix attachments plugins with docx {pull}17059[#17059] (issue: {issue}16864[#16864])
+
+REST::
+* More robust handling of CORS HTTP Access Control {pull}16436[#16436]
+
+Reindex API::
+* Implement helpful interfaces in reindex requests {pull}17032[#17032]
+* Reindex should timeout if sub-requests timeout {pull}16962[#16962]
+* Teach reindex to retry on rejection {pull}16556[#16556] (issue: {issue}16093[#16093])
+
+Scripting::
+* Logs old script params use to the Deprecation Logger {pull}16950[#16950] (issue: {issue}16910[#16910])
+* Remove suppressAccessChecks permission for Groovy script plugin {pull}16839[#16839] (issue: {issue}16527[#16527])
+* Class permission for Groovy references {pull}16660[#16660] (issue: {issue}16657[#16657])
+* Scripting: Allow to get size of array in mustache {pull}16193[#16193]
+* Added plumbing for compile time script parameters {pull}16163[#16163] (issue: {issue}15464[#15464])
+* Enhancements to the mustache script engine {pull}15661[#15661]
+
+Search::
+* Add deprecation logging for ignore_unmapped parameter {pull}17002[#17002] (issues: {issue}16573[#16573], {issue}16910[#16910])
+* Add deprecation logging when users use the SCAN search type. {pull}16980[#16980] (issue: {issue}16910[#16910])
+
+Settings::
+* Log warning if max file descriptors too low {pull}16506[#16506]
+
+
+
+[[bug-2.3.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Build empty extended stats aggregation if no docs collected for bucket {pull}16972[#16972] (issues: {issue}16812[#16812], {issue}9544[#9544])
+* Set meta data for pipeline aggregations {pull}16516[#16516] (issue: {issue}16484[#16484])
+* Filter(s) aggregation should create weights only once. {pull}15998[#15998]
+* Make `missing` on terms aggs work with all execution modes. {pull}15746[#15746] (issue: {issue}14882[#14882])
+* Fix NPE in Derivative Pipeline when current bucket value is null {pull}14745[#14745]
+
+Aliases::
+* Fix _aliases filter and null parameters {pull}16553[#16553] (issues: {issue}16547[#16547], {issue}16549[#16549])
+* Check lenient_expand_open after aliases have been resolved {pull}15882[#15882] (issue: {issue}13278[#13278])
+
+Allocation::
+* IndicesStore checks for `allocated elsewhere` for every shard not alocated on the local node {pull}17106[#17106]
+* Prevent peer recovery from node with older version {pull}15775[#15775]
+
+Analysis::
+* Analysis : Allow string explain param in JSON {pull}16977[#16977] (issue: {issue}16925[#16925])
+* Analysis : Fix no response from Analyze API without specified index {pull}15447[#15447] (issue: {issue}15148[#15148])
+
+Bulk::
+* Bulk api: fail deletes when routing is required but not specified {pull}16675[#16675] (issues: {issue}10136[#10136], {issue}16645[#16645])
+
+CRUD::
+* fixed propagation of autoGeneratedId on document creation {pull}16767[#16767]
+* Throw exception if content type could not be determined in Update API {pull}15904[#15904] (issue: {issue}15822[#15822])
+
+Cache::
+* Handle closed readers in ShardCoreKeyMap {pull}16027[#16027]
+
+Cluster::
+* Index deletes not applied when cluster UUID has changed {pull}16825[#16825] (issue: {issue}11665[#11665])
+* Only fail the relocation target when a replication request on it fails {pull}15791[#15791] (issue: {issue}15790[#15790])
+
+Core::
+* Migrate template settings (add missing byte & time units) {pull}17095[#17095] (issue: {issue}17093[#17093])
+
+Expressions::
+* Check that _value is used in aggregations script before setting value to specialValue {pull}17091[#17091] (issue: {issue}14262[#14262])
+
+Fielddata::
+* Make disabled fielddata loading fail earlier. {pull}16179[#16179] (issue: {issue}16135[#16135])
+
+Geo::
+* Remove .geohash suffix from GeoDistanceQuery and GeoDistanceRangeQuery {pull}15871[#15871] (issue: {issue}15179[#15179])
+
+Highlighting::
+* Don't override originalQuery with request filters {pull}15793[#15793] (issue: {issue}15689[#15689])
+
+Inner Hits::
+* Query and top level inner hit definitions shouldn't overwrite each other {pull}16222[#16222] (issue: {issue}16218[#16218])
+
+Internal::
+* Log uncaught exceptions from scheduled once tasks {pull}15824[#15824] (issue: {issue}15814[#15814])
+* FunctionScoreQuery should implement two-phase iteration. {pull}15602[#15602]
+
+Java API::
+* Fix boundary chars in java api {pull}15795[#15795] (issue: {issue}15792[#15792])
+
+Logging::
+* Add missing index name to indexing slow log {pull}17026[#17026] (issue: {issue}17025[#17025])
+* ParseFieldMatcher should log when using deprecated settings. {pull}16988[#16988]
+
+Mapping::
+* Put mapping operations must update metadata of all types. {pull}16264[#16264] (issue: {issue}16239[#16239])
+* Fix serialization of `search_analyzer`. {pull}16255[#16255]
+* Reuse metadata mappers for dynamic updates. {pull}16023[#16023] (issue: {issue}15997[#15997])
+* Fix MapperService#searchFilter(...) {pull}15923[#15923] (issue: {issue}15757[#15757])
+* MapperService: check index.mapper.dynamic during index creation {pull}15424[#15424] (issue: {issue}15381[#15381])
+
+Network::
+* Only accept transport requests after node is fully initialized {pull}16746[#16746] (issue: {issue}16723[#16723])
+
+Packaging::
+* Fix waiting for pidfile {pull}16718[#16718] (issue: {issue}16717[#16717])
+* Enable es_include at init {pull}15173[#15173]
+
+Parent/Child::
+* Check that parent_type in Has Parent Query has child types {pull}16923[#16923] (issue: {issue}16692[#16692])
+* Has child query forces default similarity {pull}16611[#16611] (issues: {issue}16550[#16550], {issue}4977[#4977])
+
+Percolator::
+* Don't replace found fields if map unmapped fields as string is enabled {pull}16043[#16043] (issue: {issue}10500[#10500])
+* mpercolate api should serialise start time  {pull}15938[#15938] (issue: {issue}15908[#15908])
+
+Plugin Cloud Azure::
+* Fix calling ensureOpen() on the wrong directory {pull}16383[#16383]
+
+Plugin Discovery GCE::
+* Add setFactory permission to GceDiscoveryPlugin {pull}16860[#16860] (issue: {issue}16485[#16485])
+
+Query DSL::
+* Fix FunctionScore equals/hashCode to include minScore and friends {pull}15676[#15676]
+
+REST::
+* Remove detect_noop from REST spec {pull}16386[#16386]
+* Make text parsing less lenient. {pull}15679[#15679]
+
+Recovery::
+* Try to renew sync ID if `flush=true` on forceMerge {pull}17108[#17108] (issue: {issue}17019[#17019])
+* sync translog to disk after recovery from primary {pull}15832[#15832]
+
+Reindex API::
+* Properly register reindex status {pull}17125[#17125]
+* Be much much much careful about context {pull}17122[#17122]
+* Make search failure cause rest failure {pull}16889[#16889] (issue: {issue}16037[#16037])
+
+Scripting::
+* Add permission to access sun.reflect.MethodAccessorImpl from Groovy scripts {pull}16540[#16540] (issue: {issue}16536[#16536])
+* Fixes json generation for scriptsort w/ deprecated params {pull}16261[#16261] (issue: {issue}16260[#16260])
+* Security permissions for Groovy closures {pull}16196[#16196] (issues: {issue}16194[#16194], {issue}248[#248])
+
+Search::
+* Do not apply minimum_should_match on auto generated boolean query if the coordination factor is disabled. {pull}16155[#16155]
+* Do not apply minimum-should-match on a boolean query if the coords are disabled {pull}16078[#16078] (issue: {issue}15858[#15858])
+* Fix blended terms take 2 {pull}15894[#15894] (issue: {issue}15860[#15860])
+
+Settings::
+* TransportClient should use updated setting for initialization of modules and service {pull}16095[#16095]
+
+Snapshot/Restore::
+* Prevent closing index during snapshot restore {pull}16933[#16933] (issue: {issue}16321[#16321])
+* Add node version check to shard allocation during restore {pull}16520[#16520] (issue: {issue}16519[#16519])
+
+Stats::
+* Fix recovery translog stats totals when recovering from store {pull}16493[#16493] (issue: {issue}15974[#15974])
+* Fix calculation of age of pending tasks {pull}15995[#15995] (issue: {issue}15988[#15988])
+
+Translog::
+* Make sure IndexShard is active during recovery so it gets its fair share of the indexing buffer {pull}16209[#16209] (issue: {issue}16206[#16206])
+* Avoid circular reference in exception {pull}15952[#15952] (issue: {issue}15941[#15941])
+* Initialize translog before scheduling the sync to disk {pull}15881[#15881]
+* Catch tragic even inside the checkpoint method rather than on the caller side {pull}15825[#15825]
+* Never delete translog-N.tlog file when creation fails {pull}15788[#15788]
+* Close recovered translog readers if createWriter fails {pull}15762[#15762] (issue: {issue}15754[#15754])
+
+Tribe Node::
+* Passthrough environment and network settings to tribe client nodes {pull}16893[#16893]
+* Tribe node: pass path.conf to inner tribe clients {pull}16258[#16258] (issue: {issue}16253[#16253])
+
+
+
+[[regression-2.3.0]]
+[float]
+=== Regressions
+
+Analysis::
+* Add PathHierarchy type back to path_hierarchy tokenizer for backward compatibility with 1.x {pull}15785[#15785] (issue: {issue}15756[#15756])
+
+Plugin Cloud Azure::
+* Fix Unknown [repository] type [azure] error with 2.2.0 {pull}16747[#16747] (issues: {issue}13779[#13779], {issue}16734[#16734])
+
+REST::
+* Don't return all indices immediately if count of expressions >1 and first expression is * {pull}17033[#17033] (issue: {issue}17027[#17027])
+
+
+
+[[upgrade-2.3.0]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Lucene 5.5.0 official release {pull}16742[#16742]
+* Upgrade to lucene 5.5.0-snapshot-850c6c2 {pull}16615[#16615]
+* Upgrade to lucene 5.5.0-snapshot-4de5f1d {pull}16400[#16400] (issues: {issue}16373[#16373], {issue}16399[#16399])
+* Update lucene to r1725675 {pull}16114[#16114]
+* Upgrade to lucene-5.5.0-snapshot-1721183. {pull}15575[#15575]
+
+Plugin Cloud Azure::
+* Upgrade Azure Storage client to 4.0.0 {pull}16084[#16084] (issues: {issue}12567[#12567], {issue}15080[#15080], {issue}15976[#15976])
+
+Plugin Discovery Azure::
+* Upgrade azure SDK to 0.9.3 {pull}17102[#17102] (issues: {issue}17042[#17042], {issue}557[#557])
+
+Scripting::
+* Upgrade groovy dependency in lang-groovy module to version 2.4.6 {pull}16830[#16830] (issue: {issue}16527[#16527])
+
+
+
+[[non-issue-2.3.0]]
+[float]
+=== Non-issue
+
+Allocation::
+* Log when cancelling allocation of a replica because a new syncid was found {pull}17008[#17008] (issue: {issue}16357[#16357])
+
+Discovery::
+* Remove `discovery.zen.rejoin_on_master_gone` {pull}16353[#16353]
+
+Fielddata::
+* Don't call IR#leaves() after global field data has been constructed {pull}16981[#16981]
+
+Mapping::
+* Fix dynamic mapping corner case. {pull}15715[#15715]
+* Remove ParseContext.ignoredValue. {pull}15664[#15664]
+
+NOT CLASSIFIED::
+* Escaping params {pull}16846[#16846]
+
+Packaging::
+* Remove implicit support for Cygwin {pull}16871[#16871]
+
+Plugin Repository Azure::
+* Fix Azure repository with only one primary account {pull}15982[#15982] (issue: {issue}13779[#13779])
+
+Suggesters::
+* revert new completion suggester in 2x {pull}17120[#17120]
+* Reverted new completion suggester {pull}16170[#16170]
+

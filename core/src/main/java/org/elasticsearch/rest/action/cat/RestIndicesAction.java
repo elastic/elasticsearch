@@ -135,22 +135,22 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("fielddata.evictions", "sibling:pri;alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
         table.addCell("pri.fielddata.evictions", "default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("query_cache.memory_size", "sibling:pri;alias:fcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("pri.query_cache.memory_size", "default:false;text-align:right;desc:used query cache");
 
-        table.addCell("query_cache.evictions", "sibling:pri;alias:fce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
         table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
 
-        table.addCell("request_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.memory_size", "sibling:pri;alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("pri.request_cache.memory_size", "default:false;text-align:right;desc:used request cache");
 
-        table.addCell("request_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:request cache evictions");
+        table.addCell("request_cache.evictions", "sibling:pri;alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
         table.addCell("pri.request_cache.evictions", "default:false;text-align:right;desc:request cache evictions");
 
-        table.addCell("request_cache.hit_count", "sibling:pri;alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:request cache hit count");
+        table.addCell("request_cache.hit_count", "sibling:pri;alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit count");
         table.addCell("pri.request_cache.hit_count", "default:false;text-align:right;desc:request cache hit count");
 
-        table.addCell("request_cache.miss_count", "sibling:pri;alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:request cache miss count");
+        table.addCell("request_cache.miss_count", "sibling:pri;alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss count");
         table.addCell("pri.request_cache.miss_count", "default:false;text-align:right;desc:request cache miss count");
 
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");

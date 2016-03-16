@@ -24,7 +24,11 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -74,6 +78,9 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         filterFactory = analysisService.tokenFilter("ja_stop");
         assertThat(filterFactory, instanceOf(JapaneseStopTokenFilterFactory.class));
+
+        filterFactory = analysisService.tokenFilter("kuromoji_number");
+        assertThat(filterFactory, instanceOf(KuromojiNumberFilterFactory.class));
 
         NamedAnalyzer analyzer = analysisService.analyzer("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
@@ -261,5 +268,50 @@ public class KuromojiAnalysisTests extends ESTestCase {
         AnalysisService analysisService = createAnalysisService();
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_empty_user_dict");
         assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));
+    }
+
+    public void testNbestCost() throws IOException {
+        AnalysisService analysisService = createAnalysisService();
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_nbest_cost");
+        String source = "鳩山積み";
+        String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+    }
+
+    public void testNbestExample() throws IOException {
+        AnalysisService analysisService = createAnalysisService();
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_nbest_examples");
+        String source = "鳩山積み";
+        String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+    }
+
+    public void testNbestBothOptions() throws IOException {
+        AnalysisService analysisService = createAnalysisService();
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_nbest_both");
+        String source = "鳩山積み";
+        String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+
+    }
+
+    public void testNumberFilterFactory() throws Exception {
+        AnalysisService analysisService = createAnalysisService();
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_number");
+        assertThat(tokenFilter, instanceOf(KuromojiNumberFilterFactory.class));
+        String source = "本日十万二千五百円のワインを買った";
+        String[] expected = new String[]{"本日", "102500", "円", "の", "ワイン", "を", "買っ", "た"};
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 }

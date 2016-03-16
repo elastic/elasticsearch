@@ -867,7 +867,7 @@ public class InternalEngineTests extends ESTestCase {
                     assertEquals(engine.getLastWriteNanos(), delete.startTime());
                 }
                 assertFalse(engine.tryRenewSyncCommit());
-                engine.flush();
+                engine.flush(false, true); // we might hit a concurrent flush from a finishing merge here - just wait if ongoing...
                 assertNull(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID));
                 assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
             }

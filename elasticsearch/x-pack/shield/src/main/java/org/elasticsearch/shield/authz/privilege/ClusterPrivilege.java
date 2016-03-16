@@ -26,9 +26,9 @@ import static org.elasticsearch.shield.support.Automatons.patterns;
 public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivilege> {
 
     // shared automatons
-    private static final Automaton MANAGE_USER_AUTOMATON = patterns("cluster:admin/shield/user/*", ClearRolesCacheAction.NAME);
-    private static final Automaton MANAGE_ROLE_AUTOMATON = patterns("cluster:admin/shield/role/*", ClearRealmCacheAction.NAME);
-    private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/shield/*");
+    private static final Automaton MANAGE_USER_AUTOMATON = patterns("cluster:admin/xpack/security/user/*", ClearRealmCacheAction.NAME);
+    private static final Automaton MANAGE_ROLE_AUTOMATON = patterns("cluster:admin/xpack/security/role/*", ClearRolesCacheAction.NAME);
+    private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
     private static final Automaton MANAGE_AUTOMATON = minusAndDeterminize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);

@@ -83,14 +83,14 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegTestCase {
         Map<String, String> headers = singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("suggest_user", "passwd"));
         SuggestResponse suggestResponse = client.filterWithHeader(headers)
                 .prepareSuggest("a")
-                .addSuggestion(SuggestBuilders.termSuggestion("name").field("name").text("val")).get();
+                .addSuggestion(randomAsciiOfLengthBetween(3,7), SuggestBuilders.termSuggestion("name").text("val")).get();
         assertNoFailures(suggestResponse);
         assertThat(suggestResponse.getSuggest().size(), is(1));
 
         suggestResponse = client
                 .filterWithHeader(singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, userHeader("search_user", "passwd")))
                 .prepareSuggest("a")
-                .addSuggestion(SuggestBuilders.termSuggestion("name").field("name").text("val")).get();
+                .addSuggestion(randomAsciiOfLengthBetween(3, 7), SuggestBuilders.termSuggestion("name").text("val")).get();
         assertNoFailures(suggestResponse);
         assertThat(suggestResponse.getSuggest().size(), is(1));
 

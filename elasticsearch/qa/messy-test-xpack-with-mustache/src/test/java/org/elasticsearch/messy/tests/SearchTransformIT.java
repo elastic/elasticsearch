@@ -319,8 +319,7 @@ public class SearchTransformIT extends ESIntegTestCase {
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
- indicesQueryRegistry,
-                null);
+                                                                             indicesQueryRegistry, null, null);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());

@@ -28,13 +28,10 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -195,7 +192,7 @@ public class TypeParsers {
                     if (propName2.equals("enabled")) {
                         builder.omitNorms(!lenientNodeBooleanValue(propNode2));
                         propsIterator.remove();
-                    } else if (propName2.equals(Loading.KEY)) {
+                    } else if (propName2.equals("loading")) {
                         // ignore for bw compat
                         propsIterator.remove();
                     }
@@ -266,9 +263,10 @@ public class TypeParsers {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
                 builder.similarity(similarityProvider);
                 iterator.remove();
-            } else if (propName.equals("fielddata")) {
-                final Settings settings = Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(propNode, "fielddata"))).build();
-                builder.fieldDataSettings(settings);
+            } else if (propName.equals("fielddata")
+                    && propNode instanceof Map
+                    && parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+                // ignore for bw compat
                 iterator.remove();
             } else if (propName.equals("copy_to")) {
                 if (parserContext.isWithinMultiField()) {

@@ -48,7 +48,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
+import org.elasticsearch.index.IndexWarmer.TerminationHandle;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.PercolatorQuery;
@@ -98,9 +100,13 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
             final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
 
             @Override
-            public IndexWarmer.TerminationHandle warmNewReaders(IndexShard indexShard, Engine.Searcher searcher) {
+            public TerminationHandle warmReader(IndexShard indexShard, Searcher searcher) {
                 final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size());
                 for (final LeafReaderContext ctx : searcher.reader().leaves()) {
+                    if (cache.get(ctx.reader().getCoreCacheKey()) != null) {
+                        latch.countDown();
+                        continue;
+                    }
                     executor.execute(() -> {
                         try {
                             final long start = System.nanoTime();
@@ -120,11 +126,6 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
                     });
                 }
                 return () -> latch.await();
-            }
-
-            @Override
-            public IndexWarmer.TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher) {
-                return IndexWarmer.TerminationHandle.NO_WAIT;
             }
         };
     }

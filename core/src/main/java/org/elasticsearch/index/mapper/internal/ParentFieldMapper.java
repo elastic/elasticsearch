@@ -30,11 +30,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -53,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 
 /**
@@ -94,6 +96,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             return builder;
         }
 
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            ((ParentFieldType) fieldType()).setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
+        }
+
         @Override
         public ParentFieldMapper build(BuilderContext context) {
             if (parentType == null) {
@@ -106,6 +113,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
+        private static final ParseField FIELDDATA = new ParseField("fielddata").withAllDeprecated("eager_global_ordinals");
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.type());
@@ -116,13 +124,15 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (fieldName.equals("fielddata")) {
-                    // Only take over `loading`, since that is the only option now that is configurable:
+                } else if (parserContext.parseFieldMatcher().match(fieldName, FIELDDATA)) {
+                    // for bw compat only
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
-                    if (fieldDataSettings.containsKey(MappedFieldType.Loading.KEY)) {
-                        Settings settings = settingsBuilder().put(MappedFieldType.Loading.KEY, fieldDataSettings.get(MappedFieldType.Loading.KEY)).build();
-                        builder.fieldDataSettings(settings);
+                    if (fieldDataSettings.containsKey("loading")) {
+                        builder.eagerGlobalOrdinals("eager_global_ordinals".equals(fieldDataSettings.get("loading")));
                     }
+                    iterator.remove();
+                } else if (fieldName.equals("eager_global_ordinals")) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode));
                     iterator.remove();
                 }
             }
@@ -143,7 +153,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         parentJoinField.indexOptions(IndexOptions.NONE);
         parentJoinField.docValues(true);
         parentJoinField.fieldType().setDocValuesType(DocValuesType.SORTED);
-        parentJoinField.fieldType().setFieldDataType(null);
         return parentJoinField.build(context);
     }
 
@@ -152,8 +161,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         final String documentType;
 
         public ParentFieldType() {
-            setFieldDataType(new FieldDataType(NAME, settingsBuilder().put(MappedFieldType.Loading.KEY, Loading.EAGER_VALUE)));
             documentType = null;
+            setEagerGlobalOrdinals(true);
         }
 
         ParentFieldType(ParentFieldType ref, String documentType) {
@@ -199,6 +208,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             query.add(new DocValuesTermsQuery(name(), ids), BooleanClause.Occur.MUST);
             query.add(new TermQuery(new Term(TypeFieldMapper.NAME, documentType)), BooleanClause.Occur.FILTER);
             return query.build();
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new ParentChildIndexFieldData.Builder();
         }
     }
 
@@ -288,15 +302,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", parentType);
-        if (includeDefaults || joinFieldHasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
         builder.endObject();
         return builder;
-    }
-
-    private boolean joinFieldHasCustomFieldDataSettings() {
-        return fieldType != null && fieldType.fieldDataType() != null && fieldType.fieldDataType().equals(Defaults.FIELD_TYPE.fieldDataType()) == false;
     }
 
     @Override

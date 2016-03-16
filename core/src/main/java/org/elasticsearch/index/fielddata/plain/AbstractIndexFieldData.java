@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
@@ -39,24 +38,17 @@ import java.io.IOException;
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
     private final String fieldName;
-    protected final FieldDataType fieldDataType;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
         super(indexSettings);
         this.fieldName = fieldName;
-        this.fieldDataType = fieldDataType;
         this.cache = cache;
     }
 
     @Override
     public String getFieldName() {
         return this.fieldName;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return fieldDataType;
     }
 
     @Override

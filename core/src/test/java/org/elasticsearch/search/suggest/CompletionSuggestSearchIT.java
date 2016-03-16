@@ -1100,7 +1100,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             // Exception must be thrown
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.toString().contains("found no fielddata type for field [" + FIELD + "]"));
+            assertThat(e.toString(), containsString("Fielddata is not supported on fields of type [completion]"));
         }
     }
 

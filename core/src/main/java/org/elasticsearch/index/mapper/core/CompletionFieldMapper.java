@@ -183,7 +183,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType() {
-            setFieldDataType(null);
         }
 
         private CompletionFieldType(CompletionFieldType ref) {

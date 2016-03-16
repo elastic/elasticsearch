@@ -148,7 +148,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // Create an index where the mappings have a field data filter
         assertAcked(prepareCreate("ramtest").setSource("{\"mappings\": {\"type\": {\"properties\": {\"test\": " +
-                "{\"type\": \"text\",\"fielddata\": {\"filter\": {\"regex\": {\"pattern\": \"^value.*\"}}}}}}}}"));
+                "{\"type\": \"text\",\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}"));
 
         ensureGreen("ramtest");
 

@@ -68,7 +68,7 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
         // verify existing percolator queries:
         SearchResponse searchResponse = client().prepareSearch(INDEX_NAME)
             .setTypes(".percolator")
-            .addSort("_id", SortOrder.ASC)
+            .addSort("_uid", SortOrder.ASC)
             .get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));

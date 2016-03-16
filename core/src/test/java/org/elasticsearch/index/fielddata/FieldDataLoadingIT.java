@@ -29,29 +29,13 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 public class FieldDataLoadingIT extends ESIntegTestCase {
-    public void testEagerFieldDataLoading() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("name")
-                        .field("type", "text")
-                        .startObject("fielddata").field("loading", "eager").endObject()
-                        .endObject()
-                        .endObject().endObject().endObject()));
-        ensureGreen();
-
-        client().prepareIndex("test", "type", "1").setSource("name", "name").get();
-        client().admin().indices().prepareRefresh("test").get();
-
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
-    }
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("name")
                         .field("type", "text")
-                        .startObject("fielddata").field("loading", "eager_global_ordinals").endObject()
+                        .field("eager_global_ordinals", true)
                         .endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();

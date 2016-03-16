@@ -618,7 +618,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             topHits("hits")
                                                     .trackScores(trackScore)
                                                     .size(1)
-                                                    .sort("_id", SortOrder.DESC)
+                                                    .sort("_uid", SortOrder.DESC)
                                     )
                     )
                     .get();

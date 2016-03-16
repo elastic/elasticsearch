@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -112,7 +111,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     static final class IdFieldType extends MappedFieldType {
 
         public IdFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected IdFieldType(IdFieldType ref) {

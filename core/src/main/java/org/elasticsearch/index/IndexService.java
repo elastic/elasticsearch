@@ -58,7 +58,6 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -329,10 +328,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                 (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
-            final Engine.Warmer engineWarmer = (searcher, toLevel) -> {
+            final Engine.Warmer engineWarmer = (searcher) -> {
                 IndexShard shard =  getShardOrNull(shardId.getId());
                 if (shard != null) {
-                    warmer.warm(searcher, shard, IndexService.this.indexSettings, toLevel);
+                    warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
@@ -525,21 +524,21 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
 
         @Override
-        public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    shard.fieldData().onCache(shardId, fieldName, fieldDataType, ramUsage);
+                    shard.fieldData().onCache(shardId, fieldName, ramUsage);
                 }
             }
         }
 
         @Override
-        public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    shard.fieldData().onRemoval(shardId, fieldName, fieldDataType, wasEvicted, sizeInBytes);
+                    shard.fieldData().onRemoval(shardId, fieldName, wasEvicted, sizeInBytes);
                 }
             }
         }

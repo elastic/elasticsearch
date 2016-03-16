@@ -108,7 +108,7 @@ public final class EngineConfig {
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.warmer = warmer == null ? (a,b) -> {} : warmer;
+        this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;

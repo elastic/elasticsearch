@@ -418,15 +418,11 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                     .startObject("properties")
                         .startObject("int")
                             .field("type", "integer")
-                            .startObject("fielddata")
-                                .field("format", "doc_values")
-                            .endObject()
+                            .field("doc_values", true)
                         .endObject()
                         .startObject("double")
                             .field("type", "double")
-                            .startObject("fielddata")
-                                .field("format", "doc_values")
-                            .endObject()
+                            .field("doc_values", true)
                         .endObject()
                     .endObject()
                 .endObject()
@@ -700,6 +696,32 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject().string();
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
             assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
+        }
+    }
+
+    public void testIgnoreFielddata() throws IOException {
+        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+            Settings oldIndexSettings = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0)
+                    .build();
+            DocumentMapperParser parser = createIndex("index-" + type, oldIndexSettings).mapperService().documentMapperParser();
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                        .startObject("fielddata")
+                            .field("loading", "eager")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().endObject().string();
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+            String expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                    .endObject()
+                .endObject().endObject().endObject().string();
+            assertEquals(expectedMapping, mapper.mappingSource().string());
         }
     }
 }

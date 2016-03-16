@@ -43,7 +43,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -162,7 +164,6 @@ public class IpFieldMapper extends NumberFieldMapper {
     public static final class IpFieldType extends LongFieldMapper.LongFieldType {
 
         public IpFieldType() {
-            setFieldDataType(new FieldDataType("long"));
         }
 
         protected IpFieldType(IpFieldType ref) {
@@ -270,6 +271,12 @@ public class IpFieldMapper extends NumberFieldMapper {
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);
             return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
         }
     }
 

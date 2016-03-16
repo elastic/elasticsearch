@@ -67,29 +67,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                 return null;
             }
         }
-
-        /**
-         * Gets a memory storage hint that should be honored if possible but is not mandatory
-         */
-        public static MemoryStorageFormat getMemoryStorageHint(FieldDataType fieldDataType) {
-            // backwards compatibility
-            String s = fieldDataType.getSettings().get("ordinals");
-            if (s != null) {
-                return "always".equals(s) ? MemoryStorageFormat.ORDINALS : null;
-            }
-            return MemoryStorageFormat.fromString(fieldDataType.getSettings().get(SETTING_MEMORY_STORAGE_HINT));
-        }
     }
 
     /**
      * The field name.
      */
     String getFieldName();
-
-    /**
-     * The field data type.
-     */
-    FieldDataType getFieldDataType();
 
     /**
      * Loads the atomic field data for the reader, possibly cached.

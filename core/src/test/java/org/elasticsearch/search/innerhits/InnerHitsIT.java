@@ -39,7 +39,6 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1022,7 +1021,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         response = client().prepareSearch("index")
                 .setQuery(hasChildQuery("child", matchQuery("field", "value2").queryName("_name2")).innerHit(new QueryInnerHits()))
-                .addSort("_id", SortOrder.ASC)
+                .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));

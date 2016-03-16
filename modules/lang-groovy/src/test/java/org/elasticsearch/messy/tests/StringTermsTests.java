@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -1447,13 +1446,6 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }
-
-        response = client().prepareSearch("idx", "empty_bucket_idx").setTypes("type")
-                .addAggregation(terms("terms").executionHint(randomExecutionHint()).field(FieldNamesFieldMapper.NAME)).execute()
-                .actionGet();
-        assertSearchResponse(response);
-        terms = response.getAggregations().get("terms");
-        assertEquals(5L, terms.getBucketByKey("i").getDocCount());
     }
 
     public void testOtherDocCount() {

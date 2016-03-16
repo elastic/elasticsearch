@@ -28,12 +28,12 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collection;
@@ -101,7 +101,10 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private final AtomicOrdinalsFieldData atomicFieldData;
 
     private IndexIndexFieldData(IndexSettings indexSettings, String name) {
-        super(indexSettings, name, new FieldDataType("string"), null, null);
+        super(indexSettings, name, null, null,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
         atomicFieldData = new IndexAtomicFieldData(index().getName());
     }
 

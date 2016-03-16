@@ -309,9 +309,9 @@ public class TransportFilterTests extends ESIntegTestCase {
         @Inject
         public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                 AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper,
-                ClientTransportFilter clientTransportFilter, NamedWriteableRegistry namedWriteableRegistry) {
+                ClientTransportFilter clientTransportFilter) {
             super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter,
-                    mock(ShieldLicenseState.class), namedWriteableRegistry);
+                    mock(ShieldLicenseState.class));
             when(licenseState.securityEnabled()).thenReturn(true);
         }
 

@@ -1494,6 +1494,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         new LatchedActionListener<RefreshResponse>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
                 if (randomBoolean() || getMinimumVersionInCluster().before(Version.V_2_2_0)) {
+                    // we had no transport action for syncflush before 2.2.0 so we only call it for bwc clusters on 2.2.0 or newer
                     client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                         new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
                 } else {

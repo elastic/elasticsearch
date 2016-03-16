@@ -254,7 +254,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(),
                 Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaData.GLOBAL_STATE_FILE_PREFIX + v2)))) {
                 xcontentBuilder.startObject();
-                format.toXContent(xcontentBuilder, randomMeta());
+                MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, ToXContent.EMPTY_PARAMS);
                 xcontentBuilder.endObject();
             }
         }
@@ -298,7 +298,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaData.FORMAT.format(),
             Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaData.GLOBAL_STATE_FILE_PREFIX + v)))) {
             xcontentBuilder.startObject();
-            format.toXContent(xcontentBuilder, randomMeta());
+            MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, ToXContent.EMPTY_PARAMS);
             xcontentBuilder.endObject();
         }
 
@@ -333,7 +333,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaData.FORMAT.format(),
                         Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
                         xcontentBuilder.startObject();
-                        format.toXContent(xcontentBuilder, meta.get(j));
+                        MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, ToXContent.EMPTY_PARAMS);
                         xcontentBuilder.endObject();
                     }
                 }

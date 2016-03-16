@@ -22,6 +22,7 @@ package org.elasticsearch.common.network;
 import java.util.Arrays;
 import java.util.List;
 
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -139,6 +140,7 @@ import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -326,6 +328,7 @@ public class NetworkModule extends AbstractModule {
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
+        registerTaskStatus(ReplicationTask.Status.PROTOTYPE);
 
         if (transportClient == false) {
             registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
@@ -369,6 +372,10 @@ public class NetworkModule extends AbstractModule {
         } else {
             restHandlers.registerExtension(clazz);
         }
+    }
+
+    public void registerTaskStatus(Task.Status prototype) {
+        namedWriteableRegistry.registerPrototype(Task.Status.class, prototype);
     }
 
     @Override

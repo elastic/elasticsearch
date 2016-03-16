@@ -348,6 +348,12 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             CountResponse countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
             assertSimpleSort("num_double", "num_int");
+            /* There is a bug where we do not fsync the translog after recovery from primary which causes dataloss. It is fixed in all
+            versions >=2.1.2. But there was no 2.0.3 release which would have the fix for 2.0. Instead, we have to flush here so we do not
+            run into this bug in the test. See https://github.com/elastic/elasticsearch/pull/15832 */
+            if (compatibilityVersion().onOrBefore(Version.V_2_0_2)) {
+                flush();
+            }
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
             countResponse = client().prepareCount().get();

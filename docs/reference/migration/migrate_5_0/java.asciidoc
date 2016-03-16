@@ -211,12 +211,17 @@ For simplicity, only one way of adding the ids to the existing list (empty by de
 
 The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
 
-==== SuggestBuilder
+===== SortBuilders
+
+The `sortMode` setter in `FieldSortBuilder`, `GeoDistanceSortBuilder` and `ScriptSortBuilder` now
+accept a `SortMode` enum instead of a String constant. Also the getter returns the same enum type.
+
+===== SuggestBuilder
 
 The `setText` method has been changed to `setGlobalText` to make the intent more clear, and a `getGlobalText` method has been added.
 
 The `addSuggestion` method now required the user specified suggestion name, previously used in the ctor of each suggestion.
 
-=== SuggestionBuilder
+===== SuggestionBuilder
 
 The `field` setter has been deleted. Instead the field name needs to be specified as constructor argument.

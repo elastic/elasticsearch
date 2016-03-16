@@ -1136,10 +1136,10 @@ public final class Settings implements ToXContent {
          * @param properties The properties to put
          * @return The builder
          */
-        public Builder putProperties(String prefix, Dictionary<Object,Object> properties) {
-            for (Object key1 : Collections.list(properties.keys())) {
-                String key = Objects.toString(key1);
-                String value = Objects.toString(properties.get(key));
+        public Builder putProperties(String prefix, Dictionary<Object, Object> properties) {
+            for (Object property : Collections.list(properties.keys())) {
+                String key = Objects.toString(property);
+                String value = Objects.toString(properties.get(property));
                 if (key.startsWith(prefix)) {
                     map.put(key.substring(prefix.length()), value);
                 }
@@ -1154,19 +1154,12 @@ public final class Settings implements ToXContent {
          * @param properties The properties to put
          * @return The builder
          */
-        public Builder putProperties(String prefix, Dictionary<Object,Object> properties, String[] ignorePrefixes) {
-            for (Object key1 : Collections.list(properties.keys())) {
-                String key = Objects.toString(key1);
-                String value = Objects.toString(properties.get(key));
+        public Builder putProperties(String prefix, Dictionary<Object, Object> properties, String ignorePrefix) {
+            for (Object property : Collections.list(properties.keys())) {
+                String key = Objects.toString(property);
+                String value = Objects.toString(properties.get(property));
                 if (key.startsWith(prefix)) {
-                    boolean ignore = false;
-                    for (String ignorePrefix : ignorePrefixes) {
-                        if (key.startsWith(ignorePrefix)) {
-                            ignore = true;
-                            break;
-                        }
-                    }
-                    if (!ignore) {
+                    if (!key.startsWith(ignorePrefix)) {
                         map.put(key.substring(prefix.length()), value);
                     }
                 }

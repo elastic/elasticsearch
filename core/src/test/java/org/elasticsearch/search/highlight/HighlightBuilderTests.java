@@ -400,7 +400,6 @@ public class HighlightBuilderTests extends ESTestCase {
         context.reset(parser);
         highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
         assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
-        System.out.println(Math.log(1/(double)(1+1)) + 1.0);
     }
 
     /**

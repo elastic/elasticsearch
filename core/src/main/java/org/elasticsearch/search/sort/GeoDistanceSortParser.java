@@ -111,8 +111,11 @@ public class GeoDistanceSortParser implements SortParser {
                     if (coerce == true) {
                         ignoreMalformed = true;
                     }
-                } else if ("ignore_malformed".equals(currentName) && coerce == false) {
-                    ignoreMalformed = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentName)) {
+                    boolean ignoreMalformedFlag = parser.booleanValue();
+                    if (coerce == false) {
+                        ignoreMalformed = ignoreMalformedFlag;
+                    }
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {

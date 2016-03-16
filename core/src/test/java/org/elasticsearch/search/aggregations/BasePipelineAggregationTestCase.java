@@ -218,7 +218,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         AF testAgg = createTestAggregatorFactory();
         AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg);
         String contentString = factoriesBuilder.toString();
-        System.out.println(contentString);
+        logger.info("Content string: {}", contentString);
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
         parseContext.reset(parser);

@@ -17,23 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.sort;
+package org.elasticsearch.test.loggerusage;
 
-import org.elasticsearch.index.query.QueryParseContext;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-import java.io.IOException;
-
-// TODO once sort refactoring is done this needs to be merged into SortBuilder
-public interface SortElementParserTemp<T extends SortBuilder> {
-    /**
-     * Creates a new SortBuilder from the json held by the {@link SortElementParserTemp}
-     * in {@link org.elasticsearch.common.xcontent.XContent} format
-     *
-     * @param context
-     *            the input parse context. The state on the parser contained in
-     *            this context will be changed as a side effect of this method
-     *            call
-     * @return the new item
-     */
-    T fromXContent(QueryParseContext context, String elementName) throws IOException;
+/**
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ * Duplicated from core as main sources of logger-usage project have no dependencies on core
+ */
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+public @interface SuppressForbidden {
+    String reason();
 }

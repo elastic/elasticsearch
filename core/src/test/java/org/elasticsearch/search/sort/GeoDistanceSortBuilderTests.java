@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -90,16 +89,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         return result;
     }
 
-    private static String mode(String original) {
-        String[] modes = {"MIN", "MAX", "AVG"};
-        String mode = ESTestCase.randomFrom(modes);
-        while (mode.equals(original)) {
-            mode = ESTestCase.randomFrom(modes);
-        }
-        return mode;
+    private static SortMode mode(SortMode original) {
+        SortMode result;
+        do {
+            result = randomFrom(SortMode.values());
+        } while (result == SortMode.SUM || result == original);
+        return result;
     }
 
-    private DistanceUnit unit(DistanceUnit original) {
+    private static DistanceUnit unit(DistanceUnit original) {
         int id = -1;
         while (id == -1 || (original != null && original.ordinal() == id)) {
             id = randomIntBetween(0, DistanceUnit.values().length - 1);
@@ -107,7 +105,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         return DistanceUnit.values()[id];
     }
 
-    private GeoPoint[] points(GeoPoint[] original) {
+    private static GeoPoint[] points(GeoPoint[] original) {
         GeoPoint[] result = null;
         while (result == null || Arrays.deepEquals(original, result)) {
             int count = randomIntBetween(1, 10);
@@ -119,7 +117,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         return result;
     }
 
-    private GeoDistance geoDistance(GeoDistance original) {
+    private static GeoDistance geoDistance(GeoDistance original) {
         int id = -1;
         while (id == -1 || (original != null && original.ordinal() == id)) {
             id = randomIntBetween(0, GeoDistance.values().length - 1);
@@ -177,7 +175,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoPoint point = RandomGeoGenerator.randomPoint(getRandom());
         builder.point(point.getLat(), point.getLon());
         try {
-            builder.sortMode("SUM");
+            builder.sortMode(SortMode.SUM);
             fail("sort mode sum should not be supported");
           } catch (IllegalArgumentException e) {
               // all good

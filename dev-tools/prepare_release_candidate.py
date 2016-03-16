@@ -35,6 +35,7 @@ import re
 import os
 import shutil
 from functools import partial
+from os.path import expanduser
 import sys
 
 VERSION_FILE = 'core/src/main/java/org/elasticsearch/Version.java'
@@ -327,7 +328,7 @@ if __name__ == "__main__":
 
   mvn_target = 'deploy' if deploy_sonatype else 'install'
   tests = '-DskipTests' if skip_tests else '-Dskip.integ.tests=true'
-  install_command = 'mvn clean %s -Prelease %s -Dgpg.key="%s" -Dgpg.keypath="~/.gnupg" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, tests, gpg_key, localRepo)
+  install_command = 'mvn clean %s -Prelease %s -Dgpg.key="%s" -Dgpg.keypath="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, tests, gpg_key, expanduser("~/.gnupg"), localRepo)
   clean_repo_command = 'find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch)
 
   if not run_mvn_install:

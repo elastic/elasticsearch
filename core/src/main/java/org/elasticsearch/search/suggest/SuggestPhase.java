@@ -83,7 +83,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
                 }
             }
 
-            return new Suggest(Suggest.Fields.SUGGEST, suggestions);
+            return new Suggest(suggestions);
         } catch (IOException e) {
             throw new ElasticsearchException("I/O exception during suggest phase", e);
         }

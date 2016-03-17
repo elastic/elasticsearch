@@ -36,7 +36,7 @@ indices:admin/validate/query[s]
 indices:data/read/explain[s]
 indices:data/read/field_stats[s]
 indices:data/read/get[s]
-indices:data/read/graph/explore
+indices:data/read/xpack/graph/explore
 indices:data/read/mget[shard][s]
 indices:data/read/mpercolate[shard][s]
 indices:data/read/mtv[shard][s]

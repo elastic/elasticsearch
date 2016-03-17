@@ -238,8 +238,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
 
     @Override
     public Void visitReturn(final ReturnContext ctx) {
-        visit(ctx.expression());
-        execute.returnValue();
+        statement.processReturn(ctx);
 
         return null;
     }

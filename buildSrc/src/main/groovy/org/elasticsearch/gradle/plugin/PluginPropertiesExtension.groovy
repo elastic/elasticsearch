@@ -42,6 +42,10 @@ class PluginPropertiesExtension {
     @Input
     boolean isolated = true
 
+    /** Whether the plugin should be published to maven. */
+    @Input
+    boolean publish = false
+
     PluginPropertiesExtension(Project project) {
         name = project.name
         version = project.version

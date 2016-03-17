@@ -32,7 +32,8 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.maven.MavenPom
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.internal.jvm.Jvm
@@ -60,7 +61,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply('com.bmuschko.nexus')
         project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
@@ -68,6 +68,7 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
+        configurePublishing(project)
 
         configureTest(project)
         configurePrecommit(project)
@@ -260,48 +261,6 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
-
-        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-        project.modifyPom { MavenPom pom ->
-            pom.withXml { XmlProvider xml ->
-                // first find if we have dependencies at all, and grab the node
-                NodeList depsNodes = xml.asNode().get('dependencies')
-                if (depsNodes.isEmpty()) {
-                    return
-                }
-
-                // check each dependency for any transitive deps
-                for (Node depNode : depsNodes.get(0).children()) {
-                    String groupId = depNode.get('groupId').get(0).text()
-                    String artifactId = depNode.get('artifactId').get(0).text()
-                    String version = depNode.get('version').get(0).text()
-
-                    // collect the transitive deps now that we know what this dependency is
-                    String depConfig = transitiveDepConfigName(groupId, artifactId, version)
-                    Configuration configuration = project.configurations.findByName(depConfig)
-                    if (configuration == null) {
-                        continue // we did not make this dep non-transitive
-                    }
-                    Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
-                    if (artifacts.size() <= 1) {
-                        // this dep has no transitive deps (or the only artifact is itself)
-                        continue
-                    }
-
-                    // we now know we have something to exclude, so add the exclusion elements
-                    Node exclusions = depNode.appendNode('exclusions')
-                    for (ResolvedArtifact transitiveArtifact : artifacts) {
-                        ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
-                        if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
-                            continue; // don't exclude the dependency itself!
-                        }
-                        Node exclusion = exclusions.appendNode('exclusion')
-                        exclusion.appendNode('groupId', transitiveDep.group)
-                        exclusion.appendNode('artifactId', transitiveDep.name)
-                    }
-                }
-            }
-        }
     }
 
     /** Adds repositores used by ES dependencies */
@@ -376,6 +335,59 @@ class BuildPlugin implements Plugin<Project> {
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'N/A')
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds a hook to all publications that will effectively make the maven pom transitive dependency free.
+     */
+    private static void configurePublishing(Project project) {
+        project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
+            project.publishing {
+                publications {
+                    all { MavenPublication publication -> // we only deal with maven
+                        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
+                        publication.pom.withXml { XmlProvider xml ->
+                            // first find if we have dependencies at all, and grab the node
+                            NodeList depsNodes = xml.asNode().get('dependencies')
+                            if (depsNodes.isEmpty()) {
+                                return
+                            }
+
+                            // check each dependency for any transitive deps
+                            for (Node depNode : depsNodes.get(0).children()) {
+                                String groupId = depNode.get('groupId').get(0).text()
+                                String artifactId = depNode.get('artifactId').get(0).text()
+                                String version = depNode.get('version').get(0).text()
+
+                                // collect the transitive deps now that we know what this dependency is
+                                String depConfig = transitiveDepConfigName(groupId, artifactId, version)
+                                Configuration configuration = project.configurations.findByName(depConfig)
+                                if (configuration == null) {
+                                    continue // we did not make this dep non-transitive
+                                }
+                                Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
+                                if (artifacts.size() <= 1) {
+                                    // this dep has no transitive deps (or the only artifact is itself)
+                                    continue
+                                }
+
+                                // we now know we have something to exclude, so add the exclusion elements
+                                Node exclusions = depNode.appendNode('exclusions')
+                                for (ResolvedArtifact transitiveArtifact : artifacts) {
+                                    ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
+                                    if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
+                                        continue; // don't exclude the dependency itself!
+                                    }
+                                    Node exclusion = exclusions.appendNode('exclusion')
+                                    exclusion.appendNode('groupId', transitiveDep.group)
+                                    exclusion.appendNode('artifactId', transitiveDep.name)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

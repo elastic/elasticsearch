@@ -33,7 +33,14 @@ task buildRpm(type: Rpm) {
 
 artifacts {
   'default' buildRpm
-  archives buildRpm
+}
+
+publishing {
+  publications {
+    nebula {
+      artifact buildRpm
+    }
+  }
 }
 
 integTest {

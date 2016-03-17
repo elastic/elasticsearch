@@ -40,4 +40,9 @@ subprojects {
   // TODO: why is the test framework pulled in...
   forbiddenApisMain.enabled = false
   jarHell.enabled = false
+
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
+  apply plugin: 'nebula.source-jar'
+  apply plugin: 'nebula.javadoc-jar'
 }

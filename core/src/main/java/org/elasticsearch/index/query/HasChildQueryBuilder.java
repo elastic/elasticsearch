@@ -189,7 +189,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field(HasChildQueryParser.QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(HasChildQueryParser.TYPE_FIELD.getPreferredName(), type);
-        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
         builder.field(HasChildQueryParser.MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
         builder.field(HasChildQueryParser.MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
         printBoostAndQueryName(builder);

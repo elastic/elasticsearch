@@ -91,16 +91,13 @@ install_jvm_example() {
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
     config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
-    config_privileges=$(find "$ESCONFIG" -maxdepth 0 -printf "%m")
-    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner $config_privileges
-    #the original file has no execute permissions and that must not change, but all other permissions
-    #need to be inherited from the parent config dir. We check this by applying the 111 mask to the config dir privileges.
-    for i in `seq 0 2`; do
-        current_perm_dir=${config_privileges:$i:1}
-        final_perm=$(($current_perm_dir & ~1))
-        expected_file_privileges+=$final_perm
-    done
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner $expected_file_privileges
+    # directories should user the user file-creation mask
+    config_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) | 0111))
+    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner $(printf "%o" $config_privileges)
+    # config files should not be executable and otherwise use the user
+    # file-creation mask
+    expected_file_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) & ~0111))
+    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner $(printf "%o" $expected_file_privileges)
 
     echo "Running jvm-example's bin script...."
     "$ESHOME/bin/jvm-example/test" | grep test

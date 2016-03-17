@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
@@ -25,7 +24,6 @@ import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -463,8 +461,6 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 Path folder = createTempDir().resolve("marvel_shield");
                 Files.createDirectories(folder);
 
-                builder.remove("index.queries.cache.type");
-
                 builder.put("shield.enabled", true)
                         .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                         .put("shield.authc.realms.esusers.order", 0)
@@ -473,10 +469,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
-                        .put("shield.audit.enabled", auditLogsEnabled)
-                                // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
-                                // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE);
+                        .put("shield.audit.enabled", auditLogsEnabled);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

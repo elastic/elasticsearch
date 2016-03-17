@@ -109,7 +109,6 @@ public class Shield {
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
         if (enabled && !transportClientMode) {
-            failIfShieldQueryCacheIsNotActive(settings, true);
             validateAutoCreateIndex(settings);
         }
     }
@@ -172,7 +171,6 @@ public class Shield {
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Shield.NAME);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
-        addQueryCacheSettings(settingsBuilder);
         return settingsBuilder.build();
     }
 
@@ -235,7 +233,11 @@ public class Shield {
         }
         if (transportClientMode == false) {
             module.registerQueryCache(Shield.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
-            failIfShieldQueryCacheIsNotActive(module.getSettings(), false);
+            /*  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
+             *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
+             *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
+             *  unauthorized users. */
+            module.forceQueryCacheType(Shield.OPT_OUT_QUERY_CACHE);
         }
     }
 
@@ -386,16 +388,6 @@ public class Shield {
         }
     }
 
-    /**
-     *  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
-     *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
-     *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
-     *  unauthorized users.
-     */
-    private void addQueryCacheSettings(Settings.Builder settingsBuilder) {
-        settingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
-    }
-
     public static boolean enabled(Settings settings) {
         return XPackPlugin.featureEnabled(settings, NAME, true);
     }
@@ -404,21 +396,6 @@ public class Shield {
         return XPackPlugin.featureEnabled(settings, DLS_FLS_FEATURE, true);
     }
 
-    private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {
-        String queryCacheImplementation;
-        if (nodeSettings) {
-            // in case this are node settings then the plugin additional settings have not been applied yet,
-            // so we use 'opt_out_cache' as default. So in that case we only fail if the node settings contain
-            // another cache impl than 'opt_out_cache'.
-            queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
-        } else {
-            queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
-        }
-        if (OPT_OUT_QUERY_CACHE.equals(queryCacheImplementation) == false) {
-            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule
-                    .INDEX_QUERY_CACHE_TYPE_SETTING.getKey() + "] with value [" + queryCacheImplementation + "]");
-        }
-    }
 
     static void validateAutoCreateIndex(Settings settings) {
         String value = settings.get("action.auto_create_index");

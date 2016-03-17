@@ -72,16 +72,6 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(cluster, is(cluster2));
     }
 
-    public void testIngestPrivilege() throws Exception {
-        Privilege.Name name = new Privilege.Name("manage_pipeline");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name);
-        assertThat(cluster, is(ClusterPrivilege.MANAGE_PIPELINE));
-        assertThat(cluster.predicate().test(PutPipelineAction.NAME), is(true));
-        assertThat(cluster.predicate().test(DeletePipelineAction.NAME), is(true));
-        assertThat(cluster.predicate().test(GetPipelineAction.NAME), is(true));
-        assertThat(cluster.predicate().test(SimulatePipelineAction.NAME), is(true));
-    }
-
     public void testClusterTemplateActions() throws Exception {
         Privilege.Name name = new Privilege.Name("indices:admin/template/delete");
         ClusterPrivilege cluster = ClusterPrivilege.get(name);

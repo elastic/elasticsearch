@@ -69,8 +69,3 @@ remote_monitoring_agent:
         - '.marvel-es-*'
         - '.monitoring-*'
       privileges: [ "all" ]
-
-# Allows all operations required to manage ingest pipelines
-ingest_admin:
-  cluster:
-    - manage_pipeline

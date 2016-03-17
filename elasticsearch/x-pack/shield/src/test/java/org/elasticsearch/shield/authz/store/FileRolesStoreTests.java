@@ -233,7 +233,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("default_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(8));
 
         assertThat(roles, hasKey("admin"));
         assertThat(roles, hasKey("power_user"));
@@ -243,7 +243,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles, hasKey("logstash"));
         assertThat(roles, hasKey("monitoring_user"));
         assertThat(roles, hasKey("remote_monitoring_agent"));
-        assertThat(roles, hasKey("ingest_admin"));
     }
 
     public void testAutoReload() throws Exception {

@@ -14,6 +14,8 @@ geo point data. To make these performance improvements possible both `doc_values
 and therefore cannot be changed. For this reason the `doc_values` and `coerce` parameters have been removed
 from the <<geo-point, geo_point>> field mapping.
 
+These new geo-points are not yet supported in the percolator, but see <<geo-percolate>> for a workaround.
+
 [float]
 === Scripting and security
 

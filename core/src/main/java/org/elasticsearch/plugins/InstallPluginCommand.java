@@ -46,7 +46,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -239,7 +241,15 @@ class InstallPluginCommand extends Command {
 
     private Path unzip(Path zip, Path pluginsDir) throws IOException, UserError {
         // unzip plugin to a staging temp dir
-        Path target = Files.createTempDirectory(pluginsDir, ".installing-");
+        Set<PosixFilePermission> perms = new HashSet<>();
+        perms.add(PosixFilePermission.OWNER_EXECUTE);
+        perms.add(PosixFilePermission.OWNER_READ);
+        perms.add(PosixFilePermission.OWNER_WRITE);
+        perms.add(PosixFilePermission.GROUP_READ);
+        perms.add(PosixFilePermission.GROUP_EXECUTE);
+        perms.add(PosixFilePermission.OTHERS_READ);
+        perms.add(PosixFilePermission.OTHERS_EXECUTE);
+        Path target = Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(perms));
         Files.createDirectories(target);
 
         boolean hasEsDir = false;
@@ -428,6 +438,10 @@ class InstallPluginCommand extends Command {
         // create the plugin's config dir "if necessary"
         Files.createDirectories(destConfigDir);
 
+        final PosixFileAttributes destConfigDirAttributes =
+                Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class).readAttributes();
+        setOwnerGroup(destConfigDir, destConfigDirAttributes);
+
         try (DirectoryStream<Path> stream  = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
@@ -437,9 +451,17 @@ class InstallPluginCommand extends Command {
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     Files.copy(srcFile, destFile);
+                    setOwnerGroup(destFile, destConfigDirAttributes);
                 }
             }
         }
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
     }
+
+    private static void setOwnerGroup(Path path, PosixFileAttributes attributes) throws IOException {
+        PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+        fileAttributeView.setOwner(attributes.owner());
+        fileAttributeView.setGroup(attributes.group());
+    }
+
 }

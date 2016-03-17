@@ -26,6 +26,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -42,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class InternalEngineMergeIT extends ESIntegTestCase {
 
     @Test
+    @TestLogging("_root:DEBUG")
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
         final int numOfShards = randomIntBetween(1,5);
         // some settings to keep num segments low

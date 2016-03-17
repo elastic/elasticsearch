@@ -323,10 +323,6 @@ class WriterStatement {
         }
     }
 
-    void processDecltype(final DecltypeContext ctx) {
-        throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
-    }
-
     void processDeclvar(final DeclvarContext ctx) {
         final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
         final org.objectweb.asm.Type type = declvaremd.to.type;

@@ -423,14 +423,14 @@ fi
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
     # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
-        [ "$loglines" -eq "7" ] || {
-            echo "Expected 7 lines but the output was:"
+        [ "$loglines" -eq "3" ] || {
+            echo "Expected 3 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
-        [ "$loglines" -eq "6" ] || {
-            echo "Expected 6 lines but the output was:"
+        [ "$loglines" -eq "2" ] || {
+            echo "Expected 2 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }
@@ -438,17 +438,17 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Ees.logger.level=DEBUG > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
-        [ "$loglines" -gt "7" ] || {
-            echo "Expected more than 7 lines but the output was:"
+        [ "$loglines" -gt "3" ] || {
+            echo "Expected more than 3 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
-        [ "$loglines" -gt "6" ] || {
-            echo "Expected more than 6 lines but the output was:"
+        [ "$loglines" -gt "2" ] || {
+            echo "Expected more than 2 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }

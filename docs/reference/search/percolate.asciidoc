@@ -1,6 +1,20 @@
 [[search-percolate]]
 == Percolator
 
+.Percolating geo-queries in Elasticsearch 2.2.0 or later
+[IMPORTANT]
+======================================
+
+The new <<geo-point,`geo_point` fields>> added in Elasticsearch 2.2.0 and
+above require that <<doc-values,`doc_values`>> are enabled in order to
+function. Unfortunately, the in-memory index used by the percolator does not
+yet have support for `doc_values`, meaning that <<geo-queries,geo-queries>>
+will not work in a percolator index created in Elasticsearch 2.2.0 or later.
+
+See <<geo-percolate>> for a workaround.
+
+======================================
+
 Traditionally you design documents based on your data, store them into an index, and then define queries via the search API
 in order to retrieve these documents. The percolator works in the opposite direction. First you store queries into an
 index and then, via the percolate API, you define documents in order to retrieve these queries.
@@ -234,6 +248,7 @@ matching query. This allows you to see how each match is highlighting the docume
 documentation on how to define highlights. The `size` option is required for highlighting, the performance of highlighting
  in the percolate API depends of how many matches are being highlighted.
 
+[[dedicated-percolator]]
 [float]
 === Dedicated Percolator Index
 
@@ -512,3 +527,105 @@ if all unmapped fields are handled as if these were default string fields. In th
 `index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
 a percolator query does not exist, it will be handled as a default string field so that adding the percolator query doesn't
 fail.
+
+[[geo-percolate]]
+[float]
+=== Percolating geo-queries in Elasticsearch 2.2.0 and later
+
+The new <<geo-point,`geo_point` fields>> added in Elasticsearch 2.2.0 and
+above require that <<doc-values,`doc_values`>> are enabled in order to
+function. Unfortunately, the in-memory index used by the percolator does not
+yet have support for `doc_values`, meaning that <<geo-queries,geo-queries>>
+will not work in a percolator index created in Elasticsearch 2.2.0 or later.
+
+A workaround exists which allows you to both benefit from the new `geo_point`
+field format when searching or aggregating, and to use geo-queries in the
+percolator.
+
+Documents with `geo_point`fields should be indexed into a new index created in
+Elasticsearch 2.2.0 or later for searching or aggregations:
+
+[source,js]
+---------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "location": {
+          "type": "geo_point"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "location": {
+    "lat": 0,
+    "lon": 0
+  }
+}
+---------------------------
+
+Percolator queries should be created in a separate
+<<dedicated-percolator,dedicated percolator index>>, which claims to have been
+created in Elasticsearch 2.1.0:
+
+
+[source,js]
+---------------------------
+PUT my_percolator_index
+{
+  "settings": {
+    "index.version.created": 2010299 <1>
+  },
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "location": {
+          "type": "geo_point"
+        }
+      }
+    }
+  }
+}
+
+PUT my_percolator_index/.percolator/my_geo_query
+{
+  "query": {
+    "geo_distance": {
+      "distance": "5km",
+      "location": {
+        "lat": 0,
+        "lon": 0
+      }
+    }
+  }
+}
+---------------------------
+<1> Marks the index as having been created in Elasticsearch 2.1.0
+
+With this setup, you can percolate an inline document as follows:
+
+[source,js]
+---------------------------
+GET my_percolator_index/my_type/_percolate
+{
+  "doc": {
+    "location": {
+      "lat": 0,
+      "lon": 0
+    }
+  }
+}
+---------------------------
+
+or percolate a document already indexed in `my_index` as follows:
+
+[source,js]
+---------------------------
+GET my_index/my_type/1/_percolate?percolate_index=my_percolator_index
+---------------------------
+

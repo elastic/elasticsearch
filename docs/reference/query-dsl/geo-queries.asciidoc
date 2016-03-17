@@ -36,6 +36,19 @@ The queries in this group are:
     Find geo-points whose geohash intersects with the geohash of the specified
     point.
 
+.Percolating geo-queries in Elasticsearch 2.2.0 or later
+[IMPORTANT]
+======================================
+
+The new <<geo-point,`geo_point` fields>> added in Elasticsearch 2.2.0 and
+above require that <<doc-values,`doc_values`>> are enabled in order to
+function. Unfortunately, the in-memory index used by the percolator does not
+yet have support for `doc_values`, meaning that <<geo-queries,geo-queries>>
+will not work in a percolator index created in Elasticsearch 2.2.0 or later.
+
+See <<geo-percolate>> for a workaround.
+
+======================================
 
 include::geo-shape-query.asciidoc[]
 

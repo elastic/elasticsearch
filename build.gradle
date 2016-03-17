@@ -21,12 +21,13 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 // common maven publishing configuration
 subprojects {
+  group = 'org.elasticsearch'
+  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+
   if (path.startsWith(':x-plugins')) {
     // don't try to configure publshing for extra plugins attached to this build
     return
   }
-  group = 'org.elasticsearch'
-  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
 
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {

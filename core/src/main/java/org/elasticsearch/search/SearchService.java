@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -241,7 +242,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         FutureUtils.cancel(keepAliveReaper);
     }
 
-    public DfsSearchResult executeDfsPhase(ShardSearchRequest request) {
+    public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
         try {
             contextProcessing(context);
@@ -270,7 +271,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request) {
+    public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
         final ShardSearchStats shardSearchStats = context.indexShard().searchService();
         try {
@@ -362,7 +363,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) {
+    public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
         contextProcessing(context);
         try {
@@ -519,7 +520,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         return context;
     }
 
-    final SearchContext createAndPutContext(ShardSearchRequest request) {
+    final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
         SearchContext context = createContext(request, null);
         boolean success = false;
         try {
@@ -537,7 +538,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
     }
 
-    final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) {
+    final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), indexShard.shardId());
@@ -548,6 +549,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 indexService,
                 indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
+        context.getQueryShardContext().setFieldStatsProvider(new FieldStatsProvider(engineSearcher, indexService.mapperService()));
+        request.rewrite(context.getQueryShardContext());
         SearchContext.setCurrent(context);
         try {
             if (request.scroll() != null) {

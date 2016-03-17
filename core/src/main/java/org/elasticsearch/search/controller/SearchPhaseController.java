@@ -386,7 +386,7 @@ public class SearchPhaseController extends AbstractComponent {
                 Suggest.group(groupedSuggestions, shardResult);
             }
 
-            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions)) : null;
+            suggest = hasSuggestions ? new Suggest(Suggest.reduce(groupedSuggestions)) : null;
         }
 
         // merge addAggregation

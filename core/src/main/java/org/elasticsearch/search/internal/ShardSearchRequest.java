@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
@@ -72,4 +73,10 @@ public interface ShardSearchRequest {
      * Returns the cache key for this shard search request, based on its content
      */
     BytesReference cacheKey() throws IOException;
+
+    /**
+     * Rewrites this request into its primitive form. e.g. by rewriting the
+     * QueryBuilder.
+     */
+    void rewrite(QueryShardContext context) throws IOException;
 }

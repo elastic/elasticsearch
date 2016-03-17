@@ -115,17 +115,6 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static void parseRestSearchSource(SearchSourceBuilder source, BytesReference sourceBytes,
-                                             IndicesQueriesRegistry queryRegistry, ParseFieldMatcher parseFieldMatcher,
-                                             AggregatorParsers aggParsers, Suggesters suggesters)
-            throws IOException {
-        XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
-        QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
-        queryParseContext.reset(parser);
-        queryParseContext.parseFieldMatcher(parseFieldMatcher);
-        source.parseXContent(parser, queryParseContext, aggParsers, suggesters);
-    }
-
     /**
      * Get Rest content from either payload or source parameter
      * @param request Rest request

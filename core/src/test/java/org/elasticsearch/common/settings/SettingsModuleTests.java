@@ -164,12 +164,22 @@ public class SettingsModuleTests extends ModuleTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("No scope found for setting"));
         }
-        // Those should fail
+        // Some settings have both scopes - that's fine too if they have per-node defaults
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
+        module.registerSetting(Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope));
+
         try {
-            new SettingsModule(Settings.EMPTY).registerSetting(Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope));
-            fail("Multiple scopes should fail");
+            module.registerSetting(Setting.simpleString("foo.bar", Property.NodeScope));
+            fail("already registered");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("More than one scope has been added to the setting"));
+            assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
+        }
+
+        try {
+            module.registerSetting(Setting.simpleString("foo.bar", Property.IndexScope));
+            fail("already registered");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
         }
     }
 }

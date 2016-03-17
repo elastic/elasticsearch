@@ -542,6 +542,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
+    @Override
     public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
@@ -654,6 +655,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * Adds a pending delete for the given index shard.
      */
+    @Override
     public void addPendingDelete(ShardId shardId, IndexSettings settings) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");

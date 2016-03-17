@@ -58,9 +58,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             if (setting.getProperties().contains(scope) == false) {
                 throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
             }
-            if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
-                throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
-            }
+            validateSettingKey(setting);
+
             if (setting.hasComplexMatcher()) {
                 Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
                 if (overlappingSetting != null) {
@@ -74,6 +73,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
         this.keySettings = Collections.unmodifiableMap(keySettings);
+    }
+
+    protected void validateSettingKey(Setting setting) {
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+        }
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {

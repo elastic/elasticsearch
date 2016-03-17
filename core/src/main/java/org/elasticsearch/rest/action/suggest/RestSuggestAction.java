@@ -97,7 +97,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 buildBroadcastShardsHeader(builder, request, response);
                 Suggest suggest = response.getSuggest();
                 if (suggest != null) {
-                    suggest.toXContent(builder, request);
+                    suggest.toInnerXContent(builder, request);
                 }
                 builder.endObject();
                 return new BytesRestResponse(restStatus, builder);

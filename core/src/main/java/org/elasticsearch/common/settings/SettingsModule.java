@@ -54,8 +54,7 @@ public class SettingsModule extends AbstractModule {
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
         // by now we are fully configured, lets check node level settings for unregistered index settings
-        indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
-        final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.or(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).negate();
+        final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.negate();
         clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
         bind(Settings.class).toInstance(settings);
@@ -76,21 +75,19 @@ public class SettingsModule extends AbstractModule {
                 registerSettingsFilter(setting.getKey());
             }
         }
-
-        // We validate scope settings. We should have one and only one scope.
-        if (setting.hasNodeScope() && setting.hasIndexScope()) {
-            throw new IllegalArgumentException("More than one scope has been added to the setting [" + setting.getKey() + "]");
-        }
-        if (setting.hasNodeScope()) {
-            if (nodeSettings.containsKey(setting.getKey())) {
-                throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+        if (setting.hasNodeScope() || setting.hasIndexScope()) {
+            if (setting.hasNodeScope()) {
+                if (nodeSettings.containsKey(setting.getKey())) {
+                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+                }
+                nodeSettings.put(setting.getKey(), setting);
             }
-            nodeSettings.put(setting.getKey(), setting);
-        } else if (setting.hasIndexScope()) {
-            if (indexSettings.containsKey(setting.getKey())) {
-                throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+            if (setting.hasIndexScope()) {
+                if (indexSettings.containsKey(setting.getKey())) {
+                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+                }
+                indexSettings.put(setting.getKey(), setting);
             }
-            indexSettings.put(setting.getKey(), setting);
         } else {
             throw new IllegalArgumentException("No scope found for setting [" + setting.getKey() + "]");
         }

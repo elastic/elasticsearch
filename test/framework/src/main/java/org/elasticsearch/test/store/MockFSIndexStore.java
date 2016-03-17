@@ -46,7 +46,7 @@ import java.util.Map;
 public class MockFSIndexStore extends IndexStore {
 
     public static final Setting<Boolean> INDEX_CHECK_INDEX_ON_CLOSE_SETTING =
-        Setting.boolSetting("index.store.mock.check_index_on_close", true, Property.IndexScope);
+        Setting.boolSetting("index.store.mock.check_index_on_close", true, Property.IndexScope, Property.NodeScope);
 
     public static class TestPlugin extends Plugin {
         @Override

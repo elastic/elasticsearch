@@ -40,6 +40,8 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.function.Function;
+
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
  * Once {@link Engine} has been created with this object, changes to this
@@ -69,20 +71,23 @@ public final class EngineConfig {
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
+     * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
+     * allocated on both `kind` of nodes.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", (s) -> {
-        switch(s) {
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+        switch (s) {
             case "default":
             case "best_compression":
             case "lucene_default":
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                    throw new IllegalArgumentException(
+                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
                 }
                 return s;
         }
-    }, Property.IndexScope);
+    }, Property.IndexScope, Property.NodeScope);
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
@@ -97,7 +102,8 @@ public final class EngineConfig {
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy,Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
@@ -138,7 +144,8 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled by {@link IndexingMemoryController}
+     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled
+     * by {@link IndexingMemoryController}
      */
     public ByteSizeValue getIndexingBufferSize() {
         return indexingBufferSize;
@@ -146,11 +153,12 @@ public final class EngineConfig {
 
     /**
      * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
-     * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value. The default is <code>true</code>
+     * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value.
+     * The default is <code>true</code>
      * <p>
      *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
-     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
-     *     to fail.
+     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document
+     *     that was deleted to fail.
      * </p>
      */
     public boolean isEnableGcDeletes() {
@@ -168,7 +176,8 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns a thread-pool mainly used to get estimated time stamps from {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
+     * Returns a thread-pool mainly used to get estimated time stamps from
+     * {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
      * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
      */
     public ThreadPool getThreadPool() {
@@ -183,8 +192,9 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the {@link org.apache.lucene.store.Directory}
-     * used for the engines {@link org.apache.lucene.index.IndexWriter} to write it's index files to.
+     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the
+     * {@link org.apache.lucene.store.Directory} used for the engines {@link org.apache.lucene.index.IndexWriter} to write it's index files
+     * to.
      * <p>
      * Note: In order to use this instance the consumer needs to increment the stores reference before it's used the first time and hold
      * it's reference until it's not needed anymore.

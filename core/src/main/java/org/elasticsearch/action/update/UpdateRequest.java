@@ -44,6 +44,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -671,9 +672,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("detect_noop".equals(currentFieldName)) {
                     detectNoop(parser.booleanValue());
                 } else if ("fields".equals(currentFieldName)) {
-                    List<Object> values = parser.list();
-                    String[] fields = values.toArray(new String[values.size()]);
-                    fields(fields);
+                    List<Object> fields = null;
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        fields = (List) parser.list();
+                    } else if (token.isValue()) {
+                        fields = Collections.singletonList(parser.text());
+                    }
+                    if (fields != null) {
+                        fields(fields.toArray(new String[fields.size()]));
+                    }
                 } else {
                     //here we don't have settings available, unable to throw deprecation exceptions
                     scriptParameterParser.token(currentFieldName, token, parser, ParseFieldMatcher.EMPTY);

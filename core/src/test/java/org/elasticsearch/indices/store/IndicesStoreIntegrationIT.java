@@ -309,6 +309,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String node4 = nodesFutures.get().get(3);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
+                        .put(indexSettings())
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)

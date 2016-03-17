@@ -160,13 +160,19 @@ public final class AnalysisModule extends AbstractModule {
     @Override
     protected void configure() {
         try {
-            HunspellService service = new HunspellService(environment.settings(), environment, knownDictionaries);
-            AnalysisRegistry registry = new AnalysisRegistry(service, environment, charFilters, tokenFilters, tokenizers, analyzers);
-            bind(HunspellService.class).toInstance(service);
+            AnalysisRegistry registry = buildRegistry();
+            bind(HunspellService.class).toInstance(registry.getHunspellService());
             bind(AnalysisRegistry.class).toInstance(registry);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load hunspell service", e);
         }
+    }
+
+    /**
+     * Builds an {@link AnalysisRegistry} from the current configuration.
+     */
+    public AnalysisRegistry buildRegistry() throws IOException {
+        return new AnalysisRegistry(new HunspellService(environment.settings(), environment, knownDictionaries), environment, charFilters, tokenFilters, tokenizers, analyzers);
     }
 
     /**

@@ -21,14 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -719,9 +717,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
                         .put("shield.audit.enabled", auditLogsEnabled)
-                        // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
-                        // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE)
                         .build();
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);

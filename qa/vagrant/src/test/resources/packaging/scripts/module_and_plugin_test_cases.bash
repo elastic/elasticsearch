@@ -298,7 +298,7 @@ fi
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
-    "$ESHOME/bin/elasticsearch-plugin" list | tail -n +2 | sed 's/^......//' > /tmp/installed
+    "$ESHOME/bin/elasticsearch-plugin" list > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
 }
 

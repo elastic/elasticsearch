@@ -1561,7 +1561,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         SearchResponse response;
 
         // Score mode = NONE
-        response = minMaxQuery(ScoreMode.None, 0, 0);
+        response = minMaxQuery(ScoreMode.None, 0, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -1571,7 +1571,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.None, 1, 0);
+        response = minMaxQuery(ScoreMode.None, 1, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -1581,7 +1581,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.None, 2, 0);
+        response = minMaxQuery(ScoreMode.None, 2, null);
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -1589,13 +1589,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[1].id(), equalTo("4"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.None, 3, 0);
+        response = minMaxQuery(ScoreMode.None, 3, null);
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.None, 4, 0);
+        response = minMaxQuery(ScoreMode.None, 4, null);
 
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
@@ -1641,7 +1641,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
 
         // Score mode = SUM
-        response = minMaxQuery(ScoreMode.Total, 0, 0);
+        response = minMaxQuery(ScoreMode.Total, 0, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1651,7 +1651,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.Total, 1, 0);
+        response = minMaxQuery(ScoreMode.Total, 1, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1661,7 +1661,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.Total, 2, 0);
+        response = minMaxQuery(ScoreMode.Total, 2, null);
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1669,13 +1669,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(3f));
 
-        response = minMaxQuery(ScoreMode.Total, 3, 0);
+        response = minMaxQuery(ScoreMode.Total, 3, null);
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(6f));
 
-        response = minMaxQuery(ScoreMode.Total, 4, 0);
+        response = minMaxQuery(ScoreMode.Total, 4, null);
 
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
@@ -1721,7 +1721,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
 
         // Score mode = MAX
-        response = minMaxQuery(ScoreMode.Max, 0, 0);
+        response = minMaxQuery(ScoreMode.Max, 0, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1731,7 +1731,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.Max, 1, 0);
+        response = minMaxQuery(ScoreMode.Max, 1, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1741,7 +1741,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.Max, 2, 0);
+        response = minMaxQuery(ScoreMode.Max, 2, null);
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1749,13 +1749,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(2f));
 
-        response = minMaxQuery(ScoreMode.Max, 3, 0);
+        response = minMaxQuery(ScoreMode.Max, 3, null);
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(3f));
 
-        response = minMaxQuery(ScoreMode.Max, 4, 0);
+        response = minMaxQuery(ScoreMode.Max, 4, null);
 
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
@@ -1801,7 +1801,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
 
         // Score mode = AVG
-        response = minMaxQuery(ScoreMode.Avg, 0, 0);
+        response = minMaxQuery(ScoreMode.Avg, 0, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1811,7 +1811,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.Avg, 1, 0);
+        response = minMaxQuery(ScoreMode.Avg, 1, null);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1821,7 +1821,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = minMaxQuery(ScoreMode.Avg, 2, 0);
+        response = minMaxQuery(ScoreMode.Avg, 2, null);
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -1829,13 +1829,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
 
-        response = minMaxQuery(ScoreMode.Avg, 3, 0);
+        response = minMaxQuery(ScoreMode.Avg, 3, null);
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(2f));
 
-        response = minMaxQuery(ScoreMode.Avg, 4, 0);
+        response = minMaxQuery(ScoreMode.Avg, 4, null);
 
         assertThat(response.getHits().totalHits(), equalTo(0L));
 

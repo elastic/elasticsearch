@@ -257,12 +257,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
         final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-        int maxChildren = maxChildren();
-        // 0 in pre 2.x p/c impl means unbounded
-        if (maxChildren == 0) {
-            maxChildren = Integer.MAX_VALUE;
-        }
-        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren,
+        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren(),
                                     parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 

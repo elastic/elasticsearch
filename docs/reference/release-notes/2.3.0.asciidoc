@@ -93,9 +93,6 @@ Packaging::
 * Default standard output to the journal in systemd {pull}16159[#16159] (issues: {issue}15315[#15315], {issue}16134[#16134])
 * Use egrep instead of grep -E for Solaris {pull}15755[#15755] (issue: {issue}15628[#15628])
 
-Percolator::
-* Forked memory index to add support for doc values. {pull}17105[#17105] (issue: {issue}16832[#16832])
-
 Plugin Cloud AWS::
 * Add ap-northeast-2 (seoul) endpoints for EC2 discovery and S3 snapshots {pull}16167[#16167] (issue: {issue}16166[#16166])
 

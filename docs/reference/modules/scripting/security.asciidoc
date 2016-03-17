@@ -102,6 +102,10 @@ Security Policy either:
 * for just the `elasticsearch` user: `/home/elasticsearch/.java.policy`, or
 * from a file specified on the command line: `-Djava.security.policy=someURL`
 
+Note: If the command line options is used, JVM parameters must be passed to the elasticsearch start script
+via the `JAVA_OPTS` environment variable otherwise these arguments won't have any effect,
+ie. `JAVA_OPTS="${JAVA_OPTS} -Djava.security.policy=someURL`
+
 Permissions may be granted at the class, package, or global level.  For instance:
 
 [source,js]

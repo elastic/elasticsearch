@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
@@ -87,11 +90,17 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected void doAssertLuceneQuery(ParentIdQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, Matchers.instanceOf(DocValuesTermsQuery.class));
-        DocValuesTermsQuery termsQuery = (DocValuesTermsQuery) query;
+        assertThat(query, Matchers.instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses().size(), Matchers.equalTo(2));
+        DocValuesTermsQuery idQuery = (DocValuesTermsQuery) booleanQuery.clauses().get(0).getQuery();
         // there are no getters to get the field and terms on DocValuesTermsQuery, so lets validate by creating a
         // new query based on the builder:
-        assertThat(termsQuery, Matchers.equalTo(new DocValuesTermsQuery("_parent#" + PARENT_TYPE, queryBuilder.getId())));
+        assertThat(idQuery, Matchers.equalTo(new DocValuesTermsQuery("_parent#" + PARENT_TYPE, queryBuilder.getId())));
+
+        TermQuery typeQuery = (TermQuery) booleanQuery.clauses().get(1).getQuery();
+        assertThat(typeQuery.getTerm().field(), Matchers.equalTo(TypeFieldMapper.NAME));
+        assertThat(typeQuery.getTerm().text(), Matchers.equalTo(queryBuilder.getType()));
     }
 
     public void testFromJson() throws IOException {

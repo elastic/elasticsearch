@@ -125,7 +125,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
             SearchRequestBuilder vanilla = client().prepareSearch("test")
                     .setQuery(q)
                     .setProfile(false)
-                    .addSort("_score", SortOrder.DESC)
                     .addSort("_uid", SortOrder.ASC)
                     .setPreference("_primary")
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
@@ -133,7 +132,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
             SearchRequestBuilder profile = client().prepareSearch("test")
                     .setQuery(q)
                     .setProfile(true)
-                    .addSort("_score", SortOrder.DESC)
                     .addSort("_uid", SortOrder.ASC)
                     .setPreference("_primary")
                     .setSearchType(SearchType.QUERY_THEN_FETCH);

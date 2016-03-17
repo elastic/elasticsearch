@@ -19,15 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-import static org.elasticsearch.index.reindex.RestReindexAction.parseCommon;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-
-import java.util.Map;
-
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -45,6 +39,12 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
+
+import java.util.Map;
+
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.RestReindexAction.parseCommon;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateByQueryAction extends
         AbstractBaseReindexRestHandler<UpdateByQueryRequest, BulkIndexByScrollResponse, TransportUpdateByQueryAction> {

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,7 +45,7 @@ public class ClusterStateObserver {
         }
     };
 
-    private final  ClusterService clusterService;
+    private final ClusterService clusterService;
     private final ThreadContext contextHolder;
     volatile TimeValue timeOutValue;
 

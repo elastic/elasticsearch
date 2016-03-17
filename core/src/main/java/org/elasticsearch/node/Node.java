@@ -30,7 +30,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -39,7 +38,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -296,9 +295,7 @@ public class Node implements Closeable {
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
 
-        assert injector.getInstance(ClusterService.class) instanceof InternalClusterService :
-                "node cluster service implementation must inherit from InternalClusterService";
-        final InternalClusterService clusterService = (InternalClusterService) injector.getInstance(ClusterService.class);
+        final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
         final NodeConnectionsService nodeConnectionsService = injector.getInstance(NodeConnectionsService.class);
         nodeConnectionsService.start();

@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -68,7 +68,7 @@ import java.util.Set;
  * exception of the {@link RoutingNodes} structure, which is built on demand from the {@link RoutingTable},
  * and cluster state {@link #status}, which is updated during cluster state publishing and applying
  * processing.  The cluster state can be updated only on the master node. All updates are performed by on a
- * single thread and controlled by the {@link InternalClusterService}. After every update the
+ * single thread and controlled by the {@link ClusterService}. After every update the
  * {@link Discovery#publish} method publishes new version of the cluster state to all other nodes in the
  * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
  * the type of discovery. For example, for local discovery it is implemented by the {@link LocalDiscovery#publish}

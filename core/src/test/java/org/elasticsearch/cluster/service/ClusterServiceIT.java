@@ -16,12 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster;
+package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -213,6 +216,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
+
     public void testAckedUpdateTaskNoAckExpected() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -425,7 +429,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        PendingClusterTasksResponse response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        PendingClusterTasksResponse response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().get();
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
         assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
@@ -509,7 +513,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         MasterAwareService testService = internalCluster().getInstance(MasterAwareService.class);
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").get();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes("1").get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the first node should be a master as the minimum required is 1
@@ -549,7 +554,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
 
         // there should not be any master as the minimum number of required eligible masters is not met
-        awaitBusy(() -> clusterService1.state().nodes().masterNode() == null && clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED);
+        awaitBusy(() -> clusterService1.state().nodes().masterNode() == null &&
+                clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED);
         assertThat(testService1.master(), is(false));
 
         // bring the node back up
@@ -557,9 +563,12 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_2);
         MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_2);
 
-        // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...
-        assertThat(internalCluster().client(node_1).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
-        assertThat(internalCluster().client(node_2).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
+        // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive
+        // the updated cluster state...
+        assertThat(internalCluster().client(node_1).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true)
+                .setWaitForNodes("2").get().isTimedOut(), is(false));
+        assertThat(internalCluster().client(node_2).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true)
+                .setWaitForNodes("2").get().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
         assertThat(clusterService2.state().nodes().masterNode(), is(notNullValue()));

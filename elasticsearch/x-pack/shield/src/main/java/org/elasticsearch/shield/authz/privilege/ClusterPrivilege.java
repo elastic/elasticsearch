@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authz.privilege;
 
 import dk.brics.automaton.Automaton;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
 import org.elasticsearch.shield.support.Automatons;
@@ -17,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.shield.support.Automatons.minusAndDeterminize;
 import static org.elasticsearch.shield.support.Automatons.patterns;
 
 /**
@@ -29,16 +29,17 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     private static final Automaton MANAGE_USER_AUTOMATON = patterns("cluster:admin/xpack/security/user/*", ClearRealmCacheAction.NAME);
     private static final Automaton MANAGE_ROLE_AUTOMATON = patterns("cluster:admin/xpack/security/role/*", ClearRolesCacheAction.NAME);
     private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
+    private static final Automaton MANAGE_WATCHER_AUTOMATON = patterns("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
+    private static final Automaton MONITOR_WATCHER_AUTOMATON = patterns("cluster:monitor/xpack/watcher/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
-    private static final Automaton MANAGE_AUTOMATON = minusAndDeterminize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
     private static final Automaton TRANSPORT_CLIENT_AUTOMATON = patterns("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Automaton MANAGE_IDX_TEMPLATE_AUTOMATON = patterns("indices:admin/template/*");
 
     public static final ClusterPrivilege NONE =                  new ClusterPrivilege(Name.NONE,                Automatons.EMPTY);
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege(Name.ALL,                 ALL_CLUSTER_AUTOMATON);
     public static final ClusterPrivilege MONITOR =               new ClusterPrivilege("monitor",                MONITOR_AUTOMATON);
-    public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",                 MANAGE_AUTOMATON);
+    public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",                 ALL_CLUSTER_AUTOMATON);
     public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
             new ClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_AUTOMATON);
     public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",       TRANSPORT_CLIENT_AUTOMATON);
@@ -46,6 +47,8 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     public static final ClusterPrivilege MANAGE_ROLES =          new ClusterPrivilege("manage_roles",           MANAGE_ROLE_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",        MANAGE_SECURITY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
+    public static final ClusterPrivilege MONITOR_WATCHER =       new ClusterPrivilege("monitor_watcher",        MONITOR_WATCHER_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_WATCHER =        new ClusterPrivilege("manage_watcher",         MANAGE_WATCHER_AUTOMATON);
 
     public final static Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -62,6 +65,8 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
         values.add(MANAGE_ROLES);
         values.add(MANAGE_SECURITY);
         values.add(MANAGE_PIPELINE);
+        values.add(MONITOR_WATCHER);
+        values.add(MANAGE_WATCHER);
     }
 
     static Set<ClusterPrivilege> values() {

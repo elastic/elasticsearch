@@ -19,7 +19,10 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.graph.action.GraphExploreAction;
+import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.shield.support.Automatons;
 
 import java.util.Locale;
@@ -50,6 +53,8 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
             GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME, GetMappingsAction.NAME,
             ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME, GetSettingsAction.NAME);
+    private static final Automaton GRAPH_AUTOMATON = patterns(GraphExploreAction.NAME, SearchTransportService.QUERY_ACTION_NAME,
+            SearchAction.NAME, SearchTransportService.QUERY_FETCH_ACTION_NAME);
 
     public static final IndexPrivilege NONE =                new IndexPrivilege(Name.NONE,             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege(Name.ALL,              ALL_AUTOMATON);
@@ -63,6 +68,7 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     public static final IndexPrivilege DELETE_INDEX =        new IndexPrivilege("delete_index",        DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX =        new IndexPrivilege("create_index",        CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
+    public static final IndexPrivilege GRAPH =               new IndexPrivilege("graph",               GRAPH_AUTOMATON);
 
     private static final Set<IndexPrivilege> values = new CopyOnWriteArraySet<>();
 
@@ -79,6 +85,7 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
         values.add(CREATE);
         values.add(DELETE_INDEX);
         values.add(VIEW_METADATA);
+        values.add(GRAPH);
     }
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();

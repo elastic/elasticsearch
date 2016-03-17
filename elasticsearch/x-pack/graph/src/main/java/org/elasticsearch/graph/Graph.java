@@ -10,7 +10,6 @@ import java.util.Collection;
 import java.util.Collections;
 
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
@@ -23,8 +22,6 @@ import org.elasticsearch.graph.license.GraphLicensee;
 import org.elasticsearch.graph.license.GraphModule;
 import org.elasticsearch.graph.rest.action.RestGraphAction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.xpack.XPackPlugin;
 
 public class Graph extends Plugin {
@@ -37,11 +34,6 @@ public class Graph extends Plugin {
     public Graph(Settings settings) {
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         enabled = enabled(settings);
-        // adding the graph privileges to shield
-        if (Shield.enabled(settings)) {
-            Shield.registerIndexPrivilege( "graph", GraphExploreAction.NAME, SearchTransportService.QUERY_ACTION_NAME, 
-                    SearchAction.NAME, SearchTransportService.QUERY_FETCH_ACTION_NAME);
-        }        
     }    
     
     @Override

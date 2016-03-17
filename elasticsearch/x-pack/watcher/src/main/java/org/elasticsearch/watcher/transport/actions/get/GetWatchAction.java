@@ -13,7 +13,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
-    public static final String NAME = "cluster:monitor/watcher/watch/get";
+    public static final String NAME = "cluster:monitor/xpack/watcher/watch/get";
 
     private GetWatchAction() {
         super(NAME);

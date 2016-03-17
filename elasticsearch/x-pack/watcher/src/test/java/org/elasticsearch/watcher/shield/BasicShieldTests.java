@@ -50,7 +50,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
             fail("authentication failure should have occurred");
         } catch (Exception e) {
             // transport_client is the default user
-            assertThat(e.getMessage(), equalTo("action [cluster:monitor/watcher/stats] is unauthorized for user [transport_client]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats] is unauthorized for user [transport_client]"));
         }
     }
 
@@ -62,7 +62,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:monitor/watcher/stats] is unauthorized for user [test]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats] is unauthorized for user [test]"));
         }
 
         try {
@@ -70,7 +70,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:monitor/watcher/watch/get] is unauthorized for user [test]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/watch/get] is unauthorized for user [test]"));
         }
 
         // stats and get watch are allowed by role monitor:
@@ -89,7 +89,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:admin/watcher/watch/put] is unauthorized for user [monitor]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:admin/xpack/watcher/watch/put] is unauthorized for user [monitor]"));
         }
     }
 
@@ -102,7 +102,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:admin/watcher/watch/put] is unauthorized for user [test]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:admin/xpack/watcher/watch/put] is unauthorized for user [test]"));
         }
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
@@ -112,7 +112,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:admin/watcher/watch/execute] is unauthorized for user [test]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:admin/xpack/watcher/watch/execute] is unauthorized for user [test]"));
         }
 
         try {
@@ -120,7 +120,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:admin/watcher/watch/delete] is unauthorized for user [test]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:admin/xpack/watcher/watch/delete] is unauthorized for user [test]"));
         }
 
         // put, execute and delete watch apis are allowed by role admin:

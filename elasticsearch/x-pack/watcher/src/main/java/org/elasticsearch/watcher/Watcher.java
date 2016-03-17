@@ -123,8 +123,8 @@ public class Watcher {
 
         // adding the watcher privileges to shield
         if (Shield.enabled(settings)) {
-            Shield.registerClusterPrivilege("manage_watcher", "cluster:admin/watcher/*", "cluster:monitor/watcher/*");
-            Shield.registerClusterPrivilege("monitor_watcher", "cluster:monitor/watcher/*");
+            Shield.registerClusterPrivilege("manage_watcher", "cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
+            Shield.registerClusterPrivilege("monitor_watcher", "cluster:monitor/xpack/watcher/*");
         }
     }
 

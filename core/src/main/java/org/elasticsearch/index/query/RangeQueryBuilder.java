@@ -265,7 +265,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         // rewrite so just return without rewriting
         if (fieldStatsProvider != null) {
             DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
-            FieldStatsProvider.Relation relation = fieldStatsProvider.isFieldWithinQuery(fieldName, from, to, includeUpper, includeLower,
+            FieldStatsProvider.Relation relation = fieldStatsProvider.isFieldWithinQuery(fieldName, from, to, includeLower, includeUpper,
                     timeZone, dateMathParser);
             switch (relation) {
             case DISJOINT:
@@ -278,15 +278,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     // bound has not been changed by the rewrite
                     RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                     String dateFormatString = format == null ? null : format.format();
-                    if (fieldStats.getMinValue().equals(fieldStats.getMaxValue())) {
-                        newRangeQuery.from(fieldStats.getMinValue(), true);
-                        newRangeQuery.to(fieldStats.getMaxValue(), true);
-                    } else {
-                        newRangeQuery.from(fieldStats.getMinValue(), includeLower || fieldStats.match(new IndexConstraint(fieldName,
-                                Property.MIN, Comparison.GT, fieldStats.stringValueOf(from, dateFormatString))));
-                        newRangeQuery.to(fieldStats.getMaxValue(), includeUpper || fieldStats.match(new IndexConstraint(fieldName,
-                                Property.MAX, Comparison.LT, fieldStats.stringValueOf(to, dateFormatString))));
-                    }
+                    newRangeQuery.from(fieldStats.getMinValue(), includeLower || fieldStats.match(
+                            new IndexConstraint(fieldName, Property.MIN, Comparison.GT, fieldStats.stringValueOf(from, dateFormatString))));
+                    newRangeQuery.to(fieldStats.getMaxValue(), includeUpper || fieldStats.match(
+                            new IndexConstraint(fieldName, Property.MAX, Comparison.LT, fieldStats.stringValueOf(to, dateFormatString))));
                     newRangeQuery.format = format;
                     newRangeQuery.timeZone = timeZone;
                     return newRangeQuery;

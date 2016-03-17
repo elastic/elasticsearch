@@ -549,7 +549,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery()))
-                .addSort("_id", SortOrder.ASC)
+                .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(searchResponse, 3L);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));

@@ -26,7 +26,8 @@ import java.io.IOException;
  */
 public final class DocumentSubsetReader extends FilterLeafReader {
 
-    public static DirectoryReader wrap(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
+    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, BitsetFilterCache bitsetFilterCache,
+            Query roleQuery) throws IOException {
         return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
     }
 

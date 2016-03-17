@@ -28,6 +28,7 @@ apply plugin: 'nebula.maven-scm'
 apply plugin: 'nebula.source-jar'
 apply plugin: 'nebula.javadoc-jar'
 
+archivesBaseName = 'elasticsearch'
 publishing {
   publications {
     nebula {

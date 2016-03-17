@@ -255,22 +255,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
                 throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
             }
 
-            // Enable when we also know how to detect fields that do tokenize, but only emit one token
-            /*if (fieldMapper instanceof StringFieldMapper) {
-                StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
-                if (stringFieldMapper.fieldType().tokenized()) {
-                    // Fail early
-                    throw new SearchParseException(context, "Can't sort on tokenized string field[" + fieldName + "]");
-                }
-            }*/
-
             MultiValueMode localSortMode = null;
             if (sortMode != null) {
                 localSortMode = MultiValueMode.fromString(sortMode.toString());
             }
+
             if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
                 throw new QueryShardException(context, "we only support AVG and SUM on number based fields");
             }
+
             boolean reverse = (order == SortOrder.DESC);
             if (localSortMode == null) {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;

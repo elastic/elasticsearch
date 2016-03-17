@@ -217,15 +217,6 @@ public class SortParseElement implements SearchParseElement {
                 throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
             }
 
-            // Enable when we also know how to detect fields that do tokenize, but only emit one token
-            /*if (fieldMapper instanceof StringFieldMapper) {
-                StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
-                if (stringFieldMapper.fieldType().tokenized()) {
-                    // Fail early
-                    throw new SearchParseException(context, "Can't sort on tokenized string field[" + fieldName + "]");
-                }
-            }*/
-
             // We only support AVG and SUM on number based fields
             if (fieldType.isNumeric() == false && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
                 sortMode = null;

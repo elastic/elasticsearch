@@ -488,10 +488,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : localPoints) {
-                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                if (GeoUtils.isValidLatitude(point.lat()) == false) {
                     throw new ElasticsearchParseException("illegal latitude value [{}] for [GeoDistanceSort]", point.lat());
                 }
-                if (point.lon() > 180.0 || point.lon() < -180) {
+                if (GeoUtils.isValidLongitude(point.lon()) == false) {
                     throw new ElasticsearchParseException("illegal longitude value [{}] for [GeoDistanceSort]", point.lon());
                 }
             }

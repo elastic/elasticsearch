@@ -285,7 +285,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         }
 
         final Nested nested = resolveNested(context, nestedPath, nestedFilter);
-
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:

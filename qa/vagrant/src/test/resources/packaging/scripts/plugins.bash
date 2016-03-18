@@ -137,18 +137,11 @@ install_and_check_plugin() {
     assert_module_or_plugin_directory "$ESPLUGINS/$fullName"
 
     if [ $prefix == 'analysis' ]; then
-        assert_plugin_file "$ESPLUGINS/$fullName/lucene-analyzers-$name-*.jar"
+        assert_module_or_plugin_file "$ESPLUGINS/$fullName/lucene-analyzers-$name-*.jar"
     fi
     for file in "$@"; do
-        assert_plugin_file "$ESPLUGINS/$fullName/$file"
+        assert_module_or_plugin_file "$ESPLUGINS/$fullName/$file"
     done
-}
-
-assert_plugin_file() {
-    local file=$1
-    shift
-
-    assert_module_or_plugin_file $file
 }
 
 # Compare a list of plugin names to the plugins in the plugins pom and see if they are the same

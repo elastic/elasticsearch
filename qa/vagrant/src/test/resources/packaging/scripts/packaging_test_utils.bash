@@ -179,6 +179,30 @@ assert_file() {
     fi
 }
 
+assert_module_or_plugin_directory() {
+    local directory=$1
+    shift
+
+    #owner group and permissions vary depending on how es was installed
+    #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
+    config_user=$(find "$ESHOME" -maxdepth 0 -printf "%u")
+    config_owner=$(find "$ESHOME" -maxdepth 0 -printf "%g")
+    # directories should use the user file-creation mask
+    config_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) | 0111))
+
+    assert_file $directory d $config_user $config_owner $(printf "%o" $config_privileges)
+}
+
+assert_module_or_plugin_file() {
+    local file=$1
+    shift
+
+    # config files should not be executable and otherwise use the user
+    # file-creation mask
+    expected_file_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) & ~0111))
+    assert_file $file f $config_user $config_owner $(printf "%o" $expected_file_privileges)
+}
+
 assert_output() {
     echo "$output" | grep -E "$1"
 }

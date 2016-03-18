@@ -29,12 +29,22 @@ check_module() {
     local name=$1
     shift
 
+    assert_module_or_plugin_directory "$ESMODULES/$name"
+
     for file in "$@"; do
-        assert_file_exist "$(readlink -m $ESMODULES/$name/$file)"
+        assert_module_file "$ESMODULES/$name/$file"
     done
 
-    assert_file_exist "$(readlink -m $ESMODULES/$name/$name-*.jar)"
-    assert_file_exist "$(readlink -m $ESMODULES/$name/plugin-descriptor.properties)"
+    assert_module_file "$ESMODULES/$name/$name-*.jar"
+    assert_module_file "$ESMODULES/$name/plugin-descriptor.properties"
+}
+
+assert_module_file() {
+    local file=$1
+    shift
+
+    assert_file_exist "$(readlink -m $file)"
+    assert_module_or_plugin_file $file
 }
 
 check_secure_module() {

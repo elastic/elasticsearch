@@ -2045,4 +2045,18 @@ public class TranslogTests extends ESTestCase {
             }
         }
     }
+
+    public void testPullViewOnClosed() throws IOException {
+        if (randomBoolean()) {
+            translog.prepareCommit();
+        }
+        translog.close();
+        try {
+
+            translog.newView();
+            fail("must throw ACE");
+        } catch (AlreadyClosedException ex) {
+            // all is well
+        }
+    }
 }

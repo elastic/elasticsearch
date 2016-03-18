@@ -127,10 +127,6 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
-            if (version.onOrAfter(Version.CURRENT.minimumCompatibilityVersion()) == false || version.major != Version.CURRENT.major) {
-                throw new IllegalStateException("Received message from unsupported version: [" + version
-                    + "] minimal compatible version is: [" +Version.CURRENT.minimumCompatibilityVersion() + "]");
-            }
             streamIn.setVersion(version);
             if (TransportStatus.isRequest(status)) {
                 threadContext.readHeaders(streamIn);

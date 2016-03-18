@@ -6,7 +6,7 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;

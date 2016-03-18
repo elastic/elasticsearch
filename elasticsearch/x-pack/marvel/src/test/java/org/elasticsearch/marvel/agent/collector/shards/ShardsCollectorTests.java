@@ -6,7 +6,7 @@
 package org.elasticsearch.marvel.agent.collector.shards;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;

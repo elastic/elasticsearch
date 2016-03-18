@@ -40,8 +40,7 @@ public class GatewayServiceTests extends ESTestCase {
                 .put("http.enabled", "false")
                 .put("discovery.type", "local")
                 .put(settings.build()).build(),
-                null, clusterService, null, null, null, null, new NoopDiscovery());
-
+                null, clusterService, null, null, null, null, new NoopDiscovery(), null, null);
     }
 
     public void testDefaultRecoverAfterTime() throws IOException {

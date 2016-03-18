@@ -35,8 +35,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 /**
@@ -53,10 +59,15 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
     private final Supplier<Integer> minimumMasterNodesProvider;
+    private final IndicesService indicesService;
+    private final NodeServicesProvider nodeServicesProvider;
 
     public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery) {
+                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                   NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
+        this.nodeServicesProvider = nodeServicesProvider;
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.metaState = metaState;
@@ -66,9 +77,9 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        ObjectHashSet<String> nodesIds = new ObjectHashSet<>(clusterService.state().nodes().masterNodes().keys());
-        logger.trace("performing state recovery from {}", nodesIds);
-        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
+        String[] nodesIds = clusterService.state().nodes().masterNodes().keys().toArray(String.class);
+        logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
+        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 
         int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
@@ -129,7 +140,17 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 if (electedIndexMetaData != null) {
                     if (indexMetaDataCount < requiredAllocation) {
                         logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                    } // TODO if this logging statement is correct then we are missing an else here
+                    try {
+                        if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
+                            // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
+                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("recovering index {} failed - recovering as closed", e, electedIndexMetaData.getIndex());
+                        electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
+
                     metaDataBuilder.put(electedIndexMetaData, false);
                 }
             }

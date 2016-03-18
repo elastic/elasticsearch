@@ -1,5 +1,5 @@
 [[docs-update-by-query]]
-==== Update By Query API
+== Update By Query API
 
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
@@ -101,8 +101,8 @@ Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
 anything else is an error. If you want to delete by a query you can use the
-<<plugins-delete-by-query,Delete by Query Plugin>> instead. Setting any other
-field in `ctx` is an error.
+{plugins}/delete-by-query.html[Delete by Query plugin] instead. Setting any 
+other field in `ctx` is an error.
 
 Note that we stopped specifying `conflicts=proceed`. In this case we want a
 version conflict to abort the process so we can handle the failure.
@@ -267,11 +267,8 @@ progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
 
-[float]
-=== Examples
-
 [[picking-up-a-new-property]]
-==== Pick up a new property
+=== Pick up a new property
 
 Say you created an index without dynamic mapping, filled it with data, and then
 added a mapping value to pick up more fields from the data:

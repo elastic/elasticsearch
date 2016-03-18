@@ -197,6 +197,8 @@ assert_module_or_plugin_file() {
     local file=$1
     shift
 
+    assert_file_exist "$(readlink -m $file)"
+
     # config files should not be executable and otherwise use the user
     # file-creation mask
     expected_file_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) & ~0111))

@@ -43,7 +43,6 @@ assert_module_file() {
     local file=$1
     shift
 
-    assert_file_exist "$(readlink -m $file)"
     assert_module_or_plugin_file $file
 }
 

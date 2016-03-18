@@ -92,11 +92,11 @@ install_jvm_example() {
     config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
-    config_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) | 0111))
+    config_privileges=$(executable_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
     assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner $(printf "%o" $config_privileges)
     # config files should not be executable and otherwise use the user
     # file-creation mask
-    expected_file_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) & ~0111))
+    expected_file_privileges=$(file_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
     assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner $(printf "%o" $expected_file_privileges)
 
     echo "Running jvm-example's bin script...."

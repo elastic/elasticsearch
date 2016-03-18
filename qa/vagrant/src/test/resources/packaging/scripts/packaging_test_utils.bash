@@ -188,7 +188,7 @@ assert_module_or_plugin_directory() {
     config_user=$(find "$ESHOME" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESHOME" -maxdepth 0 -printf "%g")
     # directories should use the user file-creation mask
-    config_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) | 0111))
+    config_privileges=$(executable_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
 
     assert_file $directory d $config_user $config_owner $(printf "%o" $config_privileges)
 }
@@ -201,7 +201,7 @@ assert_module_or_plugin_file() {
 
     # config files should not be executable and otherwise use the user
     # file-creation mask
-    expected_file_privileges=$((0777 & ~$(sudo -E -u $ESPLUGIN_COMMAND_USER sh -c umask) & ~0111))
+    expected_file_privileges=$(file_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
     assert_file $file f $config_user $config_owner $(printf "%o" $expected_file_privileges)
 }
 
@@ -472,4 +472,20 @@ install_script() {
     local script="$BATS_TEST_DIRNAME/example/scripts/$name"
     echo "Installing $script to $ESSCRIPTS"
     cp $script $ESSCRIPTS
+}
+
+# permissions from the user umask with the executable bit set
+executable_privileges_for_user_from_umask() {
+    local user=$1
+    shift
+
+    echo $((0777 & ~$(sudo -E -u $user sh -c umask) | 0111))
+}
+
+# permissions from the user umask without the executable bit set
+file_privileges_for_user_from_umask() {
+    local user=$1
+    shift
+
+    echo $((0777 & ~$(sudo -E -u $user sh -c umask) & ~0111))
 }

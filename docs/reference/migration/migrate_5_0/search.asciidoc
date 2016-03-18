@@ -122,6 +122,8 @@ in favour of `query` and `no_match_query`.
   upper limit is needed then the `max_children` parameter shouldn't be specified
   at all.
 
+* The `exists` query will now fail if the `_field_names` field is disabled.
+
 
 ==== Top level `filter` parameter
 

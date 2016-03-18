@@ -55,11 +55,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected ThreadPool threadPool;
 
-    protected static final Version version0 = Version.fromId(/*0*/99);
+    protected static final Version version0 = Version.CURRENT.minimumCompatibilityVersion();
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
 
-    protected static final Version version1 = Version.fromId(199);
+    protected static final Version version1 = Version.fromId(Version.CURRENT.id+1);
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
@@ -491,14 +491,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutNoResponse");
     }
 
-    @Test
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
+        final CountDownLatch doneLatch = new CountDownLatch(1);
         serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 TimeValue sleep = TimeValue.parseTimeValue(request.message, null, "sleep");
                 try {
-                    Thread.sleep(sleep.millis());
+                    doneLatch.await(sleep.millis(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e) {
                     // ignore
                 }
@@ -576,10 +576,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
+        doneLatch.countDown();
     }
 
 
-    @Test
     @TestLogging(value = "test. transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {

@@ -260,8 +260,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
                 localSortMode = MultiValueMode.fromString(sortMode.toString());
             }
 
-            if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
-                throw new QueryShardException(context, "we only support AVG and SUM on number based fields");
+            if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
 
             boolean reverse = (order == SortOrder.DESC);

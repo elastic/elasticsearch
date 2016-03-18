@@ -181,7 +181,6 @@ public class ScriptSortParser implements SortParser {
                 };
                 break;
             case NUMBER:
-                // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
                     LeafSearchScript leafScript;
                     @Override

@@ -1002,6 +1002,42 @@ public class FieldSortIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
+                .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.AVG))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().hits().length, equalTo(3));
+
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(13L));
+
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(6L));
+
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(1L));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.MEDIAN))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().hits().length, equalTo(3));
+
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(13L));
+
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(7L));
+
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(2L));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
                 .addSort("int_values", SortOrder.ASC)
                 .execute().actionGet();
 

@@ -76,7 +76,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T> & SortBuilde
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static final int NUMBER_OF_TESTBUILDERS = 500;
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
     static IndicesQueriesRegistry indicesQueriesRegistry;
     private static SortParseElement parseElement = new SortParseElement();
     private static ScriptService scriptService;

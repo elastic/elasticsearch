@@ -77,7 +77,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
     private final Script script;
 
-    private ScriptSortType type;
+    private final ScriptSortType type;
 
     private SortMode sortMode;
 
@@ -125,11 +125,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     }
 
     /**
-     * Defines which distance to use for sorting in the case a document contains multiple geo points.
-     * Possible values: min and max
+     * Defines which distance to use for sorting in the case a document contains multiple values.<br>
+     * For {@link ScriptSortType#STRING}, the set of possible values is restricted to {@link SortMode#MIN} and {@link SortMode#MAX}
      */
     public ScriptSortBuilder sortMode(SortMode sortMode) {
         Objects.requireNonNull(sortMode, "sort mode cannot be null.");
+        if (ScriptSortType.STRING.equals(type) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG ||
+                sortMode == SortMode.MEDIAN)) {
+            throw new IllegalArgumentException("script sort of type [string] doesn't support mode [" + sortMode + "]");
+        }
         this.sortMode = sortMode;
         return this;
     }
@@ -271,10 +275,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         final SearchScript searchScript = context.getScriptService().search(
                 context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 
-        if (ScriptSortType.STRING.equals(type) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
-            throw new QueryShardException(context, "type [string] doesn't support mode [" + sortMode + "]");
-        }
-
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());
@@ -311,7 +311,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
                 };
                 break;
             case NUMBER:
-                // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
                     LeafSearchScript leafScript;
                     @Override

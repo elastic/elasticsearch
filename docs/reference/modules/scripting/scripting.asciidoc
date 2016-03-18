@@ -1,27 +1,48 @@
 [[modules-scripting]]
 == Scripting
 
-The scripting module allows to use scripts in order to evaluate custom
-expressions. For example, scripts can be used to return "script fields"
-as part of a search request, or can be used to evaluate a custom score
-for a query and so on.
+The scripting module enables you to use scripts to evaluate custom
+expressions. For example, you could use a script to return "script fields"
+as part of a search request or evaluate a custom score for a query.
 
-The scripting module uses by default http://groovy-lang.org/[groovy]
-(previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
-scripting language with some extensions. Groovy is used since it is extremely
-fast and very simple to use.
+TIP: Elasticsearch now has a built-in scripting language called _Painless_
+that provides a more secure alternative for implementing
+scripts for Elasticsearch. We encourage you to try it out--
+for more information, see <<modules-scripting-painless, Painless Scripting Language>>.
+
+The default scripting language is http://groovy-lang.org/[groovy] 
+(http://mvel.codehaus.org/[mvel] was the default in 1.3.x and earlier). 
+
+Additional `lang` plugins enable you to run scripts written in other languages. 
+Everywhere a script can be used, you can include a `lang` parameter
+to specify the language of the script. Plugins are available for following languages:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Language   |Sandboxed |Required plugin
+|groovy     |no        |built-in
+|expression |yes       |built-in
+|mustache   |yes       |built-in
+/painless   /yes       /built-in (module)
+|javascript |no        |{plugins}/lang-javascript.html[elasticsearch-lang-javascript]
+|python     |no        |{plugins}/lang-python.html[elasticsearch-lang-python]
+|=======================================================================
 
 .Groovy dynamic scripting off by default from v1.4.3
 [IMPORTANT]
 ===================================================
 
-Groovy dynamic scripting is off by default, preventing dynamic Groovy scripts
-from being accepted as part of a request or retrieved from the special
-`.scripts` index. You will still be able to use Groovy scripts stored in files
-in the `config/scripts/` directory on every node.
+Groovy dynamic scripting is off by default. This prevents Groovy scripts
+from being accepted as part of a request or retrieved from the 
+`.scripts` index. You can still use Groovy file scripts stored in 
+the `config/scripts/` directory on every node.
 
-To convert an inline script to a file, take this simple script
-as an example:
+To convert an inline script to a file-based script, save the contents
+of the `inline` field to a file with the `.groovy` extension and
+store it in the `config/scripts` directory on every data node in your
+cluster. 
+
+For example, if you have the following inline script:
 
 [source,js]
 -----------------------------------
@@ -38,15 +59,9 @@ GET /_search
 }
 -----------------------------------
 
-Save the contents of the `inline` field as a file called `config/scripts/my_script.groovy`
-on every data node in the cluster:
+Save `1 + my_var` in a file called `config/scripts/my_script.groovy`.
 
-[source,js]
------------------------------------
-1 + my_var
------------------------------------
-
-Now you can access the script by file name (without the extension):
+To use the script in a request, specify its name (without the `.groovy` extension) in the `file` field:
 
 [source,js]
 -----------------------------------
@@ -67,21 +82,8 @@ GET /_search
 
 ===================================================
 
-
-Additional `lang` plugins are provided to allow to execute scripts in
-different languages. All places where a script can be used, a `lang` parameter
-can be provided to define the language of the script. The following are the
-supported scripting languages:
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Language   |Sandboxed |Required plugin
-|groovy     |no        |built-in
-|expression |yes       |built-in
-|mustache   |yes       |built-in
-|javascript |no        |{plugins}/lang-javascript.html[elasticsearch-lang-javascript]
-|python     |no        |{plugins}/lang-python.html[elasticsearch-lang-python]
-|=======================================================================
+[float]
+=== File-based Scripts
 
 To increase security, Elasticsearch does not allow you to specify scripts for
 non-sandboxed languages with a request. Instead, scripts must be placed in the
@@ -218,8 +220,6 @@ Indexed scripts can be deleted by:
 -----------------------------------
 curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
-
-
 
 [float]
 [[enable-dynamic-scripting]]

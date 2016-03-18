@@ -275,7 +275,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
-        String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0_beta1);
+        String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0), Version.V_1_6_0);
@@ -293,7 +293,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         });
 
         assertThat(holder.get(), notNullValue());
-        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [" + Version.V_2_0_0_beta1.minimumCompatibilityVersion() + "]"));
+        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [" + Version.V_2_0_0.minimumCompatibilityVersion() + "]"));
     }
 
     @Test

@@ -116,8 +116,7 @@ curl -XPUT 'http://localhost:9200/test1' -d '{
     "type1": {
       "properties": {
         "user" : {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         }
       }
     }

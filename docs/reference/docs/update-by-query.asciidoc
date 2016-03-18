@@ -281,7 +281,7 @@ PUT test
     "test": {
       "dynamic": false,   <1>
       "properties": {
-        "text": {"type": "string"}
+        "text": {"type": "text"}
       }
     }
   }
@@ -300,8 +300,8 @@ POST test/test?refresh
 PUT test/_mapping/test   <2>
 {
   "properties": {
-    "text": {"type": "string"},
-    "flag": {"type": "string", "analyzer": "keyword"}
+    "text": {"type": "text"},
+    "flag": {"type": "text", "analyzer": "keyword"}
   }
 }
 --------------------------------------------------

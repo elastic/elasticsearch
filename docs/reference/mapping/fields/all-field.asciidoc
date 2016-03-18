@@ -45,7 +45,7 @@ from each field as a string. It does not combine the _terms_ from each field.
 
 =============================================================================
 
-The `_all` field is just a <<string,`string`>> field, and accepts the same
+The `_all` field is just a <<text,`text`>> field, and accepts the same
 parameters that  other string fields accept, including `analyzer`,
 `term_vectors`, `index_options`, and `store`.
 
@@ -136,7 +136,7 @@ PUT my_index
       },
       "properties": {
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
@@ -172,11 +172,11 @@ PUT myindex
     "mytype": {
       "properties": {
         "title": { <1>
-          "type": "string",
+          "type": "text",
           "boost": 2
         },
         "content": { <1>
-          "type": "string"
+          "type": "text"
         }
       }
     }
@@ -210,15 +210,15 @@ PUT myindex
     "mytype": {
       "properties": {
         "first_name": {
-          "type":    "string",
+          "type":    "text",
           "copy_to": "full_name" <1>
         },
         "last_name": {
-          "type":    "string",
+          "type":    "text",
           "copy_to": "full_name" <1>
         },
         "full_name": {
-          "type":    "string"
+          "type":    "text"
         }
       }
     }

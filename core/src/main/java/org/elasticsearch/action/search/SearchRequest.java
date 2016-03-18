@@ -295,6 +295,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
+    /**
+     * @return true if the request only has suggest
+     */
+    public boolean hasOnlySuggest() {
+        return source != null && source.hasOnlySuggest();
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

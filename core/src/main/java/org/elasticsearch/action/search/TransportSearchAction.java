@@ -37,7 +37,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
+import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
 /**
  *
@@ -68,9 +71,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState,
                     searchRequest.routing(), searchRequest.indices());
             int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, routingMap);
+            boolean hasOnlySuggest = searchRequest.hasOnlySuggest();
             if (shardCount == 1) {
                 // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                 searchRequest.searchType(QUERY_AND_FETCH);
+            } else if (hasOnlySuggest &&
+                (searchRequest.searchType() == DFS_QUERY_AND_FETCH || searchRequest.searchType() == DFS_QUERY_THEN_FETCH)) {
+                // convert to Q_T_F if we have only suggest
+                searchRequest.searchType(QUERY_THEN_FETCH);
+            }
+            if (hasOnlySuggest && (searchRequest.requestCache() == null || searchRequest.requestCache())) {
+                // disable request cache if we have only suggest
+                searchRequest.requestCache(false);
             }
         } catch (IndexNotFoundException | IndexClosedException e) {
             // ignore these failures, we will notify the search response if its really the case from the actual action

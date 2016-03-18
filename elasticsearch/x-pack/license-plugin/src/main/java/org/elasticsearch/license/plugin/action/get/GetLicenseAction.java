@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class GetLicenseAction extends Action<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder> {
 
     public static final GetLicenseAction INSTANCE = new GetLicenseAction();
-    public static final String NAME = "cluster:admin/plugin/license/get";
+    public static final String NAME = "cluster:monitor/xpack/license/get";
 
     private GetLicenseAction() {
         super(NAME);

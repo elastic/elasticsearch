@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class ClearRolesCacheAction extends Action<ClearRolesCacheRequest, ClearRolesCacheResponse, ClearRolesCacheRequestBuilder> {
 
     public static final ClearRolesCacheAction INSTANCE = new ClearRolesCacheAction();
-    public static final String NAME = "cluster:admin/shield/roles/cache/clear";
+    public static final String NAME = "cluster:admin/xpack/security/roles/cache/clear";
 
     protected ClearRolesCacheAction() {
         super(NAME);

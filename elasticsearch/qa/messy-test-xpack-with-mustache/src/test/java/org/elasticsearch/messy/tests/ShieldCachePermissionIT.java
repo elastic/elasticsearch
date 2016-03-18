@@ -53,7 +53,8 @@ public class ShieldCachePermissionIT extends ShieldIntegTestCase {
         return super.configRoles()
                 + "\nread_one_idx:\n"
                 + "  indices:\n"
-                + "    'data': READ\n";
+                + "    'data':\n"
+                + "      - read\n";
     }
 
     @Override

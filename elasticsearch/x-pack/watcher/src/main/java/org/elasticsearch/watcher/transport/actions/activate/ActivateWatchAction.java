@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class ActivateWatchAction extends Action<ActivateWatchRequest, ActivateWatchResponse, ActivateWatchRequestBuilder> {
 
     public static final ActivateWatchAction INSTANCE = new ActivateWatchAction();
-    public static final String NAME = "cluster:admin/watcher/watch/activate";
+    public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";
 
     private ActivateWatchAction() {
         super(NAME);

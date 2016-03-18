@@ -57,7 +57,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), true)
                 .build());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(10));
+        assertThat(roles.size(), is(9));
 
         Role role = roles.get("role1");
         assertThat(role, notNullValue());
@@ -82,7 +82,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("idx3"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege(), is(IndexPrivilege.CRUD));
+        assertThat(group.privilege().implies(IndexPrivilege.READ), is(true));
+        assertThat(group.privilege().implies(IndexPrivilege.WRITE),is(true));
 
         role = roles.get("role1.ab");
         assertThat(role, notNullValue());
@@ -121,12 +122,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.privilege().isAlias(IndexPrivilege.union(IndexPrivilege.READ, IndexPrivilege.WRITE)), is(true));
 
         role = roles.get("role4");
-        assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role4"));
-        assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
-        assertThat(role.indices(), is(IndicesPermission.Core.NONE));
-        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
+        assertThat(role, nullValue());
 
         role = roles.get("role_run_as");
         assertThat(role, notNullValue());
@@ -214,7 +210,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), false)
                 .build());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(7));
+        assertThat(roles.size(), is(6));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
@@ -233,6 +229,7 @@ public class FileRolesStoreTests extends ESTestCase {
      * This test is mainly to make sure we can read the default roles.yml config
      */
     public void testDefaultRolesFile() throws Exception {
+        // TODO we should add the config dir to the resources so we don't copy this stuff around...
         Path path = getDataPath("default_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
@@ -241,11 +238,11 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles, hasKey("admin"));
         assertThat(roles, hasKey("power_user"));
         assertThat(roles, hasKey("user"));
-        assertThat(roles, hasKey("kibana3"));
-        assertThat(roles, hasKey("kibana4"));
+        assertThat(roles, hasKey("transport_client"));
+        assertThat(roles, hasKey("kibana4_server"));
         assertThat(roles, hasKey("logstash"));
         assertThat(roles, hasKey("monitoring_user"));
-        assertThat(roles, hasKey("monitoring_agent"));
+        assertThat(roles, hasKey("remote_monitoring_agent"));
     }
 
     public void testAutoReload() throws Exception {
@@ -288,7 +285,8 @@ public class FileRolesStoreTests extends ESTestCase {
                 writer.newLine();
                 writer.newLine();
                 writer.append("role5:").append(System.lineSeparator());
-                writer.append("  cluster: 'MONITOR'");
+                writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'MONITOR'");
             }
 
             if (!latch.await(5, TimeUnit.SECONDS)) {
@@ -327,24 +325,22 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.name(), equalTo("valid_role"));
 
         List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
-        assertThat(entries, hasSize(5));
+        assertThat(entries, hasSize(6));
         assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() +
                 "]. invalid role name"));
         assertThat(entries.get(1).text, startsWith("invalid role definition [role1] in roles file [" + path.toAbsolutePath() + "]"));
-        assertThat(entries.get(2).text, startsWith("invalid role definition [role2] in roles file [" + path.toAbsolutePath() +
-                "]. could not resolve cluster privileges [blkjdlkd]"));
-        assertThat(entries.get(3).text, startsWith("invalid role definition [role3] in roles file [" + path.toAbsolutePath() +
-                "]. [indices] field value must be an array"));
-        assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() +
-                "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
+        assertThat(entries.get(2).text, startsWith("failed to parse role [role2]"));
+        assertThat(entries.get(3).text, startsWith("failed to parse role [role3]"));
+        assertThat(entries.get(4).text, startsWith("failed to parse role [role4]"));
+        assertThat(entries.get(5).text, startsWith("failed to parse indices privileges for role [role5]"));
     }
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
-        assertThat(roleNames.size(), is(5));
-        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4"));
+        assertThat(roleNames.size(), is(6));
+        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
 
         List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
         assertThat(entries, hasSize(1));

@@ -6,7 +6,7 @@ dependencies {
 
 integTest {
   cluster {
-    systemProperty 'es.script.inline', 'true'
+    setting 'script.inline', 'true'
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     extraConfigFile 'xpack/roles.yml', 'roles.yml'
     [

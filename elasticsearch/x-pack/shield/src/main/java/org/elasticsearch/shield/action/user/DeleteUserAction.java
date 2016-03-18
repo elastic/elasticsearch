@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class DeleteUserAction extends Action<DeleteUserRequest, DeleteUserResponse, DeleteUserRequestBuilder> {
 
     public static final DeleteUserAction INSTANCE = new DeleteUserAction();
-    public static final String NAME = "cluster:admin/shield/user/delete";
+    public static final String NAME = "cluster:admin/xpack/security/user/delete";
 
     protected DeleteUserAction() {
         super(NAME);

@@ -6,11 +6,15 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -35,6 +39,8 @@ import org.elasticsearch.shield.action.user.TransportPutUserAction;
 import org.elasticsearch.shield.action.user.TransportDeleteUserAction;
 import org.elasticsearch.shield.action.user.TransportGetUsersAction;
 import org.elasticsearch.shield.audit.AuditTrailModule;
+import org.elasticsearch.shield.audit.index.IndexAuditTrail;
+import org.elasticsearch.shield.audit.index.IndexNameResolver;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authc.Realms;
@@ -71,6 +77,8 @@ import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,7 +109,7 @@ public class Shield {
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
         if (enabled && !transportClientMode) {
-            failIfShieldQueryCacheIsNotActive(settings, true);
+            validateAutoCreateIndex(settings);
         }
     }
 
@@ -163,7 +171,6 @@ public class Shield {
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Shield.NAME);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
-        addQueryCacheSettings(settingsBuilder);
         return settingsBuilder.build();
     }
 
@@ -226,7 +233,11 @@ public class Shield {
         }
         if (transportClientMode == false) {
             module.registerQueryCache(Shield.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
-            failIfShieldQueryCacheIsNotActive(module.getSettings(), false);
+            /*  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
+             *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
+             *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
+             *  unauthorized users. */
+            module.forceQueryCacheType(Shield.OPT_OUT_QUERY_CACHE);
         }
     }
 
@@ -278,30 +289,6 @@ public class Shield {
             module.registerHttpTransport(Shield.NAME, ShieldNettyHttpServerTransport.class);
         }
     }
-
-    public static void registerClusterPrivilege(String name, String... patterns) {
-        try {
-            ClusterPrivilege.addCustom(name, patterns);
-        } catch (Exception se) {
-            logger.warn("could not register cluster privilege [{}]", name);
-
-            // we need to prevent bubbling the shield exception here for the tests. In the tests
-            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
-            // multiple nodes will try to add the same privileges multiple times.
-        }
-    }
-    
-    public static void registerIndexPrivilege(String name, String... patterns) {
-        try {
-            IndexPrivilege.addCustom(name, patterns);
-        } catch (Exception se) {
-            logger.warn("could not register index privilege [{}]", name);
-
-            // we need to prevent bubbling the shield exception here for the tests. In the tests
-            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
-            // multiple nodes will try to add the same privileges multiple times.
-        }
-    }    
 
     private void addUserSettings(Settings.Builder settingsBuilder) {
         String authHeaderSettingName = ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -377,16 +364,6 @@ public class Shield {
         }
     }
 
-    /**
-     *  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
-     *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
-     *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
-     *  unauthorized users.
-     */
-    private void addQueryCacheSettings(Settings.Builder settingsBuilder) {
-        settingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
-    }
-
     public static boolean enabled(Settings settings) {
         return XPackPlugin.featureEnabled(settings, NAME, true);
     }
@@ -395,19 +372,72 @@ public class Shield {
         return XPackPlugin.featureEnabled(settings, DLS_FLS_FEATURE, true);
     }
 
-    private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {
-        String queryCacheImplementation;
-        if (nodeSettings) {
-            // in case this are node settings then the plugin additional settings have not been applied yet,
-            // so we use 'opt_out_cache' as default. So in that case we only fail if the node settings contain
-            // another cache impl than 'opt_out_cache'.
-            queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
-        } else {
-            queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
+
+    static void validateAutoCreateIndex(Settings settings) {
+        String value = settings.get("action.auto_create_index");
+        if (value == null) {
+            return;
         }
-        if (OPT_OUT_QUERY_CACHE.equals(queryCacheImplementation) == false) {
-            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule
-                    .INDEX_QUERY_CACHE_TYPE_SETTING.getKey() + "] with value [" + queryCacheImplementation + "]");
+
+        final boolean indexAuditingEnabled = AuditTrailModule.indexAuditLoggingEnabled(settings);
+        final String auditIndex = indexAuditingEnabled ? "," + IndexAuditTrail.INDEX_NAME_PREFIX + "*" : "";
+        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
+                " restrictive. disable [action.auto_create_index] or set it to " +
+                "[{}{}]", (Object) value, ShieldTemplateService.SECURITY_INDEX_NAME, auditIndex);
+        if (Booleans.isExplicitFalse(value)) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+
+        if (Booleans.isExplicitTrue(value)) {
+            return;
+        }
+
+        String[] matches = Strings.commaDelimitedListToStringArray(value);
+        List<String> indices = new ArrayList<>();
+        indices.add(ShieldTemplateService.SECURITY_INDEX_NAME);
+        if (indexAuditingEnabled) {
+            DateTime now = new DateTime(DateTimeZone.UTC);
+            // just use daily rollover
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusDays(1), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(1), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(2), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(3), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(4), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(5), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(6), IndexNameResolver.Rollover.DAILY));
+        }
+
+        for (String index : indices) {
+            boolean matched = false;
+            for (String match : matches) {
+                char c = match.charAt(0);
+                if (c == '-') {
+                    if (Regex.simpleMatch(match.substring(1), index)) {
+                        throw new IllegalArgumentException(errorMessage);
+                    }
+                } else if (c == '+') {
+                    if (Regex.simpleMatch(match.substring(1), index)) {
+                        matched = true;
+                        break;
+                    }
+                } else {
+                    if (Regex.simpleMatch(match, index)) {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!matched) {
+                throw new IllegalArgumentException(errorMessage);
+            }
+        }
+
+        if (indexAuditingEnabled) {
+            logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
+                    " for the next 6 months audit indices are allowed to be created, but please make sure" +
+                    " that any future history indices after 6 months with the pattern " +
+                    "[.shield_audit_log*] are allowed to be created", value);
         }
     }
 }

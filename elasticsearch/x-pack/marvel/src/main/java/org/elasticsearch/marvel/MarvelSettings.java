@@ -134,7 +134,8 @@ public class MarvelSettings extends AbstractComponent {
         module.registerSetting(ENABLED);
         module.registerSetting(INDEX_TEMPLATE_VERSION);
 
-        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.auth.password");
+        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.auth.*");
+        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.ssl.*");
     }
 
 

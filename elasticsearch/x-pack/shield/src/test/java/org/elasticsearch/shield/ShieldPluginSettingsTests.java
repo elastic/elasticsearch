@@ -7,6 +7,7 @@ package org.elasticsearch.shield;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -16,6 +17,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.not;
 
 public class ShieldPluginSettingsTests extends ESTestCase {
 
@@ -131,5 +133,60 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         assertThat(additionalSettings.get("tribe.t2.shield.foo"), is("bar"));
         assertThat(additionalSettings.get("tribe.t2.shield.bar"), is("foo"));
         assertThat(additionalSettings.getAsArray("tribe.t2.shield.something.else.here"), arrayContaining("foo", "bar"));
+    }
+
+    public void testValidAutoCreateIndex() {
+        Shield.validateAutoCreateIndex(Settings.EMPTY);
+        Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build());
+
+        try {
+            Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(ShieldTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
+        }
+
+        Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security").build());
+        Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*s*").build());
+        Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".s*").build());
+
+        try {
+            Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "foo").build());
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(ShieldTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
+        }
+
+        try {
+            Shield.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".shield_audit_log*").build());
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(ShieldTemplateService.SECURITY_INDEX_NAME));
+        }
+
+        Shield.validateAutoCreateIndex(Settings.builder()
+                        .put("action.auto_create_index", ".security")
+                        .put("shield.audit.enabled", true)
+                        .build());
+
+        try {
+            Shield.validateAutoCreateIndex(Settings.builder()
+                    .put("action.auto_create_index", ".security")
+                    .put("shield.audit.enabled", true)
+                    .put("shield.audit.outputs", randomFrom("index", "logfile,index"))
+                    .build());
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(ShieldTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), containsString(IndexAuditTrail.INDEX_NAME_PREFIX));
+        }
+
+        Shield.validateAutoCreateIndex(Settings.builder()
+                .put("action.auto_create_index", ".shield_audit_log*,.security")
+                .put("shield.audit.enabled", true)
+                .put("shield.audit.outputs", randomFrom("index", "logfile,index"))
+                .build());
     }
 }

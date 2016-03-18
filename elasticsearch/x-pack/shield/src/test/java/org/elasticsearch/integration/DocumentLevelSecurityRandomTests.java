@@ -60,10 +60,11 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
         builder.append('\n');
         for (int i = 1; i <= numberOfRoles; i++) {
             builder.append("role").append(i).append(":\n");
-            builder.append("  cluster: all\n");
+            builder.append("  cluster: [ all ]\n");
             builder.append("  indices:\n");
-            builder.append("    '*':\n");
-            builder.append("      privileges: ALL\n");
+            builder.append("    - names: '*'\n");
+            builder.append("      privileges:\n");
+            builder.append("        - all\n");
             builder.append("      query: \n");
             builder.append("        term: \n");
             builder.append("          field1: value").append(i).append('\n');

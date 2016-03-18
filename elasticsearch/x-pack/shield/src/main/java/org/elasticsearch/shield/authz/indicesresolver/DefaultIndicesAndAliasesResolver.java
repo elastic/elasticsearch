@@ -78,6 +78,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
              * the list of indices in there, if we do so it will result in an invalid request and the update will fail.
              */
             indices = Collections.singleton(((PutMappingRequest) indicesRequest).getConcreteIndex().getName());
+            assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
+                    : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
         } else {
             if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
                 if (indicesRequest instanceof IndicesRequest.Replaceable) {

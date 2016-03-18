@@ -30,10 +30,12 @@ public class IndicesAndAliasesResolverIntegrationTests extends ShieldIntegTestCa
     @Override
     protected String configRoles() {
         return ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
-                "  cluster: ALL\n" +
+                "  cluster: [ ALL ]\n" +
                 "  indices:\n" +
-                "    '*': manage,write\n" +
-                "    '/test.*/': read\n";
+                "    - names: '*'\n" +
+                "      privileges: [ manage, write ]\n" +
+                "    - names: '/test.*/'\n" +
+                "      privileges: [ read ]\n";
     }
 
     public void testSearchForAll() {

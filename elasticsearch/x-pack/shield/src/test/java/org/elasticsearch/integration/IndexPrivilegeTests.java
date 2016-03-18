@@ -29,56 +29,71 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     public static final String ROLES =
                     "all_cluster_role:\n" +
-                    "  cluster: all\n" +
+                    "  cluster: [ all ]\n" +
                     "all_indices_role:\n" +
                     "  indices:\n" +
-                    "    '*': all\n" +
+                    "    - names: '*'\n" +
+                    "      privileges: [ all ]\n" +
                     "all_a_role:\n" +
                     "  indices:\n" +
-                    "    'a': all\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ all ]\n" +
                     "read_a_role:\n" +
                     "  indices:\n" +
-                    "    'a': read\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ read ]\n" +
                     "write_a_role:\n" +
                     "  indices:\n" +
-                    "    'a': write\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ write ]\n" +
                     "read_ab_role:\n" +
                     "  indices:\n" +
-                    "    'a': read\n" +
-                    "    'b': read\n" +
+                    "    - names: [ 'a', 'b' ]\n" +
+                    "      privileges: [ read ]\n" +
                     "get_b_role:\n" +
                     "  indices:\n" +
-                    "    'b': get\n" +
+                    "    - names: 'b'\n" +
+                    "      privileges: [ get ]\n" +
                     "search_b_role:\n" +
                     "  indices:\n" +
-                    "    'b': search\n" +
+                    "    - names: 'b'\n" +
+                    "      privileges: [ search ]\n" +
                     "all_regex_ab_role:\n" +
                     "  indices:\n" +
-                    "    '/a|b/': all\n" +
+                    "    - names: '/a|b/'\n" +
+                    "      privileges: [ all ]\n" +
                     "manage_starts_with_a_role:\n" +
                     "  indices:\n" +
-                    "    'a*': manage\n" +
+                    "    - names: 'a*'\n" +
+                    "      privileges: [ manage ]\n" +
                     "data_access_all_role:\n" +
                     "  indices:\n" +
-                    "    '*': data_access\n" +
+                    "    - names: '*'\n" +
+                    "      privileges: [ data_access ]\n" +
                     "create_c_role:\n" +
                     "  indices:\n" +
-                    "    'c': create_index\n" +
+                    "    - names: 'c'\n" +
+                    "      privileges: [ create_index ]\n" +
                     "monitor_b_role:\n" +
                     "  indices:\n" +
-                    "    'b': monitor\n" +
+                    "    - names: 'b'\n" +
+                    "      privileges: [ monitor ]\n" +
                     "crud_a_role:\n" +
                     "  indices:\n" +
-                    "    'a': crud\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ crud ]\n" +
                     "delete_b_role:\n" +
                     "  indices:\n" +
-                    "    'b': delete\n" +
+                    "    - names: 'b'\n" +
+                    "      privileges: [ delete ]\n" +
                     "index_a_role:\n" +
                     "  indices:\n" +
-                    "    'a': index\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ index ]\n" +
                     "search_a_role:\n" +
                     "  indices:\n" +
-                    "    'a': search\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ search ]\n" +
                     "\n";
 
     public static final String USERS =

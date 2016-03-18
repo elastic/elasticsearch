@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class PutRoleAction extends Action<PutRoleRequest, PutRoleResponse, PutRoleRequestBuilder> {
 
     public static final PutRoleAction INSTANCE = new PutRoleAction();
-    public static final String NAME = "cluster:admin/shield/role/put";
+    public static final String NAME = "cluster:admin/xpack/security/role/put";
 
 
     protected PutRoleAction() {

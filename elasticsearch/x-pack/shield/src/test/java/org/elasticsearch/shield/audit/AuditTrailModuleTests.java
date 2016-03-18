@@ -8,6 +8,7 @@ package org.elasticsearch.shield.audit;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -60,7 +61,7 @@ public class AuditTrailModuleTests extends ESTestCase {
             settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
             Injector injector = Guice.createInjector(
                     settingsModule,
-                    new NetworkModule(new NetworkService(settings), settings, false, null) {
+                    new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry()) {
                         @Override
                         protected void configure() {
                             bind(Transport.class).to(LocalTransport.class).asEagerSingleton();

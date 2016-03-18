@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class PutUserAction extends Action<PutUserRequest, PutUserResponse, PutUserRequestBuilder> {
 
     public static final PutUserAction INSTANCE = new PutUserAction();
-    public static final String NAME = "cluster:admin/shield/user/put";
+    public static final String NAME = "cluster:admin/xpack/security/user/put";
 
     protected PutUserAction() {
         super(NAME);

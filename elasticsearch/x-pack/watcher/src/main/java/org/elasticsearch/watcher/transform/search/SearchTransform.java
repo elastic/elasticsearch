@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.watcher.support.SearchRequestEquivalence;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
@@ -93,7 +94,8 @@ public class SearchTransform implements Transform {
         return builder;
     }
 
-    public static SearchTransform parse(String watchId, XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers)
+    public static SearchTransform parse(String watchId, XContentParser parser, QueryParseContext context,
+                                        AggregatorParsers aggParsers, Suggesters suggesters)
             throws IOException {
         SearchRequest request = null;
         TimeValue timeout = null;
@@ -106,7 +108,8 @@ public class SearchTransform implements Transform {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
-                    request = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, context, aggParsers);
+                    request = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, context,
+                                                             aggParsers, suggesters);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
                             TYPE, watchId, currentFieldName);

@@ -24,7 +24,7 @@ public class GraphWithShieldInsufficientRoleIT extends GraphWithShieldIT {
             super.test();
             fail();
         } catch(AssertionError ae) {
-            assertThat(ae.getMessage(), containsString("action [indices:data/read/graph/explore"));
+            assertThat(ae.getMessage(), containsString("action [indices:data/read/xpack/graph/explore"));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [no_graph_explorer]"));
         }

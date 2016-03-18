@@ -60,6 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -148,7 +149,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 if (t instanceof IndexNotFoundException) {
                     logger.trace("failed to retrieve user [{}] since security index does not exist", username);
                 } else {
-                    logger.info("failed to retrieve user [{}]", t, username);
+                    logger.debug("failed to retrieve user [{}]", t, username);
                 }
 
                 // We don't invoke the onFailure listener here, instead
@@ -186,8 +187,12 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
             // This function is MADNESS! But it works, don't think about it too hard...
             client.search(request, new ActionListener<SearchResponse>() {
+
+                private SearchResponse lastResponse = null;
+
                 @Override
                 public void onResponse(final SearchResponse resp) {
+                    lastResponse = resp;
                     boolean hasHits = resp.getHits().getHits().length > 0;
                     if (hasHits) {
                         for (SearchHit hit : resp.getHits().getHits()) {
@@ -200,19 +205,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                                 .setScroll(scrollKeepAlive).request();
                         client.searchScroll(scrollRequest, this);
                     } else {
-                        ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(resp.getScrollId()).request();
-                        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
-                            @Override
-                            public void onResponse(ClearScrollResponse response) {
-                                // cool, it cleared, we don't really care though...
-                            }
-
-                            @Override
-                            public void onFailure(Throwable t) {
-                                // Not really much to do here except for warn about it...
-                                logger.warn("failed to clear scroll [{}] after retrieving all users", t, resp.getScrollId());
-                            }
-                        });
+                        if (resp.getScrollId() != null) {
+                            clearScrollResponse(resp.getScrollId());
+                        }
                         // Finally, return the list of users
                         listener.onResponse(Collections.unmodifiableList(users));
                     }
@@ -220,23 +215,28 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
                 @Override
                 public void onFailure(Throwable t) {
+                    // attempt to clear scroll response
+                    if (lastResponse != null && lastResponse.getScrollId() != null) {
+                        clearScrollResponse(lastResponse.getScrollId());
+                    }
+
                     if (t instanceof IndexNotFoundException) {
                         logger.trace("could not retrieve users because security index does not exist");
+                        // We don't invoke the onFailure listener here, instead just pass an empty list
+                        listener.onResponse(Collections.emptyList());
                     } else {
-                        logger.info("failed to retrieve users", t);
+                        listener.onFailure(t);
                     }
-                    // We don't invoke the onFailure listener here, instead
-                    // we call the response with an empty list
-                    listener.onResponse(Collections.emptyList());
+
                 }
             });
         } catch (Exception e) {
-            logger.error("unable to retrieve users", e);
+            logger.error("unable to retrieve users {}", e, Arrays.toString(usernames));
             listener.onFailure(e);
         }
     }
 
-    private UserAndPassword getUserAndPassword(String username) {
+    private UserAndPassword getUserAndPassword(final String username) {
         final AtomicReference<UserAndPassword> userRef = new AtomicReference<>(null);
         final CountDownLatch latch = new CountDownLatch(1);
         getUserAndPassword(username, new LatchedActionListener<>(new ActionListener<UserAndPassword>() {
@@ -247,19 +247,23 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
             @Override
             public void onFailure(Throwable t) {
-                logger.info("failed to retrieve user", t);
+                if (t instanceof IndexNotFoundException) {
+                    logger.trace("failed to retrieve user [{}] since security index does not exist", t, username);
+                } else {
+                    logger.error("failed to retrieve user [{}]", t, username);
+                }
             }
         }, latch));
         try {
             latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            logger.info("timed out retrieving user");
+            logger.error("timed out retrieving user [{}]", username);
             return null;
         }
         return userRef.get();
     }
 
-    private void getUserAndPassword(String user, final ActionListener<UserAndPassword> listener) {
+    private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         try {
             GetRequest request = client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
             client.get(request, new ActionListener<GetResponse>() {
@@ -271,9 +275,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 @Override
                 public void onFailure(Throwable t) {
                     if (t instanceof IndexNotFoundException) {
-                        logger.trace("could not retrieve user because security index does not exist", t);
+                        logger.trace("could not retrieve user [{}] because security index does not exist", t, user);
                     } else {
-                        logger.info("failed to retrieve user", t);
+                        logger.error("failed to retrieve user [{}]", t, user);
                     }
                     // We don't invoke the onFailure listener here, instead
                     // we call the response with a null user
@@ -281,10 +285,10 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 }
             });
         } catch (IndexNotFoundException infe) {
-            logger.trace("could not retrieve user because security index does not exist");
+            logger.trace("could not retrieve user [{}] because security index does not exist", user);
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.error("unable to retrieve user", e);
+            logger.error("unable to retrieve user [{}]", e, user);
             listener.onFailure(e);
         }
     }
@@ -501,6 +505,22 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         listeners.add(listener);
     }
 
+    private void clearScrollResponse(String scrollId) {
+        ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(scrollId).request();
+        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
+            @Override
+            public void onResponse(ClearScrollResponse response) {
+                // cool, it cleared, we don't really care though...
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                // Not really much to do here except for warn about it...
+                logger.warn("failed to clear scroll [{}]", t, scrollId);
+            }
+        });
+    }
+
     private <Response> void clearRealmCache(String username, ActionListener<Response> listener, Response response) {
         SecurityClient securityClient = new SecurityClient(client);
         ClearRealmCacheRequest request = securityClient.prepareClearRealmCache()
@@ -565,7 +585,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(User.Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata), password.toCharArray());
         } catch (Exception e) {
-            logger.error("error in the format of get response for user", e);
+            logger.error("error in the format of data for user [{}]", e, username);
             return null;
         }
     }

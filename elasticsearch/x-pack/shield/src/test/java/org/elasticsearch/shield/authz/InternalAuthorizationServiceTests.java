@@ -302,7 +302,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         User user = new User("test user", "a_star", "b");
         ClusterState state = mock(ClusterState.class);
         when(rolesStore.role("a_star")).thenReturn(Role.builder("a_star").add(IndexPrivilege.ALL, "a*").build());
-        when(rolesStore.role("b")).thenReturn(Role.builder("a_star").add(IndexPrivilege.SEARCH, "b").build());
+        when(rolesStore.role("b")).thenReturn(Role.builder("a_star").add(IndexPrivilege.READ, "b").build());
         when(clusterService.state()).thenReturn(state);
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         when(state.metaData()).thenReturn(MetaData.builder()

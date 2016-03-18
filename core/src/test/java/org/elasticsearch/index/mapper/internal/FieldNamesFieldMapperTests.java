@@ -102,7 +102,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        assertFieldNames(set("a", "b", "b.c", "_uid", "_type", "_version", "_source", "_all"), doc);
+        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_uid", "_type", "_version", "_source", "_all"), doc);
     }
 
     public void testExplicitEnabled() throws Exception {
@@ -119,7 +119,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .bytes());
 
-        assertFieldNames(set("field", "_uid", "_type", "_version", "_source", "_all"), doc);
+        assertFieldNames(set("field", "field.keyword", "_uid", "_type", "_version", "_source", "_all"), doc);
     }
 
     public void testDisabled() throws Exception {

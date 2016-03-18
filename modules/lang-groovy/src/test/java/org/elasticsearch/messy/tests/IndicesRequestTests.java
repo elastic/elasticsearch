@@ -70,8 +70,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -88,7 +86,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -438,17 +435,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(indicesStatsRequest, indicesStats);
-    }
-
-    public void testSuggest() {
-        String suggestAction = SuggestAction.NAME + "[s]";
-        interceptTransportActions(suggestAction);
-
-        SuggestRequest suggestRequest = new SuggestRequest(randomIndicesOrAliases()).suggest(new SuggestBuilder());
-        internalCluster().clientNodeClient().suggest(suggestRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(suggestRequest, suggestAction);
     }
 
     public void testValidateQuery() {

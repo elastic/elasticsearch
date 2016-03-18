@@ -314,10 +314,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -658,21 +654,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    @Override
-    public ActionFuture<SuggestResponse> suggest(final SuggestRequest request) {
-        return execute(SuggestAction.INSTANCE, request);
-    }
-
-    @Override
-    public void suggest(final SuggestRequest request, final ActionListener<SuggestResponse> listener) {
-        execute(SuggestAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public SuggestRequestBuilder prepareSuggest(String... indices) {
-        return new SuggestRequestBuilder(this, SuggestAction.INSTANCE).setIndices(indices);
     }
 
     @Override

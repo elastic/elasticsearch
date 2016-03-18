@@ -42,7 +42,6 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -109,7 +108,7 @@ public class CommonStats implements Streamable, ToXContent {
                     translog = new TranslogStats();
                     break;
                 case Suggest:
-                    suggest = new SuggestStats();
+                    // skip
                     break;
                 case RequestCache:
                     requestCache = new RequestCacheStats();
@@ -177,7 +176,7 @@ public class CommonStats implements Streamable, ToXContent {
                     translog = indexShard.translogStats();
                     break;
                 case Suggest:
-                    suggest = indexShard.suggestStats();
+                    // skip
                     break;
                 case RequestCache:
                     requestCache = indexShard.requestCache().stats();
@@ -235,9 +234,6 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public TranslogStats translog;
-
-    @Nullable
-    public SuggestStats suggest;
 
     @Nullable
     public RequestCacheStats requestCache;
@@ -367,14 +363,6 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             translog.add(stats.getTranslog());
         }
-        if (suggest == null) {
-            if (stats.getSuggest() != null) {
-                suggest = new SuggestStats();
-                suggest.add(stats.getSuggest());
-            }
-        } else {
-            suggest.add(stats.getSuggest());
-        }
         if (requestCache == null) {
             if (stats.getRequestCache() != null) {
                 requestCache = new RequestCacheStats();
@@ -469,11 +457,6 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public SuggestStats getSuggest() {
-        return suggest;
-    }
-
-    @Nullable
     public RequestCacheStats getRequestCache() {
         return requestCache;
     }
@@ -555,7 +538,6 @@ public class CommonStats implements Streamable, ToXContent {
             segments = SegmentsStats.readSegmentsStats(in);
         }
         translog = in.readOptionalStreamable(TranslogStats::new);
-        suggest = in.readOptionalStreamable(SuggestStats::new);
         requestCache = in.readOptionalStreamable(RequestCacheStats::new);
         recoveryStats = in.readOptionalStreamable(RecoveryStats::new);
     }
@@ -647,7 +629,6 @@ public class CommonStats implements Streamable, ToXContent {
             segments.writeTo(out);
         }
         out.writeOptionalStreamable(translog);
-        out.writeOptionalStreamable(suggest);
         out.writeOptionalStreamable(requestCache);
         out.writeOptionalStreamable(recoveryStats);
     }
@@ -699,9 +680,6 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (translog != null) {
             translog.toXContent(builder, params);
-        }
-        if (suggest != null) {
-            suggest.toXContent(builder, params);
         }
         if (requestCache != null) {
             requestCache.toXContent(builder, params);

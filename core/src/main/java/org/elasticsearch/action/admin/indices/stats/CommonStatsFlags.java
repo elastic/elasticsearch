@@ -244,7 +244,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Completion("completion"),
         Segments("segments"),
         Translog("translog"),
-        Suggest("suggest"),
+        Suggest("suggest"), // unused
         RequestCache("request_cache"),
         Recovery("recovery");
 

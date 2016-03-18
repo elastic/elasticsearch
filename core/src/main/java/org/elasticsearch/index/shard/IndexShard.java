@@ -92,8 +92,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
-import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -135,7 +133,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final IndexFieldDataService indexFieldDataService;
-    private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -252,10 +249,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public ShardGetService getService() {
         return this.getService;
-    }
-
-    public ShardSuggestMetric getSuggestMetric() {
-        return shardSuggestMetric;
     }
 
     public ShardBitsetFilterCache shardBitsetFilterCache() {
@@ -629,10 +622,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public TranslogStats translogStats() {
         return getEngine().getTranslog().stats();
-    }
-
-    public SuggestStats suggestStats() {
-        return shardSuggestMetric.stats();
     }
 
     public CompletionStats completionStats(String... fields) {

@@ -44,7 +44,6 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -94,7 +94,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2"), true);
         verify(percolate("test1", "test2"), true);
         verify(mpercolate(null, "test1", "test2"), false);
-        verify(suggest("test1", "test2"), true);
         verify(getAliases("test1", "test2"), true);
         verify(getFieldMapping("test1", "test2"), true);
         verify(getMapping("test1", "test2"), true);
@@ -114,7 +113,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2").setIndicesOptions(options), true);
         verify(percolate("test1", "test2").setIndicesOptions(options), true);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(suggest("test1", "test2").setIndicesOptions(options), true);
         verify(getAliases("test1", "test2").setIndicesOptions(options), true);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getMapping("test1", "test2").setIndicesOptions(options), true);
@@ -134,7 +132,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2").setIndicesOptions(options), false);
         verify(percolate("test1", "test2").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(suggest("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
@@ -156,7 +153,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2").setIndicesOptions(options), false);
         verify(percolate("test1", "test2").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(suggest("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
@@ -186,7 +182,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1").setIndicesOptions(options), true);
         verify(percolate("test1").setIndicesOptions(options), true);
         verify(mpercolate(options, "test1").setIndicesOptions(options), true);
-        verify(suggest("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
@@ -206,7 +201,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -229,7 +223,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -250,7 +243,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(aliasExists("test1").setIndicesOptions(options), true);
         verify(typesExists("test1").setIndicesOptions(options), true);
         verify(percolate("test1").setIndicesOptions(options), true);
-        verify(suggest("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
@@ -269,7 +261,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -291,7 +282,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -344,7 +334,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
-        verify(suggest(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -365,7 +354,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices).setIndicesOptions(options), false);
         verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
-        verify(suggest(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
@@ -389,7 +377,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
-        verify(suggest(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -410,7 +397,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
-        verify(suggest(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -431,7 +417,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices).setIndicesOptions(options), false);
         verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
-        verify(suggest(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
@@ -753,10 +738,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             builder.setIndicesOptions(options);
         }
         return builder.add(percolate(indices));
-    }
-
-    private static SuggestRequestBuilder suggest(String... indices) {
-        return client().prepareSuggest(indices).addSuggestion("name", SuggestBuilders.termSuggestion("a"));
     }
 
     private static GetAliasesRequestBuilder getAliases(String... indices) {

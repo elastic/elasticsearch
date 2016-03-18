@@ -191,6 +191,9 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public void preProcess() {
+        if (hasOnlySuggest() ) {
+            return;
+        }
         if (scrollContext == null) {
             long from = from() == -1 ? 0 : from();
             long size = size() == -1 ? 10 : size();

@@ -33,13 +33,14 @@
 ##################################
 # Common test cases for both tar and rpm/deb based plugin tests
 ##################################
-# This file is symlinked to both 25_tar_plugins.bats and 50_plugins.bats so its
+# This file is symlinked to both 25_tar_plugins.bats and 50_modules_and_plugins.bats so its
 # executed twice - once to test plugins using the tar distribution and once to
 # test files using the rpm distribution or the deb distribution, whichever the
 # system uses.
 
 # Load test utilities
 load packaging_test_utils
+load modules
 load plugins
 
 setup() {
@@ -219,16 +220,41 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install lang-expression plugin" {
-    install_and_check_plugin lang expression
+@test "[$GROUP] install ingest-attachment plugin" {
+    # we specify the version on the poi-3.13.jar so that the test does
+    # not spuriously pass if the jar is missing but the other poi jars
+    # are present
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.13.jar
 }
 
-@test "[$GROUP] install lang-groovy plugin" {
-    install_and_check_plugin lang groovy
+@test "[$GROUP] install ingest-geoip plugin" {
+    install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] install lang-painless plugin" {
-    install_and_check_plugin lang painless
+@test "[$GROUP] check ingest-grok module" {
+    check_module ingest-grok jcodings-*.jar joni-*.jar
+}
+
+@test "[$GROUP] check lang-expression module" {
+    # we specify the version on the asm-5.0.4.jar so that the test does
+    # not spuriously pass if the jar is missing but the other asm jars
+    # are present
+    check_secure_module lang-expression antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar lucene-expressions-*.jar
+}
+
+@test "[$GROUP] check lang-groovy module" {
+    check_secure_module lang-groovy groovy-*-indy.jar
+}
+
+@test "[$GROUP] check lang-mustache module" {
+    check_secure_module lang-mustache compiler-*.jar
+}
+
+@test "[$GROUP] check lang-painless module" {
+    # we specify the version on the asm-5.0.4.jar so that the test does
+    # not spuriously pass if the jar is missing but the other asm jars
+    # are present
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar
 }
 
 @test "[$GROUP] install javascript plugin" {
@@ -245,6 +271,14 @@ fi
 
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
+}
+
+@test "[$GROUP] check reindex module" {
+    check_module reindex
+}
+
+@test "[$GROUP] install repository-hdfs plugin" {
+    install_and_check_plugin repository hdfs hadoop-client-*.jar hadoop-common-*.jar hadoop-annotations-*.jar hadoop-auth-*.jar hadoop-hdfs-*.jar htrace-core-*.jar guava-*.jar protobuf-java-*.jar commons-logging-*.jar commons-cli-*.jar commons-collections-*.jar commons-configuration-*.jar commons-io-*.jar commons-lang-*.jar servlet-api-*.jar slf4j-api-*.jar
 }
 
 @test "[$GROUP] install size mapper plugin" {
@@ -264,7 +298,7 @@ fi
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
-    "$ESHOME/bin/elasticsearch-plugin" list | tail -n +2 | sed 's/^......//' > /tmp/installed
+    "$ESHOME/bin/elasticsearch-plugin" list > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
 }
 
@@ -321,16 +355,12 @@ fi
     remove_plugin discovery-ec2
 }
 
-@test "[$GROUP] remove lang-expression plugin" {
-    remove_plugin lang-expression
+@test "[$GROUP] remove ingest-attachment plugin" {
+    remove_plugin ingest-attachment
 }
 
-@test "[$GROUP] remove lang-groovy plugin" {
-    remove_plugin lang-groovy
-}
-
-@test "[$GROUP] remove lang-painless plugin" {
-    remove_plugin lang-painless
+@test "[$GROUP] remove ingest-geoip plugin" {
+    remove_plugin ingest-geoip
 }
 
 @test "[$GROUP] remove javascript plugin" {
@@ -357,12 +387,12 @@ fi
     remove_plugin repository-azure
 }
 
-@test "[$GROUP] remove repository-s3 plugin" {
-    remove_plugin repository-s3
+@test "[$GROUP] remove repository-hdfs plugin" {
+    remove_plugin repository-hdfs
 }
 
-@test "[$GROUP] remove site example plugin" {
-    remove_plugin site-example
+@test "[$GROUP] remove repository-s3 plugin" {
+    remove_plugin repository-s3
 }
 
 @test "[$GROUP] remove store-smb plugin" {
@@ -393,14 +423,14 @@ fi
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
     # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
-        [ "$loglines" -eq "7" ] || {
-            echo "Expected 7 lines but the output was:"
+        [ "$loglines" -eq "3" ] || {
+            echo "Expected 3 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
-        [ "$loglines" -eq "6" ] || {
-            echo "Expected 6 lines but the output was:"
+        [ "$loglines" -eq "2" ] || {
+            echo "Expected 2 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }
@@ -408,17 +438,17 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Ees.logger.level=DEBUG > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
-        [ "$loglines" -gt "7" ] || {
-            echo "Expected more than 7 lines but the output was:"
+        [ "$loglines" -gt "3" ] || {
+            echo "Expected more than 3 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
-        [ "$loglines" -gt "6" ] || {
-            echo "Expected more than 6 lines but the output was:"
+        [ "$loglines" -gt "2" ] || {
+            echo "Expected more than 2 lines but the output was:"
             cat /tmp/plugin-cli-output
             false
         }

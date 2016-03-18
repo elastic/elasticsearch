@@ -350,21 +350,19 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     /**
      * Suck up all the empty directories that we need to install into the path.
      */
-    Closure suckUpEmptyDirectories = { path ->
+    Closure suckUpEmptyDirectories = { path, u, g ->
       into(path) {
         from "${packagingFiles}/${path}"
         includeEmptyDirs true
         createDirectoryEntry true
-        /* All of these empty directories have this ownership. We're just
-          lucky! */
-        user 'elasticsearch'
-        permissionGroup 'elasticsearch'
+        user u
+        permissionGroup g
       }
     }
-    suckUpEmptyDirectories('/var/run')
-    suckUpEmptyDirectories('/var/log')
-    suckUpEmptyDirectories('/var/lib')
-    suckUpEmptyDirectories('/usr/share/elasticsearch')
+    suckUpEmptyDirectories('/var/run', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/var/log', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/var/lib', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/usr/share/elasticsearch', 'root', 'root')
   }
 }
 

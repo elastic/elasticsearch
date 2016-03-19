@@ -1028,6 +1028,41 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testOptimzedPrunesDeletedDocs() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+        String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
+            {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
+            {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
+            {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
+        for (int i = 0; i < input.length; i++) {
+            client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .field("input", input[i])
+                    .endObject()
+                    .endObject()
+                )
+                .execute().actionGet();
+        }
+
+        refresh();
+
+        assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
+        assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
+
+        client().prepareDelete(INDEX, TYPE, "" + (input.length-1)).get();
+        assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
+        assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
+        client().admin().indices().prepareForceMerge(INDEX)
+            .setOnlyExpungeDeletes(true)// only deletes
+            .setFlush(true) // flush the result (commit lucene index)
+            .get();
+        refresh(); // refresh to make the optimized records visible
+        assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
+        assertSuggestionsNotInOrder("t", "The Prodigy",  "Turbonegro", "The Prodigy Firestarter"); //  "Turbonegro Get it on" is deleted
+    }
+
+
     @Test
     // see #3596
     public void testVeryLongInput() throws IOException {

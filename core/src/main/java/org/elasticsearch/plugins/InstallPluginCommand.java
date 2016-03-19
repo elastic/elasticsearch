@@ -182,11 +182,18 @@ class InstallPluginCommand extends Command {
             final String version = Version.CURRENT.toString();
             final String url;
             if (System.getProperty(PROPERTY_SUPPORT_STAGING_URLS, "false").equals("true")) {
-                url = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%1$s-%2$s/org/elasticsearch/plugin/%3$s/%1$s/%3$s-%1$s.zip",
-                        version, Build.CURRENT.shortHash(), pluginId);
+                url = String.format(
+                        Locale.ROOT,
+                        "https://download.elastic.co/elasticsearch/staging/%1$s-%2$s/org/elasticsearch/plugin/%3$s/%1$s/%3$s-%1$s.zip",
+                        version,
+                        Build.CURRENT.shortHash(),
+                        pluginId);
             } else {
-                url = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%1$s/%2$s/%1$s-%2$s.zip",
-                        pluginId, version);
+                url = String.format(
+                        Locale.ROOT,
+                        "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%1$s/%2$s/%1$s-%2$s.zip",
+                        pluginId,
+                        version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadZipAndChecksum(url, tmpDir);
@@ -366,7 +373,10 @@ class InstallPluginCommand extends Command {
 
             final Path destination = env.pluginsFile().resolve(info.getName());
             if (Files.exists(destination)) {
-                throw new UserError(ExitCodes.USAGE, "plugin directory " + destination.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
+                throw new UserError(
+                    ExitCodes.USAGE,
+                    "plugin directory " + destination.toAbsolutePath() +
+                        " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
             }
 
             Path tmpBinDir = tmpRoot.resolve("bin");
@@ -419,7 +429,9 @@ class InstallPluginCommand extends Command {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new UserError(ExitCodes.DATA_ERROR, "Directories not allowed in bin dir for plugin " + info.getName() + ", found " + srcFile.getFileName());
+                    throw new UserError(
+                        ExitCodes.DATA_ERROR,
+                        "Directories not allowed in bin dir for plugin " + info.getName() + ", found " + srcFile.getFileName());
                 }
 
                 Path destFile = destBinDir.resolve(tmpBinDir.relativize(srcFile));

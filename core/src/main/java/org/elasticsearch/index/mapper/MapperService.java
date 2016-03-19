@@ -82,6 +82,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String DEFAULT_MAPPING = "_default_";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, true, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.total_fields.limit", 500L, 0, true, Setting.Scope.INDEX);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, false, Setting.Scope.INDEX);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
@@ -281,6 +282,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         if (reason == MergeReason.MAPPING_UPDATE) {
             checkNestedFieldsLimit(fullPathObjectMappers);
+            checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
         }
 
         Set<String> parentTypes = this.parentTypes;
@@ -397,6 +399,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         if (allowedNestedFields >= 0 && actualNestedFields > allowedNestedFields) {
             throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().getName() + "] has been exceeded");
+        }
+    }
+
+    private void checkTotalFieldsLimit(long totalMappers) {
+        long allowedTotalFields = indexSettings.getValue(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        if (allowedTotalFields > 0 && allowedTotalFields < totalMappers) {
+            throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName() + "] has been exceeded");
         }
     }
 

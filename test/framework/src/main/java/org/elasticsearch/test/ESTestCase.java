@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-import junit.framework.AssertionFailedError;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -46,10 +45,14 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -76,7 +79,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -130,7 +137,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfFailed(List<Throwable> errors) {
     }
 
-    /** called after a test is finished, but only if succesfull */
+    /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {
     }
 
@@ -282,10 +289,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *
-     * @param start lower bound of interval to draw uniformly distributed random numbers from
-     * @param end upper bound
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
      * @param lowerInclusive whether or not to include lower end of the interval
-     * */
+     */
     public static double randomDoubleBetween(double start, double end, boolean lowerInclusive) {
         double result = 0.0;
 
@@ -394,6 +401,26 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
+    }
+
+    /**
+     * helper to randomly perform on <code>consumer</code> with <code>value</code>
+     */
+    public static <T> void maybeSet(Consumer<T> consumer, T value) {
+        if (randomBoolean()) {
+            consumer.accept(value);
+        }
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input
+     */
+    public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        T randomValue = null;
+        do {
+            randomValue = randomSupplier.get();
+        } while (randomValue.equals(input));
+        return randomValue;
     }
 
     /**
@@ -555,19 +582,27 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, T... values) {
-        return randomSubsetOf(size, Arrays.asList(values));
+        List<T> list = arrayAsArrayList(values);
+        return randomSubsetOf(size, list);
+    }
+
+    /**
+     * Returns a random subset of values (including a potential empty list)
+     */
+    public static <T> List<T> randomSubsetOf(Collection<T> collection) {
+        return randomSubsetOf(randomInt(collection.size() - 1), collection);
     }
 
     /**
      * Returns size random values
      */
-    public static <T> List<T> randomSubsetOf(int size, Collection<T> values) {
-        if (size > values.size()) {
-            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.size() + " objects");
+    public static <T> List<T> randomSubsetOf(int size, Collection<T> collection) {
+        if (size > collection.size()) {
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a collection of " + collection.size() + " objects");
         }
-        List<T> list = new ArrayList<>(values);
-        Collections.shuffle(list, random());
-        return list.subList(0, size);
+        List<T> tempList = new ArrayList<>(collection);
+        Collections.shuffle(tempList, random());
+        return tempList.subList(0, size);
     }
 
 
@@ -649,5 +684,25 @@ public abstract class ESTestCase extends LuceneTestCase {
             // busy spin
         }
         return elapsed;
+    }
+
+    /**
+     * Creates an AnalysisService to test analysis factories and analyzers.
+     */
+    @SafeVarargs
+    public static AnalysisService createAnalysisService(Index index, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+        Settings indexSettings = settingsBuilder().put(settings)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment env = new Environment(nodeSettings);
+        AnalysisModule analysisModule = new AnalysisModule(env);
+        for (Consumer<AnalysisModule> consumer : moduleConsumers) {
+            consumer.accept(analysisModule);
+        }
+        SettingsModule settingsModule = new SettingsModule(nodeSettings);
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        final AnalysisService analysisService = analysisModule.buildRegistry().build(IndexSettingsModule.newIndexSettings(index, indexSettings));
+        return analysisService;
     }
 }

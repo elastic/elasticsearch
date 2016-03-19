@@ -259,7 +259,7 @@ command, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -Des.network.host=10.0.0.4
+$ elasticsearch -Ees.network.host=10.0.0.4
 --------------------------------------------------
 
 Another option is to set `es.default.` prefix instead of `es.` prefix,
@@ -336,7 +336,7 @@ course, the above can also be set as a "collapsed" setting, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -Des.index.refresh_interval=5s
+$ elasticsearch -Ees.index.refresh_interval=5s
 --------------------------------------------------
 
 All of the index level configuration can be found within each

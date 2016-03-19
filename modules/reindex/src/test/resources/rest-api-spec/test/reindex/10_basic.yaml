@@ -75,6 +75,7 @@
             index: source
           dest:
             index: dest
+  - is_false: timed_out
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
   - is_false: updated
@@ -125,7 +126,8 @@
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
-  - match: {failures.0.cause.reason: "[foo][1]: version conflict, document already exists (current version [1])"}
+  # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
+  - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.document.already.exists.\\(current.version.\\[\\d+\\]\\)/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  dest}
   - is_true: took

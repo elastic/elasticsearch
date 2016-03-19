@@ -768,7 +768,9 @@ public class InternalEngine extends Engine {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
                 }
                 if (flush) {
-                    flush(true, true);
+                    if (tryRenewSyncCommit() == false) {
+                        flush(false, true);
+                    }
                 }
                 if (upgrade) {
                     logger.info("finished segment upgrade");

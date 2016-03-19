@@ -173,7 +173,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     PercolateRequest percolateRequest = (PercolateRequest) element;
                     String[] concreteIndices;
                     try {
-                         concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, percolateRequest);
+                         concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, percolateRequest);
                     } catch (IndexNotFoundException e) {
                         reducedResponses.set(slot, e);
                         responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));

@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,38 +34,23 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder implements NamedWriteable<ScoreSortBuilder>,
-    SortElementParserTemp<ScoreSortBuilder> {
+public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements SortBuilderParser<ScoreSortBuilder> {
 
     private static final String NAME = "_score";
     static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
-    private SortOrder order = SortOrder.DESC;
 
-    /**
-     * The order of sort scoring. By default, its {@link SortOrder#DESC}.
-     */
-    @Override
-    public ScoreSortBuilder order(SortOrder order) {
-        Objects.requireNonNull(order, "sort order cannot be null.");
-        this.order = order;
-        return this;
+    public ScoreSortBuilder() {
+        // order defaults to desc when sorting on the _score
+        order(SortOrder.DESC);
     }
 
-    /**
-     * Get the order of sort scoring. By default, its {@link SortOrder#DESC}.
-     */
-    public SortOrder order() {
-        return this.order;
-    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (order == SortOrder.ASC) {
-            builder.field(REVERSE_FIELD.getPreferredName(), true);
-        }
+        builder.field(ORDER_FIELD.getPreferredName(), order);
         builder.endObject();
         return builder;
     }
@@ -124,7 +108,8 @@ public class ScoreSortBuilder extends SortBuilder implements NamedWriteable<Scor
 
     @Override
     public ScoreSortBuilder readFrom(StreamInput in) throws IOException {
-        return new ScoreSortBuilder().order(SortOrder.readOrderFrom(in));
+        ScoreSortBuilder builder = new ScoreSortBuilder().order(SortOrder.readOrderFrom(in));
+        return builder;
     }
 
     @Override

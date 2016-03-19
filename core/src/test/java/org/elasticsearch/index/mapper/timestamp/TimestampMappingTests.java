@@ -182,7 +182,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
         assertThat(request.timestamp(), notNullValue());
-        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"), Version.CURRENT)));
+        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]

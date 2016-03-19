@@ -732,7 +732,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             false, true, upgrade.upgradeOnlyAncientSegments());
         org.apache.lucene.util.Version version = minimumCompatibleVersion();
         if (logger.isTraceEnabled()) {
-            logger.trace("upgraded segment {} from version {} to version {}", previousVersion, version);
+            logger.trace("upgraded segments for {} from version {} to version {}", shardId, previousVersion, version);
         }
 
         return version;

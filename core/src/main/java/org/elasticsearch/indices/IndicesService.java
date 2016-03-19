@@ -47,6 +47,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -116,7 +117,8 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService>, IndexService.ShardStoreDeleter {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
-    public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final TimeValue shardsClosedTimeout;
@@ -193,7 +195,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 try {
                     removeIndex(index, "shutdown", false);
                 } catch (Throwable e) {
-                    logger.warn("failed to remove index on stop " + index + "", e);
+                    logger.warn("failed to remove index on stop [{}]", e, index);
                 } finally {
                     latch.countDown();
                 }
@@ -532,7 +534,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
-            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index.getName()));
+            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
         }
     }
 
@@ -543,6 +545,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
+    @Override
     public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
@@ -625,12 +628,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
-            if (indexService != null && nodeEnv.hasNodeFile()) {
-                return indexService.hasShard(shardId.id()) == false;
-            } else if (nodeEnv.hasNodeFile()) {
-                if (indexSettings.hasCustomDataPath()) {
+           if (nodeEnv.hasNodeFile()) {
+                final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
+                if (isAllocated) {
+                    return false; // we are allocated - can't delete the shard
+                } else if (indexSettings.hasCustomDataPath()) {
+                    // lets see if it's on a custom path (return false if the shared doesn't exist)
+                    // we don't need to delete anything that is not there
                     return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
                 } else {
+                    // lets see if it's path is available (return false if the shared doesn't exist)
+                    // we don't need to delete anything that is not there
                     return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
                 }
             }
@@ -650,6 +658,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * Adds a pending delete for the given index shard.
      */
+    @Override
     public void addPendingDelete(ShardId shardId, IndexSettings settings) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");

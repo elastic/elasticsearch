@@ -20,14 +20,20 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
+import java.util.Objects;
+
 /**
  *
  */
-public abstract class SortBuilder implements ToXContent {
+public abstract class SortBuilder<T extends SortBuilder<?>> implements ToXContent {
+
+    protected SortOrder order = SortOrder.ASC;
+    public static final ParseField ORDER_FIELD = new ParseField("order");
 
     @Override
     public String toString() {
@@ -42,7 +48,19 @@ public abstract class SortBuilder implements ToXContent {
     }
 
     /**
-     * The order of sorting. Defaults to {@link SortOrder#ASC}.
+     * Set the order of sorting.
      */
-    public abstract SortBuilder order(SortOrder order);
+    @SuppressWarnings("unchecked")
+    public T order(SortOrder order) {
+        Objects.requireNonNull(order, "sort order cannot be null.");
+        this.order = order;
+        return (T) this;
+    }
+
+    /**
+     * Return the {@link SortOrder} used for this {@link SortBuilder}.
+     */
+    public SortOrder order() {
+        return this.order;
+    }
 }

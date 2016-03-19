@@ -49,15 +49,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.WrapperQueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -80,10 +74,11 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.search.suggest.SuggestBuilderTests;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -114,6 +109,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
     private static Index index;
 
     private static AggregatorParsers aggParsers;
+
+    private static Suggesters suggesters;
 
     private static String[] currentTypes;
 
@@ -172,7 +169,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)), settingsModule,
                 new ThreadPoolModule(new ThreadPool(settings)),
                 scriptModule, new IndicesModule() {
-
                     @Override
                     protected void configure() {
                         bindMapperExtension();
@@ -182,13 +178,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     protected void configureSearch() {
                         // Skip me
                     }
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 },
                 new IndexSettingsModule(index, settings),
-
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -199,6 +190,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 }
         ).createInjector();
         aggParsers = injector.getInstance(AggregatorParsers.class);
+        suggesters = injector.getInstance(Suggesters.class);
         // create some random type with some default field, those types will
         // stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -350,7 +342,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                     break;
                 case 3:
-                    builder.sort(SortBuilders.scriptSort(new Script("foo"), "number").order(randomFrom(SortOrder.values())));
+                    builder.sort(SortBuilders.scriptSort(new Script("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                     break;
                 case 4:
                     builder.sort(randomAsciiOfLengthBetween(5, 20));
@@ -415,9 +407,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             builder.highlighter(HighlightBuilderTests.randomHighlighterBuilder());
         }
         if (randomBoolean()) {
-            // NORELEASE need a random suggest builder method
-            builder.suggest(new SuggestBuilder().setText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
-                    SuggestBuilders.termSuggestion(randomAsciiOfLengthBetween(1, 5))));
+            builder.suggest(SuggestBuilderTests.randomSuggestBuilder());
         }
         if (randomBoolean()) {
             // NORELEASE need a random inner hits builder method
@@ -465,7 +455,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
         }
-        SearchSourceBuilder newBuilder = SearchSourceBuilder.parseSearchSource(parser, parseContext, aggParsers);
+        SearchSourceBuilder newBuilder = SearchSourceBuilder.parseSearchSource(parser, parseContext, aggParsers, suggesters);
         assertNull(parser.nextToken());
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
@@ -503,14 +493,17 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertTrue("source builder is not equal to self", secondBuilder.equals(secondBuilder));
         assertTrue("source builder is not equal to its copy", firstBuilder.equals(secondBuilder));
         assertTrue("source builder is not symmetric", secondBuilder.equals(firstBuilder));
-        assertThat("source builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
+        assertThat("source builder copy's hashcode is different from original hashcode",
+                   secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
 
         SearchSourceBuilder thirdBuilder = copyBuilder(secondBuilder);
         assertTrue("source builder is not equal to self", thirdBuilder.equals(thirdBuilder));
         assertTrue("source builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-        assertThat("source builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
+        assertThat("source builder copy's hashcode is different from original hashcode",
+                   secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
         assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-        assertThat("source builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
+        assertThat("source builder copy's hashcode is different from original hashcode",
+                   firstBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
         assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
         assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
     }
@@ -530,7 +523,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             String restContent = " { \"_source\": { \"includes\": \"include\", \"excludes\": \"*.field2\"}}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
-                        aggParsers);
+                        aggParsers, suggesters);
                 assertArrayEquals(new String[]{"*.field2" }, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{"include" }, searchSourceBuilder.fetchSource().includes());
             }
@@ -539,7 +532,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             String restContent = " { \"_source\": false}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
-                        aggParsers);
+                        aggParsers, suggesters);
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
@@ -552,9 +545,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
             String restContent = " { \"sort\": \"foo\"}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
-                        aggParsers);
+                        aggParsers, suggesters);
                 assertEquals(1, searchSourceBuilder.sorts().size());
-                assertEquals("{\"foo\":{}}", searchSourceBuilder.sorts().get(0).toUtf8());
+                assertEquals("{\"foo\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
             }
         }
 
@@ -568,7 +561,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     "    ]}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
-                        aggParsers);
+                        aggParsers, suggesters);
                 assertEquals(5, searchSourceBuilder.sorts().size());
                 assertEquals("{\"post_date\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
                 assertEquals("\"user\"", searchSourceBuilder.sorts().get(1).toUtf8());

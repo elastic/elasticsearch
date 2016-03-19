@@ -60,10 +60,10 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                  TransportCreateIndexAction createIndexAction, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver, MappingUpdatedAction mappingUpdatedAction,
+                                 IndexNameExpressionResolver indexNameExpressionResolver,
                                  AutoCreateIndex autoCreateIndex) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-                mappingUpdatedAction, actionFilters, indexNameExpressionResolver,
+            actionFilters, indexNameExpressionResolver,
                 DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;

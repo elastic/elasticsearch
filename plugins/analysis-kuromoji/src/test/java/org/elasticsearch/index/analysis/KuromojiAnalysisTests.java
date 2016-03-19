@@ -198,18 +198,20 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
         Settings settings = Settings.settingsBuilder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        final SettingsModule settingsModule = new SettingsModule(settings);
+        Settings nodeSettings = Settings.settingsBuilder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final SettingsModule settingsModule = new SettingsModule(nodeSettings);
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         Index index = new Index("test", "_na_");
 
-        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
+        Environment environment = new Environment(nodeSettings);
+        AnalysisModule analysisModule = new AnalysisModule(environment);
         new AnalysisKuromojiPlugin().onModule(analysisModule);
         Injector parentInjector = new ModulesBuilder().add(settingsModule,
-                new EnvironmentModule(new Environment(settings)), analysisModule)
+                new EnvironmentModule(environment), analysisModule)
                 .createInjector();
 
         return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));

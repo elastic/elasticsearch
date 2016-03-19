@@ -23,7 +23,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -66,14 +66,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
-                    .put(InternalClusterService.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
+                    .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
-                    .put(InternalClusterService.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
+                    .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
     }
 

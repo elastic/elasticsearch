@@ -281,7 +281,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         controller.assertNotThrottled(shard0);
         controller.assertThrottled(shard1);
 
-        System.out.println("TEST: now index more");
+        logger.info("--> Indexing more data");
 
         // More indexing to shard0
         controller.simulateIndexing(shard0);

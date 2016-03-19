@@ -24,10 +24,10 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -45,9 +45,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Internal startup code.
@@ -189,9 +188,13 @@ final class Bootstrap {
         node = new Node(nodeSettings);
     }
 
-    private static Environment initialSettings(boolean foreground) {
+    private static Environment initialSettings(boolean foreground, String pidFile) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
-        return InternalSettingsPreparer.prepareEnvironment(EMPTY_SETTINGS, terminal);
+        Settings.Builder builder = Settings.builder();
+        if (Strings.hasLength(pidFile)) {
+            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+        }
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal);
     }
 
     private void start() {
@@ -218,22 +221,18 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
-    static void init(String[] args) throws Throwable {
+    static void init(
+            final boolean foreground,
+            final String pidFile,
+            final Map<String, String> esSettings) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
-        BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
-        CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
-
-        if (CliTool.ExitStatus.OK != status) {
-            exit(status.status());
-        }
+        elasticsearchSettings(esSettings);
 
         INSTANCE = new Bootstrap();
 
-        boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
-
-        Environment environment = initialSettings(foreground);
+        Environment environment = initialSettings(foreground, pidFile);
         Settings settings = environment.settings();
         LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
@@ -297,6 +296,13 @@ final class Bootstrap {
         }
     }
 
+    @SuppressForbidden(reason = "Sets system properties passed as CLI parameters")
+    private static void elasticsearchSettings(Map<String, String> esSettings) {
+        for (Map.Entry<String, String> esSetting : esSettings.entrySet()) {
+            System.setProperty(esSetting.getKey(), esSetting.getValue());
+        }
+    }
+
     @SuppressForbidden(reason = "System#out")
     private static void closeSystOut() {
         System.out.close();
@@ -305,14 +311,6 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#err")
     private static void closeSysError() {
         System.err.close();
-    }
-
-    @SuppressForbidden(reason = "System#err")
-    private static void sysError(String line, boolean flush) {
-        System.err.println(line);
-        if (flush) {
-            System.err.flush();
-        }
     }
 
     private static void checkForCustomConfFile() {

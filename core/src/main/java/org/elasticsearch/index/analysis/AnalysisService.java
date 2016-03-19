@@ -155,7 +155,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                     // because analyzers are aliased, they might be closed several times
                     // an NPE is thrown in this case, so ignore....
                 } catch (Exception e) {
-                    logger.debug("failed to close analyzer " + analyzer);
+                    logger.debug("failed to close analyzer {}", analyzer);
                 }
             }
         }

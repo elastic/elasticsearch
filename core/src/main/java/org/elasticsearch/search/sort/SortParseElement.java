@@ -138,7 +138,7 @@ public class SortParseElement implements SearchParseElement {
                     addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedFilterParseHelper);
                 } else {
                     if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).parse(parser, context));
+                        sortFields.add(PARSERS.get(fieldName).parse(parser, context.getQueryShardContext()));
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -160,7 +160,7 @@ public class SortParseElement implements SearchParseElement {
                                     sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     if (nestedFilterParseHelper == null) {
-                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context);
+                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context.getQueryShardContext());
                                     }
                                     nestedFilterParseHelper.setPath(parser.text());
                                 } else {
@@ -169,7 +169,7 @@ public class SortParseElement implements SearchParseElement {
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
                                     if (nestedFilterParseHelper == null) {
-                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context);
+                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context.getQueryShardContext());
                                     }
                                     nestedFilterParseHelper.filter();
                                 } else {
@@ -231,14 +231,13 @@ public class SortParseElement implements SearchParseElement {
             final Nested nested;
             if (nestedHelper != null && nestedHelper.getPath() != null) {
                 BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
-                Query innerDocumentsFilter;
+                Query innerDocumentsQuery;
                 if (nestedHelper.filterFound()) {
-                    // TODO: use queries instead
-                    innerDocumentsFilter = nestedHelper.getInnerFilter();
+                    innerDocumentsQuery = nestedHelper.getInnerFilter();
                 } else {
-                    innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
+                    innerDocumentsQuery = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
                 }
-                nested = new Nested(rootDocumentsFilter,  context.searcher().createNormalizedWeight(innerDocumentsFilter, false));
+                nested = new Nested(rootDocumentsFilter,  innerDocumentsQuery);
             } else {
                 nested = null;
             }

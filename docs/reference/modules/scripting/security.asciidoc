@@ -100,7 +100,13 @@ Security Policy either:
 
 * system wide: `$JAVA_HOME/lib/security/java.policy`,
 * for just the `elasticsearch` user: `/home/elasticsearch/.java.policy`, or
-* from a file specified on the command line: `-Djava.security.policy=someURL`
+* from a file specified in the `JAVA_OPTS` environment variable with `-Djava.security.policy=someURL`:
++
+[source,js]
+---------------------------------
+export JAVA_OPTS="${JAVA_OPTS} -Djava.security.policy=file:///path/to/my.policy`
+./bin/elasticsearch
+---------------------------------
 
 Permissions may be granted at the class, package, or global level.  For instance:
 

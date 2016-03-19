@@ -19,11 +19,11 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
@@ -63,7 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
 
     public static final String PREFIX = "request.headers";
-    public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", false, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
     private final Map<String, String> defaultHeader;
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct(Collections.emptyMap());
     private final ContextThreadLocal threadLocal;
@@ -198,6 +198,36 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
      */
     public <T> T getTransient(String key) {
         return (T) threadLocal.get().transientHeaders.get(key);
+    }
+
+    /**
+     * Saves the current thread context and wraps command in a Runnable that restores that context before running command. If
+     * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
+     */
+    public Runnable preserveContext(Runnable command) {
+        if (command instanceof ContextPreservingAbstractRunnable) {
+            return command;
+        }
+        if (command instanceof ContextPreservingRunnable) {
+            return command;
+        }
+        if (command instanceof AbstractRunnable) {
+            return new ContextPreservingAbstractRunnable((AbstractRunnable) command);
+        }
+        return new ContextPreservingRunnable(command);
+    }
+
+    /**
+     * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
+     */
+    public Runnable unwrap(Runnable command) {
+        if (command instanceof ContextPreservingAbstractRunnable) {
+            return ((ContextPreservingAbstractRunnable) command).unwrap();
+        }
+        if (command instanceof ContextPreservingRunnable) {
+            return ((ContextPreservingRunnable) command).unwrap();
+        }
+        return command;
     }
 
     public interface StoredContext extends AutoCloseable {
@@ -354,6 +384,106 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
             if (closed.compareAndSet(false, true)) {
                 super.close();
             }
+        }
+    }
+
+    /**
+     * Wraps a Runnable to preserve the thread context.
+     */
+    class ContextPreservingRunnable implements Runnable {
+        private final Runnable in;
+        private final ThreadContext.StoredContext ctx;
+
+        ContextPreservingRunnable(Runnable in) {
+            ctx = newStoredContext();
+            this.in = in;
+        }
+
+        @Override
+        public void run() {
+            boolean whileRunning = false;
+            try (ThreadContext.StoredContext ingore = stashContext()){
+                ctx.restore();
+                whileRunning = true;
+                in.run();
+                whileRunning = false;
+            } catch (IllegalStateException ex) {
+                if (whileRunning || threadLocal.closed.get() == false) {
+                    throw ex;
+                }
+                // if we hit an ISE here we have been shutting down
+                // this comes from the threadcontext and barfs if
+                // our threadpool has been shutting down
+            }
+        }
+
+        @Override
+        public String toString() {
+            return in.toString();
+        }
+
+        public Runnable unwrap() {
+            return in;
+        }
+    }
+
+    /**
+     * Wraps an AbstractRunnable to preserve the thread context.
+     */
+    public class ContextPreservingAbstractRunnable extends AbstractRunnable {
+        private final AbstractRunnable in;
+        private final ThreadContext.StoredContext ctx;
+
+        private ContextPreservingAbstractRunnable(AbstractRunnable in) {
+            ctx = newStoredContext();
+            this.in = in;
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return in.isForceExecution();
+        }
+
+        @Override
+        public void onAfter() {
+            in.onAfter();
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            in.onFailure(t);
+        }
+
+        @Override
+        public void onRejection(Throwable t) {
+            in.onRejection(t);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            boolean whileRunning = false;
+            try (ThreadContext.StoredContext ingore = stashContext()){
+                ctx.restore();
+                whileRunning = true;
+                in.doRun();
+                whileRunning = false;
+            } catch (IllegalStateException ex) {
+                if (whileRunning || threadLocal.closed.get() == false) {
+                    throw ex;
+                }
+                // if we hit an ISE here we have been shutting down
+                // this comes from the threadcontext and barfs if
+                // our threadpool has been shutting down
+            }
+        }
+
+        @Override
+        public String toString() {
+            return in.toString();
+        }
+
+        public AbstractRunnable unwrap() {
+            return in;
         }
     }
 }

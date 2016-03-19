@@ -22,19 +22,15 @@ package org.elasticsearch.cluster.settings;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -50,6 +46,11 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public static class SettingsFilteringPlugin extends Plugin {
+        public static final Setting<Boolean> SOME_NODE_SETTING =
+            Setting.boolSetting("some.node.setting", false, Property.NodeScope, Property.Filtered);
+        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
+            Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
+
         /**
          * The name of the plugin.
          */
@@ -72,10 +73,9 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         public void onModule(SettingsModule module) {
-            module.registerSetting(Setting.groupSetting("index.filter_test.", false, Setting.Scope.INDEX));
-            module.registerSetting(Setting.boolSetting("some.node.setting", false,  false, Setting.Scope.CLUSTER));
-            module.registerSetting(Setting.boolSetting("some.other.node.setting", false,  false, Setting.Scope.CLUSTER));
-            module.registerSettingsFilter("some.node.setting");
+            module.registerSetting(SOME_NODE_SETTING);
+            module.registerSetting(SOME_OTHER_NODE_SETTING);
+            module.registerSetting(Setting.groupSetting("index.filter_test.", Property.IndexScope));
             module.registerSettingsFilter("index.filter_test.foo");
             module.registerSettingsFilter("index.filter_test.bar*");
         }
@@ -104,8 +104,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         for(NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
-            assertNull(settings.get("some.node.setting"));
-            assertTrue(settings.getAsBoolean("some.other.node.setting", false));
+            assertNull(settings.get(SettingsFilteringPlugin.SOME_NODE_SETTING.getKey()));
+            assertTrue(settings.getAsBoolean(SettingsFilteringPlugin.SOME_OTHER_NODE_SETTING.getKey(), false));
             assertEquals(settings.get("node.name"), info.getNode().getName());
         }
     }

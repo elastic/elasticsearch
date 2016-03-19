@@ -37,7 +37,11 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.context.QueryContext;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
@@ -64,6 +68,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -278,6 +283,14 @@ public abstract class StreamInput extends InputStream {
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
             return readString();
+        }
+        return null;
+    }
+
+    @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
         }
         return null;
     }
@@ -552,12 +565,9 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    /**
-     * Serializes a potential null value.
-     */
-    public <T> T readOptionalStreamableReader(StreamableReader<T> streamableReader) throws IOException {
+    public <T extends Writeable> T readOptionalWritable(Writeable.IOFunction<StreamInput, T> provider) throws IOException {
         if (readBoolean()) {
-            return streamableReader.readFrom(this);
+            return provider.apply(this);
         } else {
             return null;
         }
@@ -710,10 +720,24 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a {@link SuggestionBuilder} from the current stream
+     */
+    public SuggestionBuilder<?> readSuggestion() throws IOException {
+        return readNamedWriteable(SuggestionBuilder.class);
+    }
+
+    /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SmoothingModel} from the current stream
+     */
+    public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
+        return readNamedWriteable(SmoothingModel.class);
     }
 
     /**

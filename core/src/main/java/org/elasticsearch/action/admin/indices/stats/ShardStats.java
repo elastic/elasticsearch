@@ -107,7 +107,7 @@ public class ShardStats implements Streamable, ToXContent {
         statePath = in.readString();
         dataPath = in.readString();
         isCustomDataPath = in.readBoolean();
-        seqNoStats = in.readOptionalStreamableReader(SeqNoStats::new);
+        seqNoStats = in.readOptionalWritable(SeqNoStats::new);
     }
 
     @Override
@@ -118,7 +118,7 @@ public class ShardStats implements Streamable, ToXContent {
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);
-        out.writeOptionalWritable(seqNoStats);
+        out.writeOptionalWriteable(seqNoStats);
     }
 
     @Override

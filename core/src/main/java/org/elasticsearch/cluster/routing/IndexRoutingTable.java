@@ -329,7 +329,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     @Override
     public IndexRoutingTable readFrom(StreamInput in) throws IOException {
-        Index index = Index.readIndex(in);
+        Index index = new Index(in);
         Builder builder = new Builder(index);
 
         int size = in.readVInt();

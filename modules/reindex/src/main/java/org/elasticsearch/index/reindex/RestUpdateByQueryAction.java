@@ -19,6 +19,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.RestReindexAction.parseCommon;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
+import java.util.Map;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -38,20 +44,15 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-
-import java.util.Map;
-
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-import static org.elasticsearch.index.reindex.RestReindexAction.parseCommon;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import org.elasticsearch.search.suggest.Suggesters;
 
 public class RestUpdateByQueryAction extends
         AbstractBaseReindexRestHandler<UpdateByQueryRequest, BulkIndexByScrollResponse, TransportUpdateByQueryAction> {
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, ClusterService clusterService,
-            TransportUpdateByQueryAction action) {
-        super(settings, client, indicesQueriesRegistry, aggParsers, clusterService, action);
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
+            ClusterService clusterService, TransportUpdateByQueryAction action) {
+        super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
@@ -96,7 +97,7 @@ public class RestUpdateByQueryAction extends
             }
         }
         RestSearchAction.parseSearchRequest(internalRequest.getSearchRequest(), indicesQueriesRegistry, request,
-                parseFieldMatcher, aggParsers, bodyContent);
+                parseFieldMatcher, aggParsers, suggesters, bodyContent);
 
         String conflicts = request.param("conflicts");
         if (conflicts != null) {
@@ -107,7 +108,10 @@ public class RestUpdateByQueryAction extends
         internalRequest.setSize(internalRequest.getSearchRequest().source().size());
         internalRequest.setPipeline(request.param("pipeline"));
         internalRequest.getSearchRequest().source().size(request.paramAsInt("scroll_size", scrollSize));
-
+        // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
+        if (request.hasParam("search_timeout")) {
+            internalRequest.getSearchRequest().source().timeout(request.paramAsTime("search_timeout", null));
+        }
 
         execute(request, internalRequest, channel);
     }

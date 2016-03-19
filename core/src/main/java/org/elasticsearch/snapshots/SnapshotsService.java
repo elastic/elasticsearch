@@ -51,6 +51,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -204,9 +205,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots == null || snapshots.entries().isEmpty()) {
                     // Store newSnapshot here to be processed in clusterStateProcessed
-                    List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndices(currentState, request.indicesOptions(), request.indices()));
+                    List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request.indicesOptions(), request.indices()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", request.repository(), request.name(), indices);
-                    newSnapshot = new SnapshotsInProgress.Entry(snapshotId, request.includeGlobalState(), State.INIT, indices, System.currentTimeMillis(), null);
+                    newSnapshot = new SnapshotsInProgress.Entry(snapshotId, request.includeGlobalState(), request.partial(), State.INIT, indices, System.currentTimeMillis(), null);
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
                     // TODO: What should we do if a snapshot is already running?
@@ -228,7 +229,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
                         @Override
                         public void run() {
-                            beginSnapshot(newState, newSnapshot, request.partial, listener);
+                            beginSnapshot(newState, newSnapshot, request.partial(), listener);
                         }
                     });
                 }
@@ -751,7 +752,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         Set<String> closed = new HashSet<>();
         for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
             if (entry.value.state() == State.MISSING) {
-                if (metaData.hasIndex(entry.key.getIndex().getName()) && metaData.index(entry.key.getIndex()).getState() == IndexMetaData.State.CLOSE) {
+                if (metaData.hasIndex(entry.key.getIndex().getName()) && metaData.getIndexSafe(entry.key.getIndex()).getState() == IndexMetaData.State.CLOSE) {
                     closed.add(entry.key.getIndex().getName());
                 } else {
                     missing.add(entry.key.getIndex().getName());
@@ -841,7 +842,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.warn("[{}][{}] failed to remove snapshot metadata", t, snapshotId);
+                logger.warn("[{}] failed to remove snapshot metadata", t, snapshotId);
             }
 
             @Override
@@ -1059,6 +1060,65 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         }
 
         return builder.build();
+    }
+
+    /**
+     * Check if any of the indices to be deleted are currently being snapshotted. Fail as deleting an index that is being
+     * snapshotted (with partial == false) makes the snapshot fail.
+     */
+    public static void checkIndexDeletion(ClusterState currentState, Set<IndexMetaData> indices) {
+        Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
+        if (indicesToFail != null) {
+            throw new IllegalArgumentException("Cannot delete indices that are being snapshotted: " + indicesToFail +
+                ". Try again after snapshot finishes or cancel the currently running snapshot.");
+        }
+    }
+
+    /**
+     * Check if any of the indices to be closed are currently being snapshotted. Fail as closing an index that is being
+     * snapshotted (with partial == false) makes the snapshot fail.
+     */
+    public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
+        Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
+        if (indicesToFail != null) {
+            throw new IllegalArgumentException("Cannot close indices that are being snapshotted: " + indicesToFail +
+                ". Try again after snapshot finishes or cancel the currently running snapshot.");
+        }
+    }
+
+    private static Set<Index> indicesToFailForCloseOrDeletion(ClusterState currentState, Set<IndexMetaData> indices) {
+        SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+        Set<Index> indicesToFail = null;
+        if (snapshots != null) {
+            for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
+                if (entry.partial() == false) {
+                    if (entry.state() == State.INIT) {
+                        for (String index : entry.indices()) {
+                            IndexMetaData indexMetaData = currentState.metaData().index(index);
+                            if (indexMetaData != null && indices.contains(indexMetaData)) {
+                                if (indicesToFail == null) {
+                                    indicesToFail = new HashSet<>();
+                                }
+                                indicesToFail.add(indexMetaData.getIndex());
+                            }
+                        }
+                    } else {
+                        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
+                            if (!shard.value.state().completed()) {
+                                IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
+                                if (indexMetaData != null && indices.contains(indexMetaData)) {
+                                    if (indicesToFail == null) {
+                                        indicesToFail = new HashSet<>();
+                                    }
+                                    indicesToFail.add(shard.key.getIndex());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return indicesToFail;
     }
 
     /**
@@ -1300,6 +1360,15 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
          */
         public boolean includeGlobalState() {
             return includeGlobalState;
+        }
+
+        /**
+         * Returns true if partial snapshot should be allowed
+         *
+         * @return true if partial snapshot should be allowed
+         */
+        public boolean partial() {
+            return partial;
         }
 
         /**

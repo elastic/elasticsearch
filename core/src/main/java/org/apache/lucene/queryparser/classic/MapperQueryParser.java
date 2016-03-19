@@ -787,8 +787,9 @@ public class MapperQueryParser extends QueryParser {
             assert q instanceof BoostQuery == false;
             return pq;
         } else if (q instanceof MultiPhraseQuery) {
-            ((MultiPhraseQuery) q).setSlop(slop);
-            return q;
+            MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
+            builder.setSlop(slop);
+            return builder.build();
         } else {
             return q;
         }

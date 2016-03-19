@@ -1490,7 +1490,7 @@ public class TranslogTests extends ESTestCase {
                 if (writtenOperations.size() != snapshot.totalOperations()) {
                     for (int i = 0; i < threadCount; i++) {
                         if (threadExceptions[i] != null) {
-                            threadExceptions[i].printStackTrace();
+                            logger.info("Translog exception", threadExceptions[i]);
                         }
                     }
                 }

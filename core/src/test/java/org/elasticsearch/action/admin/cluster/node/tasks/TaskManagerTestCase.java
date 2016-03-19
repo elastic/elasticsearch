@@ -183,7 +183,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             transportService = new TransportService(settings,
                 new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                threadPool, new NamedWriteableRegistry()) {
+                threadPool) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -194,7 +194,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService = new TestClusterService(threadPool, transportService);
+            clusterService = new TestClusterService(threadPool);
             clusterService.add(transportService.getTaskManager());
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
@@ -238,7 +238,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         RecordingTaskManagerListener[] listeners = new RecordingTaskManagerListener[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
             listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode, actionMasks);
-            ((MockTaskManager) (nodes[i].clusterService.getTaskManager())).addListener(listeners[i]);
+            ((MockTaskManager) (nodes[i].transportService.getTaskManager())).addListener(listeners[i]);
         }
         return listeners;
     }

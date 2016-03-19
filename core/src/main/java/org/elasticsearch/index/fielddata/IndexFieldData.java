@@ -20,10 +20,14 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
@@ -122,11 +126,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         public static class Nested {
 
             private final BitSetProducer rootFilter;
-            private final Weight innerFilter;
+            private final Query innerQuery;
 
-            public Nested(BitSetProducer rootFilter, Weight innerFilter) {
+            public Nested(BitSetProducer rootFilter, Query innerQuery) {
                 this.rootFilter = rootFilter;
-                this.innerFilter = innerFilter;
+                this.innerQuery = innerQuery;
             }
 
             /**
@@ -140,7 +144,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
              * Get a {@link DocIdSet} that matches the inner documents.
              */
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
-                Scorer s = innerFilter.scorer(ctx);
+                final IndexReaderContext topLevelCtx = ReaderUtil.getTopLevelContext(ctx);
+                IndexSearcher indexSearcher = new IndexSearcher(topLevelCtx);
+                Weight weight = indexSearcher.createNormalizedWeight(innerQuery, false);
+                Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();
             }
         }

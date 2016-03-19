@@ -103,7 +103,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected final ShardStateAction shardStateAction;
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
-    protected final MappingUpdatedAction mappingUpdatedAction;
 
     final String transportReplicaAction;
     final String transportPrimaryAction;
@@ -113,7 +112,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
-                                         MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
+                                         ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                          Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
@@ -121,7 +120,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
-        this.mappingUpdatedAction = mappingUpdatedAction;
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
@@ -270,7 +268,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     try {
                         channel.sendResponse(e);
                     } catch (Throwable e1) {
-                        logger.warn("Failed to send response for " + actionName, e1);
+                        logger.warn("Failed to send response for {}", e1, actionName);
                     }
                 }
             });
@@ -395,7 +393,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             try {
                 channel.sendResponse(t);
             } catch (IOException responseException) {
-                logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 logger.warn("actual Exception", t);
             }
         }
@@ -525,7 +523,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         private String concreteIndex(ClusterState state) {
-            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request) : request.index();
+            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
         }
 
         private ShardRouting primary(ClusterState state) {
@@ -1109,7 +1107,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 try {
                     channel.sendResponse(finalResponse);
                 } catch (IOException responseException) {
-                    logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                    logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 }
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on all replicas [{}] for request [{}]", transportReplicaAction, shardId, replicaRequest);

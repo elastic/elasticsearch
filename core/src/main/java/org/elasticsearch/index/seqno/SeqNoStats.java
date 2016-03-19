@@ -29,6 +29,8 @@ import java.io.IOException;
 
 public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
 
+    public static final SeqNoStats PROTO  = new SeqNoStats(0,0);
+
     final long maxSeqNo;
     final long localCheckpoint;
 

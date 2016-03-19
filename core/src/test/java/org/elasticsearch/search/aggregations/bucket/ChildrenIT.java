@@ -185,7 +185,7 @@ children("to_comment", "comment")
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
 
         for (Terms.Bucket bucket : categoryTerms.getBuckets()) {
-            logger.info("bucket=" + bucket.getKey());
+            logger.info("bucket={}", bucket.getKey());
             Children childrenBucket = bucket.getAggregations().get("to_comment");
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits());

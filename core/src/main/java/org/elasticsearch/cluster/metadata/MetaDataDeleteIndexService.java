@@ -34,14 +34,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -67,10 +71,9 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     }
 
     public void deleteIndices(final Request request, final Listener userListener) {
-        Collection<String> indices = Arrays.asList(request.indices);
         final DeleteIndexListener listener = new DeleteIndexListener(userListener);
 
-        clusterService.submitStateUpdateTask("delete-index " + indices, new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("delete-index " + request.indices, new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {
@@ -84,20 +87,21 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
+                final MetaData meta = currentState.metaData();
+                final Set<IndexMetaData> metaDatas = request.indices.stream().map(i -> meta.getIndexSafe(i)).collect(Collectors.toSet());
+                // Check if index deletion conflicts with any running snapshots
+                SnapshotsService.checkIndexDeletion(currentState, metaDatas);
+                final Set<Index> indices = request.indices;
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+                MetaData.Builder metaDataBuilder = MetaData.builder(meta);
                 ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
 
-                for (final String index: indices) {
-                    if (!currentState.metaData().hasConcreteIndex(index)) {
-                        throw new IndexNotFoundException(index);
-                    }
-
+                for (final Index index : indices) {
+                    String indexName = index.getName();
                     logger.debug("[{}] deleting index", index);
-
-                    routingTableBuilder.remove(index);
-                    clusterBlocksBuilder.removeIndexBlocks(index);
-                    metaDataBuilder.remove(index);
+                    routingTableBuilder.remove(indexName);
+                    clusterBlocksBuilder.removeIndexBlocks(indexName);
+                    metaDataBuilder.remove(indexName);
                 }
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().size();
@@ -108,7 +112,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 // this listener will be notified once we get back a notification based on the cluster state change below.
                 final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
                     @Override
-                    public void onNodeIndexDeleted(String deleted, String nodeId) {
+                    public void onNodeIndexDeleted(Index deleted, String nodeId) {
                         if (indices.contains(deleted)) {
                             if (counter.decrementAndGet() == 0) {
                                 listener.onResponse(new Response(true));
@@ -118,7 +122,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     }
 
                     @Override
-                    public void onNodeIndexStoreDeleted(String deleted, String nodeId) {
+                    public void onNodeIndexStoreDeleted(Index deleted, String nodeId) {
                         if (indices.contains(deleted)) {
                             if (counter.decrementAndGet() == 0) {
                                 listener.onResponse(new Response(true));
@@ -183,12 +187,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     public static class Request {
 
-        final String[] indices;
+        final Set<Index> indices;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
-        public Request(String[] indices) {
+        public Request(Set<Index> indices) {
             this.indices = indices;
         }
 

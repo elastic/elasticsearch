@@ -26,9 +26,7 @@ https://github.com/elastic/elasticsearch/blob/master/buildSrc/src/main/resources
 Either fill in this template yourself (see
 https://github.com/lmenezes/elasticsearch-kopf/blob/master/plugin-descriptor.properties[elasticsearch-kopf]
 as an example) or, if you are using Elasticsearch's Gradle build system, you
-can fill in the necessary values in the `build.gradle` file for your plugin. For
-instance, see
-https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/build.gradle[`/plugins/site-example/build.gradle`].
+can fill in the necessary values in the `build.gradle` file for your plugin.
 
 [float]
 ==== Mandatory elements for plugins

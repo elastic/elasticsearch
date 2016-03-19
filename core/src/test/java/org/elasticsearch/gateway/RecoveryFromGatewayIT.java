@@ -439,7 +439,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertSyncIdsNotNull();
         }
 
-        logger.info("--> disabling allocation while the cluster is shut down", useSyncIds ? "" : " a second time");
+        logger.info("--> disabling allocation while the cluster is shut down{}", useSyncIds ? "" : " a second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder()

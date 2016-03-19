@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -51,7 +52,7 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid index level settings.
- * @see org.elasticsearch.common.settings.Setting.Scope#INDEX
+ * @see Property#IndexScope
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
@@ -136,22 +137,22 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         IndexWarmer.INDEX_NORMS_LOADING_SETTING,
         // validate that built-in similarities don't get redefined
-        Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX, (s) -> {
+        Setting.groupSetting("index.similarity.", (s) -> {
             Map<String, Settings> groups = s.getAsGroups();
             for (String key : SimilarityService.BUILT_IN.keySet()) {
                 if (groups.containsKey(key)) {
                     throw new IllegalArgumentException("illegal value for [index.similarity."+ key + "] cannot redefine built-in similarity");
                 }
             }
-        }), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this allows analysis settings to be passed
+        }, Property.IndexScope), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
 
     )));
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Setting.Scope.INDEX);
+        super(settings, settingsSet, Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
@@ -160,6 +161,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {
         return new IndexScopedSettings(settings, this, metaData);
+    }
+
+    @Override
+    protected void validateSettingKey(Setting setting) {
+        if (setting.getKey().startsWith("index.") == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
+        }
+        super.validateSettingKey(setting);
     }
 
     public boolean isPrivateSetting(String key) {

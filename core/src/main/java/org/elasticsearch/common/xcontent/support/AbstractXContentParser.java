@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -286,14 +287,21 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static List<Object> readList(XContentParser parser, MapFactory mapFactory) throws IOException {
         XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
         if (token == XContentParser.Token.FIELD_NAME) {
             token = parser.nextToken();
         }
         if (token == XContentParser.Token.START_ARRAY) {
             token = parser.nextToken();
+        } else {
+            throw new ElasticsearchParseException("Failed to parse list:  expecting "
+                    + XContentParser.Token.START_ARRAY + " but got " + token);
         }
+
         ArrayList<Object> list = new ArrayList<>();
-        for (; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+        for (; token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
             list.add(readValue(parser, mapFactory, token));
         }
         return list;

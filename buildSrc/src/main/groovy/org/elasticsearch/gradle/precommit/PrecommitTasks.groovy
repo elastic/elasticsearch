@@ -34,6 +34,7 @@ class PrecommitTasks {
             configureForbiddenApis(project),
             configureCheckstyle(project),
             configureNamingConventions(project),
+            configureLoggerUsage(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
@@ -63,21 +64,21 @@ class PrecommitTasks {
         project.forbiddenApis {
             internalRuntimeForbidden = true
             failOnUnsupportedJava = false
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated']
-            signaturesURLs = [getClass().getResource('/forbidden/all-signatures.txt')]
+            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-system-out']
+            signaturesURLs = [getClass().getResource('/forbidden/jdk-signatures.txt'),
+                              getClass().getResource('/forbidden/es-all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
         }
         Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
         if (mainForbidden != null) {
             mainForbidden.configure {
-                bundledSignatures += 'jdk-system-out'
-                signaturesURLs += getClass().getResource('/forbidden/core-signatures.txt')
+                signaturesURLs += getClass().getResource('/forbidden/es-core-signatures.txt')
             }
         }
         Task testForbidden = project.tasks.findByName('forbiddenApisTest')
         if (testForbidden != null) {
             testForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/test-signatures.txt')
+                signaturesURLs += getClass().getResource('/forbidden/es-test-signatures.txt')
             }
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
@@ -116,5 +117,19 @@ class PrecommitTasks {
             return project.tasks.create('namingConventions', NamingConventionsTask)
         }
         return null
+    }
+
+    private static Task configureLoggerUsage(Project project) {
+        Task loggerUsageTask = project.tasks.create('loggerUsageCheck', LoggerUsageTask.class)
+
+        project.configurations.create('loggerUsagePlugin')
+        project.dependencies.add('loggerUsagePlugin',
+                "org.elasticsearch.test:logger-usage:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+
+        loggerUsageTask.configure {
+            classpath = project.configurations.loggerUsagePlugin
+        }
+
+        return loggerUsageTask
     }
 }

@@ -43,6 +43,7 @@ import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -263,8 +264,8 @@ public class TasksIT extends ESIntegTestCase {
         ReentrantLock taskFinishLock = new ReentrantLock();
         taskFinishLock.lock();
         CountDownLatch taskRegistered = new CountDownLatch(1);
-        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
-            ((MockTaskManager)clusterService.getTaskManager()).addListener(new MockTaskManagerListener() {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                 @Override
                 public void onTaskRegistered(Task task) {
                     if (task.getAction().startsWith(IndexAction.NAME)) {
@@ -408,7 +409,7 @@ public class TasksIT extends ESIntegTestCase {
     @Override
     public void tearDown() throws Exception {
         for (Map.Entry<Tuple<String, String>, RecordingTaskManagerListener> entry : listeners.entrySet()) {
-            ((MockTaskManager)internalCluster().getInstance(ClusterService.class, entry.getKey().v1()).getTaskManager()).removeListener(entry.getValue());
+            ((MockTaskManager) internalCluster().getInstance(TransportService.class, entry.getKey().v1()).getTaskManager()).removeListener(entry.getValue());
         }
         listeners.clear();
         super.tearDown();
@@ -418,10 +419,10 @@ public class TasksIT extends ESIntegTestCase {
      * Registers recording task event listeners with the given action mask on all nodes
      */
     private void registerTaskManageListeners(String actionMasks) {
-        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
-            DiscoveryNode node = clusterService.localNode();
+        for (String nodeName : internalCluster().getNodeNames()) {
+            DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
             RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node, Strings.splitStringToArray(actionMasks, ','));
-            ((MockTaskManager)clusterService.getTaskManager()).addListener(listener);
+            ((MockTaskManager) internalCluster().getInstance(TransportService.class, nodeName).getTaskManager()).addListener(listener);
             RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.name(), actionMasks), listener);
             assertNull(oldListener);
         }

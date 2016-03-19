@@ -152,7 +152,7 @@ if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
 if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
 
 set JVM_OPTS=%JAVA_OPTS: =;%
 

@@ -403,15 +403,17 @@ class InstallPluginCommand extends Command {
         }
         Files.createDirectory(destBinDir);
 
-        // setup file attributes for the installed files to those of the parent dir
         Set<PosixFilePermission> perms = new HashSet<>();
-        PosixFileAttributeView binAttrs = Files.getFileAttributeView(destBinDir.getParent(), PosixFileAttributeView.class);
-        if (binAttrs != null) {
-            perms = new HashSet<>(binAttrs.readAttributes().permissions());
-            // setting execute bits, since this just means "the file is executable", and actual execution requires read
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
+        if (Constants.WINDOWS == false) {
+            // setup file attributes for the installed files to those of the parent dir
+            PosixFileAttributeView binAttrs = Files.getFileAttributeView(destBinDir.getParent(), PosixFileAttributeView.class);
+            if (binAttrs != null) {
+                perms = new HashSet<>(binAttrs.readAttributes().permissions());
+                // setting execute bits, since this just means "the file is executable", and actual execution requires read
+                perms.add(PosixFilePermission.OWNER_EXECUTE);
+                perms.add(PosixFilePermission.GROUP_EXECUTE);
+                perms.add(PosixFilePermission.OTHERS_EXECUTE);
+            }
         }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
@@ -444,9 +446,15 @@ class InstallPluginCommand extends Command {
         // create the plugin's config dir "if necessary"
         Files.createDirectories(destConfigDir);
 
-        final PosixFileAttributes destConfigDirAttributes =
-                Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class).readAttributes();
-        setOwnerGroup(destConfigDir, destConfigDirAttributes);
+        final PosixFileAttributes destConfigDirAttributes;
+        if (Constants.WINDOWS) {
+            destConfigDirAttributes = null;
+        } else {
+            destConfigDirAttributes =
+                    Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class).readAttributes();
+            setOwnerGroup(destConfigDir, destConfigDirAttributes);
+
+        }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
@@ -457,7 +465,9 @@ class InstallPluginCommand extends Command {
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     Files.copy(srcFile, destFile);
-                    setOwnerGroup(destFile, destConfigDirAttributes);
+                    if (Constants.WINDOWS == false) {
+                        setOwnerGroup(destFile, destConfigDirAttributes);
+                    }
                 }
             }
         }

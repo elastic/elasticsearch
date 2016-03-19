@@ -24,14 +24,7 @@ task buildZip(type: Zip) {
 
 artifacts {
   'default' buildZip
-}
-
-publishing {
-  publications {
-    nebula {
-      artifact buildZip
-    }
-  }
+  archives buildZip
 }
 
 integTest.dependsOn buildZip

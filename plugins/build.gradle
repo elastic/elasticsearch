@@ -27,7 +27,5 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
-    // only publish non examples
-    publish project.name.contains('example') == false
   }
 }

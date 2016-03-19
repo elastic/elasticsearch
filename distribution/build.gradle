@@ -157,19 +157,6 @@ subprojects {
       MavenFilteringHack.filter(it, expansions)
     }
   }
-
-  /*****************************************************************************
-   *                           Publishing setup                                *
-   *****************************************************************************/
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
-  publishing {
-    publications {
-      nebula {
-        artifactId 'elasticsearch'
-      }
-    }
-  }
 }
 
 /*****************************************************************************

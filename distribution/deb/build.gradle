@@ -36,14 +36,7 @@ task buildDeb(type: Deb) {
 
 artifacts {
   'default' buildDeb
-}
-
-publishing {
-  publications {
-    nebula {
-      artifact buildDeb
-    }
-  }
+  archives buildDeb
 }
 
 integTest {

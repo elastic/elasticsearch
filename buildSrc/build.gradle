@@ -1,3 +1,5 @@
+import java.nio.file.Files
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,21 +19,25 @@
  * under the License.
  */
 
-import java.nio.file.Files
-
+// we must use buildscript + apply so that an external plugin
+// can apply this file, since the plugins directive is not
+// supported through file includes
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  }
+}
 apply plugin: 'groovy'
+apply plugin: 'com.bmuschko.nexus'
+// TODO: move common IDE configuration to a common file to include
+apply plugin: 'idea'
+apply plugin: 'eclipse'
 
 group = 'org.elasticsearch.gradle'
-
-if (project == rootProject) {
-  // change the build dir used during build init, so that doing a clean
-  // won't wipe out the buildscript jar
-  buildDir = 'build-bootstrap'
-}
-
-/*****************************************************************************
- *         Propagating version.properties to the rest of the build           *
- *****************************************************************************/
+archivesBaseName = 'build-tools'
 
 Properties props = new Properties()
 props.load(project.file('version.properties').newDataInputStream())
@@ -43,6 +49,32 @@ if (snapshot) {
   // to indicate this being a snapshot build or a release build.
   version += "-SNAPSHOT"
   props.put("elasticsearch", version);
+}
+
+
+repositories {
+  mavenCentral()
+  maven {
+    name 'sonatype-snapshots'
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+  jcenter()
+}
+
+dependencies {
+  compile gradleApi()
+  compile localGroovy()
+  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile("junit:junit:${props.getProperty('junit')}") {
+    transitive = false
+  }
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
+  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
+  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
+  compile 'de.thetaphi:forbiddenapis:2.0'
+  compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  compile 'org.apache.rat:apache-rat:0.11'
 }
 
 File tempPropertiesFile = new File(project.buildDir, "version.properties")
@@ -63,92 +95,31 @@ processResources {
   from tempPropertiesFile
 }
 
-/*****************************************************************************
- *                    Dependencies used by the entire build                  *
- *****************************************************************************/
-
-repositories {
-  jcenter()
+extraArchive {
+  javadoc = false
+  tests = false
 }
 
-dependencies {
-  compile gradleApi()
-  compile localGroovy()
-  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
-  compile("junit:junit:${props.getProperty('junit')}") {
-    transitive = false
-  }
-  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
-  compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
-  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
-  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.0'
-  compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
-  compile 'org.apache.rat:apache-rat:0.11'
-}
-
-
-/*****************************************************************************
- *                    Bootstrap repositories and IDE setup                   *
- *****************************************************************************/
-// this will only happen when buildSrc is built on its own during build init
-if (project == rootProject) {
-
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url "https://oss.sonatype.org/content/repositories/snapshots/"
-    }
-  }
-
-  apply plugin: 'idea'
-  apply plugin: 'eclipse'
-
-  idea {
-    module {
-      inheritOutputDirs = false
-      outputDir = file('build-idea/classes/main')
-      testOutputDir = file('build-idea/classes/test')
-    }
-  }
-
-  eclipse {
-    classpath {
-      defaultOutputDir = file('build-eclipse')
-    }
-  }
-
-  task copyEclipseSettings(type: Copy) {
-    from project.file('src/main/resources/eclipse.settings')
-    into '.settings'
-  }
-  // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse {
-    delete '.settings'
-  }
-  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
-}
-
-/*****************************************************************************
- *                           Normal project checks                           *
- *****************************************************************************/
-
-// this happens when included as a normal project in the build, which we do
-// to enforce precommit checks like forbidden apis, as well as setup publishing
-if (project != rootProject) {
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
-  apply plugin: 'nebula.source-jar'
-  apply plugin: 'nebula.javadoc-jar'
-
-  publishing {
-    publications {
-      nebula {
-        artifactId 'build-tools'
-      }
-    }
+idea {
+  module {
+    inheritOutputDirs = false
+    outputDir = file('build-idea/classes/main')
+    testOutputDir = file('build-idea/classes/test')
   }
 }
 
+eclipse {
+  classpath {
+    defaultOutputDir = file('build-eclipse')
+  }
+}
+
+task copyEclipseSettings(type: Copy) {
+  from project.file('src/main/resources/eclipse.settings')
+  into '.settings'
+}
+// otherwise .settings is not nuked entirely
+tasks.cleanEclipse {
+  delete '.settings'
+}
+tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)

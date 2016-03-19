@@ -18,14 +18,11 @@
  */
 package org.elasticsearch.gradle.plugin
 
-import nebula.plugin.publishing.maven.MavenManifestPlugin
-import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Dependency
-import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
 
@@ -37,7 +34,6 @@ public class PluginBuildPlugin extends BuildPlugin {
     @Override
     public void apply(Project project) {
         super.apply(project)
-
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
@@ -54,10 +50,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             } else {
                 project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
                 project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
-
-                if (project.pluginProperties.extension.publish) {
-                    configurePublishing(project)
-                }
             }
 
             project.namingConventions {
@@ -67,7 +59,6 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
         createIntegTestTask(project)
         createBundleTask(project)
-        configurePublishing(project)
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
@@ -133,33 +124,5 @@ public class PluginBuildPlugin extends BuildPlugin {
         // also make the zip the default artifact (used when depending on this project)
         project.configurations.getByName('default').extendsFrom = []
         project.artifacts.add('default', bundle)
-    }
-
-    /**
-     * Adds the plugin jar and zip as publications.
-     */
-    private static void configurePublishing(Project project) {
-        project.plugins.apply(MavenScmPlugin.class)
-        project.plugins.apply(MavenManifestPlugin.class)
-
-        project.publishing {
-            publications {
-                nebula {
-                    artifact project.bundlePlugin
-                    pom.withXml {
-                        // overwrite the name/description in the pom nebula set up
-                        Node root = asNode()
-                        for (Node node : root.children()) {
-                            if (node.name() == 'name') {
-                                node.setValue(name)
-                            } else if (node.name() == 'description') {
-                                node.setValue(project.pluginProperties.extension.description)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
     }
 }

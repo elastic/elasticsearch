@@ -26,12 +26,5 @@ task buildTar(type: Tar) {
 
 artifacts {
   'default' buildTar
-}
-
-publishing {
-  publications {
-    nebula {
-      artifact buildTar
-    }
-  }
+  archives buildTar
 }

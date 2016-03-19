@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
@@ -223,5 +224,16 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
         // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
         return out.bytes().copyBytesArray();
+    }
+
+    @Override
+    public void rewrite(QueryShardContext context) throws IOException {
+        SearchSourceBuilder source = this.source;
+        SearchSourceBuilder rewritten = null;
+        while (rewritten != source) {
+            rewritten = source.rewrite(context);
+            source = rewritten;
+        }
+        this.source = source;
     }
 }

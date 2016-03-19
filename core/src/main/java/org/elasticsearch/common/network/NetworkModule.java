@@ -22,14 +22,15 @@ package org.elasticsearch.common.network;
 import java.util.Arrays;
 import java.util.List;
 
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
@@ -139,6 +140,7 @@ import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -155,10 +157,11 @@ public class NetworkModule extends AbstractModule {
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
-    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", false, Scope.CLUSTER);
-    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, false, Scope.CLUSTER);
-    public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING = Setting.simpleString("transport.service.type", false, Scope.CLUSTER);
-    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", false, Scope.CLUSTER);
+    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", Property.NodeScope);
+    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, Property.NodeScope);
+    public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
+        Setting.simpleString("transport.service.type", Property.NodeScope);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", Property.NodeScope);
 
 
 
@@ -325,6 +328,7 @@ public class NetworkModule extends AbstractModule {
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
+        registerTaskStatus(ReplicationTask.Status.PROTOTYPE);
 
         if (transportClient == false) {
             registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
@@ -368,6 +372,10 @@ public class NetworkModule extends AbstractModule {
         } else {
             restHandlers.registerExtension(clazz);
         }
+    }
+
+    public void registerTaskStatus(Task.Status prototype) {
+        namedWriteableRegistry.registerPrototype(Task.Status.class, prototype);
     }
 
     @Override

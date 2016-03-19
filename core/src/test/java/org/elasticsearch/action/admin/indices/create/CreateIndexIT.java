@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -179,7 +181,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932,https://github.com/elastic/elasticsearch/pull/15853" )
     public void testCreateAndDeleteIndexConcurrently() throws InterruptedException {
         createIndex("test");
         final AtomicInteger indexVersion = new AtomicInteger(0);
@@ -224,10 +225,14 @@ public class CreateIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 synchronized (indexVersionLock) {
-                    client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
+                    client().prepareIndex("test", "test").setSource("index_version", indexVersion.get())
+                        .setTimeout(TimeValue.timeValueSeconds(10)).get();
                 }
             } catch (IndexNotFoundException inf) {
                 // fine
+            } catch (UnavailableShardsException ex) {
+                assertEquals(ex.getCause().getClass(), IndexNotFoundException.class);
+                // fine we run into a delete index while retrying
             }
         }
         latch.await();

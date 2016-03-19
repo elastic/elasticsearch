@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -67,7 +68,9 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
-    public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60),
+            Property.Dynamic, Property.NodeScope);
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -159,7 +162,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
                 // check the value of disable_purge for this index
-                IndexMetaData indexMetaData = metaData.index(indexService.index().getName());
+                IndexMetaData indexMetaData = metaData.index(indexService.index());
                 if (indexMetaData == null) {
                     continue;
                 }
@@ -287,7 +290,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                                 logger.error("bulk deletion failures for [{}]/[{}] items", failedItems, bulkResponse.getItems().length);
                             }
                         } else {
-                            logger.trace("bulk deletion took " + bulkResponse.getTookInMillis() + "ms");
+                            logger.trace("bulk deletion took {}ms", bulkResponse.getTookInMillis());
                         }
                     }
 

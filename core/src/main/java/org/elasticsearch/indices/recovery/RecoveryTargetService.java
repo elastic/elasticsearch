@@ -218,7 +218,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                         "operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
                         .append("\n");
-                logger.trace(sb.toString());
+                logger.trace("{}", sb);
             } else {
                 logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryTarget.sourceNode(), recoveryTime);
             }

@@ -44,23 +44,22 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Setting.Scope scope;
+    private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
 
-    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
+    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
-            if (setting.getScope() != scope) {
-                throw new IllegalArgumentException("Setting must be a " + scope + " setting but was: " + setting.getScope());
+            if (setting.getProperties().contains(scope) == false) {
+                throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
             }
-            if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
-                throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
-            }
+            validateSettingKey(setting);
+
             if (setting.hasComplexMatcher()) {
                 Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
                 if (overlappingSetting != null) {
@@ -74,6 +73,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
         this.keySettings = Collections.unmodifiableMap(keySettings);
+    }
+
+    protected void validateSettingKey(Setting setting) {
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+        }
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
@@ -96,7 +101,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
-    public Setting.Scope getScope() {
+    public Setting.Property getScope() {
         return this.scope;
     }
 
@@ -342,8 +347,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Returns the value for the given setting.
      */
     public <T> T get(Setting<T> setting) {
-        if (setting.getScope() != scope) {
-            throw new IllegalArgumentException("settings scope doesn't match the setting scope [" + this.scope + "] != [" + setting.getScope() + "]");
+        if (setting.getProperties().contains(scope) == false) {
+            throw new IllegalArgumentException("settings scope doesn't match the setting scope [" + this.scope + "] not in [" +
+                setting.getProperties() + "]");
         }
         if (get(setting.getKey()) == null) {
             throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");

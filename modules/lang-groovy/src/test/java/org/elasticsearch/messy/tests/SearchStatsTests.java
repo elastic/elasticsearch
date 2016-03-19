@@ -116,7 +116,7 @@ public class SearchStatsTests extends ESIntegTestCase {
         }
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        logger.debug("###### indices search stats: " + indicesStats.getTotal().getSearch());
+        logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0L));

@@ -485,7 +485,7 @@ public class InternalEngineTests extends ESTestCase {
 
             if (flush) {
                 // we should have had just 1 merge, so last generation should be exact
-                assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
+                assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
         }
     }
@@ -843,7 +843,7 @@ public class InternalEngineTests extends ESTestCase {
                         Engine.SyncedFlushResult.SUCCESS);
                 assertEquals(3, engine.segments(false).size());
 
-                engine.forceMerge(false, 1, false, false, false);
+                engine.forceMerge(forceMergeFlushes, 1, false, false, false);
                 if (forceMergeFlushes == false) {
                     engine.refresh("make all segments visible");
                     assertEquals(4, engine.segments(false).size());
@@ -867,7 +867,7 @@ public class InternalEngineTests extends ESTestCase {
                     assertEquals(engine.getLastWriteNanos(), delete.startTime());
                 }
                 assertFalse(engine.tryRenewSyncCommit());
-                engine.flush();
+                engine.flush(false, true); // we might hit a concurrent flush from a finishing merge here - just wait if ongoing...
                 assertNull(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID));
                 assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
             }

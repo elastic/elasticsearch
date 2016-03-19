@@ -96,7 +96,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request.indicesOptions(),
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request.indicesOptions(),
             startTime(), request.indices());
 
         for (String index : concreteIndices) {

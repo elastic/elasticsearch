@@ -144,16 +144,6 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(S3Repository.Repository.STORAGE_CLASS_SETTING);
         settingsModule.registerSetting(S3Repository.Repository.CANNED_ACL_SETTING);
         settingsModule.registerSetting(S3Repository.Repository.BASE_PATH_SETTING);
-
-        // Filter global settings
-        settingsModule.registerSettingsFilterIfMissing(AwsS3Service.KEY_SETTING.getKey());
-        settingsModule.registerSettingsFilterIfMissing(AwsS3Service.SECRET_SETTING.getKey());
-        settingsModule.registerSettingsFilterIfMissing(AwsS3Service.PROXY_PASSWORD_SETTING.getKey());
-        settingsModule.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_S3.KEY_SETTING.getKey());
-        settingsModule.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey());
-        settingsModule.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING.getKey());
-        settingsModule.registerSettingsFilter(S3Repository.Repository.KEY_SETTING.getKey());
-        settingsModule.registerSettingsFilter(S3Repository.Repository.SECRET_SETTING.getKey());
     }
 
     /**

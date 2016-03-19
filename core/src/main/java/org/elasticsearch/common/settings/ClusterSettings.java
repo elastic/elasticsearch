@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -103,7 +104,7 @@ import java.util.function.Predicate;
  */
 public final class ClusterSettings extends AbstractScopedSettings {
     public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
-        super(nodeSettings, settingsSet, Setting.Scope.CLUSTER);
+        super(nodeSettings, settingsSet, Property.NodeScope);
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 

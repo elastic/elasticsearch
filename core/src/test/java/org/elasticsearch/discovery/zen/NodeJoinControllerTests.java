@@ -492,7 +492,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     static class NoopAllocationService extends AllocationService {
 
         public NoopAllocationService(Settings settings) {
-            super(settings, null, null, null);
+            super(settings, null, null, null, null);
         }
 
         @Override

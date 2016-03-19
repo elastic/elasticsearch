@@ -131,7 +131,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         SearchResponse countResponse = client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
         assertHitCount(countResponse, 1L);
@@ -140,7 +140,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         assertThat(actionGet.isAcknowledged(), equalTo(true));
         assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=text").addMapping(PercolatorService.TYPE_NAME, "color", "type=text"));
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0L));
 

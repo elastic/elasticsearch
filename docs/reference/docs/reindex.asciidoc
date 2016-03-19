@@ -1,5 +1,5 @@
 [[docs-reindex]]
-==== Reindex API
+== Reindex API
 
 `_reindex`'s most basic form just copies documents from one index to another.
 This will copy documents from `twitter` into `new_twitter`:
@@ -420,9 +420,7 @@ will finish when their sum is equal to the `total` field.
 
 
 [float]
-=== Examples
-
-==== Change the name of a field
+=== Reindex to change the name of a field
 
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
 create an index containing documents that look like this:

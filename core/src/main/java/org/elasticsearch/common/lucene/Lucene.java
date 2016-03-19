@@ -111,7 +111,7 @@ public class Lucene {
         try {
             return Version.parse(version);
         } catch (ParseException e) {
-            logger.warn("no version match {}, default to {}", version, defaultVersion, e);
+            logger.warn("no version match {}, default to {}", e, version, defaultVersion);
             return defaultVersion;
         }
     }

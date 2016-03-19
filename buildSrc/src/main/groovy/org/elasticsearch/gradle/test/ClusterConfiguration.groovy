@@ -23,8 +23,6 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
-import java.time.LocalDateTime
-
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
 
@@ -33,6 +31,12 @@ class ClusterConfiguration {
 
     @Input
     int numNodes = 1
+
+    @Input
+    int numBwcNodes = 0
+
+    @Input
+    String bwcVersion = null
 
     @Input
     int httpPort = 0
@@ -48,6 +52,15 @@ class ClusterConfiguration {
 
     @Input
     String jvmArgs = System.getProperty('tests.jvm.argline', '')
+
+    /**
+     * The seed nodes port file. In the case the cluster has more than one node we use a seed node
+     * to form the cluster. The file is null if there is no seed node yet available.
+     *
+     * Note: this can only be null if the cluster has only one node or if the first node is not yet
+     * configured. All nodes but the first node should see a non null value.
+     */
+    File seedNodePortsFile
 
     /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
@@ -118,5 +131,13 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
+    }
+
+    /** Returns an address and port suitable for a uri to connect to this clusters seed node over transport protocol*/
+    String seedNodeTransportUri() {
+        if (seedNodePortsFile != null) {
+            return seedNodePortsFile.readLines("UTF-8").get(0)
+        }
+        return null;
     }
 }

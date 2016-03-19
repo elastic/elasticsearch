@@ -21,7 +21,10 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
+import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -41,7 +44,10 @@ import java.util.concurrent.TimeoutException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -76,9 +82,25 @@ public class CancelTestUtils {
         // Wait until the script is on the second document.
         barrier.await(30, TimeUnit.SECONDS);
 
+        // Status should show running
+        ListTasksResponse tasksList = client().admin().cluster().prepareListTasks().setActions(actionToCancel).setDetailed(true).get();
+        assertThat(tasksList.getNodeFailures(), empty());
+        assertThat(tasksList.getTaskFailures(), empty());
+        assertThat(tasksList.getTasks(), hasSize(1));
+        BulkByScrollTask.Status status = (Status) tasksList.getTasks().get(0).getStatus();
+        assertNull(status.getReasonCancelled());
+
         // Cancel the request while the script is running. This will prevent the request from being sent at all.
         List<TaskInfo> cancelledTasks = client().admin().cluster().prepareCancelTasks().setActions(actionToCancel).get().getTasks();
         assertThat(cancelledTasks, hasSize(1));
+
+        // The status should now show canceled. The request will still be in the list because the script is still blocked.
+        tasksList = client().admin().cluster().prepareListTasks().setActions(actionToCancel).setDetailed(true).get();
+        assertThat(tasksList.getNodeFailures(), empty());
+        assertThat(tasksList.getTaskFailures(), empty());
+        assertThat(tasksList.getTasks(), hasSize(1));
+        status = (Status) tasksList.getTasks().get(0).getStatus();
+        assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
 
         // Now let the next document through. It won't be sent because the request is cancelled but we need to unblock the script.
         barrier.await();

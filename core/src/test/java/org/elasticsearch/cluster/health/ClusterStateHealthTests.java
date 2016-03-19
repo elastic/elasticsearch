@@ -64,7 +64,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             routingTable.add(indexRoutingTable);
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable.build()).build();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), (String[]) null);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
@@ -91,7 +91,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable.build()).build();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), (String[]) null);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         clusterStateHealth = maybeSerialize(clusterStateHealth);
         // currently we have no cluster level validation failures as index validation issues are reported per index.

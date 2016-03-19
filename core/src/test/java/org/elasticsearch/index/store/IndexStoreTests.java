@@ -47,13 +47,14 @@ import java.util.Locale;
 public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectory() throws IOException {
-        final Path tempDir = createTempDir().resolve("foo").resolve("0");
+        Index index = new Index("foo", "fooUUID");
+        final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
         final IndexModule.Type[] values = IndexModule.Type.values();
         final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
         Settings settings = Settings.settingsBuilder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), type.name().toLowerCase(Locale.ROOT))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-        FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", "_na_", 0)));
+        FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
                 case NIOFS:
@@ -84,8 +85,9 @@ public class IndexStoreTests extends ESTestCase {
     }
 
     public void testStoreDirectoryDefault() throws IOException {
-        final Path tempDir = createTempDir().resolve("foo").resolve("0");
-        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings("foo", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()), null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", "_na_", 0)));
+        Index index = new Index("bar", "foo");
+        final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
+        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings("bar", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()), null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             if (Constants.WINDOWS) {
                 assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);

@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class ConcurrentPercolatorIT extends ESIntegTestCase {
-    public void testSimpleConcurrentPercolator() throws Exception {
+    public void testSimpleConcurrentPercolator() throws Throwable {
         // We need to index a document / define mapping, otherwise field1 doesn't get recognized as number field.
         // If we don't do this, then 'test2' percolate query gets parsed as a TermQuery and not a RangeQuery.
         // The percolate api doesn't parse the doc if no queries have registered, so it can't lazily create a mapping
@@ -143,9 +143,8 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
 
         Throwable assertionError = exceptionHolder.get();
         if (assertionError != null) {
-            assertionError.printStackTrace();
+            throw assertionError;
         }
-        assertThat(assertionError + " should be null", assertionError, nullValue());
     }
 
     public void testConcurrentAddingAndPercolating() throws Exception {
@@ -292,7 +291,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         }
 
         for (Throwable t : exceptionsHolder) {
-            logger.error("Unexpected exception {}", t.getMessage(), t);
+            logger.error("Unexpected exception while indexing", t);
         }
         assertThat(exceptionsHolder.isEmpty(), equalTo(true));
     }

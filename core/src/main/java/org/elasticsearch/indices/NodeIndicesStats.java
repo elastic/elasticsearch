@@ -172,7 +172,7 @@ public class NodeIndicesStats implements Streamable, ToXContent {
             int entries = in.readVInt();
             statsByShard = new HashMap<>();
             for (int i = 0; i < entries; i++) {
-                Index index = Index.readIndex(in);
+                Index index = new Index(in);
                 int indexShardListSize = in.readVInt();
                 List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
                 for (int j = 0; j < indexShardListSize; j++) {

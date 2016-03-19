@@ -38,6 +38,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -81,11 +82,22 @@ public class DiskThresholdDecider extends AllocationDecider {
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
 
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, true, Setting.Scope.CLUSTER);
-    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING = new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"), true, Setting.Scope.CLUSTER);
-    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING = new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%", (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"), true, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING = Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true, true, Setting.Scope.CLUSTER);;
-    public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING = Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true, Property.Dynamic, Property.NodeScope);
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =
+        new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%",
+            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING =
+        new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%",
+            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"),
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
+            Property.Dynamic, Property.NodeScope);;
+    public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
+            Property.Dynamic, Property.NodeScope);
 
     /**
      * Listens for a node to go over the high watermark and kicks off an empty
@@ -330,7 +342,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // a flag for whether the primary shard has been previously allocated
-        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
+        IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
         boolean primaryHasBeenAllocated = shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData);
 
         // checks for exact byte comparisons

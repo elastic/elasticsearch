@@ -27,7 +27,7 @@
               (
                 index1      \s+
                 \d          \s+                                 # shard
-                \d+ms       \s+                                 # time
+                (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
                 (store|replica|snapshot|relocating)     \s+     # type
                 (init|index|verify_index|translog|finalize|done) \s+ # stage
                 [-\w./]+    \s+                                 # source_host
@@ -35,14 +35,16 @@
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files
+                \d+         \s+                                 # files_recovered
                 \d+\.\d+%   \s+                                 # files_percent
+                \d+         \s+                                 # files_total
                 \d+         \s+                                 # bytes
+                \d+         \s+                                 # bytes_recovered
                 \d+\.\d+%   \s+                                 # bytes_percent
-                \d+         \s+                                 # total_files
-                \d+         \s+                                 # total_bytes
-                \d+         \s+                                 # translog
-                -?\d+\.\d+% \s+                                 # translog_percent
-                -?\d+                                           # total_translog
+                \d+         \s+                                 # bytes_total
+                -?\d+       \s+                                 # translog_ops
+                \d+         \s+                                 # translog_ops_recovered
+                -?\d+\.\d+%                                     # translog_ops_percent
                 \n
               )+
               $/

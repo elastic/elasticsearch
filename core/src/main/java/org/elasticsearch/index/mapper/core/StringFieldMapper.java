@@ -26,6 +26,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,9 +42,12 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
@@ -51,6 +57,11 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
     public static final String CONTENT_TYPE = "string";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
+
+    private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE = new HashSet<>(Arrays.asList(
+            "type",
+            // most common parameters, for which the upgrade is straightforward
+            "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to"));
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new StringFieldType();
@@ -130,13 +141,50 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+        private final DeprecationLogger deprecationLogger;
+
+        public TypeParser() {
+            ESLogger logger = Loggers.getLogger(getClass());
+            this.deprecationLogger = new DeprecationLogger(logger);
+        }
+
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            // TODO: temporarily disabled to give Kibana time to upgrade to text/keyword mappings
-            /*if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+                // Automatically upgrade simple mappings for ease of upgrade, otherwise fail
+                if (SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE.containsAll(node.keySet())) {
+                    deprecationLogger.deprecated("The [string] field is deprecated, please use [text] or [keyword] instead on [{}]",
+                            fieldName);
+                    final Object index = node.remove("index");
+                    final boolean keyword = index != null && "analyzed".equals(index) == false;
+                    {
+                        // upgrade the index setting
+                        node.put("index", "no".equals(index) == false);
+                    }
+                    {
+                        // upgrade norms settings
+                        Object norms = node.remove("norms");
+                        if (norms instanceof Map) {
+                            norms = ((Map<?,?>) norms).get("enabled");
+                        }
+                        if (norms != null) {
+                            node.put("norms", TypeParsers.nodeBooleanValue("norms", norms, parserContext));
+                        }
+                        Object omitNorms = node.remove("omit_norms");
+                        if (omitNorms != null) {
+                            node.put("norms", TypeParsers.nodeBooleanValue("omit_norms", omitNorms, parserContext) == false);
+                        }
+                    }
+                    if (keyword) {
+                        return new KeywordFieldMapper.TypeParser().parse(fieldName, node, parserContext);
+                    } else {
+                        return new TextFieldMapper.TypeParser().parse(fieldName, node, parserContext);
+                    }
+
+                }
                 throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
                         + "or [keyword] field instead for field [" + fieldName + "]");
-            }*/
+            }
             StringFieldMapper.Builder builder = new StringFieldMapper.Builder(fieldName);
             // hack for the fact that string can't just accept true/false for
             // the index property and still accepts no/not_analyzed/analyzed
@@ -241,11 +289,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 int positionIncrementGap, int ignoreAbove,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        // TODO: temporarily disabled to give Kibana time to upgrade to text/keyword mappings
-        /*if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0)) {
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0)) {
             throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
                     + "or [keyword] field instead for field [" + fieldType.name() + "]");
-        }*/
+        }
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
             throw new MapperParsingException("Field [" + fieldType.name() + "] cannot be analyzed and have doc values");
         }

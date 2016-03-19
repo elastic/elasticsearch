@@ -231,7 +231,7 @@ public class VersionTests extends ESTestCase {
                 assertTrue(constantName + " should be final", Modifier.isFinal(versionConstant.getModifiers()));
 
                 Version v = (Version) versionConstant.get(Version.class);
-                logger.info("Checking " + v);
+                logger.info("Checking {}", v);
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {
@@ -260,4 +260,20 @@ public class VersionTests extends ESTestCase {
         }
     }
 
+    // this test ensures we never bump the lucene version in a bugfix release
+    public void testLuceneVersionIsSameOnMinorRelease() {
+        for (Version version : VersionUtils.allVersions()) {
+            for (Version other : VersionUtils.allVersions()) {
+                if (other.onOrAfter(version)) {
+                    assertTrue("lucene versions must be "  + other + " >= " + version,
+                        other.luceneVersion.onOrAfter(version.luceneVersion));
+                }
+                if (other.major == version.major && other.minor == version.minor) {
+                    assertEquals(other.luceneVersion.major, version.luceneVersion.major);
+                    assertEquals(other.luceneVersion.minor, version.luceneVersion.minor);
+                    // should we also assert the lucene bugfix version?
+                }
+            }
+        }
+    }
 }

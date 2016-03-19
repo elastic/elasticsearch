@@ -102,13 +102,13 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
     public void testBackCompatFieldLevelMappingBoost() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
             .startObject("str_field").field("type", "keyword").field("boost", "2.0").endObject()
-            .startObject("int_field").field("type", "integer").field("boost", "3.0").startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("byte_field").field("type", "byte").field("boost", "4.0").startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("date_field").field("type", "date").field("boost", "5.0").startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("double_field").field("type", "double").field("boost", "6.0").startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("float_field").field("type", "float").field("boost", "7.0").startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("long_field").field("type", "long").field("boost", "8.0").startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("short_field").field("type", "short").field("boost", "9.0").startObject("norms").field("enabled", true).endObject().endObject()
+            .startObject("int_field").field("type", "integer").field("boost", "3.0").endObject()
+            .startObject("byte_field").field("type", "byte").field("boost", "4.0").endObject()
+            .startObject("date_field").field("type", "date").field("boost", "5.0").endObject()
+            .startObject("double_field").field("type", "double").field("boost", "6.0").endObject()
+            .startObject("float_field").field("type", "float").field("boost", "7.0").endObject()
+            .startObject("long_field").field("type", "long").field("boost", "8.0").endObject()
+            .startObject("short_field").field("type", "short").field("boost", "9.0").endObject()
             .string();
 
         {

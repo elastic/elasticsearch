@@ -93,6 +93,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -370,7 +371,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         internalCluster().clientNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndices(client().admin().cluster().prepareState().get().getState(), flushRequest);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
@@ -393,7 +394,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndices(client().admin().cluster().prepareState().get().getState(), refreshRequest);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
@@ -445,7 +446,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         String suggestAction = SuggestAction.NAME + "[s]";
         interceptTransportActions(suggestAction);
 
-        SuggestRequest suggestRequest = new SuggestRequest(randomIndicesOrAliases());
+        SuggestRequest suggestRequest = new SuggestRequest(randomIndicesOrAliases()).suggest(new SuggestBuilder());
         internalCluster().clientNodeClient().suggest(suggestRequest).actionGet();
 
         clearInterceptedActions();
@@ -785,8 +786,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
-            super(settings, transport, threadPool, namedWriteableRegistry);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {

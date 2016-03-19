@@ -60,7 +60,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Override
     protected ClusterBlockException checkBlock(GetIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override

@@ -1,4 +1,4 @@
-[[pipe-line]]
+[[pipeline]]
 == Pipeline Definition
 
 A pipeline is a definition of  a series of <<ingest-processors, processors>> that are to be executed

@@ -156,15 +156,15 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithNormsConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": { \"enabled\": false }}}}}")
+                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}")
                 .execute().actionGet();
         try {
             client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": { \"enabled\": true }}}}}").execute()
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}").execute()
                     .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] has different [omit_norms]"));
+            assertThat(e.getMessage(), containsString("mapper [body] has different [norms]"));
         }
     }
 

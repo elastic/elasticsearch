@@ -191,7 +191,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         }
 
         @Override
-        public String[] concreteIndices(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
         }
     }

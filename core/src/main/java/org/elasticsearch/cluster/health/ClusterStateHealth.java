@@ -79,7 +79,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
      * @param clusterState The current cluster state. Must not be null.
      */
     public ClusterStateHealth(ClusterState clusterState) {
-        this(clusterState, clusterState.metaData().concreteAllIndices());
+        this(clusterState, clusterState.metaData().getConcreteAllIndices());
     }
 
     /**

@@ -208,7 +208,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
-        logger.info("---> legit elected master node=" + masterNode);
+        logger.info("---> legit elected master node={}", masterNode);
 
         // Pick a node that isn't the elected master.
         Set<String> nonMasters = new HashSet<>(nodes);
@@ -496,7 +496,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
 
             int docsPerIndexer = randomInt(3);
-            logger.info("indexing " + docsPerIndexer + " docs per indexer before partition");
+            logger.info("indexing {} docs per indexer before partition", docsPerIndexer);
             countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
             for (Semaphore semaphore : semaphores) {
                 semaphore.release(docsPerIndexer);
@@ -508,7 +508,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 disruptionScheme.startDisrupting();
 
                 docsPerIndexer = 1 + randomInt(5);
-                logger.info("indexing " + docsPerIndexer + " docs per indexer during partition");
+                logger.info("indexing {} docs per indexer during partition", docsPerIndexer);
                 countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
                 Collections.shuffle(semaphores, random());
                 for (Semaphore semaphore : semaphores) {
@@ -539,11 +539,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
         } finally {
             if (exceptedExceptions.size() > 0) {
-                StringBuilder sb = new StringBuilder("Indexing exceptions during disruption:");
+                StringBuilder sb = new StringBuilder();
                 for (Exception e : exceptedExceptions) {
                     sb.append("\n").append(e.getMessage());
                 }
-                logger.debug(sb.toString());
+                logger.debug("Indexing exceptions during disruption: {}", sb);
             }
             logger.info("shutting down indexers");
             stop.set(true);
@@ -731,7 +731,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value").get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
-        logger.info("Verifying if document exists via node[" + notIsolatedNode + "]");
+        logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
         GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", "type", indexResponse.getId())
                 .setPreference("_local")
                 .get();
@@ -745,7 +745,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         for (String node : nodes) {
-            logger.info("Verifying if document exists after isolating node[" + isolatedNode + "] via node[" + node + "]");
+            logger.info("Verifying if document exists after isolating node[{}] via node[{}]", isolatedNode, node);
             getResponse = internalCluster().client(node).prepareGet("test", "type", indexResponse.getId())
                     .setPreference("_local")
                     .get();
@@ -764,7 +764,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         List<String> nodes = startCluster(4, -1, new int[]{0});
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
-        logger.info("---> legit elected master node=" + masterNode);
+        logger.info("---> legit elected master node={}", masterNode);
         List<String> otherNodes = new ArrayList<>(nodes);
         otherNodes.remove(masterNode);
         otherNodes.remove(nodes.get(0)); // <-- Don't isolate the node that is in the unicast endpoint for all the other nodes.

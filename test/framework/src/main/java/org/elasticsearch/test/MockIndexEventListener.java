@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
@@ -63,7 +64,7 @@ public final class MockIndexEventListener {
         /**
          * For tests to pass in to fail on listener invocation
          */
-        public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, false, Setting.Scope.INDEX);
+        public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, Property.IndexScope);
         public void onModule(SettingsModule module) {
             module.registerSetting(INDEX_FAIL);
         }

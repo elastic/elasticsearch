@@ -141,7 +141,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
             String concreteSingleIndex;
             if (resolveIndex(request)) {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request);
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
             } else {
                 concreteSingleIndex = request.index();
             }

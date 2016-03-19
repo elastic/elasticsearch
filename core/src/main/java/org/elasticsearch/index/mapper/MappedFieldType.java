@@ -103,7 +103,6 @@ public abstract class MappedFieldType extends FieldType {
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
     private SimilarityProvider similarity;
-    private Loading normsLoading;
     private FieldDataType fieldDataType;
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
@@ -117,7 +116,6 @@ public abstract class MappedFieldType extends FieldType {
         this.searchAnalyzer = ref.searchAnalyzer();
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
         this.similarity = ref.similarity();
-        this.normsLoading = ref.normsLoading();
         this.fieldDataType = ref.fieldDataType();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
@@ -158,7 +156,6 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
-            Objects.equals(normsLoading, fieldType.normsLoading) &&
             Objects.equals(fieldDataType, fieldType.fieldDataType) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString);
@@ -167,7 +164,7 @@ public abstract class MappedFieldType extends FieldType {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            similarity == null ? null : similarity.name(), normsLoading, fieldDataType, nullValue, nullValueAsString);
+            similarity == null ? null : similarity.name(), fieldDataType, nullValue, nullValueAsString);
     }
 
     // norelease: we need to override freeze() and add safety checks that all settings are actually set
@@ -205,7 +202,7 @@ public abstract class MappedFieldType extends FieldType {
             conflicts.add("mapper [" + name() + "] has different [doc_values] values");
         }
         if (omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + name() + "] has different [omit_norms] values, cannot change from disable to enabled");
+            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (storeTermVectors() != other.storeTermVectors()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
@@ -241,9 +238,6 @@ public abstract class MappedFieldType extends FieldType {
             }
             if (boost() != other.boost()) {
                 conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
-            }
-            if (normsLoading() != other.normsLoading()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [norms.loading] across all types.");
             }
             if (Objects.equals(searchAnalyzer(), other.searchAnalyzer()) == false) {
                 conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
@@ -302,15 +296,6 @@ public abstract class MappedFieldType extends FieldType {
     public void setHasDocValues(boolean hasDocValues) {
         checkIfFrozen();
         this.docValues = hasDocValues;
-    }
-
-    public Loading normsLoading() {
-        return normsLoading;
-    }
-
-    public void setNormsLoading(Loading normsLoading) {
-        checkIfFrozen();
-        this.normsLoading = normsLoading;
     }
 
     public NamedAnalyzer indexAnalyzer() {

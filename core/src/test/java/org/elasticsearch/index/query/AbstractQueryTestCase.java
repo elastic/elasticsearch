@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
-import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -341,6 +340,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @After
     public void afterTest() {
+        queryShardContext.setFieldStatsProvider(null);
         clientInvocationHandler.delegate = null;
         SearchContext.removeCurrent();
     }

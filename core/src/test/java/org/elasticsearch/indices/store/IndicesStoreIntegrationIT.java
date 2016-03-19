@@ -112,12 +112,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
         );
         ensureGreen("test");
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index index = state.metaData().index("test").getIndex();
 
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
 
         logger.info("--> starting node server3");
         final String node_3 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
@@ -128,12 +130,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(false));
+        assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(false));
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
 
@@ -161,12 +163,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
-        assertThat(waitForShardDeletion(node_1, "test", 0), equalTo(false));
-        assertThat(waitForIndexDeletion(node_1, "test"), equalTo(false));
-        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(true));
+        assertThat(waitForShardDeletion(node_1, index, 0), equalTo(false));
+        assertThat(waitForIndexDeletion(node_1, index), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(true));
 
     }
 
@@ -180,16 +182,18 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
         );
         ensureGreen("test");
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(true));
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index index = state.metaData().index("test").getIndex();
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
 
         final String node_2 = internalCluster().startDataOnlyNode(Settings.builder().build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(false));
 
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
         // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.
@@ -220,14 +224,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // it must still delete the shard, even if it cannot find it anymore in indicesservice
         client().admin().indices().prepareDelete("test").get();
 
-        assertThat(waitForShardDeletion(node_1, "test", 0), equalTo(false));
-        assertThat(waitForIndexDeletion(node_1, "test"), equalTo(false));
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(false));
-        assertThat(waitForShardDeletion(node_2, "test", 0), equalTo(false));
-        assertThat(waitForIndexDeletion(node_2, "test"), equalTo(false));
-        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(false));
+        assertThat(waitForShardDeletion(node_1, index, 0), equalTo(false));
+        assertThat(waitForIndexDeletion(node_1, index), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(false));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(false));
+        assertThat(waitForShardDeletion(node_2, index, 0), equalTo(false));
+        assertThat(waitForIndexDeletion(node_2, index), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(false));
     }
 
     public void testShardsCleanup() throws Exception {
@@ -241,9 +245,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index index = state.metaData().index("test").getIndex();
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
 
         logger.info("--> starting node server3");
         String node_3 = internalCluster().startNode();
@@ -255,9 +261,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         logger.info("--> making sure that shard is not allocated on server3");
-        assertThat(waitForShardDeletion(node_3, "test", 0), equalTo(false));
+        assertThat(waitForShardDeletion(node_3, index, 0), equalTo(false));
 
-        Path server2Shard = shardDirectory(node_2, "test", 0);
+        Path server2Shard = shardDirectory(node_2, index, 0);
         logger.info("--> stopping node " + node_2);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
 
@@ -268,14 +274,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 .setWaitForRelocatingShards(0)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         assertThat(Files.exists(server2Shard), equalTo(true));
 
         logger.info("--> making sure that shard and its replica exist on server1, server2 and server3");
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(server2Shard), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
 
         logger.info("--> starting node node_4");
         final String node_4 = internalCluster().startNode();
@@ -284,9 +290,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> making sure that shard and its replica are allocated on server1 and server3 but not on server2");
-        assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
-        assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
+        assertThat(waitForShardDeletion(node_4, index, 0), equalTo(false));
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
@@ -303,6 +309,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String node4 = nodesFutures.get().get(3);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
+                        .put(indexSettings())
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
@@ -426,30 +433,30 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {
-            assertTrue(waitForShardDeletion(nonMasterNode, "test", shard));
+            assertTrue(waitForShardDeletion(nonMasterNode, index, shard));
         }
     }
 
-    private Path indexDirectory(String server, String index) {
+    private Path indexDirectory(String server, Index index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
         final Path[] paths = env.indexPaths(index);
         assert paths.length == 1;
         return paths[0];
     }
 
-    private Path shardDirectory(String server, String index, int shard) {
+    private Path shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.availableShardPaths(new ShardId(index, "_na_", shard));
+        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
         assert paths.length == 1;
         return paths[0];
     }
 
-    private boolean waitForShardDeletion(final String server, final String index, final int shard) throws InterruptedException {
+    private boolean waitForShardDeletion(final String server, final Index index, final int shard) throws InterruptedException {
         awaitBusy(() -> !Files.exists(shardDirectory(server, index, shard)));
         return Files.exists(shardDirectory(server, index, shard));
     }
 
-    private boolean waitForIndexDeletion(final String server, final String index) throws InterruptedException {
+    private boolean waitForIndexDeletion(final String server, final Index index) throws InterruptedException {
         awaitBusy(() -> !Files.exists(indexDirectory(server, index)));
         return Files.exists(indexDirectory(server, index));
     }

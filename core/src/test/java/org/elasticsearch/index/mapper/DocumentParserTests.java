@@ -72,9 +72,10 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     DocumentMapper createDummyMapping(MapperService mapperService) throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("a").startObject("properties")
-            .startObject("b").field("type", "object").startObject("properties")
-            .startObject("c").field("type", "object")
+            .startObject("y").field("type", "object").endObject()
+            .startObject("x").startObject("properties")
+            .startObject("subx").field("type", "object").startObject("properties")
+            .startObject("subsubx").field("type", "object")
             .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
 
         DocumentMapper defaultMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -109,40 +110,55 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
-        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("a.foo"));
+        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("x.foo"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
-        Mapper aMapper = mapping.root().getMapper("a");
-        assertNotNull(aMapper);
-        assertTrue(aMapper instanceof ObjectMapper);
-        assertNotNull(((ObjectMapper)aMapper).getMapper("foo"));
-        assertNull(((ObjectMapper)aMapper).getMapper("b"));
+        Mapper xMapper = mapping.root().getMapper("x");
+        assertNotNull(xMapper);
+        assertTrue(xMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)xMapper).getMapper("foo"));
+        assertNull(((ObjectMapper)xMapper).getMapper("subx"));
     }
 
     public void testMultipleSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
         List<Mapper> updates = new ArrayList<>();
-        updates.add(new MockFieldMapper("a.foo"));
-        updates.add(new MockFieldMapper("a.bar"));
+        updates.add(new MockFieldMapper("x.foo"));
+        updates.add(new MockFieldMapper("x.bar"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
-        Mapper aMapper = mapping.root().getMapper("a");
-        assertNotNull(aMapper);
-        assertTrue(aMapper instanceof ObjectMapper);
-        assertNotNull(((ObjectMapper)aMapper).getMapper("foo"));
-        assertNotNull(((ObjectMapper)aMapper).getMapper("bar"));
-        assertNull(((ObjectMapper)aMapper).getMapper("b"));
+        Mapper xMapper = mapping.root().getMapper("x");
+        assertNotNull(xMapper);
+        assertTrue(xMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)xMapper).getMapper("foo"));
+        assertNotNull(((ObjectMapper)xMapper).getMapper("bar"));
+        assertNull(((ObjectMapper)xMapper).getMapper("subx"));
     }
 
     public void testDeepSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
-        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("a.b.foo"));
+        List<Mapper> updates = Collections.singletonList(new MockFieldMapper("x.subx.foo"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
-        Mapper aMapper = mapping.root().getMapper("a");
-        assertNotNull(aMapper);
-        assertTrue(aMapper instanceof ObjectMapper);
-        Mapper bMapper = ((ObjectMapper)aMapper).getMapper("b");
-        assertTrue(bMapper instanceof ObjectMapper);
-        assertNotNull(((ObjectMapper)bMapper).getMapper("foo"));
-        assertNull(((ObjectMapper)bMapper).getMapper("c"));
+        Mapper xMapper = mapping.root().getMapper("x");
+        assertNotNull(xMapper);
+        assertTrue(xMapper instanceof ObjectMapper);
+        Mapper subxMapper = ((ObjectMapper)xMapper).getMapper("subx");
+        assertTrue(subxMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)subxMapper).getMapper("foo"));
+        assertNull(((ObjectMapper)subxMapper).getMapper("subsubx"));
+    }
+
+    public void testDeepSubfieldAfterSubfieldMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping(createIndex("test").mapperService());
+        List<Mapper> updates = new ArrayList<>();
+        updates.add(new MockFieldMapper("x.a"));
+        updates.add(new MockFieldMapper("x.subx.b"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapper xMapper = mapping.root().getMapper("x");
+        assertNotNull(xMapper);
+        assertTrue(xMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)xMapper).getMapper("a"));
+        Mapper subxMapper = ((ObjectMapper)xMapper).getMapper("subx");
+        assertTrue(subxMapper instanceof ObjectMapper);
+        assertNotNull(((ObjectMapper)subxMapper).getMapper("b"));
     }
 
     public void testObjectMappingUpdate() throws Exception {

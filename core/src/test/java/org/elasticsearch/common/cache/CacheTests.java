@@ -55,7 +55,7 @@ public class CacheTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         numberOfEntries = randomIntBetween(1000, 10000);
-        logger.debug("numberOfEntries: " + numberOfEntries);
+        logger.debug("numberOfEntries: {}", numberOfEntries);
     }
 
     // cache some entries, then randomly lookup keys that do not exist, then check the stats

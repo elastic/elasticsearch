@@ -70,6 +70,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.NodeServicesProvider;
@@ -97,6 +98,7 @@ import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -141,25 +143,25 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            ShardId id = new ShardId("foo", "_na_", 1);
+            ShardId id = new ShardId("foo", "fooUUID", 1);
             long version = between(1, Integer.MAX_VALUE / 2);
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
-            ShardStateMetaData state1 = new ShardStateMetaData(version, primary, "foo", allocationId);
+            ShardStateMetaData state1 = new ShardStateMetaData(version, primary, "fooUUID", allocationId);
             write(state1, env.availableShardPaths(id));
             ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state1);
 
-            ShardStateMetaData state2 = new ShardStateMetaData(version, primary, "foo", allocationId);
+            ShardStateMetaData state2 = new ShardStateMetaData(version, primary, "fooUUID", allocationId);
             write(state2, env.availableShardPaths(id));
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state1);
 
-            ShardStateMetaData state3 = new ShardStateMetaData(version + 1, primary, "foo", allocationId);
+            ShardStateMetaData state3 = new ShardStateMetaData(version + 1, primary, "fooUUID", allocationId);
             write(state3, env.availableShardPaths(id));
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state3);
-            assertEquals("foo", state3.indexUUID);
+            assertEquals("fooUUID", state3.indexUUID);
         }
     }
 
@@ -167,7 +169,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        Path[] shardPaths = env.availableShardPaths(new ShardId("test", "_na_", 0));
+        ClusterService cs = getInstanceFromNode(ClusterService.class);
+        final Index index = cs.state().metaData().index("test").getIndex();
+        Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
@@ -179,7 +183,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // Test without the regular shard lock to assume we can acquire it
         // (worst case, meaning that the shard lock could be acquired and
         // we're green to delete the shard's directory)
-        ShardLock sLock = new DummyShardLock(new ShardId("test", "_na_", 0));
+        ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
         try {
             env.deleteShardDirectoryUnderLock(sLock, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
             fail("should not have been able to delete the directory");

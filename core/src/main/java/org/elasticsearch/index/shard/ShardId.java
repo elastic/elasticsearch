@@ -98,7 +98,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = Index.readIndex(in);
+        index = new Index(in);
         shardId = in.readVInt();
         hashCode = computeHashCode();
     }

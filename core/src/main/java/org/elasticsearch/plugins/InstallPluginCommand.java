@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -56,6 +55,8 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -249,21 +250,8 @@ class InstallPluginCommand extends Command {
 
     private Path unzip(Path zip, Path pluginsDir) throws IOException, UserError {
         // unzip plugin to a staging temp dir
-        final Path target;
-        if (Constants.WINDOWS) {
-            target = Files.createTempDirectory(pluginsDir, ".installing-");
-        } else {
-            Set<PosixFilePermission> perms = new HashSet<>();
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.OWNER_READ);
-            perms.add(PosixFilePermission.OWNER_WRITE);
-            perms.add(PosixFilePermission.GROUP_READ);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_READ);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-            target = Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(perms));
-        }
-        Files.createDirectories(target);
+
+        final Path target = stagingDirectory(pluginsDir);
 
         boolean hasEsDir = false;
         // TODO: we should wrap this in a try/catch and try deleting the target dir on failure?
@@ -306,6 +294,22 @@ class InstallPluginCommand extends Command {
             throw new UserError(ExitCodes.DATA_ERROR, "`elasticsearch` directory is missing in the plugin zip");
         }
         return target;
+    }
+
+    private Path stagingDirectory(Path pluginsDir) throws IOException {
+        try {
+            Set<PosixFilePermission> perms = new HashSet<>();
+            perms.add(PosixFilePermission.OWNER_EXECUTE);
+            perms.add(PosixFilePermission.OWNER_READ);
+            perms.add(PosixFilePermission.OWNER_WRITE);
+            perms.add(PosixFilePermission.GROUP_READ);
+            perms.add(PosixFilePermission.GROUP_EXECUTE);
+            perms.add(PosixFilePermission.OTHERS_READ);
+            perms.add(PosixFilePermission.OTHERS_EXECUTE);
+            return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(perms));
+        } catch (UnsupportedOperationException e) {
+            return Files.createTempDirectory(pluginsDir, ".installing-");
+        }
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */
@@ -413,17 +417,15 @@ class InstallPluginCommand extends Command {
         }
         Files.createDirectory(destBinDir);
 
-        Set<PosixFilePermission> perms = new HashSet<>();
-        if (Constants.WINDOWS == false) {
-            // setup file attributes for the installed files to those of the parent dir
-            PosixFileAttributeView binAttrs = Files.getFileAttributeView(destBinDir.getParent(), PosixFileAttributeView.class);
-            if (binAttrs != null) {
-                perms = new HashSet<>(binAttrs.readAttributes().permissions());
-                // setting execute bits, since this just means "the file is executable", and actual execution requires read
-                perms.add(PosixFilePermission.OWNER_EXECUTE);
-                perms.add(PosixFilePermission.GROUP_EXECUTE);
-                perms.add(PosixFilePermission.OTHERS_EXECUTE);
-            }
+        // setup file attributes for the installed files to those of the parent dir
+        final Set<PosixFilePermission> perms = new HashSet<>();
+        final PosixFileAttributeView binAttributeView = Files.getFileAttributeView(destBinDir.getParent(), PosixFileAttributeView.class);
+        if (binAttributeView != null) {
+            perms.addAll(binAttributeView.readAttributes().permissions());
+            // setting execute bits, since this just means "the file is executable", and actual execution requires read
+            perms.add(PosixFilePermission.OWNER_EXECUTE);
+            perms.add(PosixFilePermission.GROUP_EXECUTE);
+            perms.add(PosixFilePermission.OTHERS_EXECUTE);
         }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
@@ -437,8 +439,8 @@ class InstallPluginCommand extends Command {
                 Path destFile = destBinDir.resolve(tmpBinDir.relativize(srcFile));
                 Files.copy(srcFile, destFile);
 
-                if (perms.isEmpty() == false) {
-                    PosixFileAttributeView view = Files.getFileAttributeView(destFile, PosixFileAttributeView.class);
+                final PosixFileAttributeView view = Files.getFileAttributeView(destFile, PosixFileAttributeView.class);
+                if (view != null) {
                     view.setPermissions(perms);
                 }
             }
@@ -457,15 +459,12 @@ class InstallPluginCommand extends Command {
 
         // create the plugin's config dir "if necessary"
         Files.createDirectories(destConfigDir);
-
-        final PosixFileAttributes destConfigDirAttributes;
-        if (Constants.WINDOWS) {
-            destConfigDirAttributes = null;
-        } else {
-            destConfigDirAttributes =
-                    Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class).readAttributes();
+        final PosixFileAttributeView destConfigDirAttributesView =
+            Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class);
+        final PosixFileAttributes destConfigDirAttributes =
+            destConfigDirAttributesView != null ? destConfigDirAttributesView.readAttributes() : null;
+        if (destConfigDirAttributes != null) {
             setOwnerGroup(destConfigDir, destConfigDirAttributes);
-
         }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpConfigDir)) {
@@ -477,7 +476,7 @@ class InstallPluginCommand extends Command {
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     Files.copy(srcFile, destFile);
-                    if (Constants.WINDOWS == false) {
+                    if (destConfigDirAttributes != null) {
                         setOwnerGroup(destFile, destConfigDirAttributes);
                     }
                 }
@@ -486,8 +485,10 @@ class InstallPluginCommand extends Command {
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
     }
 
-    private static void setOwnerGroup(Path path, PosixFileAttributes attributes) throws IOException {
+    private static void setOwnerGroup(final Path path, final PosixFileAttributes attributes) throws IOException {
+        Objects.requireNonNull(attributes);
         PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+        assert fileAttributeView != null;
         fileAttributeView.setOwner(attributes.owner());
         fileAttributeView.setGroup(attributes.group());
     }

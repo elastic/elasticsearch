@@ -145,6 +145,32 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
     }
 
+    // Issue #14944
+    public void testMoreLikeThisWithAliasesInLikeDocuments() throws Exception {
+        String indexName = "foo";
+        String aliasName = "foo_name";
+        String typeName = "bar";
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).execute().actionGet();
+        client().admin().indices().aliases(indexAliasesRequest().addAlias(aliasName, indexName)).actionGet();
+
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        client().index(indexRequest(indexName).type(typeName).id("1").source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
+        client().index(indexRequest(indexName).type(typeName).id("2").source(jsonBuilder().startObject().field("text", "lucene index").endObject())).actionGet();
+        client().index(indexRequest(indexName).type(typeName).id("3").source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
+        refresh(indexName);
+
+        SearchResponse response = client().prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] {new Item(aliasName, typeName, "1")}).minTermFreq(1).minDocFreq(1)).get();
+        assertHitCount(response, 2L);
+        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+    }
+
     public void testMoreLikeThisIssue2197() throws Exception {
         Client client = client();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
@@ -564,6 +590,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .maxQueryTerms(100)
                     .include(true)
                     .minimumShouldMatch("0%");
+
             response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, numFields - (i + 1));

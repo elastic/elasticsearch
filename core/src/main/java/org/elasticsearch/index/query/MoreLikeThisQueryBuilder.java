@@ -861,14 +861,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         // fetching the items with multi-termvectors API
-        MultiTermVectorsResponse responses = fetchResponse(context.getClient(), likeItems, unlikeItems, SearchContext.current());
-
+        MultiTermVectorsResponse likeItemsResponse = fetchResponse(context.getClient(), likeItems);
         // getting the Fields for liked items
-        mltQuery.setLikeText(getFieldsFor(responses, likeItems));
+        mltQuery.setLikeText(getFieldsFor(likeItemsResponse));
 
         // getting the Fields for unliked items
         if (unlikeItems.length > 0) {
-            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(responses, unlikeItems);
+            MultiTermVectorsResponse unlikeItemsResponse = fetchResponse(context.getClient(), unlikeItems);
+            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(unlikeItemsResponse);
             if (unlikeFields.length > 0) {
                 mltQuery.setUnlikeText(unlikeFields);
             }
@@ -907,30 +907,19 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private MultiTermVectorsResponse fetchResponse(Client client, Item[] likeItems, @Nullable Item[] unlikeItems,
-                                                   SearchContext searchContext) throws IOException {
+    private MultiTermVectorsResponse fetchResponse(Client client, Item[] items) throws IOException {
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        for (Item item : likeItems) {
+        for (Item item : items) {
             request.add(item.toTermVectorsRequest());
         }
-        for (Item item : unlikeItems) {
-            request.add(item.toTermVectorsRequest());
-        }
+
         return client.multiTermVectors(request).actionGet();
     }
 
-    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses, Item[] items) throws IOException {
+    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
 
-        Set<Item> selectedItems = new HashSet<>();
-        for (Item request : items) {
-            selectedItems.add(new Item(request.index(), request.type(), request.id()));
-        }
-
         for (MultiTermVectorsItemResponse response : responses) {
-            if (!hasResponseFromRequest(response, selectedItems)) {
-                continue;
-            }
             if (response.isFailed()) {
                 continue;
             }

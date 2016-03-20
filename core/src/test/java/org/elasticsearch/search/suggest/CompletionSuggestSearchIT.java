@@ -1034,6 +1034,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
             {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
             {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
+        // by default TieredMP only forcemerges is >= 10% deletes are present
+        client().admin().indices().prepareUpdateSettings(INDEX).setSettings(Settings.builder()
+            .put("index.merge.policy.expunge_deletes_allowed", 0.0)).get();
         for (int i = 0; i < input.length; i++) {
             client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(jsonBuilder()

@@ -48,9 +48,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
-import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.NodeServicesProvider;
@@ -122,7 +120,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -159,7 +156,6 @@ public class IndexShard extends AbstractIndexShardComponent {
      *  being indexed/deleted. */
     private final AtomicLong writingBytes = new AtomicLong();
 
-    private volatile ScheduledFuture<?> refreshScheduledFuture;
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
@@ -784,10 +780,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (mutex) {
             try {
-                if (state != IndexShardState.CLOSED) {
-                    FutureUtils.cancel(refreshScheduledFuture);
-                    refreshScheduledFuture = null;
-                }
                 changeState(IndexShardState.CLOSED, reason);
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);

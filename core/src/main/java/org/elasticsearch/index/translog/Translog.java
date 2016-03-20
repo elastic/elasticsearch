@@ -610,6 +610,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         // we need to acquire the read lock to make sure no new translog is created
         // and will be missed by the view we're making
         try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
             ArrayList<TranslogReader> translogs = new ArrayList<>();
             try {
                 if (currentCommittingTranslog != null) {

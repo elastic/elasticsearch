@@ -31,6 +31,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileStore;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -108,28 +109,32 @@ public class Environment {
     }
 
     public Environment(Settings settings) {
+        this(PathUtils.getDefaultFileSystem(), settings);
+    }
+
+    public Environment(FileSystem fs, Settings settings) {
         this.settings = settings;
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
-            homeFile = PathUtils.get(cleanPath(PATH_HOME_SETTING.get(settings)));
+            homeFile = PathUtils.get(fs, PATH_HOME_SETTING.get(settings));
         } else {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
         if (PATH_CONF_SETTING.exists(settings)) {
-            configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
+            configFile = PathUtils.get(fs, cleanPath(PATH_CONF_SETTING.get(settings)));
         } else {
             configFile = homeFile.resolve("config");
         }
 
         if (PATH_SCRIPTS_SETTING.exists(settings)) {
-            scriptsFile = PathUtils.get(cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
+            scriptsFile = PathUtils.get(fs, cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
         } else {
             scriptsFile = configFile.resolve("scripts");
         }
 
         if (PATH_PLUGINS_SETTING.exists(settings)) {
-            pluginsFile = PathUtils.get(cleanPath(PATH_PLUGINS_SETTING.get(settings)));
+            pluginsFile = PathUtils.get(fs, cleanPath(PATH_PLUGINS_SETTING.get(settings)));
         } else {
             pluginsFile = homeFile.resolve("plugins");
         }
@@ -139,7 +144,7 @@ public class Environment {
             dataFiles = new Path[dataPaths.size()];
             dataWithClusterFiles = new Path[dataPaths.size()];
             for (int i = 0; i < dataPaths.size(); i++) {
-                dataFiles[i] = PathUtils.get(dataPaths.get(i));
+                dataFiles[i] = PathUtils.get(fs, dataPaths.get(i));
                 dataWithClusterFiles[i] = dataFiles[i].resolve(ClusterName.clusterNameFromSettings(settings).value());
             }
         } else {

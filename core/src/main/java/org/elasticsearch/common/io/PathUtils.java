@@ -27,7 +27,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/** 
+/**
  * Utilities for creating a Path from names,
  * or accessing the default FileSystem.
  * <p>
@@ -39,14 +39,14 @@ import java.nio.file.Paths;
 public final class PathUtils {
     /** no instantiation */
     private PathUtils() {}
-    
+
     /** the actual JDK default */
     static final FileSystem ACTUAL_DEFAULT = FileSystems.getDefault();
-    
+
     /** can be changed by tests */
     static volatile FileSystem DEFAULT = ACTUAL_DEFAULT;
-    
-    /** 
+
+    /**
      * Returns a {@code Path} from name components.
      * <p>
      * This works just like {@code Paths.get()}.
@@ -57,10 +57,30 @@ public final class PathUtils {
      * a path against an existing one!
      */
     public static Path get(String first, String... more) {
-        return DEFAULT.getPath(first, more);
+        return get(DEFAULT, first, more);
     }
-    
-    /** 
+
+    /**
+     * Returns a {@code Path} from name components against the given
+     * {@code FileSystem}.
+     * <p>
+     * This works just like {@code Paths.get()}.
+     * Remember: just like {@code Paths.get()} this is NOT A STRING CONCATENATION
+     * UTILITY FUNCTION.
+     * <p>
+     * Remember: this should almost never be used. Usually resolve
+     * a path against an existing one!
+     *
+     * @param fs    the given {@code FileSystem}
+     * @param first the first path component
+     * @param more  the remaining path components
+     * @return a path
+     */
+    public static Path get(FileSystem fs, String first, String... more) {
+        return fs.getPath(first, more);
+    }
+
+    /**
      * Returns a {@code Path} from a URI
      * <p>
      * This works just like {@code Paths.get()}.

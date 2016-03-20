@@ -307,7 +307,7 @@ class InstallPluginCommand extends Command {
             perms.add(PosixFilePermission.OTHERS_READ);
             perms.add(PosixFilePermission.OTHERS_EXECUTE);
             return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(perms));
-        } catch (UnsupportedOperationException e) {
+        } catch (IllegalArgumentException | UnsupportedOperationException e) {
             return Files.createTempDirectory(pluginsDir, ".installing-");
         }
     }
@@ -338,7 +338,7 @@ class InstallPluginCommand extends Command {
     }
 
     /** check a candidate plugin for jar hell before installing it */
-    private void jarHellCheck(Path candidate, Path pluginsDir, boolean isolated) throws Exception {
+    void jarHellCheck(Path candidate, Path pluginsDir, boolean isolated) throws Exception {
         // create list of current jars in classpath
         final List<URL> jars = new ArrayList<>();
         jars.addAll(Arrays.asList(JarHell.parseClassPath()));

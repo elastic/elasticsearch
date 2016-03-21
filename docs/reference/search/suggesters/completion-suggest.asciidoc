@@ -138,8 +138,12 @@ payloads or weights. This form does still work inside of multi fields.
 
 NOTE: The suggest data structure might not reflect deletes on
 documents immediately. You may need to do an <<indices-optimize>> for that.
-You can call optimize with the `only_expunge_deletes=true` to only cater for deletes
-or alternatively call a <<index-modules-merge>> operation.
+You can call optimize with the `only_expunge_deletes=true` to only target
+deletions for merging. By default `only_expunge_deletes=true` will only select
+segments for merge where the percentage of deleted documents is greater than `10%` of
+the number of document in that segment. To adjust this `index.merge.policy.expunge_deletes_allowed` can
+be updated to a value between `[0..100]`. Please remember even with this option set, optimize
+is considered a extremely heavy operation and should be called rarely.
 
 [[querying]]
 ==== Querying

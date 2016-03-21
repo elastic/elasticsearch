@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -211,7 +212,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
-        return DocumentParser.parseObject(ctx, mapper.root(), true);
+        DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
+        Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
+        return mapping == null ? null : mapping.root();
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {

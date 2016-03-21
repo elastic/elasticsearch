@@ -19,20 +19,20 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.log4j.Appender;
-import org.apache.log4j.Logger;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+
+import org.apache.log4j.Appender;
+import org.apache.log4j.Logger;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -162,7 +162,7 @@ public class LoggingConfigurationTests extends ESTestCase {
                         .put("appender.console.type", "console")
                         .put("appender.console.layout.type", "consolePattern")
                         .put("appender.console.layout.conversionPattern", "[%d{ISO8601}][%-5p][%-25c] %m%n")
-                        .build(), new CliToolTestCase.MockTerminal());
+                        .build(), new MockTerminal());
         LogConfigurator.configure(environment.settings(), true);
         // args should overwrite whatever is in the config
         ESLogger esLogger = ESLoggerFactory.getLogger("test_resolve_order");
@@ -187,7 +187,7 @@ public class LoggingConfigurationTests extends ESTestCase {
                 Settings.builder()
                         .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                        .build(), new CliToolTestCase.MockTerminal());
+                        .build(), new MockTerminal());
         LogConfigurator.configure(environment.settings(), false);
         ESLogger esLogger = ESLoggerFactory.getLogger("test_config_not_read");
 

@@ -21,8 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.Script;
-
-import java.util.Arrays;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 /**
  * A set of static factory methods for {@link SortBuilder}s.
@@ -53,7 +52,7 @@ public class SortBuilders {
      * @param script The script to use.
      * @param type   The type, can either be "string" or "number".
      */
-    public static ScriptSortBuilder scriptSort(Script script, String type) {
+    public static ScriptSortBuilder scriptSort(Script script, ScriptSortType type) {
         return new ScriptSortBuilder(script, type);
     }
 
@@ -63,12 +62,12 @@ public class SortBuilders {
      * @param fieldName The geo point like field name.
      * @param lat Latitude of the point to create the range distance facets from.
      * @param lon Longitude of the point to create the range distance facets from.
-     * 
+     *
      */
     public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, double lat, double lon) {
         return new GeoDistanceSortBuilder(fieldName, lat, lon);
     }
-    
+
     /**
      * Constructs a new distance based sort on a geo point like field.
      *
@@ -87,5 +86,5 @@ public class SortBuilders {
      */
     public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, String ... geohashes) {
         return new GeoDistanceSortBuilder(fieldName, geohashes);
-    }    
+    }
 }

@@ -67,3 +67,6 @@ include::integrations.asciidoc[]
 
 include::authors.asciidoc[]
 
+include::redirects.asciidoc[]
+
+

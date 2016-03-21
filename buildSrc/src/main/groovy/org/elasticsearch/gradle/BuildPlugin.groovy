@@ -307,6 +307,12 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds repositores used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
+        if (System.getProperty("repos.mavenlocal") != null) {
+            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is
+            // useful for development ie. bwc tests where we install stuff in the local repository
+            // such that we don't have to pass hardcoded files to gradle
+            repos.mavenLocal()
+        }
         repos.mavenCentral()
         repos.maven {
             name 'sonatype-snapshots'
@@ -407,6 +413,7 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
+            // TODO: remove setting logging level via system property
             systemProperty 'es.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||

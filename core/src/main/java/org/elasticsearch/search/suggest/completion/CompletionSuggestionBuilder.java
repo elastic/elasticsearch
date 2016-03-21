@@ -18,26 +18,37 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.RegexpFlag;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
-import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.SuggestUtils;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.search.suggest.completion.context.QueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 
 /**
  * Defines a suggest command based on a prefix, typically to provide "auto-complete" functionality
@@ -45,218 +56,81 @@ import java.util.Set;
  * are created at index-time and so must be defined in the mapping with the type "completion" before
  * indexing.
  */
-public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
+public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 
-    final static String SUGGESTION_NAME = "completion";
+    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder("_na_");
+    static final String SUGGESTION_NAME = "completion";
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
-    private FuzzyOptionsBuilder fuzzyOptionsBuilder;
-    private RegexOptionsBuilder regexOptionsBuilder;
-    private final Map<String, List<ToXContent>> queryContexts = new HashMap<>();
-    private final Set<String> payloadFields = new HashSet<>();
 
-    public CompletionSuggestionBuilder(String name) {
-        super(name, SUGGESTION_NAME);
+    /**
+     * {
+     *     "field" : STRING
+     *     "size" : INT
+     *     "fuzzy" : BOOLEAN | FUZZY_OBJECT
+     *     "contexts" : QUERY_CONTEXTS
+     *     "regex" : REGEX_OBJECT
+     *     "payload" : STRING_ARRAY
+     * }
+     */
+    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> TLP_PARSER =
+        new ObjectParser<>(SUGGESTION_NAME, null);
+    static {
+        TLP_PARSER.declareStringArray(CompletionSuggestionBuilder.InnerBuilder::payload, PAYLOAD_FIELD);
+        TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
+                if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                    if (parser.booleanValue()) {
+                        completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
+                    }
+                } else {
+                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
+                }
+            },
+            FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+        TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
+            completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
+            RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
+        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, SuggestUtils.Fields.FIELD);
+        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, SuggestUtils.Fields.ANALYZER);
+        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SuggestUtils.Fields.SIZE);
+        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SuggestUtils.Fields.SHARD_SIZE);
+        TLP_PARSER.declareField((p, v, c) -> {
+            // Copy the current structure. We will parse, once the mapping is provided
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.copyCurrentStructure(p);
+            v.contextBytes = builder.bytes();
+            p.skipChildren();
+        }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
+    }
+
+    protected FuzzyOptions fuzzyOptions;
+    protected RegexOptions regexOptions;
+    protected BytesReference contextBytes = null;
+    protected List<String> payloadFields = Collections.emptyList();
+
+    public CompletionSuggestionBuilder(String field) {
+        super(field);
     }
 
     /**
-     * Options for fuzzy queries
+     * internal copy constructor that copies over all class fields except for the field which is
+     * set to the one provided in the first argument
      */
-    public static class FuzzyOptionsBuilder implements ToXContent {
-        static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
-        static final ParseField TRANSPOSITION_FIELD = new ParseField("transpositions");
-        static final ParseField MIN_LENGTH_FIELD = new ParseField("min_length");
-        static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-        static final ParseField UNICODE_AWARE_FIELD = new ParseField("unicode_aware");
-        static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
-
-        private int editDistance = FuzzyCompletionQuery.DEFAULT_MAX_EDITS;
-        private boolean transpositions = FuzzyCompletionQuery.DEFAULT_TRANSPOSITIONS;
-        private int fuzzyMinLength = FuzzyCompletionQuery.DEFAULT_MIN_FUZZY_LENGTH;
-        private int fuzzyPrefixLength = FuzzyCompletionQuery.DEFAULT_NON_FUZZY_PREFIX;
-        private boolean unicodeAware = FuzzyCompletionQuery.DEFAULT_UNICODE_AWARE;
-        private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
-
-        public FuzzyOptionsBuilder() {
-        }
-
-        /**
-         * Sets the level of fuzziness used to create suggestions using a {@link Fuzziness} instance.
-         * The default value is {@link Fuzziness#ONE} which allows for an "edit distance" of one.
-         */
-        public FuzzyOptionsBuilder setFuzziness(int editDistance) {
-            this.editDistance = editDistance;
-            return this;
-        }
-
-        /**
-         * Sets the level of fuzziness used to create suggestions using a {@link Fuzziness} instance.
-         * The default value is {@link Fuzziness#ONE} which allows for an "edit distance" of one.
-         */
-        public FuzzyOptionsBuilder setFuzziness(Fuzziness fuzziness) {
-            this.editDistance = fuzziness.asDistance();
-            return this;
-        }
-
-        /**
-         * Sets if transpositions (swapping one character for another) counts as one character
-         * change or two.
-         * Defaults to true, meaning it uses the fuzzier option of counting transpositions as
-         * a single change.
-         */
-        public FuzzyOptionsBuilder setTranspositions(boolean transpositions) {
-            this.transpositions = transpositions;
-            return this;
-        }
-
-        /**
-         * Sets the minimum length of input string before fuzzy suggestions are returned, defaulting
-         * to 3.
-         */
-        public FuzzyOptionsBuilder setFuzzyMinLength(int fuzzyMinLength) {
-            this.fuzzyMinLength = fuzzyMinLength;
-            return this;
-        }
-
-        /**
-         * Sets the minimum length of the input, which is not checked for fuzzy alternatives, defaults to 1
-         */
-        public FuzzyOptionsBuilder setFuzzyPrefixLength(int fuzzyPrefixLength) {
-            this.fuzzyPrefixLength = fuzzyPrefixLength;
-            return this;
-        }
-
-        /**
-         * Sets the maximum automaton states allowed for the fuzzy expansion
-         */
-        public FuzzyOptionsBuilder setMaxDeterminizedStates(int maxDeterminizedStates) {
-            this.maxDeterminizedStates = maxDeterminizedStates;
-            return this;
-        }
-
-        /**
-         * Set to true if all measurements (like edit distance, transpositions and lengths) are in unicode
-         * code points (actual letters) instead of bytes. Default is false.
-         */
-        public FuzzyOptionsBuilder setUnicodeAware(boolean unicodeAware) {
-            this.unicodeAware = unicodeAware;
-            return this;
-        }
-
-        /**
-         * Returns the maximum number of edits
-         */
-        int getEditDistance() {
-            return editDistance;
-        }
-
-        /**
-         * Returns if transpositions option is set
-         *
-         * if transpositions is set, then swapping one character for another counts as one edit instead of two.
-         */
-        boolean isTranspositions() {
-            return transpositions;
-        }
-
-
-        /**
-         * Returns the length of input prefix after which edits are applied
-         */
-        int getFuzzyMinLength() {
-            return fuzzyMinLength;
-        }
-
-        /**
-         * Returns the minimum length of the input prefix required to apply any edits
-         */
-        int getFuzzyPrefixLength() {
-            return fuzzyPrefixLength;
-        }
-
-        /**
-         * Returns if all measurements (like edit distance, transpositions and lengths) are in unicode code
-         * points (actual letters) instead of bytes.
-         */
-        boolean isUnicodeAware() {
-            return unicodeAware;
-        }
-
-        /**
-         * Returns the maximum automaton states allowed for fuzzy expansion
-         */
-        int getMaxDeterminizedStates() {
-            return maxDeterminizedStates;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(FUZZY_OPTIONS.getPreferredName());
-            builder.field(Fuzziness.FIELD.getPreferredName(), editDistance);
-            builder.field(TRANSPOSITION_FIELD.getPreferredName(), transpositions);
-            builder.field(MIN_LENGTH_FIELD.getPreferredName(), fuzzyMinLength);
-            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), fuzzyPrefixLength);
-            builder.field(UNICODE_AWARE_FIELD.getPreferredName(), unicodeAware);
-            builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), maxDeterminizedStates);
-            builder.endObject();
-            return builder;
-        }
-    }
-
-    /**
-     * Options for regular expression queries
-     */
-    public static class RegexOptionsBuilder implements ToXContent {
-        static final ParseField REGEX_OPTIONS = new ParseField("regex");
-        static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
-        static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
-        private int flagsValue = RegExp.ALL;
-        private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
-
-        public RegexOptionsBuilder() {
-        }
-
-        /**
-         * Sets the regular expression syntax flags
-         * see {@link RegexpFlag}
-         */
-        public RegexOptionsBuilder setFlags(String flags) {
-            this.flagsValue = RegexpFlag.resolveValue(flags);
-            return this;
-        }
-
-        /**
-         * Sets the maximum automaton states allowed for the regular expression expansion
-         */
-        public RegexOptionsBuilder setMaxDeterminizedStates(int maxDeterminizedStates) {
-            this.maxDeterminizedStates = maxDeterminizedStates;
-            return this;
-        }
-
-        int getFlagsValue() {
-            return flagsValue;
-        }
-
-        int getMaxDeterminizedStates() {
-            return maxDeterminizedStates;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(REGEX_OPTIONS.getPreferredName());
-            builder.field(FLAGS_VALUE.getPreferredName(), flagsValue);
-            builder.field(MAX_DETERMINIZED_STATES.getPreferredName(), maxDeterminizedStates);
-            builder.endObject();
-            return builder;
-        }
+    private CompletionSuggestionBuilder(String fieldname, CompletionSuggestionBuilder in) {
+        super(fieldname, in);
+        fuzzyOptions = in.fuzzyOptions;
+        regexOptions = in.regexOptions;
+        contextBytes = in.contextBytes;
+        payloadFields = in.payloadFields;
     }
 
     /**
      * Sets the prefix to provide completions for.
      * The prefix gets analyzed by the suggest analyzer.
      */
+    @Override
     public CompletionSuggestionBuilder prefix(String prefix) {
-        super.setPrefix(prefix);
+        super.prefix(prefix);
         return this;
     }
 
@@ -264,36 +138,37 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * Same as {@link #prefix(String)} with fuzziness of <code>fuzziness</code>
      */
     public CompletionSuggestionBuilder prefix(String prefix, Fuzziness fuzziness) {
-        super.setPrefix(prefix);
-        this.fuzzyOptionsBuilder = new FuzzyOptionsBuilder().setFuzziness(fuzziness);
+        super.prefix(prefix);
+        this.fuzzyOptions = new FuzzyOptions.Builder().setFuzziness(fuzziness).build();
         return this;
     }
 
     /**
      * Same as {@link #prefix(String)} with full fuzzy options
-     * see {@link FuzzyOptionsBuilder}
+     * see {@link FuzzyOptions.Builder}
      */
-    public CompletionSuggestionBuilder prefix(String prefix, FuzzyOptionsBuilder fuzzyOptionsBuilder) {
-        super.setPrefix(prefix);
-        this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
+    public CompletionSuggestionBuilder prefix(String prefix, FuzzyOptions fuzzyOptions) {
+        super.prefix(prefix);
+        this.fuzzyOptions = fuzzyOptions;
         return this;
     }
 
     /**
      * Sets a regular expression pattern for prefixes to provide completions for.
      */
+    @Override
     public CompletionSuggestionBuilder regex(String regex) {
-        super.setRegex(regex);
+        super.regex(regex);
         return this;
     }
 
     /**
      * Same as {@link #regex(String)} with full regular expression options
-     * see {@link RegexOptionsBuilder}
+     * see {@link RegexOptions.Builder}
      */
-    public CompletionSuggestionBuilder regex(String regex, RegexOptionsBuilder regexOptionsBuilder) {
+    public CompletionSuggestionBuilder regex(String regex, RegexOptions regexOptions) {
         this.regex(regex);
-        this.regexOptionsBuilder = regexOptionsBuilder;
+        this.regexOptions = regexOptions;
         return this;
     }
 
@@ -301,65 +176,189 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * Sets the fields to be returned as suggestion payload.
      * Note: Only doc values enabled fields are supported
      */
-    public CompletionSuggestionBuilder payload(String... fields) {
-        Collections.addAll(this.payloadFields, fields);
+    public CompletionSuggestionBuilder payload(List<String> fields) {
+        Objects.requireNonNull(fields, "payload must not be null");
+        this.payloadFields = fields;
         return this;
     }
 
     /**
-     * Sets query contexts for a category context
-     * @param name of the category context to execute on
-     * @param queryContexts a list of {@link CategoryQueryContext}
+     * Sets query contexts for completion
+     * @param queryContexts named query contexts
+     *                      see {@link org.elasticsearch.search.suggest.completion.context.CategoryQueryContext}
+     *                      and {@link org.elasticsearch.search.suggest.completion.context.GeoQueryContext}
      */
-    public CompletionSuggestionBuilder categoryContexts(String name, CategoryQueryContext... queryContexts) {
-        return contexts(name, queryContexts);
-    }
-
-    /**
-     * Sets query contexts for a geo context
-     * @param name of the geo context to execute on
-     * @param queryContexts a list of {@link GeoQueryContext}
-     */
-    public CompletionSuggestionBuilder geoContexts(String name, GeoQueryContext... queryContexts) {
-        return contexts(name, queryContexts);
-    }
-
-    private CompletionSuggestionBuilder contexts(String name, ToXContent... queryContexts) {
-        List<ToXContent> contexts = this.queryContexts.get(name);
-        if (contexts == null) {
-            contexts = new ArrayList<>(2);
-            this.queryContexts.put(name, contexts);
+    public CompletionSuggestionBuilder contexts(Map<String, List<? extends QueryContext>> queryContexts) {
+        Objects.requireNonNull(queryContexts, "contexts must not be null");
+        try {
+            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
+            contentBuilder.startObject();
+            for (Map.Entry<String, List<? extends QueryContext>> contextEntry : queryContexts.entrySet()) {
+                contentBuilder.startArray(contextEntry.getKey());
+                for (ToXContent queryContext : contextEntry.getValue()) {
+                    queryContext.toXContent(contentBuilder, EMPTY_PARAMS);
+                }
+                contentBuilder.endArray();
+            }
+            contentBuilder.endObject();
+            contextBytes = contentBuilder.bytes();
+            return this;
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
         }
-        Collections.addAll(contexts, queryContexts);
-        return this;
+    }
+
+    private static class InnerBuilder extends CompletionSuggestionBuilder {
+        private String field;
+
+        public InnerBuilder() {
+            super("_na_");
+        }
+
+        private InnerBuilder field(String field) {
+            this.field = field;
+            return this;
+        }
     }
 
     @Override
     protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (payloadFields != null) {
+        if (payloadFields.isEmpty() == false) {
             builder.startArray(PAYLOAD_FIELD.getPreferredName());
             for (String field : payloadFields) {
                 builder.value(field);
             }
             builder.endArray();
         }
-        if (fuzzyOptionsBuilder != null) {
-            fuzzyOptionsBuilder.toXContent(builder, params);
+        if (fuzzyOptions != null) {
+            fuzzyOptions.toXContent(builder, params);
         }
-        if (regexOptionsBuilder != null) {
-            regexOptionsBuilder.toXContent(builder, params);
+        if (regexOptions != null) {
+            regexOptions.toXContent(builder, params);
         }
-        if (queryContexts.isEmpty() == false) {
-            builder.startObject(CONTEXTS_FIELD.getPreferredName());
-            for (Map.Entry<String, List<ToXContent>> entry : this.queryContexts.entrySet()) {
-                builder.startArray(entry.getKey());
-                for (ToXContent queryContext : entry.getValue()) {
-                    queryContext.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
+        if (contextBytes != null) {
+            XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes);
+            builder.field(CONTEXTS_FIELD.getPreferredName());
+            builder.copyCurrentStructure(contextParser);
         }
         return builder;
+    }
+
+    @Override
+    protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+        CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
+        TLP_PARSER.parse(parseContext.parser(), builder);
+        String field = builder.field;
+        // now we should have field name, check and copy fields over to the suggestion builder we return
+        if (field == null) {
+            throw new ElasticsearchParseException(
+                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+        }
+        return new CompletionSuggestionBuilder(field, builder);
+    }
+
+    @Override
+    public SuggestionContext build(QueryShardContext context) throws IOException {
+        CompletionSuggestionContext suggestionContext = new CompletionSuggestionContext(context);
+        // copy over common settings to each suggestion builder
+        final MapperService mapperService = context.getMapperService();
+        populateCommonFields(mapperService, suggestionContext);
+        suggestionContext.setPayloadFields(payloadFields);
+        suggestionContext.setFuzzyOptions(fuzzyOptions);
+        suggestionContext.setRegexOptions(regexOptions);
+        MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
+        if (mappedFieldType != null && mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
+            CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
+            suggestionContext.setFieldType(type);
+            if (type.hasContextMappings() && contextBytes != null) {
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                    if (type.hasContextMappings() && contextParser != null) {
+                        ContextMappings contextMappings = type.getContextMappings();
+                        contextParser.nextToken();
+                        Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
+                        assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
+                        XContentParser.Token currentToken;
+                        String currentFieldName;
+                        while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (currentToken == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = contextParser.currentName();
+                                final ContextMapping mapping = contextMappings.get(currentFieldName);
+                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                            }
+                        }
+                        suggestionContext.setQueryContexts(queryContexts);
+                    }
+                }
+            } else if (contextBytes != null) {
+                throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
+            }
+        } else {
+            throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
+        }
+        return suggestionContext;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SUGGESTION_NAME;
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeBoolean(payloadFields.isEmpty() == false);
+        if (payloadFields.isEmpty() == false) {
+            out.writeVInt(payloadFields.size());
+            for (String payloadField : payloadFields) {
+                out.writeString(payloadField);
+            }
+        }
+        out.writeBoolean(fuzzyOptions != null);
+        if (fuzzyOptions != null) {
+            fuzzyOptions.writeTo(out);
+        }
+        out.writeBoolean(regexOptions != null);
+        if (regexOptions != null) {
+            regexOptions.writeTo(out);
+        }
+        out.writeBoolean(contextBytes != null);
+        if (contextBytes != null) {
+            out.writeBytesReference(contextBytes);
+        }
+    }
+
+    @Override
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
+        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder(field);
+        if (in.readBoolean()) {
+            int numPayloadField = in.readVInt();
+            List<String> payloadFields = new ArrayList<>(numPayloadField);
+            for (int i = 0; i < numPayloadField; i++) {
+                payloadFields.add(in.readString());
+            }
+            completionSuggestionBuilder.payloadFields = payloadFields;
+        }
+        if (in.readBoolean()) {
+            completionSuggestionBuilder.fuzzyOptions = FuzzyOptions.readFuzzyOptions(in);
+        }
+        if (in.readBoolean()) {
+            completionSuggestionBuilder.regexOptions = RegexOptions.readRegexOptions(in);
+        }
+        if (in.readBoolean()) {
+            completionSuggestionBuilder.contextBytes = in.readBytesReference();
+        }
+        return completionSuggestionBuilder;
+    }
+
+    @Override
+    protected boolean doEquals(CompletionSuggestionBuilder other) {
+        return Objects.equals(payloadFields, other.payloadFields) &&
+            Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
+            Objects.equals(regexOptions, other.regexOptions) &&
+            Objects.equals(contextBytes, other.contextBytes);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(payloadFields, fuzzyOptions, regexOptions, contextBytes);
     }
 }

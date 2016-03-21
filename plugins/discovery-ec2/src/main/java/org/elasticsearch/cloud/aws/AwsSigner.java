@@ -55,7 +55,7 @@ public class AwsSigner {
         try {
             validateSignerType(signer);
         } catch (IllegalArgumentException e) {
-            logger.warn(e.getMessage());
+            logger.warn("{}", e.getMessage());
         }
 
         configuration.setSignerOverride(signer);

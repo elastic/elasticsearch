@@ -37,6 +37,9 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.context.QueryContext;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
@@ -235,6 +238,15 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeVInt(integer);
+        }
+    }
+
+    public void writeOptionalFloat(@Nullable Float floatValue) throws IOException {
+        if (floatValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloat(floatValue);
         }
     }
 
@@ -520,6 +532,15 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
+        if (writeable != null) {
+            writeBoolean(true);
+            writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
     public void writeThrowable(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
@@ -683,6 +704,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes the given {@link SmoothingModel} to the stream
+     */
+    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
+        writeNamedWriteable(smoothinModel);
+    }
+
+    /**
      * Writes a {@link Task.Status} to the current stream.
      */
     public void writeTaskStatus(Task.Status status) throws IOException {
@@ -713,4 +741,12 @@ public abstract class StreamOutput extends OutputStream {
     public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
         writeNamedWriteable(rescorer);
     }
+
+    /**
+     * Writes a {@link SuggestionBuilder} to the current stream
+     */
+    public void writeSuggestion(SuggestionBuilder suggestion) throws IOException {
+        writeNamedWriteable(suggestion);
+    }
+
 }

@@ -20,20 +20,18 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -43,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -98,10 +95,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // tracer log
 
-    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = listSetting("transport.tracer.include", emptyList(),
-            Function.identity(), true, Scope.CLUSTER);
-    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = listSetting("transport.tracer.exclude",
-            Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME), Function.identity(), true, Scope.CLUSTER);
+    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING =
+        listSetting("transport.tracer.include", emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
+        listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME),
+            Function.identity(), Property.Dynamic, Property.NodeScope);
 
     private final ESLogger tracerLog;
 
@@ -112,11 +110,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     volatile DiscoveryNode localNode = null;
 
     public TransportService(Transport transport, ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, transport, threadPool, new NamedWriteableRegistry());
+        this(EMPTY_SETTINGS, transport, threadPool);
     }
 
     @Inject
-    public TransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
+    public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
@@ -125,7 +123,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
         taskManager = createTaskManager();
-        namedWriteableRegistry.registerPrototype(Task.Status.class, ReplicationTask.Status.PROTOTYPE);
     }
 
     /**
@@ -380,7 +377,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         try {
                             channel.sendResponse(e);
                         } catch (Throwable e1) {
-                            logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                            logger.warn("failed to notify channel of error message for action [{}]", e1, action);
                             logger.warn("actual exception", e);
                         }
                     }
@@ -391,7 +388,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             try {
                 channel.sendResponse(e);
             } catch (Throwable e1) {
-                logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                logger.warn("failed to notify channel of error message for action [{}]", e1, action);
                 logger.warn("actual exception", e1);
             }
         }

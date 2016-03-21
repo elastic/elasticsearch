@@ -142,7 +142,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 }
                 assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, thrownExceptions, Matchers.emptyIterable());
                 // if we hit only non-critical exceptions we only make sure that the post search works
-                logger.info("Non-CriticalExceptions: " + nonCriticalExceptions.toString());
+                logger.info("Non-CriticalExceptions: {}", nonCriticalExceptions);
                 assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, postSearchOK, is(true));
             }
         }

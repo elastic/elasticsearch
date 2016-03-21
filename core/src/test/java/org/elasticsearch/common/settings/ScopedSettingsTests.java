@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -41,8 +42,8 @@ import java.util.function.Function;
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testAddConsumer() {
-        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER);
-        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.CLUSTER);
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, Collections.singleton(testSetting));
 
         AtomicInteger consumer = new AtomicInteger();
@@ -69,8 +70,8 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testApply() {
-        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER);
-        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, true, Setting.Scope.CLUSTER);
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(testSetting, testSetting2)));
 
         AtomicInteger consumer = new AtomicInteger();
@@ -139,7 +140,10 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testIsDynamic(){
-        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER), Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.CLUSTER))));
+        ClusterSettings settings =
+            new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope),
+                    Setting.intSetting("foo.bar.baz", 1, Property.NodeScope))));
         assertFalse(settings.hasDynamicSetting("foo.bar.baz"));
         assertTrue(settings.hasDynamicSetting("foo.bar"));
         assertNotNull(settings.get("foo.bar.baz"));
@@ -150,8 +154,8 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testDiff() throws IOException {
-        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, false, Setting.Scope.CLUSTER);
-        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, true, Setting.Scope.CLUSTER);
+        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(foobar, foobarbaz)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
         assertEquals(diff.getAsMap().size(), 1);
@@ -216,6 +220,13 @@ public class ScopedSettingsTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
         }
+
+        try {
+            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build());
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
+        }
     }
 
 
@@ -240,22 +251,41 @@ public class ScopedSettingsTests extends ESTestCase {
 
         try {
             new IndexScopedSettings(
-                Settings.EMPTY, Collections.singleton(Setting.groupSetting("boo .", false, Setting.Scope.INDEX)));
+                Settings.EMPTY, Collections.singleton(Setting.groupSetting("foo.bar.", Property.IndexScope)));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("illegal settings key: [boo .]", e.getMessage());
+            assertEquals("illegal settings key: [foo.bar.] must start with [index.]", e.getMessage());
         }
-        new IndexScopedSettings(
-            Settings.EMPTY, Collections.singleton(Setting.groupSetting("boo.", false, Setting.Scope.INDEX)));
+
         try {
             new IndexScopedSettings(
-                Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo.", true, false, Setting.Scope.INDEX)));
+                Settings.EMPTY, Collections.singleton(Setting.simpleString("foo.bar", Property.IndexScope)));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("illegal settings key: [boo.]", e.getMessage());
+            assertEquals("illegal settings key: [foo.bar] must start with [index.]", e.getMessage());
+        }
+
+        try {
+            new IndexScopedSettings(
+                Settings.EMPTY, Collections.singleton(Setting.groupSetting("index. foo.", Property.IndexScope)));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal settings key: [index. foo.]", e.getMessage());
         }
         new IndexScopedSettings(
-            Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo", true, false, Setting.Scope.INDEX)));
+            Settings.EMPTY, Collections.singleton(Setting.groupSetting("index.", Property.IndexScope)));
+        try {
+            new IndexScopedSettings(
+                Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.", true, Property.IndexScope)));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal settings key: [index.]", e.getMessage());
+        }
+        new IndexScopedSettings(
+            Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.IndexScope)));
+
+        new ClusterSettings(
+            Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.NodeScope)));
     }
 
     public void testLoggingUpdates() {
@@ -306,9 +336,9 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testOverlappingComplexMatchSettings() {
         Set<Setting<?>> settings = new LinkedHashSet<>(2);
         final boolean groupFirst = randomBoolean();
-        final Setting<?> groupSetting = Setting.groupSetting("foo.", false, Setting.Scope.CLUSTER);
-        final Setting<?> listSetting = Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), false,
-            Setting.Scope.CLUSTER);
+        final Setting<?> groupSetting = Setting.groupSetting("foo.", Property.NodeScope);
+        final Setting<?> listSetting =
+            Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Property.NodeScope);
         settings.add(groupFirst ? groupSetting : listSetting);
         settings.add(groupFirst ? listSetting : groupSetting);
 

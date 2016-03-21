@@ -458,7 +458,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             if (globalMetaDataFormat.exists(snapshotsBlobContainer, snapshotId.getSnapshot())) {
                 snapshotVersion = Version.CURRENT;
             } else if (globalMetaDataLegacyFormat.exists(snapshotsBlobContainer, snapshotId.getSnapshot())) {
-                snapshotVersion = Version.V_1_0_0;
+                throw new SnapshotException(snapshotId, "snapshot is too old");
             } else {
                 throw new SnapshotMissingException(snapshotId);
             }
@@ -478,7 +478,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 metaDataBuilder.put(indexMetaDataFormat(snapshotVersion).read(indexMetaDataBlobContainer, snapshotId.getSnapshot()), false);
             } catch (ElasticsearchParseException | IOException ex) {
                 if (ignoreIndexErrors) {
-                    logger.warn("[{}] [{}] failed to read metadata for index", snapshotId, index, ex);
+                    logger.warn("[{}] [{}] failed to read metadata for index", ex, snapshotId, index);
                 } else {
                     throw ex;
                 }

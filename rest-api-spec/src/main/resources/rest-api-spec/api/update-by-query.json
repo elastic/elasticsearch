@@ -105,6 +105,10 @@
           "options" : ["query_then_fetch", "dfs_query_then_fetch"],
           "description" : "Search operation type"
         },
+        "search_timeout": {
+          "type" : "time",
+          "description" : "Explicit timeout for each search request. Defaults to no timeout."
+        },
         "size": {
           "type" : "number",
           "description" : "Number of hits to return (default: 10)"

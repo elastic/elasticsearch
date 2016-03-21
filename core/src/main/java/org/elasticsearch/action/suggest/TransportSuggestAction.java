@@ -25,24 +25,22 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,15 +56,16 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * Defines the transport of a suggestion request across the cluster
  */
-public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequest, SuggestResponse, ShardSuggestRequest, ShardSuggestResponse> {
+public class TransportSuggestAction
+    extends TransportBroadcastAction<SuggestRequest, SuggestResponse, ShardSuggestRequest, ShardSuggestResponse> {
 
     private final IndicesService indicesService;
     private final SuggestPhase suggestPhase;
 
     @Inject
-    public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, SuggestPhase suggestPhase, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                  TransportService transportService, IndicesService indicesService, SuggestPhase suggestPhase,
+                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 SuggestRequest::new, ShardSuggestRequest::new, ThreadPool.Names.SUGGEST);
         this.indicesService = indicesService;
@@ -85,7 +84,8 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, SuggestRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(), request.indices());
+        Map<String, Set<String>> routingMap =
+            indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
     }
 
@@ -124,7 +124,8 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
             }
         }
 
-        return new SuggestResponse(new Suggest(Suggest.reduce(groupedSuggestions)), shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        return new SuggestResponse(new Suggest(Suggest.reduce(groupedSuggestions)), shardsResponses.length(),
+                                   successfulShards, failedShards, shardFailures);
     }
 
     @Override
@@ -134,16 +135,10 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
         ShardSuggestMetric suggestMetric = indexShard.getSuggestMetric();
         suggestMetric.preSuggest();
         long startTime = System.nanoTime();
-        XContentParser parser = null;
         try (Engine.Searcher searcher = indexShard.acquireSearcher("suggest")) {
-            BytesReference suggest = request.suggest();
-            if (suggest != null && suggest.length() > 0) {
-                parser = XContentFactory.xContent(suggest).createParser(suggest);
-                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalArgumentException("suggest content missing");
-                }
-                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(),
-                        indexService.fieldData(), request.shardId().getIndexName(), request.shardId().id());
+            SuggestBuilder suggest = request.suggest();
+            if (suggest != null) {
+                final SuggestionSearchContext context = suggest.build(indexService.newQueryShardContext());
                 final Suggest result = suggestPhase.execute(context, searcher.searcher());
                 return new ShardSuggestResponse(request.shardId(), result);
             }
@@ -151,9 +146,6 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute suggest", ex);
         } finally {
-            if (parser != null) {
-                parser.close();
-            }
             suggestMetric.postSuggest(System.nanoTime() - startTime);
         }
     }

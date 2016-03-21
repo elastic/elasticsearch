@@ -33,6 +33,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.DummyOsInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -46,6 +47,7 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +92,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         compareJsonOutput(nodeInfo.getNode(), readNodeInfo.getNode());
         compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
         comparePluginsAndModules(nodeInfo, readNodeInfo);
+        compareJsonOutput(nodeInfo.getIngest(), readNodeInfo.getIngest());
     }
 
     private void comparePluginsAndModules(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {
@@ -135,6 +138,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         PluginsAndModules plugins = new PluginsAndModules();
         plugins.addModule(DummyPluginInfo.INSTANCE);
         plugins.addPlugin(DummyPluginInfo.INSTANCE);
-        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins);
+        IngestInfo ingestInfo = new IngestInfo(Collections.emptyList());
+        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo);
     }
 }

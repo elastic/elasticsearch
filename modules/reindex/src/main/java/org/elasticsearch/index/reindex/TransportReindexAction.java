@@ -29,9 +29,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -96,9 +96,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteIndices(clusterState, destination)[0];
+            target = indexNameExpressionResolver.concreteIndexNames(clusterState, destination)[0];
         }
-        for (String sourceIndex: indexNameExpressionResolver.concreteIndices(clusterState, source)) {
+        for (String sourceIndex: indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
@@ -191,8 +191,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected ReindexResponse buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
-            return new ReindexResponse(took, task.getStatus(), indexingFailures, searchFailures);
+        protected ReindexResponse buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
+                boolean timedOut) {
+            return new ReindexResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
         }
 
         /*

@@ -27,6 +27,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
@@ -46,8 +48,7 @@ import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,19 +60,16 @@ import java.util.Map;
  */
 public class ScriptSortParser implements SortParser {
 
-    private static final String STRING_SORT_TYPE = "string";
-    private static final String NUMBER_SORT_TYPE = "number";
-
     @Override
     public String[] names() {
         return new String[]{"_script"};
     }
 
     @Override
-    public SortField parse(XContentParser parser, SearchContext context) throws Exception {
+    public SortField parse(XContentParser parser, QueryShardContext context) throws Exception {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
-        String type = null;
+        ScriptSortType type = null;
         Map<String, Object> params = null;
         boolean reverse = false;
         MultiValueMode sortMode = null;
@@ -101,7 +99,7 @@ public class ScriptSortParser implements SortParser {
                 } else if (scriptParameterParser.token(currentName, token, parser, context.parseFieldMatcher())) {
                     // Do Nothing (handled by ScriptParameterParser
                 } else if ("type".equals(currentName)) {
-                    type = parser.text();
+                    type = ScriptSortType.fromString(parser.text());
                 } else if ("mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -122,19 +120,20 @@ public class ScriptSortParser implements SortParser {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (params != null) {
-            throw new SearchParseException(context, "script params must be specified inside script object", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "script params must be specified inside script object");
         }
 
         if (script == null) {
-            throw new SearchParseException(context, "_script sorting requires setting the script to sort by", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "_script sorting requires setting the script to sort by");
         }
         if (type == null) {
-            throw new SearchParseException(context, "_script sorting requires setting the type of the script", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "_script sorting requires setting the type of the script");
         }
-        final SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        final SearchScript searchScript = context.getScriptService().search(
+                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 
-        if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
-            throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]", parser.getTokenLocation());
+        if (ScriptSortType.STRING.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
+            throw new ParsingException(parser.getTokenLocation(), "type [string] doesn't support mode [" + sortMode + "]");
         }
 
         if (sortMode == null) {
@@ -144,7 +143,7 @@ public class ScriptSortParser implements SortParser {
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
-            BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
+            BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
             Query innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
                 // TODO: use queries instead
@@ -152,14 +151,14 @@ public class ScriptSortParser implements SortParser {
             } else {
                 innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
             }
-            nested = new Nested(rootDocumentsFilter, context.searcher().createNormalizedWeight(innerDocumentsFilter, false));
+            nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
             nested = null;
         }
 
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
-            case STRING_SORT_TYPE:
+            case STRING:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
                     LeafSearchScript leafScript;
                     @Override
@@ -182,7 +181,7 @@ public class ScriptSortParser implements SortParser {
                     }
                 };
                 break;
-            case NUMBER_SORT_TYPE:
+            case NUMBER:
                 // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
                     LeafSearchScript leafScript;
@@ -205,7 +204,7 @@ public class ScriptSortParser implements SortParser {
                 };
                 break;
             default:
-            throw new SearchParseException(context, "custom script sort type [" + type + "] not supported", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "custom script sort type [" + type + "] not supported");
         }
 
         return new SortField("_script", fieldComparatorSource, reverse);

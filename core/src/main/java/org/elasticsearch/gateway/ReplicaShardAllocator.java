@@ -74,7 +74,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
+                IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
                 if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
@@ -104,6 +104,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
+                        logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
+                                currentNode, nodeWithHighestMatch);
                         it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                                 "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
                                 null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
@@ -127,7 +129,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
+            IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 continue;
             }

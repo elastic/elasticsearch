@@ -395,3 +395,51 @@
             match:
               user: otherkimchy
   - match: { hits.total: 1 }
+
+---
+"Change index to write to a different index":
+  - do:
+      index:
+        index:        twitter
+        type:         tweet
+        id:           1
+        body:         { "user": "kimchy" }
+  - do:
+      index:
+        index:        twitter
+        type:         tweet
+        id:           2
+        body:         { "user": "another" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            inline: if (ctx._source.user == "kimchy") {ctx._index = 'other_new_twitter'}
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        index: other_new_twitter
+        body:
+          query:
+            match:
+              user: kimchy
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: new_twitter
+        body:
+          query:
+            match:
+              user: another
+  - match: { hits.total: 1 }

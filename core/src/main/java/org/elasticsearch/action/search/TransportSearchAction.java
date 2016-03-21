@@ -22,9 +22,9 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -64,7 +64,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // optimize search type for cases where there is only one shard group to search on
         try {
             ClusterState clusterState = clusterService.state();
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, searchRequest);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState,
                     searchRequest.routing(), searchRequest.indices());
             int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, routingMap);

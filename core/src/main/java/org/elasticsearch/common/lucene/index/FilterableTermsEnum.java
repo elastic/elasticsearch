@@ -30,7 +30,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -118,9 +117,7 @@ public class FilterableTermsEnum extends TermsEnum {
                     };
                 }
 
-                BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
-                builder.or(docs);
-                bits = builder.build().bits();
+                bits = BitSet.of(docs, context.reader().maxDoc());
 
                 // Count how many docs are in our filtered set
                 // TODO make this lazy-loaded only for those that need it?

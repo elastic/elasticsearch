@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.numeric;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
@@ -623,8 +623,8 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         // check the tokenstream actually used by the indexer
         TokenStream ts = field.tokenStream(null, null);
-        assertThat(ts, instanceOf(NumericTokenStream.class));
-        assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
+        assertThat(ts, instanceOf(LegacyNumericTokenStream.class));
+        assertEquals(expected, ((LegacyNumericTokenStream)ts).getPrecisionStep());
     }
 
     public void testTermVectorsBackCompat() throws Exception {
@@ -683,5 +683,21 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .build();
         parser = createIndex("index2-" + type, oldIndexSettings).mapperService().documentMapperParser();
         parser.parse("type", new CompressedXContent(mappingWithTV)); // no exception
+    }
+
+    public void testRejectNorms() throws IOException {
+        // not supported as of 5.0
+        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                        .field("norms", random().nextBoolean())
+                    .endObject()
+                .endObject().endObject().endObject().string();
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
+        }
     }
 }

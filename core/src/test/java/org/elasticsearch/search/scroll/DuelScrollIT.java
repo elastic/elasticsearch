@@ -282,8 +282,8 @@ public class DuelScrollIT extends ESIntegTestCase {
             }
             assertEquals(control.getHits().getTotalHits(), scrollDocs);
         } catch (AssertionError e) {
-            logger.info("Control:\n" + control);
-            logger.info("Scroll size=" + size + ", from=" + scrollDocs + ":\n" + scroll);
+            logger.info("Control:\n{}", control);
+            logger.info("Scroll size={}, from={}:\n{}", size, scrollDocs, scroll);
             throw e;
         } finally {
             clearScroll(scroll.getScrollId());

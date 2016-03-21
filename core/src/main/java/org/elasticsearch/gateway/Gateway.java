@@ -25,15 +25,16 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -79,7 +80,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             }
         }
 
-        ObjectFloatHashMap<String> indices = new ObjectFloatHashMap<>();
+        ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
@@ -93,7 +94,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 electedGlobalState = nodeState.metaData();
             }
             for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.getIndex().getName(), 1);
+                indices.addTo(cursor.value.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -107,7 +108,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         final Object[] keys = indices.keys;
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {
-                String index = (String) keys[i];
+                Index index = (Index) keys[i];
                 IndexMetaData electedIndexMetaData = null;
                 int indexMetaDataCount = 0;
                 for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {

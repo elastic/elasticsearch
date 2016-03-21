@@ -167,7 +167,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/elasticsearch-plugin -Des.path.conf=/path/to/custom/config/dir install <plugin name>
+sudo bin/elasticsearch-plugin -Ees.path.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
 
 You can also set the `CONF_DIR` environment variable to the custom config

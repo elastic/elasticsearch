@@ -48,7 +48,7 @@ public class SearchModuleTests extends ModuleTestCase {
        }
 
        try {
-           module.registerSuggester("term", PhraseSuggester.class);
+           module.registerSuggester("term", PhraseSuggester.PROTOTYPE);
        } catch (IllegalArgumentException e) {
            assertEquals(e.getMessage(), "Can't register the same [suggester] more than once for [term]");
        }
@@ -56,9 +56,9 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterSuggester() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        module.registerSuggester("custom", CustomSuggester.class);
+        module.registerSuggester("custom", CustomSuggester.PROTOTYPE);
         try {
-            module.registerSuggester("custom", CustomSuggester.class);
+            module.registerSuggester("custom", CustomSuggester.PROTOTYPE);
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "Can't register the same [suggester] more than once for [custom]");
         }

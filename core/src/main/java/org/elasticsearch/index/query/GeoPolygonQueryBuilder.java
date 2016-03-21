@@ -131,13 +131,13 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
 
-        if (GeoValidationMethod.isCoerce(validationMethod)) {
+        final Version indexVersionCreated = context.indexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_2_2_0) || GeoValidationMethod.isCoerce(validationMethod)) {
             for (GeoPoint point : shell) {
                 GeoUtils.normalizePoint(point, true, true);
             }
         }
 
-        final Version indexVersionCreated = context.indexVersionCreated();
         if (indexVersionCreated.before(Version.V_2_2_0)) {
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shellSize]));

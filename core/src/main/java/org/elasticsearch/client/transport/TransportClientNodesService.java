@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -100,10 +101,14 @@ public class TransportClientNodesService extends AbstractComponent {
     private volatile boolean closed;
 
 
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL = Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT = Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME = Setting.boolSetting("client.transport.ignore_cluster_name", false, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF = Setting.boolSetting("client.transport.sniff", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
+        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Property.NodeScope);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
+        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
+        Setting.boolSetting("client.transport.ignore_cluster_name", false, Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
+        Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
@@ -119,7 +124,7 @@ public class TransportClientNodesService extends AbstractComponent {
         this.ignoreClusterName = CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
 
         if (logger.isDebugEnabled()) {
-            logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
+            logger.debug("node_sampler_interval[{}]", nodesSamplerInterval);
         }
 
         if (CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
@@ -318,7 +323,7 @@ public class TransportClientNodesService extends AbstractComponent {
                         transportService.connectToNode(node);
                     } catch (Throwable e) {
                         it.remove();
-                        logger.debug("failed to connect to discovered node [" + node + "]", e);
+                        logger.debug("failed to connect to discovered node [{}]", e, node);
                     }
                 }
             }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +31,7 @@ import java.io.IOException;
  */
 public class Index implements Writeable<Index> {
 
-    private final static Index PROTO = new Index("", "");
+    public static final Index[] EMPTY_ARRAY = new Index[0];
 
     private final String name;
     private final String uuid;
@@ -39,6 +40,12 @@ public class Index implements Writeable<Index> {
         this.name = name.intern();
         this.uuid = uuid.intern();
     }
+
+    public Index(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.uuid = in.readString();
+    }
+
 
     public String getName() {
         return this.name;
@@ -50,7 +57,14 @@ public class Index implements Writeable<Index> {
 
     @Override
     public String toString() {
-        return "[" + name + "]";
+        /*
+         * If we have a uuid we put it in the toString so it'll show up in logs which is useful as more and more things use the uuid rather
+         * than the name as the lookup key for the index.
+         */
+        if (ClusterState.UNKNOWN_UUID.equals(uuid)) {
+            return "[" + name + "]";
+        }
+        return "[" + name + "/" + uuid + "]";
     }
 
     @Override
@@ -72,13 +86,9 @@ public class Index implements Writeable<Index> {
         return result;
     }
 
-    public static Index readIndex(StreamInput in) throws IOException {
-        return PROTO.readFrom(in);
-    }
-
     @Override
     public Index readFrom(StreamInput in) throws IOException {
-        return new Index(in.readString(), in.readString());
+        return new Index(in);
     }
 
     @Override

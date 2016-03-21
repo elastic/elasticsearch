@@ -223,7 +223,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testRandom() throws Exception {
-        boolean omitNorms = false;
+        boolean norms = true;
         boolean stored = false;
         boolean enabled = true;
         boolean tv_stored = false;
@@ -239,7 +239,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             allDefault = false;
             mappingBuilder.startObject("_all");
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<>("omit_norms", omitNorms = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("norms", norms = randomBoolean()));
             }
             if (randomBoolean()) {
                 booleanOptionList.add(new Tuple<>("store", stored = randomBoolean()));
@@ -272,7 +272,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = mappingBuilder.endObject().endObject().bytes().toUtf8();
-        logger.info(mapping);
+        logger.info("Mapping: {}", mapping);
         DocumentMapper docMapper = parser.parse("test", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
@@ -285,7 +285,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         Document doc = builtDocMapper.parse("test", "test", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         if (enabled) {
-            assertThat(field.fieldType().omitNorms(), equalTo(omitNorms));
+            assertThat(field.fieldType().omitNorms(), equalTo(!norms));
             assertThat(field.fieldType().stored(), equalTo(stored));
             assertThat(field.fieldType().storeTermVectorOffsets(), equalTo(tv_offsets));
             assertThat(field.fieldType().storeTermVectorPayloads(), equalTo(tv_payloads));
@@ -433,19 +433,6 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
         }
 
-
-        mapping = jsonBuilder().startObject().startObject("type")
-            .startObject("_all")
-                .startObject("fielddata")
-                    .field("format", "doc_values")
-            .endObject().endObject().endObject().endObject().string();
-        Settings legacySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        try {
-            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
-        }
     }
 
     public void testAutoBoost() throws Exception {

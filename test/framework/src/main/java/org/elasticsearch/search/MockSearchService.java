@@ -20,7 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +33,7 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -69,9 +70,9 @@ public class MockSearchService extends SearchService {
     public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
             BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
-            AggregatorParsers aggParsers) {
+            AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
-                queryPhase, fetchPhase, aggParsers);
+                queryPhase, fetchPhase, aggParsers, suggesters);
     }
 
     @Override

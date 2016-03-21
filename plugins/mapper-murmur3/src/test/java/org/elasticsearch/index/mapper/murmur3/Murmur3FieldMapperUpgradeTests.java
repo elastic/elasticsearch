@@ -52,6 +52,7 @@ public class Murmur3FieldMapperUpgradeTests extends ESIntegTestCase {
 
     public void testUpgradeOldMapping() throws IOException, ExecutionException, InterruptedException {
         final String indexName = "index-mapper-murmur3-2.0.0";
+        final String indexUUID = "1VzJds59TTK7lRu17W0mcg";
         InternalTestCluster.Async<String> master = internalCluster().startNodeAsync();
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
@@ -72,6 +73,7 @@ public class Murmur3FieldMapperUpgradeTests extends ESIntegTestCase {
         assertFalse(Files.exists(dataPath));
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);
+        Files.move(dataPath.resolve(indexName), dataPath.resolve(indexUUID));
 
         master.get();
         // force reloading dangling indices with a cluster state republish

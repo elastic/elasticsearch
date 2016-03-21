@@ -294,67 +294,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(verifyingOutput, dir);
     }
 
-    // TODO: remove this, its too fragile. just use a static old index instead.
-    private static final class OldSIMockingCodec extends FilterCodec {
-
-        protected OldSIMockingCodec() {
-            super(new Lucene54Codec().getName(), new Lucene54Codec());
-        }
-
-        @Override
-        public SegmentInfoFormat segmentInfoFormat() {
-            final SegmentInfoFormat segmentInfoFormat = super.segmentInfoFormat();
-            return new SegmentInfoFormat() {
-                @Override
-                public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
-                    return segmentInfoFormat.read(directory, segmentName, segmentID, context);
-                }
-
-                // this sucks it's a full copy of Lucene50SegmentInfoFormat but hey I couldn't find a way to make it write 4_5_0 versions
-                // somebody was too paranoid when implementing this. ey rmuir, was that you? - go fix it :P
-                @Override
-                public void write(Directory dir, SegmentInfo si, IOContext ioContext) throws IOException {
-                    final String fileName = IndexFileNames.segmentFileName(si.name, "", Lucene50SegmentInfoFormat.SI_EXTENSION);
-                    si.addFile(fileName);
-
-                    boolean success = false;
-                    try (IndexOutput output = dir.createOutput(fileName, ioContext)) {
-                        CodecUtil.writeIndexHeader(output,
-                                "Lucene50SegmentInfo",
-                                0,
-                                si.getId(),
-                                "");
-                        Version version = Version.LUCENE_4_5_0; // FOOOOOO!!
-                        // Write the Lucene version that created this segment, since 3.1
-                        output.writeInt(version.major);
-                        output.writeInt(version.minor);
-                        output.writeInt(version.bugfix);
-                        assert version.prerelease == 0;
-                        output.writeInt(si.maxDoc());
-
-                        output.writeByte((byte) (si.getUseCompoundFile() ? SegmentInfo.YES : SegmentInfo.NO));
-                        output.writeStringStringMap(si.getDiagnostics());
-                        Set<String> files = si.files();
-                        for (String file : files) {
-                            if (!IndexFileNames.parseSegmentName(file).equals(si.name)) {
-                                throw new IllegalArgumentException("invalid files: expected segment=" + si.name + ", got=" + files);
-                            }
-                        }
-                        output.writeStringSet(files);
-                        output.writeStringStringMap(si.getAttributes());
-                        CodecUtil.writeFooter(output);
-                        success = true;
-                    } finally {
-                        if (!success) {
-                            // TODO: are we doing this outside of the tracking wrapper? why must SIWriter cleanup like this?
-                            IOUtils.deleteFilesIgnoringExceptions(si.dir, fileName);
-                        }
-                    }
-                }
-            };
-        }
-    }
-
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -381,7 +320,7 @@ public class StoreTests extends ESTestCase {
             }
         }
         if (random().nextBoolean()) {
-            DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
+            DirectoryReader.open(writer).close(); // flush
         }
         Store.MetadataSnapshot metadata;
         // check before we committed
@@ -472,32 +411,12 @@ public class StoreTests extends ESTestCase {
 
         }
 
-        final Adler32 adler32 = new Adler32();
         final long luceneChecksum;
         try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
             luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
         }
 
-        { // positive check
-            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            assertTrue(Store.checkIntegrityNoException(lucene, dir));
-        }
-
-        { // negative check - wrong checksum
-            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum + 1), Version.LUCENE_4_8_0);
-            assertFalse(Store.checkIntegrityNoException(lucene, dir));
-        }
-
-        { // negative check - wrong length
-            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength + 1, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            assertFalse(Store.checkIntegrityNoException(lucene, dir));
-        }
-
-        { // negative check - wrong file
-            StoreFileMetaData lucene = new StoreFileMetaData("legacy.bin", luceneFileLength, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            assertFalse(Store.checkIntegrityNoException(lucene, dir));
-        }
         dir.close();
 
     }
@@ -600,8 +519,6 @@ public class StoreTests extends ESTestCase {
             dir = StoreTests.newDirectory(random);
             if (dir instanceof MockDirectoryWrapper) {
                 ((MockDirectoryWrapper) dir).setPreventDoubleWrite(preventDoubleWrite);
-                // TODO: fix this test to handle virus checker
-                ((MockDirectoryWrapper) dir).setEnableVirusScanner(false);
             }
             this.random = random;
         }
@@ -855,28 +772,6 @@ public class StoreTests extends ESTestCase {
             assertTrue("at least one file must not be in here since we have two commits?", numNotFound > 0);
         }
 
-        deleteContent(store.directory());
-        IOUtils.close(store);
-    }
-
-    public void testCleanUpWithLegacyChecksums() throws IOException {
-        Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
-        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, "foobar", Version.LUCENE_4_8_0, new BytesRef(new byte[]{1})));
-        metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", Version.LUCENE_4_8_0, new BytesRef()));
-        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(unmodifiableMap(metaDataMap), emptyMap(), 0);
-
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
-        for (String file : metaDataMap.keySet()) {
-            try (IndexOutput output = store.directory().createOutput(file, IOContext.DEFAULT)) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                CodecUtil.writeFooter(output);
-            }
-        }
-
-        store.verifyAfterCleanup(snapshot, snapshot);
         deleteContent(store.directory());
         IOUtils.close(store);
     }

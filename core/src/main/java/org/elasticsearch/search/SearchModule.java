@@ -62,6 +62,7 @@ import org.elasticsearch.index.query.MoreLikeThisQueryParser;
 import org.elasticsearch.index.query.MultiMatchQueryParser;
 import org.elasticsearch.index.query.NestedQueryParser;
 import org.elasticsearch.index.query.ParentIdQueryParser;
+import org.elasticsearch.index.query.PercolatorQueryParser;
 import org.elasticsearch.index.query.PrefixQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
@@ -215,6 +216,7 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
+import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
@@ -226,6 +228,14 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.Laplace;
+import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.search.suggest.phrase.StupidBackoff;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -277,8 +287,9 @@ public class SearchModule extends AbstractModule {
         highlighters.registerExtension(key, clazz);
     }
 
-    public void registerSuggester(String key, Class<? extends Suggester> suggester) {
-        suggesters.registerExtension(key, suggester);
+    public void registerSuggester(String key, Suggester<?> suggester) {
+        suggesters.registerExtension(key, suggester.getClass());
+        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, suggester.getBuilderPrototype());
     }
 
     /**
@@ -347,6 +358,7 @@ public class SearchModule extends AbstractModule {
         fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(ParentFieldSubFetchPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(PercolatorHighlightSubFetchPhase.class);
         for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
             fetchSubPhaseMultibinder.addBinding().to(clazz);
         }
@@ -371,6 +383,12 @@ public class SearchModule extends AbstractModule {
 
     protected void configureSuggesters() {
         suggesters.bind(binder());
+        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
     }
 
     protected void configureHighlighters() {
@@ -531,6 +549,7 @@ public class SearchModule extends AbstractModule {
         registerQueryParser(ExistsQueryParser::new);
         registerQueryParser(MatchNoneQueryParser::new);
         registerQueryParser(ParentIdQueryParser::new);
+        registerQueryParser(PercolatorQueryParser::new);
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQueryParser(GeoShapeQueryParser::new);
         }

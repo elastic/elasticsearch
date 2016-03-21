@@ -26,6 +26,8 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.missing.Missing;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 
@@ -38,6 +40,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -498,12 +502,48 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    public void testEmptySubAggregation() {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(terms("value").field("value")
+                .subAggregation(missing("values").field("values")
+                    .subAggregation(extendedStats("stats").field("value"))))
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("value");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getBuckets().size(), equalTo(10));
+
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket.getDocCount(), equalTo(1L));
+
+            Missing missing = bucket.getAggregations().get("values");
+            assertThat(missing, notNullValue());
+            assertThat(missing.getDocCount(), equalTo(0L));
+
+            ExtendedStats stats = missing.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getName(), equalTo("stats"));
+            assertThat(stats.getSumOfSquares(), equalTo(0.0));
+            assertThat(stats.getCount(), equalTo(0L));
+            assertThat(stats.getSum(), equalTo(0.0));
+            assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(Double.isNaN(stats.getStdDeviation()), is(true));
+            assertThat(Double.isNaN(stats.getAvg()), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
+        }
+    }
+
 
     private void assertShardExecutionState(SearchResponse response, int expectedFailures) throws Exception {
         ShardSearchFailure[] failures = response.getShardFailures();
         if (failures.length != expectedFailures) {
             for (ShardSearchFailure failure : failures) {
-                logger.error("Shard Failure: {}", failure.reason(), failure.toString());
+                logger.error("Shard Failure: {}", failure.getCause(), failure);
             }
             fail("Unexpected shard failures!");
         }

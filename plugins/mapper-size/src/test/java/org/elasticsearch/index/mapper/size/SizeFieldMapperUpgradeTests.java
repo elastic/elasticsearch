@@ -53,6 +53,7 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
 
     public void testUpgradeOldMapping() throws IOException, ExecutionException, InterruptedException {
         final String indexName = "index-mapper-size-2.0.0";
+        final String indexUUID = "ENCw7sG0SWuTPcH60bHheg";
         InternalTestCluster.Async<String> master = internalCluster().startNodeAsync();
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
@@ -73,6 +74,7 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         assertFalse(Files.exists(dataPath));
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);
+        Files.move(dataPath.resolve(indexName), dataPath.resolve(indexUUID));
         master.get();
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();

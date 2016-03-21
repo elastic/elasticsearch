@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.uri;
 
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;

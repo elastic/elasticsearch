@@ -45,7 +45,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolateStats;
+import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -186,11 +186,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.current", "alias:pc,percolateCurrent;default:false;text-align:right;desc:number of current percolations");
-        table.addCell("percolate.memory_size", "alias:pm,percolateMemory;default:false;text-align:right;desc:memory used by percolations");
         table.addCell("percolate.queries", "alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("percolate.time", "alias:pti,percolateTime;default:false;text-align:right;desc:time spent percolating");
-        table.addCell("percolate.total", "alias:pto,percolateTotal;default:false;text-align:right;desc:total percolations");
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
@@ -343,12 +339,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(mergeStats == null ? null : mergeStats.getTotalSize());
             table.addCell(mergeStats == null ? null : mergeStats.getTotalTime());
 
-            PercolateStats percolateStats = indicesStats == null ? null : indicesStats.getPercolate();
-            table.addCell(percolateStats == null ? null : percolateStats.getCurrent());
-            table.addCell(percolateStats == null ? null : percolateStats.getMemorySize());
-            table.addCell(percolateStats == null ? null : percolateStats.getNumQueries());
-            table.addCell(percolateStats == null ? null : percolateStats.getTime());
-            table.addCell(percolateStats == null ? null : percolateStats.getCount());
+            PercolatorQueryCacheStats percolatorQueryCacheStats = indicesStats == null ? null : indicesStats.getPercolate();
+            table.addCell(percolatorQueryCacheStats == null ? null : percolatorQueryCacheStats.getNumQueries());
 
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());

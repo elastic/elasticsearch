@@ -23,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -132,11 +131,7 @@ public class Queries {
                 builder.add(clause);
             }
             builder.setMinimumNumberShouldMatch(msm);
-            BooleanQuery bq = builder.build();
-            if (query.getBoost() != 1f) {
-                return new BoostQuery(bq, query.getBoost());
-            }
-            return bq;
+            return builder.build();
         } else {
             return query;
         }

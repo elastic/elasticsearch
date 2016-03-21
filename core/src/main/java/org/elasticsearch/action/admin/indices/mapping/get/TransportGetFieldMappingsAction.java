@@ -22,9 +22,9 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +56,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     @Override
     protected void doExecute(GetFieldMappingsRequest request, final ActionListener<GetFieldMappingsResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);

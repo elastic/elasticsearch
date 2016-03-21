@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -37,12 +36,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -52,7 +55,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TransportSettings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -121,7 +126,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     // internal settings only
-    public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", false, Setting.Scope.CLUSTER);
+    public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", Property.NodeScope);
     private final ClusterService clusterService;
     private final String[] blockIndicesWrite;
     private final String[] blockIndicesRead;
@@ -140,22 +145,31 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 throw new IllegalArgumentException(
                         "Invalid value for [tribe.on_conflict] must be either [any, drop or start with prefer_] but was: [" + s + "]");
         }
-    }, false, Setting.Scope.CLUSTER);
+    }, Property.NodeScope);
 
-    public static final Setting<Boolean> BLOCKS_METADATA_SETTING = Setting.boolSetting("tribe.blocks.metadata", false, false,
-            Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> BLOCKS_WRITE_SETTING = Setting.boolSetting("tribe.blocks.write", false, false,
-            Setting.Scope.CLUSTER);
-    public static final Setting<List<String>> BLOCKS_WRITE_INDICES_SETTING = Setting.listSetting("tribe.blocks.write.indices",
-            Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
-    public static final Setting<List<String>> BLOCKS_READ_INDICES_SETTING = Setting.listSetting("tribe.blocks.read.indices",
-            Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
-    public static final Setting<List<String>> BLOCKS_METADATA_INDICES_SETTING = Setting.listSetting("tribe.blocks.metadata.indices",
-            Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> BLOCKS_METADATA_SETTING =
+        Setting.boolSetting("tribe.blocks.metadata", false, Property.NodeScope);
+    public static final Setting<Boolean> BLOCKS_WRITE_SETTING =
+        Setting.boolSetting("tribe.blocks.write", false, Property.NodeScope);
+    public static final Setting<List<String>> BLOCKS_WRITE_INDICES_SETTING =
+        Setting.listSetting("tribe.blocks.write.indices", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> BLOCKS_READ_INDICES_SETTING =
+        Setting.listSetting("tribe.blocks.read.indices", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> BLOCKS_METADATA_INDICES_SETTING =
+        Setting.listSetting("tribe.blocks.metadata.indices", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     public static final Set<String> TRIBE_SETTING_KEYS = Sets.newHashSet(TRIBE_NAME_SETTING.getKey(), ON_CONFLICT_SETTING.getKey(),
             BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
 
+    // these settings should be passed through to each tribe client, if they are not set explicitly
+    private static final List<Setting<?>> PASS_THROUGH_SETTINGS = Arrays.asList(
+        NetworkService.GLOBAL_NETWORK_HOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
+        TransportSettings.HOST,
+        TransportSettings.BIND_HOST,
+        TransportSettings.PUBLISH_HOST
+    );
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
@@ -169,20 +183,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings.Builder sb = Settings.builder().put(entry.getValue());
-            sb.put("node.name", settings.get("node.name") + "/" + entry.getKey());
-            sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(settings)); // pass through ES home dir
-            if (Environment.PATH_CONF_SETTING.exists(settings)) {
-                sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(settings));
-            }
-            sb.put(TRIBE_NAME_SETTING.getKey(), entry.getKey());
-            if (sb.get("http.enabled") == null) {
-                sb.put("http.enabled", false);
-            }
-            sb.put(Node.NODE_DATA_SETTING.getKey(), false);
-            sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
-            sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
-            nodes.add(new TribeClientNode(sb.build()));
+            Settings clientSettings = buildClientSettings(entry.getKey(), settings, entry.getValue());
+            nodes.add(new TribeClientNode(clientSettings));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -200,6 +202,48 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
+
+    // pkg private for testing
+    /**
+     * Builds node settings for a tribe client node from the tribe node's global settings,
+     * combined with tribe specific settings.
+     */
+    static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+        for (String tribeKey : tribeSettings.getAsMap().keySet()) {
+            if (tribeKey.startsWith("path.")) {
+                throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
+            }
+        }
+        Settings.Builder sb = Settings.builder().put(tribeSettings);
+        sb.put("node.name", globalSettings.get("node.name") + "/" + tribeName);
+        sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
+        if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
+        }
+        if (Environment.PATH_PLUGINS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_PLUGINS_SETTING.getKey(), Environment.PATH_PLUGINS_SETTING.get(globalSettings));
+        }
+        if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
+        }
+        if (Environment.PATH_SCRIPTS_SETTING.exists(globalSettings)) {
+            sb.put(Environment.PATH_SCRIPTS_SETTING.getKey(), Environment.PATH_SCRIPTS_SETTING.get(globalSettings));
+        }
+        for (Setting<?> passthrough : PASS_THROUGH_SETTINGS) {
+            if (passthrough.exists(tribeSettings) == false && passthrough.exists(globalSettings)) {
+                sb.put(passthrough.getKey(), globalSettings.get(passthrough.getKey()));
+            }
+        }
+        sb.put(TRIBE_NAME_SETTING.getKey(), tribeName);
+        if (sb.get(NetworkModule.HTTP_ENABLED.getKey()) == null) {
+            sb.put(NetworkModule.HTTP_ENABLED.getKey(), false);
+        }
+        sb.put(Node.NODE_DATA_SETTING.getKey(), false);
+        sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
+        sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+        return sb.build();
+    }
+
 
     @Override
     protected void doStart() {
@@ -222,7 +266,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     try {
                         otherNode.close();
                     } catch (Throwable t) {
-                        logger.warn("failed to close node {} on failed start", otherNode, t);
+                        logger.warn("failed to close node {} on failed start", t, otherNode);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -364,9 +408,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 if (table == null) {
                     continue;
                 }
-                final IndexMetaData indexMetaData = currentState.metaData().index(tribeIndex.getIndex());
+                //NOTE: we have to use the index name here since UUID are different even if the name is the same
+                final String indexName = tribeIndex.getIndex().getName();
+                final IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                 if (indexMetaData == null) {
-                    if (!droppedIndices.contains(tribeIndex.getIndex().getName())) {
+                    if (!droppedIndices.contains(indexName)) {
                         // a new index, add it, and add the tribe name as a setting
                         clusterStateChanged = true;
                         logger.info("[{}] adding index {}", tribeName, tribeIndex.getIndex());
@@ -384,7 +430,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                             logger.info("[{}] dropping index {} due to conflict with [{}]", tribeName, tribeIndex.getIndex(),
                                     existingFromTribe);
                             removeIndex(blocks, metaData, routingTable, tribeIndex);
-                            droppedIndices.add(tribeIndex.getIndex().getName());
+                            droppedIndices.add(indexName);
                         } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
                             // on conflict, prefer a tribe...
                             String preferredTribeName = onConflict.substring(ON_CONFLICT_PREFER.length());

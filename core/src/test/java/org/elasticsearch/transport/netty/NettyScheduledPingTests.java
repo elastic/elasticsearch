@@ -54,13 +54,13 @@ public class NettyScheduledPingTests extends ESTestCase {
 
         NamedWriteableRegistry registryA = new NamedWriteableRegistry();
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryA);
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, registryA);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         NamedWriteableRegistry registryB = new NamedWriteableRegistry();
         final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryB);
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, registryB);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
         serviceB.start();
         serviceB.acceptIncomingRequests();
 
@@ -86,8 +86,8 @@ public class NettyScheduledPingTests extends ESTestCase {
                 try {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             }
         });
@@ -113,8 +113,8 @@ public class NettyScheduledPingTests extends ESTestCase {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            exp.printStackTrace();
-                            assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                            logger.error("Unexpected failure", exp);
+                            fail("got exception instead of a response: " + exp.getMessage());
                         }
                     }).txGet();
         }

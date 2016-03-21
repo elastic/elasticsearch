@@ -44,13 +44,13 @@
           "type" : "string",
           "description" : "The name of the tokenizer to use for the analysis"
         },
-        "detail": {
+        "explain": {
           "type" : "boolean",
           "description" : "With `true`, outputs more advanced details. (default: false)"
         },
         "attributes": {
           "type" : "list",
-          "description" : "A comma-separated list of token attributes to output, this parameter works only with `detail=true`"
+          "description" : "A comma-separated list of token attributes to output, this parameter works only with `explain=true`"
         },
         "format": {
           "type": "enum",

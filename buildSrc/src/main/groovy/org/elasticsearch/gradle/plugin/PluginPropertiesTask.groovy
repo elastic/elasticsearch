@@ -68,11 +68,17 @@ class PluginPropertiesTask extends Copy {
     }
 
     Map generateSubstitutions() {
+        def stringSnap = { version ->
+            if (version.endsWith("-SNAPSHOT")) {
+               return version.substring(0, version.length() - 9)
+            }
+            return version
+        }
         return [
             'name': extension.name,
             'description': extension.description,
-            'version': extension.version,
-            'elasticsearchVersion': VersionProperties.elasticsearch,
+            'version': stringSnap(extension.version),
+            'elasticsearchVersion': stringSnap(VersionProperties.elasticsearch),
             'javaVersion': project.targetCompatibility as String,
             'isolated': extension.isolated as String,
             'classname': extension.classname

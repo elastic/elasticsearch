@@ -30,7 +30,6 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +50,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery#setSlop(int)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#setSlop(int)
      */
     public void setSlop(int s) {
         slop = s;
@@ -64,7 +63,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery#getSlop()
+     * @see org.apache.lucene.search.PhraseQuery.Builder#getSlop()
      */
     public int getSlop() {
         return slop;
@@ -73,7 +72,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Add a single term at the next position in the phrase.
      *
-     * @see org.apache.lucene.search.PhraseQuery#add(Term)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term term) {
         add(new Term[]{term});
@@ -83,7 +82,7 @@ public class MultiPhrasePrefixQuery extends Query {
      * Add multiple terms at the next position in the phrase.  Any of the terms
      * may match.
      *
-     * @see org.apache.lucene.search.PhraseQuery#add(Term)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term[] terms) {
         int position = 0;
@@ -98,7 +97,7 @@ public class MultiPhrasePrefixQuery extends Query {
      *
      * @param terms the terms
      * @param position the position of the terms provided as argument
-     * @see org.apache.lucene.search.PhraseQuery#add(Term, int)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term, int)
      */
     public void add(Term[] terms, int position) {
         if (termArrays.size() == 0)
@@ -135,7 +134,7 @@ public class MultiPhrasePrefixQuery extends Query {
         if (termArrays.isEmpty()) {
             return new MatchNoDocsQuery();
         }
-        MultiPhraseQuery query = new MultiPhraseQuery();
+        MultiPhraseQuery.Builder query = new MultiPhraseQuery.Builder();
         query.setSlop(slop);
         int sizeMinus1 = termArrays.size() - 1;
         for (int i = 0; i < sizeMinus1; i++) {
@@ -154,7 +153,7 @@ public class MultiPhrasePrefixQuery extends Query {
             return Queries.newMatchNoDocsQuery();
         }
         query.add(terms.toArray(Term.class), position);
-        return query.rewrite(reader);
+        return query.build();
     }
 
     private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
@@ -230,8 +229,6 @@ public class MultiPhrasePrefixQuery extends Query {
             buffer.append("~");
             buffer.append(slop);
         }
-
-        buffer.append(ToStringUtils.boost(getBoost()));
 
         return buffer.toString();
     }

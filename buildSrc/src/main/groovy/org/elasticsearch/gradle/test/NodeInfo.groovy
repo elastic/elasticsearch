@@ -40,6 +40,9 @@ class NodeInfo {
     /** root directory all node files and operations happen under */
     File baseDir
 
+    /** shared data directory all nodes share */
+    File sharedDir
+
     /** the pid file the node will use */
     File pidFile
 
@@ -89,14 +92,15 @@ class NodeInfo {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** Creates a node to run as part of a cluster for the given task */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.sharedDir = sharedDir
         clusterName = "${task.path.replace(':', '_').substring(1)}"
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
-        homeDir = homeDir(baseDir, config.distribution)
-        confDir = confDir(baseDir, config.distribution)
+        homeDir = homeDir(baseDir, config.distribution, nodeVersion)
+        confDir = confDir(baseDir, config.distribution, nodeVersion)
         configFile = new File(confDir, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
@@ -129,14 +133,15 @@ class NodeInfo {
             'JAVA_HOME' : project.javaHome,
             'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
-        args.add("-Des.node.portsfile=true")
-        args.addAll(config.systemProperties.collect { key, value -> "-D${key}=${value}" })
+        args.addAll("-E", "es.node.portsfile=true")
+        env.put('ES_JAVA_OPTS', config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" "))
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
-                args.add("-D${property.getKey()}=${property.getValue()}")
+                args.add("-E")
+                args.add("${property.getKey()}=${property.getValue()}")
             }
         }
-        args.add("-Des.path.conf=${confDir}")
+        args.addAll("-E", "es.path.conf=${confDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }
@@ -181,13 +186,13 @@ class NodeInfo {
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro) {
+    static File homeDir(File baseDir, String distro, String nodeVersion) {
         String path
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
-                path = "elasticsearch-${VersionProperties.elasticsearch}"
+                path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
             case 'deb':
@@ -199,12 +204,12 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File confDir(File baseDir, String distro) {
+    static File confDir(File baseDir, String distro, String nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
-                return new File(homeDir(baseDir, distro), 'config')
+                return new File(homeDir(baseDir, distro, nodeVersion), 'config')
             case 'rpm':
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")

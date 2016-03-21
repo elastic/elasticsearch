@@ -43,9 +43,9 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ public class GeoDistanceSortParser implements SortParser {
     }
 
     @Override
-    public SortField parse(XContentParser parser, SearchContext context) throws Exception {
+    public SortField parse(XContentParser parser, QueryShardContext context) throws Exception {
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -71,7 +71,7 @@ public class GeoDistanceSortParser implements SortParser {
         MultiValueMode sortMode = null;
         NestedInnerQueryParseSupport nestedHelper = null;
 
-        final boolean indexCreatedBeforeV2_0 = context.indexShard().indexSettings().getIndexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         boolean coerce = GeoDistanceSortBuilder.DEFAULT_COERCE;
         boolean ignoreMalformed = GeoDistanceSortBuilder.DEFAULT_IGNORE_MALFORMED;
 
@@ -111,8 +111,11 @@ public class GeoDistanceSortParser implements SortParser {
                     if (coerce == true) {
                         ignoreMalformed = true;
                     }
-                } else if ("ignore_malformed".equals(currentName) && coerce == false) {
-                    ignoreMalformed = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentName)) {
+                    boolean ignoreMalformedFlag = parser.booleanValue();
+                    if (coerce == false) {
+                        ignoreMalformed = ignoreMalformedFlag;
+                    }
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -155,12 +158,12 @@ public class GeoDistanceSortParser implements SortParser {
             throw new IllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 
-        MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
         final MultiValueMode finalSortMode = sortMode; // final reference for use in the anonymous class
-        final IndexGeoPointFieldData geoIndexFieldData = context.fieldData().getForField(fieldType);
+        final IndexGeoPointFieldData geoIndexFieldData = context.getForField(fieldType);
         final FixedSourceDistance[] distances = new FixedSourceDistance[geoPoints.size()];
         for (int i = 0; i< geoPoints.size(); i++) {
             distances[i] = geoDistance.fixedSourceDistance(geoPoints.get(i).lat(), geoPoints.get(i).lon(), unit);
@@ -168,15 +171,16 @@ public class GeoDistanceSortParser implements SortParser {
 
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
-            BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
-            Query innerDocumentsFilter;
+            BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
+            Query innerDocumentsQuery;
             if (nestedHelper.filterFound()) {
                 // TODO: use queries instead
-                innerDocumentsFilter = nestedHelper.getInnerFilter();
+                innerDocumentsQuery = nestedHelper.getInnerFilter();
             } else {
-                innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
+                innerDocumentsQuery = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
             }
-            nested = new Nested(rootDocumentsFilter, context.searcher().createNormalizedWeight(innerDocumentsFilter, false));
+
+            nested = new Nested(rootDocumentsFilter, innerDocumentsQuery);
         } else {
             nested = null;
         }

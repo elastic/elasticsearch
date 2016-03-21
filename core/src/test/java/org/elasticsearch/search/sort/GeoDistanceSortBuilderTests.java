@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -60,7 +59,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 break;
             default:
                 throw new IllegalStateException("one of three geo initialisation strategies must be used");
-           
+
         }
         if (randomBoolean()) {
             result.geoDistance(geoDistance(result.geoDistance()));
@@ -86,20 +85,19 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         if (randomBoolean()) {
             result.ignoreMalformed(! result.ignoreMalformed());
         }
-        
+
         return result;
     }
 
-    private static String mode(String original) {
-        String[] modes = {"MIN", "MAX", "AVG"};
-        String mode = ESTestCase.randomFrom(modes);
-        while (mode.equals(original)) {
-            mode = ESTestCase.randomFrom(modes);
-        }
-        return mode;
+    private static SortMode mode(SortMode original) {
+        SortMode result;
+        do {
+            result = randomFrom(SortMode.values());
+        } while (result == SortMode.SUM || result == original);
+        return result;
     }
 
-    private DistanceUnit unit(DistanceUnit original) {
+    private static DistanceUnit unit(DistanceUnit original) {
         int id = -1;
         while (id == -1 || (original != null && original.ordinal() == id)) {
             id = randomIntBetween(0, DistanceUnit.values().length - 1);
@@ -107,7 +105,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         return DistanceUnit.values()[id];
     }
 
-    private GeoPoint[] points(GeoPoint[] original) {
+    private static GeoPoint[] points(GeoPoint[] original) {
         GeoPoint[] result = null;
         while (result == null || Arrays.deepEquals(original, result)) {
             int count = randomIntBetween(1, 10);
@@ -119,7 +117,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         return result;
     }
 
-    private GeoDistance geoDistance(GeoDistance original) {
+    private static GeoDistance geoDistance(GeoDistance original) {
         int id = -1;
         while (id == -1 || (original != null && original.ordinal() == id)) {
             id = randomIntBetween(0, GeoDistance.values().length - 1);
@@ -172,40 +170,34 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    protected Class<GeoDistanceSortBuilder> getPrototype() {
-        return (Class<GeoDistanceSortBuilder>) GeoDistanceSortBuilder.PROTOTYPE.getClass();
-    }
-
     public void testSortModeSumIsRejectedInSetter() {
         GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder("testname", -1, -1);
         GeoPoint point = RandomGeoGenerator.randomPoint(getRandom());
         builder.point(point.getLat(), point.getLon());
         try {
-            builder.sortMode("SUM");
+            builder.sortMode(SortMode.SUM);
             fail("sort mode sum should not be supported");
           } catch (IllegalArgumentException e) {
               // all good
           }
     }
-    
+
     public void testSortModeSumIsRejectedInJSON() throws IOException {
-        String json = "{\n" + 
-                "  \"testname\" : [ {\n" + 
-                "    \"lat\" : -6.046997540714173,\n" + 
-                "    \"lon\" : -51.94128329747579\n" + 
-                "  } ],\n" + 
-                "  \"unit\" : \"m\",\n" + 
-                "  \"distance_type\" : \"sloppy_arc\",\n" + 
-                "  \"reverse\" : true,\n" + 
-                "  \"mode\" : \"SUM\",\n" + 
-                "  \"coerce\" : false,\n" + 
-                "  \"ignore_malformed\" : false\n" + 
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"unit\" : \"m\",\n" +
+                "  \"distance_type\" : \"sloppy_arc\",\n" +
+                "  \"reverse\" : true,\n" +
+                "  \"mode\" : \"SUM\",\n" +
+                "  \"coerce\" : false,\n" +
+                "  \"ignore_malformed\" : false\n" +
                 "}";
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
-        
+
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
@@ -216,28 +208,28 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             // all good
         }
     }
-    
+
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
-        String json = "{\n" + 
+        String json = "{\n" +
                 "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", " +
-                "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" + 
-                "    \"unit\" : \"m\",\n" + 
-                "    \"distance_type\" : \"sloppy_arc\",\n" + 
-                "    \"reverse\" : true,\n" + 
-                "    \"mode\" : \"MAX\",\n" + 
-                "    \"nested_filter\" : {\n" + 
-                "      \"ids\" : {\n" + 
-                "        \"type\" : [ ],\n" + 
-                "        \"values\" : [ ],\n" + 
-                "        \"boost\" : 5.711116\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"coerce\" : false,\n" + 
-                "    \"ignore_malformed\" : true\n" + 
+                "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"reverse\" : true,\n" +
+                "    \"mode\" : \"MAX\",\n" +
+                "    \"nested_filter\" : {\n" +
+                "      \"ids\" : {\n" +
+                "        \"type\" : [ ],\n" +
+                "        \"values\" : [ ],\n" +
+                "        \"boost\" : 5.711116\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"coerce\" : false,\n" +
+                "    \"ignore_malformed\" : true\n" +
                 "  }";
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
-        
+
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
@@ -247,6 +239,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 + "43.71844606474042, -5.548660643398762, "
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
-                + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));                
+                + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
     }
 }

@@ -48,7 +48,7 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
     private int numberOfSignificantValueDigits = 3;
     private double compression = 100.0;
-    private boolean keyed = false;
+    private boolean keyed = true;
 
     public PercentilesAggregatorBuilder(String name) {
         super(name, InternalTDigestPercentiles.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);

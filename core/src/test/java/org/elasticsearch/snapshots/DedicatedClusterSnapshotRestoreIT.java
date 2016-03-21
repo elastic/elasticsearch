@@ -31,12 +31,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -325,7 +325,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
         unblockNode(blockedNode);
 
-        logger.info("--> stopping node", blockedNode);
+        logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         logger.info("--> waiting for completion");
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
@@ -379,7 +379,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode(blockedNode);
-        logger.info("--> stopping node", blockedNode);
+        logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {
             DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
@@ -632,8 +632,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         client().admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
-                        .put("secret.mock.username", "notsecretusername")
-                        .put("secret.mock.password", "verysecretpassword")
+                        .put(MockRepository.Plugin.USERNAME_SETTING.getKey(), "notsecretusername")
+                        .put(MockRepository.Plugin.PASSWORD_SETTING.getKey(), "verysecretpassword")
         ).get();
 
         RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);

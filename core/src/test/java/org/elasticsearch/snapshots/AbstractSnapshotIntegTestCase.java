@@ -21,13 +21,13 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -135,6 +135,32 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
         fail("No nodes for the index " + index + " found");
         return null;
+    }
+
+    public static void blockAllDataNodes(String repository) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+        }
+    }
+
+    public static void unblockAllDataNodes(String repository) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repository)).unblock();
+        }
+    }
+
+    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+        if (false == awaitBusy(() -> {
+            for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+                MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+                if (mockRepository.blocked()) {
+                    return true;
+                }
+            }
+            return false;
+        }, timeout.millis(), TimeUnit.MILLISECONDS)) {
+            fail("Timeout waiting for repository block on any data node!!!");
+        }
     }
 
     public static void unblockNode(String node) {

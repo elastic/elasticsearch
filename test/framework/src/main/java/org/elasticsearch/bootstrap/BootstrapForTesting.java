@@ -166,7 +166,7 @@ public class BootstrapForTesting {
     }
 
     /**
-     * we dont know which codesources belong to which plugin, so just remove the permission from key codebases
+     * we don't know which codesources belong to which plugin, so just remove the permission from key codebases
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")

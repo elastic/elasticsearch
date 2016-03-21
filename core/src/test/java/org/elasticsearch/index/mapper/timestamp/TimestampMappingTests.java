@@ -182,7 +182,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
         assertThat(request.timestamp(), notNullValue());
-        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"), Version.CURRENT)));
+        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -414,27 +414,11 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(request.timestamp(), is("1433239200000"));
     }
 
-    public void testThatIndicesBefore2xMustSupportUnixTimestampsInAnyDateFormat() throws Exception {
+    public void testThatIndicesAfter2_0DontSupportUnixTimestampsInAnyDateFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).field("format", "dateOptionalTime").endObject()
                 .endObject().endObject().string();
-
         BytesReference source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes();
-
-        //
-        // test with older versions
-        Settings oldSettings = settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersionBetween(random(), Version.V_0_90_0, Version.V_1_6_0)).build();
-        DocumentMapper docMapper = createIndex("old-index", oldSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
-
-        // both index request are successfully processed
-        IndexRequest oldIndexDateIndexRequest = new IndexRequest("old-index", "type", "1").source(source).timestamp("1970-01-01");
-        oldIndexDateIndexRequest.process(metaData, new MappingMetaData(docMapper), true, "old-index");
-        IndexRequest oldIndexTimestampIndexRequest = new IndexRequest("old-index", "type", "1").source(source).timestamp("1234567890");
-        oldIndexTimestampIndexRequest.process(metaData, new MappingMetaData(docMapper), true, "old-index");
-
-        //
         // test with 2.x
         DocumentMapper currentMapper = createIndex("new-index").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         MetaData newMetaData = client().admin().cluster().prepareState().get().getState().getMetaData();

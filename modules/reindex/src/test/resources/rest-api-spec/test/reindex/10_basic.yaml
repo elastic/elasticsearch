@@ -58,9 +58,6 @@
 
 ---
 "wait_for_completion=false":
-  - skip:
-      version: "0.0.0 - "
-      reason:  breaks other tests by leaving a running reindex behind
   - do:
       index:
         index:   source
@@ -78,7 +75,9 @@
             index: source
           dest:
             index: dest
+  - is_false: timed_out
   - match: {task: '/.+:\d+/'}
+  - set: {task: task}
   - is_false: updated
   - is_false: version_conflicts
   - is_false: batches
@@ -86,6 +85,11 @@
   - is_false: noops
   - is_false: took
   - is_false: created
+
+  - do:
+      tasks.list:
+        wait_for_completion: true
+        task_id: $task
 
 ---
 "Response format for version conflict":
@@ -122,7 +126,8 @@
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
-  - match: {failures.0.cause.reason: "[foo][1]: version conflict, document already exists (current version [1])"}
+  # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
+  - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.document.already.exists.\\(current.version.\\[\\d+\\]\\)/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  dest}
   - is_true: took

@@ -139,11 +139,7 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.current", "alias:pc,percolateCurrent;default:false;text-align:right;desc:number of current percolations");
-        table.addCell("percolate.memory_size", "alias:pm,percolateMemory;default:false;text-align:right;desc:memory used by percolations");
         table.addCell("percolate.queries", "alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("percolate.time", "alias:pti,percolateTime;default:false;text-align:right;desc:time spent percolating");
-        table.addCell("percolate.total", "alias:pto,percolateTotal;default:false;text-align:right;desc:total percolations");
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
@@ -191,7 +187,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shard.getIndexName());
             table.addCell(shard.id());
 
-            IndexMetaData indexMeta = state.getState().getMetaData().index(shard.index());
+            IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
             boolean usesShadowReplicas = false;
             if (indexMeta != null) {
                 usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings());
@@ -282,11 +278,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalSize());
             table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalTime());
 
-            table.addCell(commonStats == null ? null : commonStats.getPercolate().getCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getPercolate().getMemorySize());
-            table.addCell(commonStats == null ? null : commonStats.getPercolate().getNumQueries());
-            table.addCell(commonStats == null ? null : commonStats.getPercolate().getTime());
-            table.addCell(commonStats == null ? null : commonStats.getPercolate().getCount());
+            table.addCell(commonStats == null ? null : commonStats.getPercolatorCache().getNumQueries());
 
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());

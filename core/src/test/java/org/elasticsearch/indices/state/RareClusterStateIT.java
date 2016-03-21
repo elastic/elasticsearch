@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -376,12 +377,13 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 putMappingResponse.set(e);
             }
         });
+        final Index index = resolveIndex("index");
         // Wait for mappings to be available on master
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
-                final IndexService indexService = indicesService.indexServiceSafe("index");
+                final IndexService indexService = indicesService.indexServiceSafe(index);
                 assertNotNull(indexService);
                 final MapperService mapperService = indexService.mapperService();
                 DocumentMapper mapper = mapperService.documentMapper("type");

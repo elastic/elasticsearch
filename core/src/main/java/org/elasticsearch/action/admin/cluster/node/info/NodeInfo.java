@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
@@ -74,12 +75,15 @@ public class NodeInfo extends BaseNodeResponse {
     @Nullable
     private PluginsAndModules plugins;
 
-    NodeInfo() {
+    @Nullable
+    private IngestInfo ingest;
+
+    public NodeInfo() {
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Map<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins) {
+                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins, @Nullable IngestInfo ingest) {
         super(node);
         this.version = version;
         this.build = build;
@@ -92,6 +96,7 @@ public class NodeInfo extends BaseNodeResponse {
         this.transport = transport;
         this.http = http;
         this.plugins = plugins;
+        this.ingest = ingest;
     }
 
     /**
@@ -176,6 +181,11 @@ public class NodeInfo extends BaseNodeResponse {
         return this.plugins;
     }
 
+    @Nullable
+    public IngestInfo getIngest() {
+        return ingest;
+    }
+
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
         NodeInfo nodeInfo = new NodeInfo();
         nodeInfo.readFrom(in);
@@ -219,6 +229,9 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.readBoolean()) {
             plugins = new PluginsAndModules();
             plugins.readFrom(in);
+        }
+        if (in.readBoolean()) {
+            ingest = new IngestInfo(in);
         }
     }
 
@@ -284,6 +297,12 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             out.writeBoolean(true);
             plugins.writeTo(out);
+        }
+        if (ingest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            ingest.writeTo(out);
         }
     }
 }

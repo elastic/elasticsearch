@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -178,5 +180,18 @@ public class UpdateRequestTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
         }
+    }
+
+    // Related to issue 15338
+    public void testFieldsParsing() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "type1", "1")
+                .source(new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}"));
+        assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(request.fields(), arrayContaining("_source"));
+
+        request = new UpdateRequest("test", "type2", "2")
+                .source(new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}"));
+        assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(request.fields(), arrayContaining("field1", "field2"));
     }
 }

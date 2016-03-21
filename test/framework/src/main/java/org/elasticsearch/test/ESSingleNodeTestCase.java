@@ -22,6 +22,8 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -31,13 +33,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
@@ -83,6 +85,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
+        client().admin().indices()
+            .preparePutTemplate("random_index_template")
+            .setTemplate("*")
+            .setOrder(0)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
     private static void stopNode() throws IOException {
@@ -108,7 +116,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
-        // only the cluster name. This allows us to have overriden properties for plugins and the version to use.
+        // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
         if (NODE == null) {
             startNode();
         }
@@ -153,9 +161,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     /** Helper method to create list of plugins without specifying generic types. */
     @SafeVarargs
-    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which causes this warning
     protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
         return Arrays.asList(plugins);
+    }
+
+    /** Additional settings to add when creating the node. Also allows overriding the default settings. */
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
     }
 
     private Node newNode() {
@@ -166,8 +179,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+
             .put("script.inline", "true")
             .put("script.indexed", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
@@ -175,6 +187,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
+            .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();
@@ -255,7 +268,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
-        return instanceFromNode.indexServiceSafe(index);
+        return instanceFromNode.indexServiceSafe(resolveIndex(index));
+    }
+
+    public Index resolveIndex(String index) {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        return new Index(index, uuid);
     }
 
     /**

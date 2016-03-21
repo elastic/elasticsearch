@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Shape;
+import org.locationtech.spatial4j.shape.Shape;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.XShapeCollection;

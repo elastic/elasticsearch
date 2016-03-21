@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 
 /**
  *
@@ -68,7 +67,7 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhraseQuery) {
             MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
-            convertMultiPhraseQuery(0, new int[q.getTermArrays().size()], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
+            convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
@@ -77,7 +76,7 @@ public class CustomFieldQuery extends FieldQuery {
         }
     }
 
-    private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+    private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, Term[][] terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
         if (currentPos == 0) {
             // if we have more than 16 terms
             int numTerms = 0;
@@ -87,7 +86,7 @@ public class CustomFieldQuery extends FieldQuery {
             if (numTerms > 16) {
                 for (Term[] currentPosTerm : terms) {
                     for (Term term : currentPosTerm) {
-                        super.flatten(new TermQuery(term), reader, flatQueries, orig.getBoost());
+                        super.flatten(new TermQuery(term), reader, flatQueries, 1F);
                     }
                 }
                 return;
@@ -97,16 +96,16 @@ public class CustomFieldQuery extends FieldQuery {
          * we walk all possible ways and for each path down the MPQ we create a PhraseQuery this is what FieldQuery supports.
          * It seems expensive but most queries will pretty small.
          */
-        if (currentPos == terms.size()) {
+        if (currentPos == terms.length) {
             PhraseQuery.Builder queryBuilder = new PhraseQuery.Builder();
             queryBuilder.setSlop(orig.getSlop());
             for (int i = 0; i < termsIdx.length; i++) {
-                queryBuilder.add(terms.get(i)[termsIdx[i]], pos[i]);
+                queryBuilder.add(terms[i][termsIdx[i]], pos[i]);
             }
             Query query = queryBuilder.build();
-            this.flatten(query, reader, flatQueries, orig.getBoost());
+            this.flatten(query, reader, flatQueries, 1F);
         } else {
-            Term[] t = terms.get(currentPos);
+            Term[] t = terms[currentPos];
             for (int i = 0; i < t.length; i++) {
                 termsIdx[currentPos] = i;
                 convertMultiPhraseQuery(currentPos+1, termsIdx, orig, terms, pos, reader, flatQueries);

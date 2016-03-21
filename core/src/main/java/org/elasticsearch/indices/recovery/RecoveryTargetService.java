@@ -24,10 +24,10 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -218,7 +218,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                         "operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
                         .append("\n");
-                logger.trace(sb.toString());
+                logger.trace("{}", sb);
             } else {
                 logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryTarget.sourceNode(), recoveryTime);
             }

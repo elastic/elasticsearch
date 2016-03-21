@@ -150,7 +150,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
+        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
         readerContext = reader.getContext();
         return readerContext;
@@ -168,7 +168,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {
         BitsetFilterCache s = indexService.cache().bitsetFilterCache();
-        return new Nested(s.getBitSetProducer(parentFilter), searcher.createNormalizedWeight(childFilter, false));
+        return new Nested(s.getBitSetProducer(parentFilter), childFilter);
     }
 
     public void testEmpty() throws Exception {

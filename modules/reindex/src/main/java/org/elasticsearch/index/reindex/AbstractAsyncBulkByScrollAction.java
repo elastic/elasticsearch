@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -103,7 +104,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
 
-    protected abstract Response buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures);
+    protected abstract Response buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
+            boolean timedOut);
 
     public void start() {
         initialSearch();
@@ -161,8 +163,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         setScroll(searchResponse.getScrollId());
-        if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-            startNormalTermination(emptyList(), unmodifiableList(Arrays.asList(searchResponse.getShardFailures())));
+        if (    // If any of the shards failed that should abort the request.
+                (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0)
+                // Timeouts aren't shard failures but we still need to pass them back to the user.
+                || searchResponse.isTimedOut()
+                ) {
+            startNormalTermination(emptyList(), unmodifiableList(Arrays.asList(searchResponse.getShardFailures())),
+                    searchResponse.isTimedOut());
             return;
         }
         long total = searchResponse.getHits().totalHits();
@@ -176,7 +183,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 SearchHit[] docs = searchResponse.getHits().getHits();
                 logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
                 if (docs.length == 0) {
-                    startNormalTermination(emptyList(), emptyList());
+                    startNormalTermination(emptyList(), emptyList(), false);
                     return;
                 }
                 task.countBatch();
@@ -261,18 +268,18 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
                 }
                 // Track the indexes we've seen so we can refresh them if requested
-                destinationIndices.add(item.getIndex());
+                destinationIndicesThisBatch.add(item.getIndex());
             }
-            destinationIndices.addAll(destinationIndicesThisBatch);
+            addDestinationIndices(destinationIndicesThisBatch);
 
             if (false == failures.isEmpty()) {
-                startNormalTermination(unmodifiableList(failures), emptyList());
+                startNormalTermination(unmodifiableList(failures), emptyList(), false);
                 return;
             }
 
             if (mainRequest.getSize() != SIZE_ALL_MATCHES && task.getSuccessfullyProcessed() >= mainRequest.getSize()) {
                 // We've processed all the requested docs.
-                startNormalTermination(emptyList(), emptyList());
+                startNormalTermination(emptyList(), emptyList(), false);
                 return;
             }
             startNextScroll();
@@ -311,9 +318,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         failures.add(failure);
     }
 
-    void startNormalTermination(List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
-        if (false == mainRequest.isRefresh()) {
-            finishHim(null, indexingFailures, searchFailures);
+    void startNormalTermination(List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures, boolean timedOut) {
+        if (task.isCancelled() || false == mainRequest.isRefresh()) {
+            finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
         }
         RefreshRequest refresh = new RefreshRequest();
@@ -321,7 +328,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse response) {
-                finishHim(null, indexingFailures, searchFailures);
+                finishHim(null, indexingFailures, searchFailures, timedOut);
             }
 
             @Override
@@ -337,7 +344,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param failure if non null then the request failed catastrophically with this exception
      */
     void finishHim(Throwable failure) {
-        finishHim(failure, emptyList(), emptyList());
+        finishHim(failure, emptyList(), emptyList(), false);
     }
 
     /**
@@ -346,8 +353,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param failure if non null then the request failed catastrophically with this exception
      * @param indexingFailures any indexing failures accumulated during the request
      * @param searchFailures any search failures accumulated during the request
+     * @param timedOut have any of the sub-requests timed out?
      */
-    void finishHim(Throwable failure, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+    void finishHim(Throwable failure, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures, boolean timedOut) {
         String scrollId = scroll.get();
         if (Strings.hasLength(scrollId)) {
             /*
@@ -369,7 +377,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             });
         }
         if (failure == null) {
-            listener.onResponse(buildResponse(timeValueNanos(System.nanoTime() - startTime.get()), indexingFailures, searchFailures));
+            listener.onResponse(
+                    buildResponse(timeValueNanos(System.nanoTime() - startTime.get()), indexingFailures, searchFailures, timedOut));
         } else {
             listener.onFailure(failure);
         }
@@ -380,6 +389,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     BackoffPolicy backoffPolicy() {
         return exponentialBackoff(mainRequest.getRetryBackoffInitialTime(), mainRequest.getMaxRetries());
+    }
+
+    /**
+     * Add to the list of indices that were modified by this request. This is the list of indices refreshed at the end of the request if the
+     * request asks for a refresh.
+     */
+    void addDestinationIndices(Collection<String> indices) {
+        destinationIndices.addAll(indices);
     }
 
     /**

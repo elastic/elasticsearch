@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -165,7 +166,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 if (clauses.size() == 0)  // happens for stopwords
                     return null;
-                return getBooleanQuery(clauses, true);
+                return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
             return getFieldQuerySingle(field, queryText, quoted);
@@ -267,7 +268,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 if (clauses.size() == 0)  // happens for stopwords
                     return null;
-                return getBooleanQuery(clauses, true);
+                return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
             return super.getFieldQuery(field, queryText, slop);
@@ -318,7 +319,7 @@ public class MapperQueryParser extends QueryParser {
             }
             if (clauses.size() == 0)  // happens for stopwords
                 return null;
-            return getBooleanQuery(clauses, true);
+            return getBooleanQueryCoordDisabled(clauses);
         }
     }
 
@@ -380,7 +381,7 @@ public class MapperQueryParser extends QueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                return getBooleanQuery(clauses, true);
+                return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
             return getFuzzyQuerySingle(field, termStr, minSimilarity);
@@ -445,7 +446,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 if (clauses.size() == 0)  // happens for stopwords
                     return null;
-                return getBooleanQuery(clauses, true);
+                return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
             return getPrefixQuerySingle(field, termStr);
@@ -520,7 +521,7 @@ public class MapperQueryParser extends QueryParser {
             for (String token : tlist) {
                 clauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
             }
-            return getBooleanQuery(clauses, true);
+            return getBooleanQueryCoordDisabled(clauses);
         }
     }
 
@@ -575,7 +576,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 if (clauses.size() == 0)  // happens for stopwords
                     return null;
-                return getBooleanQuery(clauses, true);
+                return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
             return getWildcardQuerySingle(field, termStr);
@@ -704,7 +705,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 if (clauses.size() == 0)  // happens for stopwords
                     return null;
-                return getBooleanQuery(clauses, true);
+                return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
             return getRegexpQuerySingle(field, termStr);
@@ -739,10 +740,24 @@ public class MapperQueryParser extends QueryParser {
             setAnalyzer(oldAnalyzer);
         }
     }
+    
+    /**
+     * @deprecated review all use of this, don't rely on coord
+     */
+    @Deprecated
+    protected Query getBooleanQueryCoordDisabled(List<BooleanClause> clauses) throws ParseException {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setDisableCoord(true);
+        for (BooleanClause clause : clauses) {
+            builder.add(clause);
+        }
+        return fixNegativeQueryIfNeeded(builder.build());
+    }
+
 
     @Override
-    protected Query getBooleanQuery(List<BooleanClause> clauses, boolean disableCoord) throws ParseException {
-        Query q = super.getBooleanQuery(clauses, disableCoord);
+    protected Query getBooleanQuery(List<BooleanClause> clauses) throws ParseException {
+        Query q = super.getBooleanQuery(clauses);
         if (q == null) {
             return null;
         }
@@ -769,12 +784,12 @@ public class MapperQueryParser extends QueryParser {
             }
             pq = builder.build();
             //make sure that the boost hasn't been set beforehand, otherwise we'd lose it
-            assert q.getBoost() == 1f;
             assert q instanceof BoostQuery == false;
             return pq;
         } else if (q instanceof MultiPhraseQuery) {
-            ((MultiPhraseQuery) q).setSlop(slop);
-            return q;
+            MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
+            builder.setSlop(slop);
+            return builder.build();
         } else {
             return q;
         }

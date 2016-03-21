@@ -27,17 +27,18 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -81,9 +82,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String DEFAULT_MAPPING = "_default_";
-    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, true, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
-    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
+        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.IndexScope);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -330,7 +333,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        return mapper.type().startsWith(".") && !PercolatorService.TYPE_NAME.equals(mapper.type());
+        return mapper.type().startsWith(".") && !PercolatorFieldMapper.TYPE_NAME.equals(mapper.type());
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -402,7 +405,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
-        if (PercolatorService.TYPE_NAME.equals(mappingType)) {
+        if (PercolatorFieldMapper.TYPE_NAME.equals(mappingType)) {
             defaultMappingSource = this.defaultPercolatorMappingSource;
         }  else {
             defaultMappingSource = this.defaultMappingSource;

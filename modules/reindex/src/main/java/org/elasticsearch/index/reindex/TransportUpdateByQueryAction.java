@@ -96,8 +96,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         @Override
         protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<Failure> indexingFailures,
-                List<ShardSearchFailure> searchFailures) {
-            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures);
+                List<ShardSearchFailure> searchFailures, boolean timedOut) {
+            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
         }
 
         @Override

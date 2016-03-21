@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -74,7 +75,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             null, null, null, null, null,
             fsInfo,
             null, null, null,
-            null, null);
+            null, null, null);
     }
 
     @Inject

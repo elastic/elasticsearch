@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -138,7 +138,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request));
+                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request).getName());
                 resolveRequest(observer.observedState(), request);
                 blockException = checkRequestBlock(observer.observedState(), request);
                 if (blockException != null) {
@@ -172,7 +172,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 return;
             }
 
-            request.shardId = shardIt.shardId().id();
+            request.shardId = shardIt.shardId();
             DiscoveryNode node = nodes.get(shard.currentNodeId());
             transportService.sendRequest(node, shardActionName, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
 

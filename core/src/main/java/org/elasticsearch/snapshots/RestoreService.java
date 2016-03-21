@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -49,6 +48,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -772,6 +772,33 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             }
         }
         return false;
+    }
+
+    /**
+     * Check if any of the indices to be closed are currently being restored from a snapshot and fail closing if such an index
+     * is found as closing an index that is being restored makes the index unusable (it cannot be recovered).
+     */
+    public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
+        RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
+        if (restore != null) {
+            Set<Index> indicesToFail = null;
+            for (RestoreInProgress.Entry entry : restore.entries()) {
+                for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
+                    if (!shard.value.state().completed()) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
+                        if (indexMetaData != null && indices.contains(indexMetaData)) {
+                            if (indicesToFail == null) {
+                                indicesToFail = new HashSet<>();
+                            }
+                            indicesToFail.add(shard.key.getIndex());
+                        }
+                    }
+                }
+            }
+            if (indicesToFail != null) {
+                throw new IllegalArgumentException("Cannot close indices that are being restored: " + indicesToFail);
+            }
+        }
     }
 
     /**

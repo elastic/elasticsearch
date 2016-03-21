@@ -24,10 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -50,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.util.NumericUtils.floatToSortableInt;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
@@ -119,7 +119,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
     static final class FloatFieldType extends NumberFieldType {
 
         public FloatFieldType() {
-            super(NumericType.FLOAT);
+            super(LegacyNumericType.FLOAT);
         }
 
         protected FloatFieldType(FloatFieldType ref) {
@@ -159,13 +159,13 @@ public class FloatFieldMapper extends NumberFieldMapper {
         public BytesRef indexedValueForSearch(Object value) {
             int intValue = NumericUtils.floatToSortableInt(parseValue(value));
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            NumericUtils.intToPrefixCoded(intValue, 0, bytesRef);   // 0 because of exact match
+            LegacyNumericUtils.intToPrefixCoded(intValue, 0, bytesRef);   // 0 because of exact match
             return bytesRef.get();
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newFloatRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newFloatRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -175,7 +175,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             float iValue = parseValue(value);
             final float iSim = fuzziness.asFloat();
-            return NumericRangeQuery.newFloatRange(name(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newFloatRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -183,8 +183,8 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            float minValue = NumericUtils.sortableIntToFloat(NumericUtils.getMinInt(terms));
-            float maxValue = NumericUtils.sortableIntToFloat(NumericUtils.getMaxInt(terms));
+            float minValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
+            float maxValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));
             return new FieldStats.Float(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
@@ -296,7 +296,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, floatToSortableInt(value));
+            addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
         }
     }
 

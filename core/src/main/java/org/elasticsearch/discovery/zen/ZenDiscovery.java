@@ -24,7 +24,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -35,7 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -60,7 +60,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -87,17 +86,28 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
-    public final static Setting<TimeValue> PING_TIMEOUT_SETTING = Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), false, Setting.Scope.CLUSTER);
-    public final static Setting<TimeValue> JOIN_TIMEOUT_SETTING = Setting.timeSetting("discovery.zen.join_timeout",
-            settings -> TimeValue.timeValueMillis(PING_TIMEOUT_SETTING.get(settings).millis() * 20).toString(), TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
-    public final static Setting<Integer> JOIN_RETRY_ATTEMPTS_SETTING = Setting.intSetting("discovery.zen.join_retry_attempts", 3, 1, false, Setting.Scope.CLUSTER);
-    public final static Setting<TimeValue> JOIN_RETRY_DELAY_SETTING = Setting.positiveTimeSetting("discovery.zen.join_retry_delay", TimeValue.timeValueMillis(100), false, Setting.Scope.CLUSTER);
-    public final static Setting<Integer> MAX_PINGS_FROM_ANOTHER_MASTER_SETTING = Setting.intSetting("discovery.zen.max_pings_from_another_master", 3, 1, false, Setting.Scope.CLUSTER);
-    public final static Setting<Boolean> SEND_LEAVE_REQUEST_SETTING = Setting.boolSetting("discovery.zen.send_leave_request", true, false, Setting.Scope.CLUSTER);
-    public final static Setting<Boolean> MASTER_ELECTION_FILTER_CLIENT_SETTING = Setting.boolSetting("discovery.zen.master_election.filter_client", true, false, Setting.Scope.CLUSTER);
-    public final static Setting<TimeValue> MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING = Setting.timeSetting("discovery.zen.master_election.wait_for_joins_timeout",
-            settings -> TimeValue.timeValueMillis(JOIN_TIMEOUT_SETTING.get(settings).millis() / 2).toString(), TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
-    public final static Setting<Boolean> MASTER_ELECTION_FILTER_DATA_SETTING = Setting.boolSetting("discovery.zen.master_election.filter_data", false, false, Setting.Scope.CLUSTER);
+    public final static Setting<TimeValue> PING_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), Property.NodeScope);
+    public final static Setting<TimeValue> JOIN_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.zen.join_timeout",
+            settings -> TimeValue.timeValueMillis(PING_TIMEOUT_SETTING.get(settings).millis() * 20).toString(),
+            TimeValue.timeValueMillis(0), Property.NodeScope);
+    public final static Setting<Integer> JOIN_RETRY_ATTEMPTS_SETTING =
+        Setting.intSetting("discovery.zen.join_retry_attempts", 3, 1, Property.NodeScope);
+    public final static Setting<TimeValue> JOIN_RETRY_DELAY_SETTING =
+        Setting.positiveTimeSetting("discovery.zen.join_retry_delay", TimeValue.timeValueMillis(100), Property.NodeScope);
+    public final static Setting<Integer> MAX_PINGS_FROM_ANOTHER_MASTER_SETTING =
+        Setting.intSetting("discovery.zen.max_pings_from_another_master", 3, 1, Property.NodeScope);
+    public final static Setting<Boolean> SEND_LEAVE_REQUEST_SETTING =
+        Setting.boolSetting("discovery.zen.send_leave_request", true, Property.NodeScope);
+    public final static Setting<Boolean> MASTER_ELECTION_FILTER_CLIENT_SETTING =
+        Setting.boolSetting("discovery.zen.master_election.filter_client", true, Property.NodeScope);
+    public final static Setting<TimeValue> MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.zen.master_election.wait_for_joins_timeout",
+            settings -> TimeValue.timeValueMillis(JOIN_TIMEOUT_SETTING.get(settings).millis() / 2).toString(), TimeValue.timeValueMillis(0),
+            Property.NodeScope);
+    public final static Setting<Boolean> MASTER_ELECTION_FILTER_DATA_SETTING =
+        Setting.boolSetting("discovery.zen.master_election.filter_data", false, Property.NodeScope);
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
@@ -136,10 +146,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
-
-    @Nullable
-    private NodeService nodeService;
-
 
     // must initialized in doStart(), when we have the routingService set
     private volatile NodeJoinController nodeJoinController;
@@ -190,11 +196,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
-    }
-
-    @Override
-    public void setNodeService(@Nullable NodeService nodeService) {
-        this.nodeService = nodeService;
     }
 
     @Override
@@ -290,11 +291,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public DiscoveryNodes nodes() {
         return clusterService.state().nodes();
-    }
-
-    @Override
-    public NodeService nodeService() {
-        return this.nodeService;
     }
 
     @Override
@@ -838,7 +834,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return null;
         }
         if (logger.isTraceEnabled()) {
-            StringBuilder sb = new StringBuilder("full ping responses:");
+            StringBuilder sb = new StringBuilder();
             if (fullPingResponses.length == 0) {
                 sb.append(" {none}");
             } else {
@@ -846,7 +842,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     sb.append("\n\t--> ").append(pingResponse);
                 }
             }
-            logger.trace(sb.toString());
+            logger.trace("full ping responses:{}", sb);
         }
 
         // filter responses
@@ -864,7 +860,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         if (logger.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder("filtered ping responses: (filter_client[").append(masterElectionFilterClientNodes).append("], filter_data[").append(masterElectionFilterDataNodes).append("])");
+            StringBuilder sb = new StringBuilder();
             if (pingResponses.isEmpty()) {
                 sb.append(" {none}");
             } else {
@@ -872,7 +868,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     sb.append("\n\t--> ").append(pingResponse);
                 }
             }
-            logger.debug(sb.toString());
+            logger.debug("filtered ping responses: (filter_client[{}], filter_data[{}]){}", masterElectionFilterClientNodes,
+                masterElectionFilterDataNodes, sb);
         }
 
         final DiscoveryNode localNode = clusterService.localNode();
@@ -932,9 +929,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     protected ClusterState rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
-        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
+        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME);
 
-        logger.warn(reason + ", current nodes: {}", clusterState.nodes());
+        logger.warn("{}, current nodes: {}", reason, clusterState.nodes());
         nodesFD.stop();
         masterFD.stop(reason);
 
@@ -962,7 +959,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().localNodeMaster() : "handleAnotherMaster called but current node is not a master";
-        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
 
         if (otherClusterStateVersion > localClusterState.version()) {
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
@@ -1200,7 +1197,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         private void assertClusterStateThread() {
-            assert clusterService instanceof InternalClusterService == false || ((InternalClusterService) clusterService).assertClusterStateThread();
+            assert clusterService instanceof ClusterService == false || ((ClusterService) clusterService).assertClusterStateThread();
         }
 
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -60,9 +61,12 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "filter";
 
-    public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.require.", true, Setting.Scope.CLUSTER);
-    public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.include.", true, Setting.Scope.CLUSTER);
-    public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING = Setting.groupSetting("cluster.routing.allocation.exclude.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
+        Setting.groupSetting("cluster.routing.allocation.require.", Property.Dynamic, Property.NodeScope);
+    public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
+        Setting.groupSetting("cluster.routing.allocation.include.", Property.Dynamic, Property.NodeScope);
+    public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
+        Setting.groupSetting("cluster.routing.allocation.exclude.", Property.Dynamic, Property.NodeScope);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
@@ -98,7 +102,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         Decision decision = shouldClusterFilter(node, allocation);
         if (decision != null) return decision;
 
-        decision = shouldIndexFilter(allocation.routingNodes().metaData().index(shardRouting.index()), node, allocation);
+        decision = shouldIndexFilter(allocation.routingNodes().metaData().getIndexSafe(shardRouting.index()), node, allocation);
         if (decision != null) return decision;
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");

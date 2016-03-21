@@ -43,7 +43,6 @@ import java.util.Set;
 
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_NAME;
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_TYPE;
-import static org.elasticsearch.search.suggest.completion.context.ContextMapping.QueryContext;
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
 
 /**
@@ -153,7 +152,7 @@ public class ContextMappings implements ToXContent {
      * @param queryContexts a map of context mapping name and collected query contexts
      * @return a context-enabled query
      */
-    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<QueryContext>> queryContexts) {
+    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<ContextMapping.InternalQueryContext>> queryContexts) {
         ContextQuery typedContextQuery = new ContextQuery(query);
         if (queryContexts.isEmpty() == false) {
             CharsRefBuilder scratch = new CharsRefBuilder();
@@ -162,9 +161,9 @@ public class ContextMappings implements ToXContent {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
                 ContextMapping mapping = contextMappings.get(typeId);
-                List<QueryContext> queryContext = queryContexts.get(mapping.name());
-                if (queryContext != null) {
-                    for (QueryContext context : queryContext) {
+                List<ContextMapping.InternalQueryContext> internalQueryContext = queryContexts.get(mapping.name());
+                if (internalQueryContext != null) {
+                    for (ContextMapping.InternalQueryContext context : internalQueryContext) {
                         scratch.append(context.context);
                         typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
                         scratch.setLength(1);

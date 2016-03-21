@@ -20,13 +20,12 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -72,7 +71,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         termVectorsRequest.type(), termVectorsRequest.id(), new IndexNotFoundException(termVectorsRequest.index()))));
                 continue;
             }
-            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, (DocumentRequest) termVectorsRequest);
+            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
             if (termVectorsRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
                         new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));

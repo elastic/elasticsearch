@@ -1,7 +1,7 @@
 [[mapping-store]]
 === `store`
 
-By default, field values <<mapping-index,indexed>> to make them searchable,
+By default, field values are <<mapping-index,indexed>> to make them searchable,
 but they are not _stored_.  This means that the field can be queried, but the
 original field value cannot be retrieved.
 

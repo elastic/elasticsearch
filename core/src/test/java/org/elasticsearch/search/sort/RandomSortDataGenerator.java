@@ -60,15 +60,14 @@ public class RandomSortDataGenerator {
         return nestedPath;
     }
 
-    public static String mode(String original) {
-        String[] modes = {"min", "max", "avg", "sum"};
-        String mode = ESTestCase.randomFrom(modes);
+    public static SortMode mode(SortMode original) {
+        SortMode mode = ESTestCase.randomFrom(SortMode.values());
         while (mode.equals(original)) {
-            mode = ESTestCase.randomFrom(modes);
+            mode = ESTestCase.randomFrom(SortMode.values());
         }
         return mode;
     }
-    
+
     public static Object missing(Object original) {
         Object missing = null;
         Object otherMissing = null;
@@ -95,12 +94,12 @@ public class RandomSortDataGenerator {
               break;
           default:
               throw new IllegalStateException("Unknown missing type.");
-              
+
           }
         }
         return missing;
     }
-    
+
     public static SortOrder order(SortOrder original) {
         SortOrder order = SortOrder.ASC;
         if (order.equals(original)) {

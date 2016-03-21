@@ -65,7 +65,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertEquals(indexMetaData.getSettings().get("index.refresh_interval"), "-1");
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
-            IndexService indexService = service.indexService("test");
+            IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
@@ -79,7 +79,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertNull(indexMetaData.getSettings().get("index.refresh_interval"));
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
-            IndexService indexService = service.indexService("test");
+            IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
@@ -137,7 +137,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                     .execute().actionGet();
             fail("can't change number of replicas on a closed index");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Can't update [index.number_of_replicas] on closed indices [[test]] - can leave index in an unopenable state");
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("Can't update [index.number_of_replicas] on closed indices [[test/"));
+            assertTrue(ex.getMessage(), ex.getMessage().endsWith("]] - can leave index in an unopenable state"));
             // expected
         }
         client().admin().indices().prepareUpdateSettings("test")

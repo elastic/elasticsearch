@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.indices.flush;
 
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexService;
@@ -42,7 +42,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
     public void testModificationPreventsFlushing() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
-        IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
+        IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
@@ -86,7 +86,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
     public void testSingleShardSuccess() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
-        IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
+        IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
@@ -106,7 +106,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
     public void testSyncFailsIfOperationIsInFlight() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
-        IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
+        IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
@@ -126,7 +126,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSyncFailsOnIndexClosedOrMissing() throws InterruptedException {
         createIndex("test");
-        IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
+        IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
@@ -159,7 +159,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
     public void testFailAfterIntermediateCommit() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
-        IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
+        IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
@@ -192,7 +192,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
     public void testFailWhenCommitIsMissing() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
-        IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
+        IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);

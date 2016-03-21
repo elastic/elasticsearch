@@ -328,7 +328,7 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, Index.readIndex(in), in.readVInt());
+        readFrom(in, new Index(in), in.readVInt());
     }
 
     /**

@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -233,9 +233,6 @@ public class DefaultSearchContext extends SearchContext {
         Query result;
         if (Queries.isConstantMatchAllQuery(query())) {
             result = new ConstantScoreQuery(searchFilter);
-            if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                result = new BoostQuery(result, query().getBoost());
-            }
         } else {
             result = new BooleanQuery.Builder()
                     .add(query, Occur.MUST)
@@ -489,6 +486,11 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return indexService.fieldData();
+    }
+
+    @Override
+    public PercolatorQueryCache percolatorQueryCache() {
+        return indexService.cache().getPercolatorQueryCache();
     }
 
     @Override

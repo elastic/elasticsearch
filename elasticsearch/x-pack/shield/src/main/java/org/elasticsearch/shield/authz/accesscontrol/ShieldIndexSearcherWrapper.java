@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -229,9 +228,10 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     private void resolvePercolatorFields(Set<String> allowedFields) {
-        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
+        if (mapperService.hasMapping(PercolatorFieldMapper.TYPE_NAME)) {
             allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
             allowedFields.add(PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME);
+            allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
         }
     }
 

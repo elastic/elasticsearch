@@ -30,6 +30,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -221,9 +224,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * * Validates that all given settings are registered and valid
      */
     public final void validate(Settings settings) {
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            validate(entry.getKey(), settings);
+        List<RuntimeException> exceptions = new ArrayList<>();
+        // we want them sorted for deterministic error messages
+        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
+        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+            try {
+                validate(entry.getKey(), settings);
+            } catch (RuntimeException ex) {
+                exceptions.add(ex);
+            }
         }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
 

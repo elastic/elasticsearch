@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -52,6 +53,7 @@ public class RestListTasksAction extends BaseRestHandler {
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
+        TimeValue timeout = request.paramAsTime("timeout", null);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
         listTasksRequest.setTaskId(taskId);
@@ -60,6 +62,7 @@ public class RestListTasksAction extends BaseRestHandler {
         listTasksRequest.setActions(actions);
         listTasksRequest.setParentTaskId(parentTaskId);
         listTasksRequest.setWaitForCompletion(waitForCompletion);
+        listTasksRequest.setTimeout(timeout);
         client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<ListTasksResponse>(channel));
     }
 }

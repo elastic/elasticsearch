@@ -94,7 +94,13 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             public void accept(Task t) {
                 operation.accept(t);
                 while (System.nanoTime() - timeoutTime < 0) {
-                    if (taskManager.getTask(t.getId()) == null) {
+                    Task task = taskManager.getTask(t.getId());
+                    if (task == null) {
+                        return;
+                    }
+                    if (task.getAction().startsWith(ListTasksAction.NAME)) {
+                        // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
+                        // for itself of one of its child tasks
                         return;
                     }
                     try {

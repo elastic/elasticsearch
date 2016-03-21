@@ -71,8 +71,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                     "      privileges: [ ALL ]\n" +
             DEFAULT_TRANSPORT_CLIENT_ROLE + ":\n" +
                     "  cluster:\n" +
-                    "    - cluster:monitor/nodes/info\n" +
-                    "    - cluster:monitor/state";
+                    "    - transport_client";
 
     private final Path parentFolder;
     private final String subfolderPrefix;

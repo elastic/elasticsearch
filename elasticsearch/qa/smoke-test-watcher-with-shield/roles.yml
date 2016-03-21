@@ -8,9 +8,7 @@ admin:
 
 watcher_manager:
   cluster:
-    - manage_watcher
-    - cluster:monitor/nodes/info
-    - cluster:monitor/health
+    - manage
   indices:
     - names: '.watcher-history-*'
       privileges:
@@ -21,7 +19,7 @@ watcher_manager:
 
 watcher_monitor:
   cluster:
-    - monitor_watcher
+    - monitor
   indices:
     - names: '.watcher-history-*'
       privileges:

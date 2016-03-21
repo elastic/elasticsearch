@@ -290,30 +290,6 @@ public class Shield {
         }
     }
 
-    public static void registerClusterPrivilege(String name, String... patterns) {
-        try {
-            ClusterPrivilege.addCustom(name, patterns);
-        } catch (Exception se) {
-            logger.warn("could not register cluster privilege [{}]", name);
-
-            // we need to prevent bubbling the shield exception here for the tests. In the tests
-            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
-            // multiple nodes will try to add the same privileges multiple times.
-        }
-    }
-    
-    public static void registerIndexPrivilege(String name, String... patterns) {
-        try {
-            IndexPrivilege.addCustom(name, patterns);
-        } catch (Exception se) {
-            logger.warn("could not register index privilege [{}]", name);
-
-            // we need to prevent bubbling the shield exception here for the tests. In the tests
-            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
-            // multiple nodes will try to add the same privileges multiple times.
-        }
-    }    
-
     private void addUserSettings(Settings.Builder settingsBuilder) {
         String authHeaderSettingName = ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(authHeaderSettingName) != null) {

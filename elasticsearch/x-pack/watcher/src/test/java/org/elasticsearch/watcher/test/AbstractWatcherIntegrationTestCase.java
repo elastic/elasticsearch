@@ -691,12 +691,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "      privileges: [ all ]\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: [ 'manage_watcher', 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
+                "  cluster: [ 'manage' ]\n" +
                 "transport_client:\n" +
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
+                "  cluster: [ 'transport_client' ]\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: [ 'monitor_watcher', 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
+                "  cluster: [ 'monitor' ]\n"
                 ;
 
 

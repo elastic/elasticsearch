@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class GetRolesAction extends Action<GetRolesRequest, GetRolesResponse, GetRolesRequestBuilder> {
 
     public static final GetRolesAction INSTANCE = new GetRolesAction();
-    public static final String NAME = "cluster:admin/shield/role/get";
+    public static final String NAME = "cluster:admin/xpack/security/role/get";
 
 
     protected GetRolesAction() {

@@ -73,10 +73,12 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
     protected String configRoles() {
         return super.configRoles() +
                 "\nrole1:\n" +
-                "  cluster: [ all ]\n" +
+                "  cluster:\n" +
+                "    - all\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
-                "      privileges: [ ALL ]\n" +
+                "      privileges:\n" +
+                "        - all\n" +
                 "      query: \n" +
                 "        term: \n" +
                 "          field1: value1\n" +

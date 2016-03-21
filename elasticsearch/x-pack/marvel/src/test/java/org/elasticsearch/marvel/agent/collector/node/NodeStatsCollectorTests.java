@@ -7,7 +7,7 @@ package org.elasticsearch.marvel.agent.collector.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;

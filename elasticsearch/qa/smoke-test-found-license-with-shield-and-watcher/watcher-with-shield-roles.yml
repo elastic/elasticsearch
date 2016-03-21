@@ -4,12 +4,12 @@ admin:
     '*': all
 
 watcher_manager:
-  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/health
+  cluster: manage
   indices:
     '.watcher-history-*': all
 
 watcher_monitor:
-  cluster: monitor_watcher
+  cluster: monitor
   indices:
     '.watcher-history-*': read
 

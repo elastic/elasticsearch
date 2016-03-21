@@ -12,7 +12,7 @@ public class GraphExploreAction extends Action<GraphExploreRequest, GraphExplore
     GraphExploreRequestBuilder> {
 
     public static final GraphExploreAction INSTANCE = new GraphExploreAction();
-    public static final String NAME = "indices:data/read/graph/explore";
+    public static final String NAME = "indices:data/read/xpack/graph/explore";
 
     private GraphExploreAction() {
         super(NAME);

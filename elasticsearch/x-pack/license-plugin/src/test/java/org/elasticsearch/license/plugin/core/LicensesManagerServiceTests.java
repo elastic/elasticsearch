@@ -6,7 +6,7 @@
 package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.unit.TimeValue;

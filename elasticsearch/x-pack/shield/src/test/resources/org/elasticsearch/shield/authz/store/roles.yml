@@ -9,7 +9,8 @@ role1:
         - READ
     - names: idx3
       privileges:
-        - CRUD
+        - READ
+        - WRITE
 
 role1.ab:
   cluster:

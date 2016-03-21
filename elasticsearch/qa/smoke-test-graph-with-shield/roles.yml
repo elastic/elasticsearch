@@ -12,8 +12,8 @@ graph_explorer:
   indices:
     - names: '*'
       privileges:
-        - graph
-        - indices:data/write/index
+        - read
+        - write
         - indices:admin/refresh
         - indices:admin/create
     

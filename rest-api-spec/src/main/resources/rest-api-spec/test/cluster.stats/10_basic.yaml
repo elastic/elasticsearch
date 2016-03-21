@@ -13,7 +13,6 @@
   - is_true: indices.query_cache
   - is_true: indices.completion
   - is_true: indices.segments
-  - is_true: indices.percolate
   - gte: { nodes.count.total: 1}
   - gte: { nodes.count.master: 1}
   - gte: { nodes.count.data: 1}

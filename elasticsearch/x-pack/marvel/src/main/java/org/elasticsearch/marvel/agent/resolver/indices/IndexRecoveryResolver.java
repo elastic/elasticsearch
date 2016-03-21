@@ -11,9 +11,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
@@ -24,8 +23,8 @@ public class IndexRecoveryResolver extends MonitoringIndexNameResolver.Timestamp
 
     public static final String TYPE = "index_recovery";
 
-    public IndexRecoveryResolver(Settings settings) {
-        super(MonitoringIds.ES.getId(), MarvelTemplateUtils.TEMPLATE_VERSION, settings);
+    public IndexRecoveryResolver(MonitoredSystem id, int version, Settings settings) {
+        super(id, version, settings);
     }
 
     @Override

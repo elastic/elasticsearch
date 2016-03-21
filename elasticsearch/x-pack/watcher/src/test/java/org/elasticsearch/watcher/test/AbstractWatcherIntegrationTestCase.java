@@ -21,14 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -126,7 +124,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
-        logger.info("using schedule engine [" + scheduleImplName + "]");
+        logger.info("using schedule engine [{}]", scheduleImplName);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 //TODO: for now lets isolate watcher tests from monitoring (randomize this later)
@@ -398,8 +396,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 @Override
                 public void run() {
                     ClusterState state = client().admin().cluster().prepareState().get().getState();
-                    String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(),
-                            HistoryStore.INDEX_PREFIX + "*");
+                    String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(state,
+                            IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
                     assertThat(watchHistoryIndices, not(emptyArray()));
                     for (String index : watchHistoryIndices) {
                         IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -468,8 +466,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     // The watch_history index gets created in the background when the first watch is triggered
                     // so we to check first is this index is created and shards are started
                     ClusterState state = client().admin().cluster().prepareState().get().getState();
-                    String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(),
-                            HistoryStore.INDEX_PREFIX + "*");
+                    String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(state,
+                            IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
                     assertThat(watchHistoryIndices, not(emptyArray()));
                     for (String index : watchHistoryIndices) {
                         IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -503,7 +501,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(),
+                String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(state, IndicesOptions.lenientExpandOpen(),
                         HistoryStore.INDEX_PREFIX + "*");
                 assertThat(watchHistoryIndices, not(emptyArray()));
                 for (String index : watchHistoryIndices) {
@@ -685,19 +683,20 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, " +
-                        "cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, " +
-                        "indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
+                        " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
+                        " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete' ]\n" +
                 "  indices:\n" +
-                "    '*': all\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ all ]\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'manage' ]\n" +
                 "transport_client:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'transport_client' ]\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
+                "  cluster: [ 'monitor' ]\n"
                 ;
 
 
@@ -718,9 +717,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
                         .put("shield.audit.enabled", auditLogsEnabled)
-                        // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
-                        // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE)
                         .build();
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);

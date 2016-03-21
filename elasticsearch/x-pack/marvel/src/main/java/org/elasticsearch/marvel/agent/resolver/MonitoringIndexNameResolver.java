@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -153,14 +154,16 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
     public static abstract class Timestamped<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
 
         public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format","YYYY.MM.dd",
-                Function.identity(), false, Setting.Scope.CLUSTER);
+                Function.identity(), Setting.Property.NodeScope);
 
-        private final String id;
+        private final MonitoredSystem system;
         private final DateTimeFormatter formatter;
+        private final String index;
 
-        public Timestamped(String id, int version, Settings settings) {
+        public Timestamped(MonitoredSystem system, int version, Settings settings) {
             super(version);
-            this.id = id;
+            this.system = system;
+            this.index = String.join(DELIMITER, PREFIX, system.getSystem(), String.valueOf(getVersion()));
             String format = INDEX_NAME_TIME_FORMAT_SETTING.get(settings);
             try {
                 this.formatter = DateTimeFormat.forPattern(format).withZoneUTC();
@@ -171,12 +174,12 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
 
         @Override
         public String index(T document) {
-            return String.join(DELIMITER, PREFIX, id, String.valueOf(getVersion()), formatter.print(document.getTimestamp()));
+            return String.join(DELIMITER, index, formatter.print(document.getTimestamp()));
         }
 
         @Override
         public String indexPattern() {
-            return String.join(DELIMITER, PREFIX, "*", String.valueOf(getVersion()), "*");
+            return String.join(DELIMITER, index, "*");
         }
 
         @Override
@@ -186,7 +189,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         }
 
         String getId() {
-            return id;
+            return system.getSystem();
         }
     }
 }

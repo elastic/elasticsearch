@@ -36,9 +36,9 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
     static final String TRANSPORT_CLIENT_USER = "transport_user";
     static final String ROLES =
             "transport_client:\n" +
-            "  cluster: cluster:monitor/nodes/liveness\n" +
+            "  cluster: [ 'cluster:monitor/nodes/liveness' ]\n" +
             "run_as_role:\n" +
-            "  run_as: " + ShieldSettingsSource.DEFAULT_USER_NAME + ",idontexist\n";
+            "  run_as: [ '" + ShieldSettingsSource.DEFAULT_USER_NAME + "', 'idontexist' ]\n";
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {

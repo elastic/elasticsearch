@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.resolver.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateNodeMonitoringDoc;
@@ -21,11 +20,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateNodeResolverTests extends
         MonitoringIndexNameResolverTestCase<ClusterStateNodeMonitoringDoc, ClusterStateNodeResolver> {
-
-    @Override
-    protected ClusterStateNodeResolver newResolver() {
-        return new ClusterStateNodeResolver(Settings.EMPTY);
-    }
 
     @Override
     protected ClusterStateNodeMonitoringDoc newMarvelDoc() {

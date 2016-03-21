@@ -75,7 +75,7 @@ public class ShardsTests extends MarvelIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = new ShardsResolver(Settings.EMPTY).filters();
+        String[] filters = ShardsResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 

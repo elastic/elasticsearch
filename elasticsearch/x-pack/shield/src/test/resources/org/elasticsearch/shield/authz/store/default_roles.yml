@@ -1,48 +1,71 @@
 admin:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*': all
+    - names: '*'
+      privileges:
+        - all
 
 # monitoring cluster privileges
 # All operations on all indices
 power_user:
-  cluster: monitor
+  cluster:
+    - monitor
   indices:
-    '*': all
+    - names: '*'
+      privileges:
+        - all
 
-# Only operations on indices
+# Read-only operations on indices
 user:
   indices:
-    '*': read
+    - names: '*'
+      privileges:
+        - read
 
-# The required role for kibana 3 users
-kibana3:
-  cluster: cluster:monitor/nodes/info
-  indices:
-    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
-    'kibana-int': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+# Defines the required permissions for transport clients
+transport_client:
+  cluster:
+      - transport_client
 
-# The required role for kibana 4 users
-kibana4:
-  cluster: cluster:monitor/nodes/info
+# The required permissions for the kibana 4 server
+kibana4_server:
+  cluster:
+      - monitor
   indices:
-    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
-    '.kibana': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+    - names: '.kibana'
+      privileges:
+        - all
 
 # The required role for logstash users
 logstash:
-  cluster: indices:admin/template/get, indices:admin/template/put
+  cluster:
+    - manage_index_templates
   indices:
-    'logstash-*': indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, create_index
+    - names: 'logstash-*'
+      privileges:
+        - write
+        - read
+        - create_index
 
-# Monitoring role, allowing all operations
-# on the monitoring indices
+# Marvel user role. Assign to marvel users.
 monitoring_user:
   indices:
-    '.monitoring-*': all
+    - names:
+        - '.marvel-es-*'
+        - '.monitoring-*'
+      privileges: [ "read" ]
+    - names: '.kibana'
+      privileges:
+        - view_index_metadata
+        - read
 
-# Monitoring Agent users
-monitoring_agent:
-  cluster: indices:admin/template/get, indices:admin/template/put
+# Marvel remote agent role. Assign to the agent user on the remote marvel cluster
+# to which the marvel agent will export all its data
+remote_monitoring_agent:
+  cluster: [ "manage_index_templates" ]
   indices:
-    '.monitoring-*': indices:data/write/bulk, create_index
+    - names:
+        - '.marvel-es-*'
+        - '.monitoring-*'
+      privileges: [ "all" ]

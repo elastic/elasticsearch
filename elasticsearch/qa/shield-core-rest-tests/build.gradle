@@ -28,12 +28,14 @@ integTest {
      'indices.shard_stores/10_basic/no indices test',
      'cat.nodeattrs/10_basic/Test cat nodes attrs output',
      'bulk/40_fields/Fields',
-     'indices.get_alias/10_basic/Get alias against closed indices'].join(',')
+     'indices.get_alias/10_basic/Get alias against closed indices',
+     'ingest/70_bulk/*',
+     'ingest/10_crud/Check availability of default processors'].join(',')
 
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    systemProperty 'es.xpack.watcher.enabled', 'false'
-    systemProperty 'es.xpack.monitoring.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
     setupCommand 'setupDummyUser',
                  'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->

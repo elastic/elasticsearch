@@ -8,13 +8,13 @@ package org.elasticsearch.marvel.agent.collector.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -144,7 +144,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(monitoringDoc, instanceOf(IndicesStatsMonitoringDoc.class));
 
         IndicesStatsMonitoringDoc indicesStatsMarvelDoc = (IndicesStatsMonitoringDoc) monitoringDoc;
-        assertThat(indicesStatsMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(indicesStatsMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
         assertThat(indicesStatsMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(indicesStatsMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));

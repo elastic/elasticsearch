@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class EmailAttachmentsParser {
@@ -25,7 +25,7 @@ public class EmailAttachmentsParser {
     }
 
     public EmailAttachments parse(XContentParser parser) throws IOException {
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
+        Map<String, EmailAttachmentParser.EmailAttachment> attachments = new LinkedHashMap<>();
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -41,17 +41,21 @@ public class EmailAttachmentsParser {
 
                     EmailAttachmentParser emailAttachmentParser = parsers.get(currentAttachmentType);
                     if (emailAttachmentParser == null) {
-                        throw new ElasticsearchParseException("Cannot parse attachment of type " + currentAttachmentType);
+                        throw new ElasticsearchParseException("Cannot parse attachment of type [{}]", currentAttachmentType);
                     }
                     EmailAttachmentParser.EmailAttachment emailAttachment = emailAttachmentParser.parse(currentFieldName, parser);
-                    attachments.add(emailAttachment);
+                    if (attachments.containsKey(emailAttachment.id())) {
+                        throw new ElasticsearchParseException("Attachment with id [{}] has already been created, must be renamed",
+                                emailAttachment.id());
+                    }
+                    attachments.put(emailAttachment.id(), emailAttachment);
                     // one further to skip the end_object from the attachment
                     parser.nextToken();
                 }
             }
         }
 
-        return new EmailAttachments(attachments);
+        return new EmailAttachments(new ArrayList<>(attachments.values()));
     }
 
     public Map<String, EmailAttachmentParser> getParsers() {

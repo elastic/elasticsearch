@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -170,11 +170,11 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     }
 
     private String currentTimestampedIndexName() {
-        MonitoringDoc doc = new MonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
+        MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
         doc.setTimestamp(System.currentTimeMillis());
 
-        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoringIds.ES.getId(),
-                currentVersion, exporterSettings());
+        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, currentVersion,
+                exporterSettings());
         return resolver.index(doc);
     }
 

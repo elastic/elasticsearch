@@ -7,13 +7,13 @@ package org.elasticsearch.marvel.agent.collector;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
@@ -80,7 +80,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
                 return doCollect();
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error("collector [{}] timed out when collecting data");
+            logger.error("collector [{}] timed out when collecting data", name());
         } catch (Exception e) {
             logger.error("collector [{}] - failed collecting data", e, name());
         }
@@ -120,7 +120,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected String monitoringId() {
         // Collectors always collects data for Elasticsearch
-        return MonitoringIds.ES.getId();
+        return MonitoredSystem.ES.getSystem();
     }
 
     protected String monitoringVersion() {

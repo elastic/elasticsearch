@@ -44,17 +44,17 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Shield
     protected String configRoles() {
         return super.configRoles() +
                 "\nrole1:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "     't*':\n" +
-                "        privileges: ALL\n" +
-                "        fields: field1\n" +
-                "     'my_alias':\n" +
-                "        privileges: ALL\n" +
-                "        fields: field2\n" +
-                "     '/an_.*/':\n" +
-                "        privileges: ALL\n" +
-                "        fields: field3\n";
+                "      - names: 't*'\n" +
+                "        privileges: [ALL]\n" +
+                "        fields: [ field1 ]\n" +
+                "      - names: 'my_alias'\n" +
+                "        privileges: [ALL]\n" +
+                "        fields: [field2]\n" +
+                "      - names: '/an_.*/'\n" +
+                "        privileges: [ALL]\n" +
+                "        fields: [field3]\n";
     }
 
     @Override

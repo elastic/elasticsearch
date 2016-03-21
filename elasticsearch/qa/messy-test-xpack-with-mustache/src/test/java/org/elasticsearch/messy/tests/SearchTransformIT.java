@@ -37,7 +37,7 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformBuilders;
@@ -154,7 +154,7 @@ public class SearchTransformIT extends ESIntegTestCase {
 
         SearchRequest request = Requests.searchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()), null);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -188,7 +188,7 @@ public class SearchTransformIT extends ESIntegTestCase {
                 new SearchSourceBuilder().query(QueryBuilders.wrapperQuery(jsonBuilder().startObject()
                         .startObject("_unknown_query_").endObject().endObject().bytes())));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()), null);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -252,7 +252,7 @@ public class SearchTransformIT extends ESIntegTestCase {
                 .must(termQuery("value", "{{ctx.payload.value}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()), null);
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC),
                 parseDate("2015-01-01T00:00:00", UTC));
@@ -318,9 +318,8 @@ public class SearchTransformIT extends ESIntegTestCase {
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()),
- indicesQueryRegistry,
-                null);
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
+                                                                             indicesQueryRegistry, null, null);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -482,7 +481,7 @@ public class SearchTransformIT extends ESIntegTestCase {
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger,
-                ClientProxy.of(client()), null);
+                WatcherClientProxy.of(client()), null);
 
         return executableSearchTransform.execute(ctx, Payload.Simple.EMPTY);
     }

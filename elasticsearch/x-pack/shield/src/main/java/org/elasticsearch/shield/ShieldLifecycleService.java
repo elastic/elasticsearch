@@ -6,7 +6,7 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;

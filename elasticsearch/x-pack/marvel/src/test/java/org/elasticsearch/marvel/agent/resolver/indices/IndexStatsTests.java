@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
-import org.elasticsearch.marvel.agent.resolver.indices.IndexStatsResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -89,7 +88,7 @@ public class IndexStatsTests extends MarvelIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = new IndexStatsResolver(Settings.EMPTY).filters();
+        String[] filters = IndexStatsResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 

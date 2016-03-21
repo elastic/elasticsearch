@@ -15,14 +15,14 @@ import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.InputRegistry;
-import org.elasticsearch.watcher.support.init.InitializingService;
+import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Result, ExecutableChainInput>
-        implements InitializingService.Initializable {
+        implements LazyInitializable {
 
     private InputRegistry inputRegistry;
 

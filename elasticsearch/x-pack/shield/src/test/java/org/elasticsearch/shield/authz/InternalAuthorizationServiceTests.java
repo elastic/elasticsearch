@@ -7,26 +7,43 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.DefaultAuthenticationFailureHandler;
@@ -40,6 +57,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
@@ -284,7 +302,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         User user = new User("test user", "a_star", "b");
         ClusterState state = mock(ClusterState.class);
         when(rolesStore.role("a_star")).thenReturn(Role.builder("a_star").add(IndexPrivilege.ALL, "a*").build());
-        when(rolesStore.role("b")).thenReturn(Role.builder("a_star").add(IndexPrivilege.SEARCH, "b").build());
+        when(rolesStore.role("b")).thenReturn(Role.builder("a_star").add(IndexPrivilege.READ, "b").build());
         when(clusterService.state()).thenReturn(state);
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         when(state.metaData()).thenReturn(MetaData.builder()
@@ -451,5 +469,85 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).runAsGranted(user, "indices:a", request);
         verify(auditTrail).accessGranted(user, "indices:a", request);
         verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testNonXPackUserCannotExecuteOperationAgainstShieldIndex() {
+        User user = new User("all_access_user", "all_access");
+        when(rolesStore.role("all_access")).thenReturn(Role.builder("all_access")
+                .add(IndexPrivilege.ALL, "*")
+                .cluster(ClusterPrivilege.ALL)
+                .build());
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder(ShieldTemplateService.SECURITY_INDEX_NAME)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+
+        List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
+        requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(TermVectorsAction.NAME, new TermVectorsRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(TermVectorsAction.NAME, new TermVectorsRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest().addAlias("shield_alias",
+                ShieldTemplateService.SECURITY_INDEX_NAME)));
+
+        for (Tuple<String, TransportRequest> requestTuple : requests) {
+            String action = requestTuple.v1();
+            TransportRequest request = requestTuple.v2();
+            try {
+                internalAuthorizationService.authorize(user, action, request);
+                fail("only the xpack user can execute operation [" + action + "] against the internal index");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthorizationException(e, containsString("action [" + action + "] is unauthorized for user [all_access_user]"));
+                verify(auditTrail).accessDenied(user, action, request);
+                verifyNoMoreInteractions(auditTrail);
+            }
+        }
+
+        // we should allow waiting for the health of the index or any index if the user has this permission
+        ClusterHealthRequest request = new ClusterHealthRequest(ShieldTemplateService.SECURITY_INDEX_NAME);
+        internalAuthorizationService.authorize(user, ClusterHealthAction.NAME, request);
+        verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
+
+        // multiple indices
+        request = new ClusterHealthRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "foo", "bar");
+        internalAuthorizationService.authorize(user, ClusterHealthAction.NAME, request);
+        verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
+    }
+
+    public void testXPackUserCanExecuteOperationAgainstShieldIndex() {
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder(ShieldTemplateService.SECURITY_INDEX_NAME)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+
+        List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
+        requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(TermVectorsAction.NAME, new TermVectorsRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(TermVectorsAction.NAME, new TermVectorsRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest().addAlias("shield_alias",
+                ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(ClusterHealthAction.NAME,
+                new ClusterHealthRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "foo", "bar")));
+
+        for (Tuple<String, TransportRequest> requestTuple : requests) {
+            String action = requestTuple.v1();
+            TransportRequest request = requestTuple.v2();
+            internalAuthorizationService.authorize(XPackUser.INSTANCE, action, request);
+            verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
+        }
     }
 }

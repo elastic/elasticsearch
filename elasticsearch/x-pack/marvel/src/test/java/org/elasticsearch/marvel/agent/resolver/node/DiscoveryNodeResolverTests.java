@@ -23,11 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestCase<DiscoveryNodeMonitoringDoc, DiscoveryNodeResolver> {
 
     @Override
-    protected DiscoveryNodeResolver newResolver() {
-        return new DiscoveryNodeResolver();
-    }
-
-    @Override
     protected DiscoveryNodeMonitoringDoc newMarvelDoc() {
         DiscoveryNodeMonitoringDoc doc = new DiscoveryNodeMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));

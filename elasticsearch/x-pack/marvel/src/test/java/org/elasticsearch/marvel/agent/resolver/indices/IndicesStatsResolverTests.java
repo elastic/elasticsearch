@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingTestUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -43,11 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCase<IndicesStatsMonitoringDoc, IndicesStatsResolver> {
-
-    @Override
-    protected IndicesStatsResolver newResolver() {
-        return new IndicesStatsResolver(Settings.EMPTY);
-    }
 
     @Override
     protected IndicesStatsMonitoringDoc newMarvelDoc() {
@@ -91,7 +85,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
         List<ShardStats> shardStats = new ArrayList<>();
         for (int i=0; i < randomIntBetween(2, 5); i++) {
             ShardId shardId = new ShardId(index, i);
-            Path path = createTempDir().resolve("indices").resolve(index.getName()).resolve(String.valueOf(i));
+            Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
             ShardRouting shardRouting = ShardRouting.newUnassigned(index, i, null, true,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
             ShardRoutingTestUtils.initialize(shardRouting, "node-0");
@@ -106,7 +100,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
             stats.segments = new SegmentsStats();
             stats.merge = new MergeStats();
             stats.refresh = new RefreshStats();
-            shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, null, shardId), stats, null));
+            shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null));
         }
         return IndicesStatsResponseTestUtils.newIndicesStatsResponse(shardStats.toArray(new ShardStats[shardStats.size()]),
                 shardStats.size(), shardStats.size(), 0, emptyList());

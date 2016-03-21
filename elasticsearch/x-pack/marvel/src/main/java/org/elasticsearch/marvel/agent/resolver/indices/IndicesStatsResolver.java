@@ -10,9 +10,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsMonitoringDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
@@ -21,7 +20,7 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
 
     public static final String TYPE = "indices_stats";
 
-    private static final String[] FILTERS = {
+    static final String[] FILTERS = {
             "cluster_uuid",
             "timestamp",
             "source_node",
@@ -43,8 +42,8 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
             "indices_stats._all.total.store.size_in_bytes",
     };
 
-    public IndicesStatsResolver(Settings settings) {
-        super(MonitoringIds.ES.getId(), MarvelTemplateUtils.TEMPLATE_VERSION, settings);
+    public IndicesStatsResolver(MonitoredSystem id, int version, Settings settings) {
+        super(id, version, settings);
     }
 
     @Override

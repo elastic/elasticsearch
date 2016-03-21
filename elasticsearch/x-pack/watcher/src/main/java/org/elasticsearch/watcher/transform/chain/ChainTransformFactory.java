@@ -9,11 +9,11 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformFactory;
 import org.elasticsearch.watcher.transform.TransformRegistry;
+import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,7 +22,7 @@ import java.util.ArrayList;
  *
  */
 public class ChainTransformFactory extends TransformFactory<ChainTransform, ChainTransform.Result, ExecutableChainTransform> implements
-        InitializingService.Initializable {
+        LazyInitializable {
 
     private TransformRegistry registry;
 

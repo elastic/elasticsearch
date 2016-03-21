@@ -6,12 +6,12 @@
 package org.elasticsearch.marvel.agent.collector.shards;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -67,7 +67,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
             assertThat(monitoringDoc, instanceOf(ShardMonitoringDoc.class));
 
             ShardMonitoringDoc shardMarvelDoc = (ShardMonitoringDoc) monitoringDoc;
-            assertThat(shardMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+            assertThat(shardMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
             assertThat(shardMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
             assertThat(shardMarvelDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
             assertThat(shardMarvelDoc.getTimestamp(), greaterThan(0L));
@@ -128,7 +128,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
             assertThat(doc, instanceOf(ShardMonitoringDoc.class));
 
             ShardMonitoringDoc shardDoc = (ShardMonitoringDoc) doc;
-            assertThat(shardDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+            assertThat(shardDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
             assertThat(shardDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
             assertThat(shardDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
             assertThat(shardDoc.getTimestamp(), greaterThan(0L));

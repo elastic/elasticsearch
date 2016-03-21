@@ -70,7 +70,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = new ClusterStateResolver(Settings.EMPTY).filters();
+        String[] filters = ClusterStateResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 

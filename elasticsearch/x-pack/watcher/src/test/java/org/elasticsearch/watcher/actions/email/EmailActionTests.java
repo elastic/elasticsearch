@@ -390,7 +390,7 @@ public class EmailActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
-        logger.info(bytes.toUtf8());
+        logger.info("{}", bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
@@ -481,7 +481,7 @@ public class EmailActionTests extends ESTestCase {
     }
 
     public void testThatDataAttachmentGetsAttachedWithId() throws Exception {
-        String attachmentId = "my_attachment";
+        String attachmentId = randomAsciiOfLength(10) + ".yml";
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("attachments")
@@ -506,9 +506,9 @@ public class EmailActionTests extends ESTestCase {
         EmailAction.Result.Success successResult = (EmailAction.Result.Success) result;
         Map<String, Attachment> attachments = successResult.email().attachments();
 
-        assertThat(attachments, hasKey("my_attachment"));
-        Attachment dataAttachment = attachments.get("my_attachment");
-        assertThat(dataAttachment.name(), is("data.yml"));
+        assertThat(attachments, hasKey(attachmentId));
+        Attachment dataAttachment = attachments.get(attachmentId);
+        assertThat(dataAttachment.name(), is(attachmentId));
         assertThat(dataAttachment.type(), is("yaml"));
         assertThat(dataAttachment.contentType(), is("application/yaml"));
     }

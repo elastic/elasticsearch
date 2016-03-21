@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class DeleteRoleAction extends Action<DeleteRoleRequest, DeleteRoleResponse, DeleteRoleRequestBuilder> {
 
     public static final DeleteRoleAction INSTANCE = new DeleteRoleAction();
-    public static final String NAME = "cluster:admin/shield/role/delete";
+    public static final String NAME = "cluster:admin/xpack/security/role/delete";
 
 
     protected DeleteRoleAction() {

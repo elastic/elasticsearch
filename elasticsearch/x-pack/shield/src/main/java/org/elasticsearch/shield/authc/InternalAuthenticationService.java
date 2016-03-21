@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -224,6 +225,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         try {
             byte[] bytes = Base64.decode(text);
             StreamInput input = StreamInput.wrap(bytes);
+            Version version = Version.readVersion(input);
+            input.setVersion(version);
             return User.readFrom(input);
         } catch (IOException ioe) {
             throw authenticationError("could not read authenticated user", ioe);
@@ -233,6 +236,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     static String encodeUser(User user, ESLogger logger) {
         try {
             BytesStreamOutput output = new BytesStreamOutput();
+            Version.writeVersion(Version.CURRENT, output);
             User.writeTo(user, output);
             byte[] bytes = output.bytes().toBytes();
             return Base64.encodeBytes(bytes);
@@ -268,7 +272,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (logger.isDebugEnabled()) {
                 logger.debug("failed to extract token from transport message", e);
             } else {
-                logger.warn("failed to extract token from transport message: ", e.getMessage());
+                logger.warn("failed to extract token from transport message: {}", e.getMessage());
             }
             auditTrail.authenticationFailed(action, message);
             throw failureHandler.exceptionProcessingRequest(message, e);

@@ -281,7 +281,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         if (keyStore == null) {
             return null;
         }
-        Path path = env.binFile().getParent().resolve(keyStore);
+        Path path = env.configFile().resolve(keyStore);
         if (Files.notExists(path)) {
             return null;
         }
@@ -304,7 +304,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             // Load TrustStore
             KeyStore ks = null;
             if (trustStore != null) {
-                Path trustStorePath = env.binFile().getParent().resolve(trustStore);
+                Path trustStorePath = env.configFile().resolve(trustStore);
                 if (Files.exists(trustStorePath)) {
                     ks = readKeystore(trustStorePath, trustStorePassword);
                 }

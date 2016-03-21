@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
@@ -292,7 +292,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> starting node");
 
         // returning an unsupported cluster version
-        enqueueGetClusterVersionResponse(randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0));
+        enqueueGetClusterVersionResponse(randomFrom(Version.fromString("0.18.0"), Version.fromString("1.0.0"),
+                Version.fromString("1.4.0")));
 
         String agentNode = internalCluster().startNode(builder);
 
@@ -431,8 +432,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         Version resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(Version.CURRENT));
 
-        final Version expected = randomFrom(Version.CURRENT, Version.V_0_18_0, Version.V_1_1_0, Version.V_1_2_4,
-                Version.V_1_4_5, Version.V_1_6_0);
+        final Version expected = randomFrom(Version.CURRENT, Version.V_2_0_0_beta1, Version.V_2_0_0_beta2, Version.V_2_0_0_rc1,
+                Version.V_2_0_0, Version.V_2_1_0, Version.V_2_2_0, Version.V_2_3_0);
         enqueueGetClusterVersionResponse(expected);
         resolved = exporter.loadRemoteClusterVersion(host);
         assertTrue(resolved.equals(expected));
@@ -445,14 +446,14 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     private MonitoringDoc newRandomMarvelDoc() {
         if (randomBoolean()) {
-            IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
+            IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
             doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
             doc.setRecoveryResponse(new RecoveryResponse());
             return doc;
         } else {
-            ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoringIds.ES.getId(), Version.CURRENT.toString());
+            ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
             doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));

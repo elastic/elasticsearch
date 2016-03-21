@@ -25,11 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCase<ClusterInfoMonitoringDoc, ClusterInfoResolver> {
 
     @Override
-    protected ClusterInfoResolver newResolver() {
-        return new ClusterInfoResolver();
-    }
-
-    @Override
     protected ClusterInfoMonitoringDoc newMarvelDoc() {
         try {
             License.Builder licenseBuilder = License.builder()

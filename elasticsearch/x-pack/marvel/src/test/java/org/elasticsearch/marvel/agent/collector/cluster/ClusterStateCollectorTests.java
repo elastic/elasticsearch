@@ -6,12 +6,12 @@
 package org.elasticsearch.marvel.agent.collector.cluster;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -92,7 +92,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
         ClusterStateMonitoringDoc clusterStateMarvelDoc = (ClusterStateMonitoringDoc) monitoringDoc;
 
-        assertThat(clusterStateMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(clusterStateMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
         assertThat(clusterStateMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(clusterStateMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
@@ -169,7 +169,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         List<DiscoveryNodeMonitoringDoc> discoveryNodes = new ArrayList<>();
 
         for (MonitoringDoc doc : results) {
-            assertThat(doc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+            assertThat(doc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
             assertThat(doc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
             assertThat(doc.getClusterUUID(), equalTo(clusterUUID));
             assertThat(doc.getTimestamp(), greaterThan(0L));

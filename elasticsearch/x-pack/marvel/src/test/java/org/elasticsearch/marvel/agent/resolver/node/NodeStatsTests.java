@@ -63,7 +63,7 @@ public class NodeStatsTests extends MarvelIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = new NodeStatsResolver(Settings.EMPTY).filters();
+        String[] filters = NodeStatsResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 

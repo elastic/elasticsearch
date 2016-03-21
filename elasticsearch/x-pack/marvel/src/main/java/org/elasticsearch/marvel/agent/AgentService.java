@@ -17,11 +17,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -174,33 +174,29 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                         continue;
                     }
 
-                    ExportBulk bulk = exporters.openBulk();
-                    if (bulk == null) { // exporters are either not ready or faulty
-                        continue;
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("collecting data - collectors [{}]", Strings.collectionToCommaDelimitedString(collectors));
                     }
-                    try {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("collecting data - collectors [{}]", Strings.collectionToCommaDelimitedString(collectors));
-                        }
-                        for (Collector collector : collectors) {
-                            if (collecting) {
-                                Collection<MonitoringDoc> docs = collector.collect();
 
-                                if ((docs != null) && (docs.size() > 0)) {
-                                    logger.trace("bulk [{}] - adding [{}] collected docs from [{}] collector", bulk, docs.size(),
-                                            collector.name());
-                                    bulk.add(docs);
-                                } else {
-                                    logger.trace("bulk [{}] - skipping collected docs from [{}] collector", bulk, collector.name());
-                                }
-                            }
-                            if (closed) {
-                                // Stop collecting if the worker is marked as closed
-                                break;
+                    Collection<MonitoringDoc> docs = new ArrayList<>();
+                    for (Collector collector : collectors) {
+                        if (collecting) {
+                            Collection<MonitoringDoc> result = collector.collect();
+                            if (result != null) {
+                                logger.trace("adding [{}] collected docs from [{}] collector", result.size(), collector.name());
+                                docs.addAll(result);
+                            } else {
+                                logger.trace("skipping collected docs from [{}] collector", collector.name());
                             }
                         }
-                    } finally {
-                        bulk.close(!closed && collecting);
+                        if (closed) {
+                            // Stop collecting if the worker is marked as closed
+                            break;
+                        }
+                    }
+
+                    if ((docs.isEmpty() == false) && (closed == false)) {
+                        exporters.export(docs);
                     }
 
                 } catch (InterruptedException e) {

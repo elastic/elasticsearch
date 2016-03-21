@@ -16,17 +16,15 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
-import org.elasticsearch.test.ShieldIntegTestCase;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -35,7 +33,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -43,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * test the cache clearing APIs.
  */
 @TestLogging("shield.authc.esnative:TRACE,shield.authz.esnative:TRACE,integration:DEBUG")
-public class ClearRolesCacheTests extends ShieldIntegTestCase {
+public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
     private static String[] roles;
 
@@ -56,29 +53,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
     }
 
     @Before
-    public void setupForTest() throws Exception {
-        // Clear the realm cache for all realms since we use a SUITE scoped cluster
-        SecurityClient client = securityClient(internalCluster().transportClient());
-        client.prepareClearRealmCache().get();
-
-        for (ESNativeUsersStore store : internalCluster().getInstances(ESNativeUsersStore.class)) {
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), is(ESNativeUsersStore.State.STARTED));
-                }
-            });
-        }
-
-        for (ESNativeRolesStore store : internalCluster().getInstances(ESNativeRolesStore.class)) {
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), is(ESNativeRolesStore.State.STARTED));
-                }
-            });
-        }
-
+    public void setupForTests() {
         SecurityClient c = securityClient();
         // create roles
         for (String role : roles) {
@@ -129,13 +104,11 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
     }
 
     public void testModifyingDocumentsDirectly() throws Exception {
-        Client client = internalCluster().transportClient();
-
         int modifiedRolesCount = randomIntBetween(1, roles.length);
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
-            UpdateResponse response = client.prepareUpdate().setId(role).setIndex(ShieldTemplateService.SECURITY_INDEX_NAME)
+            UpdateResponse response = internalClient().prepareUpdate().setId(role).setIndex(ShieldTemplateService.SECURITY_INDEX_NAME)
                     .setType(ESNativeRolesStore.ROLE_DOC_TYPE)
                     .setDoc("run_as", new String[] { role })
                     .get();
@@ -145,7 +118,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
 
         // in this test, the poller runs too frequently to check the cache still has roles without run as
         // clear the cache and we should definitely see the latest values!
-        SecurityClient securityClient = securityClient(client);
+        SecurityClient securityClient = securityClient(internalCluster().transportClient());
         final boolean useHttp = randomBoolean();
         final boolean clearAll = randomBoolean();
         logger.debug("--> starting to clear roles. using http [{}] clearing all [{}]", useHttp, clearAll);
@@ -171,14 +144,13 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
     }
 
     public void testDeletingRoleDocumentDirectly() throws Exception {
-        Client client = internalCluster().transportClient();
-        SecurityClient securityClient = securityClient(client);
+        SecurityClient securityClient = securityClient(internalCluster().transportClient());
 
         final String role = randomFrom(roles);
         RoleDescriptor[] foundRoles = securityClient.prepareGetRoles().names(role).get().roles();
         assertThat(foundRoles.length, is(1));
         logger.debug("--> deleting role [{}]", role);
-        DeleteResponse response = client
+        DeleteResponse response = internalClient()
                 .prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME, ESNativeRolesStore.ROLE_DOC_TYPE, role).get();
         assertThat(response.isFound(), is(true));
 
@@ -203,33 +175,6 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
                 assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.length == 0,
                         is(true));
             }
-        }
-    }
-
-    @After
-    public void stopESNativeStores() throws Exception {
-        for (ESNativeUsersStore store : internalCluster().getInstances(ESNativeUsersStore.class)) {
-            store.stop();
-            // the store may already be stopping so wait until it is stopped
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), isOneOf(ESNativeUsersStore.State.STOPPED, ESNativeUsersStore.State.FAILED));
-                }
-            });
-            store.reset();
-        }
-
-        for (ESNativeRolesStore store : internalCluster().getInstances(ESNativeRolesStore.class)) {
-            store.stop();
-            // the store may already be stopping so wait until it is stopped
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertThat(store.state(), isOneOf(ESNativeRolesStore.State.STOPPED, ESNativeRolesStore.State.FAILED));
-                }
-            });
-            store.reset();
         }
     }
 }

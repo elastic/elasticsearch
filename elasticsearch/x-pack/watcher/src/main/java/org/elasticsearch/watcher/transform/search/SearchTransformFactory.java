@@ -13,7 +13,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.watcher.transform.TransformFactory;
 
 import java.io.IOException;
@@ -23,18 +24,20 @@ import java.io.IOException;
  */
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
 
-    protected final ClientProxy client;
+    protected final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
-    private IndicesQueriesRegistry queryRegistry;
-    private AggregatorParsers aggParsers;
+    private final IndicesQueriesRegistry queryRegistry;
+    private final AggregatorParsers aggParsers;
+    private final Suggesters suggesters;
 
     @Inject
-    public SearchTransformFactory(Settings settings, ClientProxy client, IndicesQueriesRegistry queryRegistry,
-            AggregatorParsers aggParsers) {
+    public SearchTransformFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
+                                  AggregatorParsers aggParsers, Suggesters suggesters) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
         this.defaultTimeout = settings.getAsTime("watcher.transform.search.default_timeout", null);
     }
 
@@ -47,7 +50,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
         QueryParseContext context = new QueryParseContext(queryRegistry);
         context.reset(parser);
-        return SearchTransform.parse(watchId, parser, context, aggParsers);
+        return SearchTransform.parse(watchId, parser, context, aggParsers, suggesters);
     }
 
     @Override

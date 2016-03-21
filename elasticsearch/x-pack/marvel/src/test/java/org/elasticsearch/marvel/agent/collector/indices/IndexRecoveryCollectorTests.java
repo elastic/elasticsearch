@@ -7,14 +7,14 @@ package org.elasticsearch.marvel.agent.collector.indices;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoringIds;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -74,7 +74,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
             client().prepareIndex(indexName, "foo").setSource("value", randomInt()).get();
         }
 
-        logger.info("--> create a second index [other] that won't be part of stats collection", indexName, node1);
+        logger.info("--> create a second index [{}] on node [{}] that won't be part of stats collection", indexName, node1);
         client().prepareIndex("other", "bar").setSource("value", randomInt()).get();
 
         flushAndRefresh();
@@ -102,7 +102,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         assertThat(monitoringDoc, instanceOf(IndexRecoveryMonitoringDoc.class));
 
         IndexRecoveryMonitoringDoc indexRecoveryMarvelDoc = (IndexRecoveryMonitoringDoc) monitoringDoc;
-        assertThat(indexRecoveryMarvelDoc.getMonitoringId(), equalTo(MonitoringIds.ES.getId()));
+        assertThat(indexRecoveryMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
         assertThat(indexRecoveryMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(indexRecoveryMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));

@@ -83,7 +83,7 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
             return "installs a setting this test needs";
         }
 
-        public static final Setting<String> KEY_1 = new Setting<>("index.key1", "", Function.identity(), false, Setting.Scope.INDEX);
+        public static final Setting<String> KEY_1 = new Setting<>("index.key1", "", Function.identity(), Setting.Property.IndexScope);
 
         public void onModule(SettingsModule module) {
             module.registerSetting(KEY_1);

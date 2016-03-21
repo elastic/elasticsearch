@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.support;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.InputStream;
@@ -38,7 +38,7 @@ import static java.util.Collections.unmodifiableSet;
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
-    private final ClientProxy client;
+    private final WatcherClientProxy client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Set<TemplateConfig> indexTemplates;
@@ -47,7 +47,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
     @Inject
     public WatcherIndexTemplateRegistry(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-                                        ThreadPool threadPool, ClientProxy client, Set<TemplateConfig> configs) {
+                                        ThreadPool threadPool, WatcherClientProxy client, Set<TemplateConfig> configs) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -155,7 +155,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             public void run() {
                 try (InputStream is = WatchStore.class.getResourceAsStream("/" + config.getFileName()+ ".json")) {
                     if (is == null) {
-                        logger.error("Resource [/" + config.getFileName() + ".json] not found in classpath");
+                        logger.error("Resource [/{}.json] not found in classpath", config.getFileName());
                         return;
                     }
                     final byte[] template;

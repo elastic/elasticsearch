@@ -62,7 +62,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
     }
 
     public void testTrialLicenseAndSignedLicenseNotification() throws Exception {
-        logger.info("using " + ((useEagerLicenseRegistrationPlugin) ? "eager" : "lazy") + " consumer plugin");
+        logger.info("using {} consumer plugin", useEagerLicenseRegistrationPlugin ? "eager" : "lazy");
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
         assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);

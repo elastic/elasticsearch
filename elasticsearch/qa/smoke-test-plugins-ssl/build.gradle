@@ -8,7 +8,7 @@ dependencies {
 }
 
 // needed to be consistent with ssl host checking
-String san = getSubjectAlternativeNameString()
+Object san = new SanEvaluator()
 
 // location of generated keystores and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
@@ -145,18 +145,18 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 
 integTest {
   cluster {
-    systemProperty 'es.xpack.monitoring.agent.interval', '3s'
-    systemProperty 'es.xpack.monitoring.agent.exporters._http.type', 'http'
-    systemProperty 'es.xpack.monitoring.agent.exporters._http.enabled', 'false'
-    systemProperty 'es.xpack.monitoring.agent.exporters._http.ssl.truststore.path', clientKeyStore.name
-    systemProperty 'es.xpack.monitoring.agent.exporters._http.ssl.truststore.password', 'keypass'
-    systemProperty 'es.xpack.monitoring.agent.exporters._http.auth.username', 'monitoring_agent'
-    systemProperty 'es.xpack.monitoring.agent.exporters._http.auth.password', 'changeme'
+    setting 'xpack.monitoring.agent.interval', '3s'
+    setting 'xpack.monitoring.agent.exporters._http.type', 'http'
+    setting 'xpack.monitoring.agent.exporters._http.enabled', 'false'
+    setting 'xpack.monitoring.agent.exporters._http.ssl.truststore.path', clientKeyStore.name
+    setting 'xpack.monitoring.agent.exporters._http.ssl.truststore.password', 'keypass'
+    setting 'xpack.monitoring.agent.exporters._http.auth.username', 'monitoring_agent'
+    setting 'xpack.monitoring.agent.exporters._http.auth.password', 'changeme'
 
-    systemProperty 'es.shield.transport.ssl', 'true'
-    systemProperty 'es.shield.http.ssl', 'true'
-    systemProperty 'es.shield.ssl.keystore.path', nodeKeystore.name
-    systemProperty 'es.shield.ssl.keystore.password', 'keypass'
+    setting 'shield.transport.ssl', 'true'
+    setting 'shield.http.ssl', 'true'
+    setting 'shield.ssl.keystore.path', nodeKeystore.name
+    setting 'shield.ssl.keystore.password', 'keypass'
 
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
 
@@ -175,7 +175,6 @@ integTest {
       ant.waitfor(maxwait: '10', maxwaitunit: 'second', checkevery: '100', checkeveryunit: 'millisecond',
               timeoutproperty: waitForNodeStartProp) {
         and {
-          resourcecontains(resource: "${node.startLog.toString()}", substring: "bound_addresses {${node.httpUri()}")
           resourcecontains(resource: "${node.startLog.toString()}", substring: 'started')
         }
       }
@@ -201,144 +200,159 @@ processTestResources {
   }
 }
 
+/** A lazy evaluator to find the san to use for certificate generation. */
+class SanEvaluator {
 
-// Code stolen from NetworkUtils/InetAddresses/NetworkAddress to support SAN
-/** Return all interfaces (and subinterfaces) on the system */
-static List<NetworkInterface> getInterfaces() throws SocketException {
-  List<NetworkInterface> all = new ArrayList<>();
-  addAllInterfaces(all, Collections.list(NetworkInterface.getNetworkInterfaces()));
-  Collections.sort(all, new Comparator<NetworkInterface>() {
-    @Override
-    public int compare(NetworkInterface left, NetworkInterface right) {
-      return Integer.compare(left.getIndex(), right.getIndex());
+  private static String san = null
+
+  String toString() {
+    synchronized (SanEvaluator.class) {
+      if (san == null) {
+        san = getSubjectAlternativeNameString()
+      }
     }
-  });
-  return all;
-}
+    return san
+  }
 
-/** Helper for getInterfaces, recursively adds subinterfaces to {@code target} */
-private static void addAllInterfaces(List<NetworkInterface> target, List<NetworkInterface> level) {
-  if (!level.isEmpty()) {
-    target.addAll(level);
-    for (NetworkInterface intf : level) {
-      addAllInterfaces(target, Collections.list(intf.getSubInterfaces()));
+  // Code stolen from NetworkUtils/InetAddresses/NetworkAddress to support SAN
+  /** Return all interfaces (and subinterfaces) on the system */
+  private static List<NetworkInterface> getInterfaces() throws SocketException {
+    List<NetworkInterface> all = new ArrayList<>();
+    addAllInterfaces(all, Collections.list(NetworkInterface.getNetworkInterfaces()));
+    Collections.sort(all, new Comparator<NetworkInterface>() {
+      @Override
+      public int compare(NetworkInterface left, NetworkInterface right) {
+        return Integer.compare(left.getIndex(), right.getIndex());
+      }
+    });
+    return all;
+  }
+
+  /** Helper for getInterfaces, recursively adds subinterfaces to {@code target} */
+  private static void addAllInterfaces(List<NetworkInterface> target, List<NetworkInterface> level) {
+    if (!level.isEmpty()) {
+      target.addAll(level);
+      for (NetworkInterface intf : level) {
+        addAllInterfaces(target, Collections.list(intf.getSubInterfaces()));
+      }
     }
   }
-}
 
-private static String getSubjectAlternativeNameString() {
-  List<InetAddress> list = new ArrayList<>();
-  for (NetworkInterface intf : getInterfaces()) {
-    if (intf.isUp()) {
-      // NOTE: some operating systems (e.g. BSD stack) assign a link local address to the loopback interface
-      // while technically not a loopback address, some of these treat them as one (e.g. OS X "localhost") so we must too,
-      // otherwise things just won't work out of box. So we include all addresses from loopback interfaces.
-      for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-        if (intf.isLoopback() || address.isLoopbackAddress()) {
-          list.add(address);
+  private static String getSubjectAlternativeNameString() {
+    List<InetAddress> list = new ArrayList<>();
+    for (NetworkInterface intf : getInterfaces()) {
+      if (intf.isUp()) {
+        // NOTE: some operating systems (e.g. BSD stack) assign a link local address to the loopback interface
+        // while technically not a loopback address, some of these treat them as one (e.g. OS X "localhost") so we must too,
+        // otherwise things just won't work out of box. So we include all addresses from loopback interfaces.
+        for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+          if (intf.isLoopback() || address.isLoopbackAddress()) {
+            list.add(address);
+          }
         }
       }
     }
-  }
-  if (list.isEmpty()) {
-    throw new IllegalArgumentException("no up-and-running loopback addresses found, got " + getInterfaces());
-  }
-
-  StringBuilder builder = new StringBuilder("san=");
-  for (int i = 0; i < list.size(); i++) {
-    InetAddress address = list.get(i);
-    String hostAddress;
-    if (address instanceof Inet6Address) {
-      hostAddress = compressedIPV6Address((Inet6Address)address);
-    } else {
-      hostAddress = address.getHostAddress();
-    }
-    builder.append("ip:").append(hostAddress);
-    String hostname = address.getHostName();
-    if (hostname.equals(address.getHostAddress()) == false) {
-      builder.append(",dns:").append(hostname);
+    if (list.isEmpty()) {
+      throw new IllegalArgumentException("no up-and-running loopback addresses found, got " + getInterfaces());
     }
 
-    if (i != (list.size() - 1)) {
-      builder.append(",");
-    }
-  }
-
-  return builder.toString();
-}
-
-private static String compressedIPV6Address(Inet6Address inet6Address) {
-  byte[] bytes = inet6Address.getAddress();
-  int[] hextets = new int[8];
-  for (int i = 0; i < hextets.length; i++) {
-    hextets[i] =  (bytes[2 * i] & 255) << 8 | bytes[2 * i + 1] & 255;
-  }
-  compressLongestRunOfZeroes(hextets);
-  return hextetsToIPv6String(hextets);
-}
-
-/**
- * Identify and mark the longest run of zeroes in an IPv6 address.
- *
- * <p>Only runs of two or more hextets are considered.  In case of a tie, the
- * leftmost run wins.  If a qualifying run is found, its hextets are replaced
- * by the sentinel value -1.
- *
- * @param hextets {@code int[]} mutable array of eight 16-bit hextets
- */
-private static void compressLongestRunOfZeroes(int[] hextets) {
-  int bestRunStart = -1;
-  int bestRunLength = -1;
-  int runStart = -1;
-  for (int i = 0; i < hextets.length + 1; i++) {
-    if (i < hextets.length && hextets[i] == 0) {
-      if (runStart < 0) {
-        runStart = i;
+    StringBuilder builder = new StringBuilder("san=");
+    for (int i = 0; i < list.size(); i++) {
+      InetAddress address = list.get(i);
+      String hostAddress;
+      if (address instanceof Inet6Address) {
+        hostAddress = compressedIPV6Address((Inet6Address)address);
+      } else {
+        hostAddress = address.getHostAddress();
       }
-    } else if (runStart >= 0) {
-      int runLength = i - runStart;
-      if (runLength > bestRunLength) {
-        bestRunStart = runStart;
-        bestRunLength = runLength;
+      builder.append("ip:").append(hostAddress);
+      String hostname = address.getHostName();
+      if (hostname.equals(address.getHostAddress()) == false) {
+        builder.append(",dns:").append(hostname);
       }
-      runStart = -1;
-    }
-  }
-  if (bestRunLength >= 2) {
-    Arrays.fill(hextets, bestRunStart, bestRunStart + bestRunLength, -1);
-  }
-}
 
-/**
- * Convert a list of hextets into a human-readable IPv6 address.
- *
- * <p>In order for "::" compression to work, the input should contain negative
- * sentinel values in place of the elided zeroes.
- *
- * @param hextets {@code int[]} array of eight 16-bit hextets, or -1s
- */
-private static String hextetsToIPv6String(int[] hextets) {
-  /*
-   * While scanning the array, handle these state transitions:
-   *   start->num => "num"     start->gap => "::"
-   *   num->num   => ":num"    num->gap   => "::"
-   *   gap->num   => "num"     gap->gap   => ""
+      if (i != (list.size() - 1)) {
+        builder.append(",");
+      }
+    }
+
+    return builder.toString();
+  }
+
+  private static String compressedIPV6Address(Inet6Address inet6Address) {
+    byte[] bytes = inet6Address.getAddress();
+    int[] hextets = new int[8];
+    for (int i = 0; i < hextets.length; i++) {
+      hextets[i] =  (bytes[2 * i] & 255) << 8 | bytes[2 * i + 1] & 255;
+    }
+    compressLongestRunOfZeroes(hextets);
+    return hextetsToIPv6String(hextets);
+  }
+
+  /**
+   * Identify and mark the longest run of zeroes in an IPv6 address.
+   *
+   * <p>Only runs of two or more hextets are considered.  In case of a tie, the
+   * leftmost run wins.  If a qualifying run is found, its hextets are replaced
+   * by the sentinel value -1.
+   *
+   * @param hextets {@code int[]} mutable array of eight 16-bit hextets
    */
-  StringBuilder buf = new StringBuilder(39);
-  boolean lastWasNumber = false;
-  for (int i = 0; i < hextets.length; i++) {
-    boolean thisIsNumber = hextets[i] >= 0;
-    if (thisIsNumber) {
-      if (lastWasNumber) {
-        buf.append(':');
-      }
-      buf.append(Integer.toHexString(hextets[i]));
-    } else {
-      if (i == 0 || lastWasNumber) {
-        buf.append("::");
+  private static void compressLongestRunOfZeroes(int[] hextets) {
+    int bestRunStart = -1;
+    int bestRunLength = -1;
+    int runStart = -1;
+    for (int i = 0; i < hextets.length + 1; i++) {
+      if (i < hextets.length && hextets[i] == 0) {
+        if (runStart < 0) {
+          runStart = i;
+        }
+      } else if (runStart >= 0) {
+        int runLength = i - runStart;
+        if (runLength > bestRunLength) {
+          bestRunStart = runStart;
+          bestRunLength = runLength;
+        }
+        runStart = -1;
       }
     }
-    lastWasNumber = thisIsNumber;
+    if (bestRunLength >= 2) {
+      Arrays.fill(hextets, bestRunStart, bestRunStart + bestRunLength, -1);
+    }
   }
-  return buf.toString();
+
+  /**
+   * Convert a list of hextets into a human-readable IPv6 address.
+   *
+   * <p>In order for "::" compression to work, the input should contain negative
+   * sentinel values in place of the elided zeroes.
+   *
+   * @param hextets {@code int[]} array of eight 16-bit hextets, or -1s
+   */
+  private static String hextetsToIPv6String(int[] hextets) {
+    /*
+     * While scanning the array, handle these state transitions:
+     *   start->num => "num"     start->gap => "::"
+     *   num->num   => ":num"    num->gap   => "::"
+     *   gap->num   => "num"     gap->gap   => ""
+     */
+    StringBuilder buf = new StringBuilder(39);
+    boolean lastWasNumber = false;
+    for (int i = 0; i < hextets.length; i++) {
+      boolean thisIsNumber = hextets[i] >= 0;
+      if (thisIsNumber) {
+        if (lastWasNumber) {
+          buf.append(':');
+        }
+        buf.append(Integer.toHexString(hextets[i]));
+      } else {
+        if (i == 0 || lastWasNumber) {
+          buf.append("::");
+        }
+      }
+      lastWasNumber = thisIsNumber;
+    }
+    return buf.toString();
+  }
 }
+

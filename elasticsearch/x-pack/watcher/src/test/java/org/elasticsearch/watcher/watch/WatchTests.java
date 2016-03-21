@@ -76,7 +76,7 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
@@ -141,7 +141,7 @@ import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
     private ScriptServiceProxy scriptService;
-    private ClientProxy client;
+    private WatcherClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
     private TextTemplateEngine templateEngine;
@@ -155,7 +155,7 @@ public class WatchTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         scriptService = mock(ScriptServiceProxy.class);
-        client = mock(ClientProxy.class);
+        client = mock(WatcherClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
         templateEngine = mock(TextTemplateEngine.class);
@@ -203,7 +203,7 @@ public class WatchTests extends ESTestCase {
         Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus);
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
-        logger.info(bytes.toUtf8());
+        logger.info("{}", bytes.toUtf8());
         Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
                 inputRegistry, secretService, clock);
 
@@ -352,7 +352,7 @@ public class WatchTests extends ESTestCase {
             case SearchInput.TYPE:
             IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
                     singletonMap("match_all", new MatchAllQueryParser()));
-            parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null));
+            parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
             return new InputRegistry(parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
@@ -423,7 +423,7 @@ public class WatchTests extends ESTestCase {
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null));
         TransformRegistry registry = new TransformRegistry(unmodifiableMap(factories));
         parser.init(registry);
         return registry;

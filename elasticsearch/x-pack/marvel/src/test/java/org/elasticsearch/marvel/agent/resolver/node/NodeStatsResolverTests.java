@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingTestUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -52,11 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<NodeStatsMonitoringDoc, NodeStatsResolver> {
-
-    @Override
-    protected NodeStatsResolver newResolver() {
-        return new NodeStatsResolver(Settings.EMPTY);
-    }
 
     @Override
     protected NodeStatsMonitoringDoc newMarvelDoc() {
@@ -109,7 +103,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
     private NodeStats randomNodeStats() {
         Index index = new Index("test-" + randomIntBetween(0, 5), UUID.randomUUID().toString());
         ShardId shardId = new ShardId(index, 0);
-        Path path = createTempDir().resolve("indices").resolve(index.getName()).resolve("0");
+        Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         ShardRouting shardRouting = ShardRouting.newUnassigned(index, 0, null, true,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         ShardRoutingTestUtils.initialize(shardRouting, "node-0");
@@ -122,7 +116,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         stats.indexing = new IndexingStats();
         stats.search = new SearchStats();
         stats.segments = new SegmentsStats();
-        ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, null, shardId), stats, null);
+        ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null);
         FsInfo.Path[] pathInfo = new FsInfo.Path[]{
                 new FsInfo.Path("/test", "/dev/sda", 10, -8, 0),
         };
@@ -136,6 +130,6 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                 new NodeIndicesStats(new CommonStats(), statsByShard), OsProbe.getInstance().osStats(),
                 ProcessProbe.getInstance().processStats(), JvmStats.jvmStats(),
                 new ThreadPoolStats(threadPoolStats),
-                new FsInfo(0, pathInfo), null, null, null, null, null);
+                new FsInfo(0, pathInfo), null, null, null, null, null, null);
     }
 }

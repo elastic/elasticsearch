@@ -45,8 +45,8 @@ public abstract class TestConsumerPluginBase extends Plugin {
 
     public void onModule(SettingsModule module) {
         try {
-            module.registerSetting(Setting.simpleString("_trial_license_duration_in_seconds", false, Setting.Scope.CLUSTER));
-            module.registerSetting(Setting.simpleString("_grace_duration_in_seconds", false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.simpleString("_trial_license_duration_in_seconds", Setting.Property.NodeScope));
+            module.registerSetting(Setting.simpleString("_grace_duration_in_seconds", Setting.Property.NodeScope));
         } catch (IllegalArgumentException ex) {
             // already loaded
         }

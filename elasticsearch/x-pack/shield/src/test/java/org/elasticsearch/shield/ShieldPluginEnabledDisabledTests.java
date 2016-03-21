@@ -63,7 +63,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        logger.info("******* shield is " + (enabled ? "enabled" : "disabled"));
+        logger.info("******* shield is {}", enabled ? "enabled" : "disabled");
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackPlugin.featureEnabledSetting(Shield.NAME), enabled)

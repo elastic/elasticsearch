@@ -69,7 +69,7 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
             public void run() {
                 logger.debug("--> checking that every document contains the expected fields");
                 SearchResponse response = client().prepareSearch().setTypes(ClusterStatsResolver.TYPE).get();
-                String[] filters = new ClusterStatsResolver(Settings.EMPTY).filters();
+                String[] filters = ClusterStatsResolver.FILTERS;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     Map<String, Object> fields = searchHit.sourceAsMap();
 

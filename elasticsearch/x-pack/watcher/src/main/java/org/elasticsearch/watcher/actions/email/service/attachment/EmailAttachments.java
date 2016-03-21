@@ -10,8 +10,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 public class EmailAttachments implements ToXContent {
@@ -23,13 +23,13 @@ public class EmailAttachments implements ToXContent {
         ParseField ATTACHMENTS = new ParseField("attachments");
     }
 
-    private final List<EmailAttachmentParser.EmailAttachment> attachments;
+    private final Collection<EmailAttachmentParser.EmailAttachment> attachments;
 
-    public EmailAttachments(List<EmailAttachmentParser.EmailAttachment> attachments) {
+    public EmailAttachments(Collection<EmailAttachmentParser.EmailAttachment> attachments) {
         this.attachments = attachments;
     }
 
-    public List<EmailAttachmentParser.EmailAttachment> getAttachments() {
+    public Collection<EmailAttachmentParser.EmailAttachment> getAttachments() {
         return attachments;
     }
 

@@ -40,7 +40,8 @@ public class AnalyzeTests extends ShieldIntegTestCase {
                 //role that has analyze indices privileges only
                 "analyze_indices:\n" +
                 "  indices:\n" +
-                "    'test_*': indices:admin/analyze\n" +
+                "    - names: 'test_*'\n" +
+                "      privileges: [ 'indices:admin/analyze' ]\n" +
                 "analyze_cluster:\n" +
                 "  cluster:\n" +
                 "    - cluster:admin/analyze\n";

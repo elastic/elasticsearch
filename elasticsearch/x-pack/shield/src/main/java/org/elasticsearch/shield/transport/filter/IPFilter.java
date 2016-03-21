@@ -41,23 +41,24 @@ public class IPFilter {
      */
     public static final String HTTP_PROFILE_NAME = ".http";
 
-    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting("shield.http.filter.enabled", true, true,
-            Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting("shield.http.filter.enabled", true,
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = new Setting<>("shield.transport.filter.enabled", (s) ->
-            IP_FILTER_ENABLED_HTTP_SETTING.getDefaultRaw(s), Booleans::parseBooleanExact, true, Setting.Scope.CLUSTER);
+            IP_FILTER_ENABLED_HTTP_SETTING.getDefaultRaw(s), Booleans::parseBooleanExact, Setting.Property.Dynamic,
+            Setting.Property.NodeScope);
     public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting("shield.transport.filter.allow",
-            Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+            Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting("shield.transport.filter.deny",
-            Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+            Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting("shield.http.filter.allow", (s) -> {
         return Arrays.asList(s.getAsArray("transport.profiles.default.shield.filter.allow",
                 TRANSPORT_FILTER_ALLOW_SETTING.get(s).toArray(new String[0])));
-    }, Function.identity(), true, Setting.Scope.CLUSTER);
+    }, Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting("shield.http.filter.deny", (s) -> {
         return Arrays.asList(s.getAsArray("transport.profiles.default.shield.filter.deny",
                 TRANSPORT_FILTER_DENY_SETTING.get(s).toArray(new String[0])));
-    }, Function.identity(), true, Setting.Scope.CLUSTER);
+    }, Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
 
     public static final ShieldIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new ShieldIpFilterRule(true, "default:accept_all") {

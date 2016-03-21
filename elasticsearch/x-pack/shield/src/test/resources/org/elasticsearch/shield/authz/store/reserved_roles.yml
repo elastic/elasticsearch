@@ -1,14 +1,22 @@
 admin:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*': all
+    - names: '*'
+      privileges: [ all ]
 
 __es_system_role:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*' : all
+    - names: '*'
+      privileges:
+        - all
 
 __es_internal_role:
-  cluster: all
+  cluster:
+    - all
   indices:
-    '*' : all
+    - names: '*'
+      privileges:
+        - all

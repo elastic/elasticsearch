@@ -43,7 +43,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
                 }
             });
         } catch (Exception e) {
-            logger.error("failed to delete user [{}]", e);
+            logger.error("failed to delete user [{}]", e, request.username());
             listener.onFailure(e);
         }
     }

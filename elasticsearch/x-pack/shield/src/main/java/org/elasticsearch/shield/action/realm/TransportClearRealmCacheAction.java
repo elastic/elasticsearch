@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +48,8 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
             Object resp = responses.get(i);
             if (resp instanceof ClearRealmCacheResponse.Node) {
                 nodes.add((ClearRealmCacheResponse.Node) resp);
-            } else {
+            } else if (resp != null) {
+                // null is possible if there is an error and we do not accumulate exceptions...
                 throw new IllegalArgumentException("node response [" + resp.getClass() + "] is not the correct type");
             }
         }

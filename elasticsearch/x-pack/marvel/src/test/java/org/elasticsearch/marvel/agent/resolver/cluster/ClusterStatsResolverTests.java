@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;
@@ -53,11 +54,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCase<ClusterStatsMonitoringDoc, ClusterStatsResolver> {
-
-    @Override
-    protected ClusterStatsResolver newResolver() {
-        return new ClusterStatsResolver(Settings.EMPTY);
-    }
 
     @Override
     protected ClusterStatsMonitoringDoc newMarvelDoc() {
@@ -112,7 +108,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                 Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
-                new PluginsAndModules());
+                new PluginsAndModules(), new IngestInfo(Collections.emptyList()));
 
     }
 
@@ -128,7 +124,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         statsByShard.put(index, Collections.singletonList(new IndexShardStats(new ShardId(index, 0), randomShardStats())));
         return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
                 new NodeIndicesStats(new CommonStats(), statsByShard), null, null, null, null,
-                new FsInfo(0, pathInfo), null, null, null, null, null);
+                new FsInfo(0, pathInfo), null, null, null, null, null, null);
     }
 
     /**
@@ -136,14 +132,14 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
      */
     private ShardStats[] randomShardStats() {
         Index index = new Index("test", UUID.randomUUID().toString());
-        Path shardPath = createTempDir().resolve("indices").resolve("test").resolve("0");
+        Path shardPath = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         ShardRouting shardRouting = ShardRouting.newUnassigned(index, 0, null, false,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         CommonStats shardCommonStats = new CommonStats();
         shardCommonStats.fieldData = new FieldDataStats();
         shardCommonStats.queryCache = new QueryCacheStats();
         return new ShardStats[]{
-                new ShardStats(shardRouting, new ShardPath(false, shardPath, shardPath, "", new ShardId(index, 0)), shardCommonStats, null)
+                new ShardStats(shardRouting, new ShardPath(false, shardPath, shardPath, new ShardId(index, 0)), shardCommonStats, null)
         };
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.graph.Graph;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Marvel;
@@ -22,6 +23,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Shield;
 import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.common.init.LazyInitializationModule;
+import org.elasticsearch.xpack.common.init.LazyInitializationService;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -69,6 +72,7 @@ public class XPackPlugin extends Plugin {
     protected Shield shield;
     protected Marvel marvel;
     protected Watcher watcher;
+    protected Graph graph;
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
@@ -76,6 +80,7 @@ public class XPackPlugin extends Plugin {
         this.shield = new Shield(settings);
         this.marvel = new Marvel(settings);
         this.watcher = new Watcher(settings);
+        this.graph = new Graph(settings);
     }
 
     @Override public String name() {
@@ -89,20 +94,27 @@ public class XPackPlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
+        modules.add(new LazyInitializationModule());
         modules.addAll(licensing.nodeModules());
         modules.addAll(shield.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(marvel.nodeModules());
+        modules.addAll(graph.nodeModules());
         return modules;
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        // the initialization service must be first in the list
+        // as other services may depend on one of the initialized
+        // constructs
+        services.add(LazyInitializationService.class);
         services.addAll(licensing.nodeServices());
         services.addAll(shield.nodeServices());
         services.addAll(watcher.nodeServices());
         services.addAll(marvel.nodeServices());
+        services.addAll(graph.nodeServices());
         return services;
     }
 
@@ -111,6 +123,7 @@ public class XPackPlugin extends Plugin {
         Settings.Builder builder = Settings.builder();
         builder.put(shield.additionalSettings());
         builder.put(watcher.additionalSettings());
+        builder.put(graph.additionalSettings());
         return builder.build();
     }
 
@@ -121,11 +134,12 @@ public class XPackPlugin extends Plugin {
     public void onModule(SettingsModule module) {
 
         // we add the `xpack.version` setting to all internal indices
-        module.registerSetting(Setting.simpleString("index.xpack.version", false, Setting.Scope.INDEX));
+        module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         shield.onModule(module);
         marvel.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
         licensing.onModule(module);
     }
 
@@ -133,16 +147,23 @@ public class XPackPlugin extends Plugin {
         licensing.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
     }
 
     public void onModule(ActionModule module) {
         licensing.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
     }
 
     public void onIndexModule(IndexModule module) {
         shield.onIndexModule(module);
+        graph.onIndexModule(module);
+    }
+
+    public void onModule(LazyInitializationModule module) {
+        watcher.onModule(module);
     }
 
     public static boolean transportClientMode(Settings settings) {
@@ -196,8 +217,8 @@ public class XPackPlugin extends Plugin {
      *          {@code "<feature>.enabled": true | false}
      */
     public static void registerFeatureEnabledSettings(SettingsModule settingsModule, String featureName, boolean defaultValue) {
-        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
         settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
-                defaultValue, false, Setting.Scope.CLUSTER));
+                defaultValue, Setting.Property.NodeScope));
     }
 }

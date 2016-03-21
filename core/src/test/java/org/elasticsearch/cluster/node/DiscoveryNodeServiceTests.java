@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,7 +33,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
     public void testClientNodeSettingIsProhibited() {
         Settings settings = Settings.builder().put("node.client", randomBoolean()).build();
         try {
-            new DiscoveryNodeService(settings).buildAttributes();
+            new DiscoveryNodeService(settings, Version.CURRENT).buildAttributes();
             fail("build attributes should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("node.client setting is no longer supported, use node.master, " +
@@ -48,7 +49,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
             builder.put("node.attr" + i, "value" + i);
             expectedAttributes.put("attr" + i, "value" + i);
         }
-        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build());
+        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);
         int numCustomAttributes = randomIntBetween(0, 5);
         Map<String, String> customAttributes = new HashMap<>();
         for (int i = 0; i < numCustomAttributes; i++) {

@@ -63,6 +63,11 @@ public class DiscoveryNodeService extends AbstractComponent {
     }
 
     public DiscoveryNode buildLocalNode(TransportAddress publishAddress) {
+        final String nodeId = generateNodeId(settings);
+        return new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, buildAttributes(), version);
+    }
+
+    Map<String, String> buildAttributes() {
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(this.settings).getAsMap());
         attributes.remove("name"); // name is extracted in other places
         if (attributes.containsKey("client")) {
@@ -90,9 +95,7 @@ public class DiscoveryNodeService extends AbstractComponent {
                 logger.warn("failed to build custom attributes from provider [{}]", e, provider);
             }
         }
-
-        final String nodeId = generateNodeId(settings);
-        return new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, attributes, version);
+        return attributes;
     }
 
     public interface CustomAttributesProvider {

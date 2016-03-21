@@ -371,7 +371,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .put("discovery.type", "local")
                 .build();
         String node_0 = internalCluster().startNode(settings);
-        internalCluster().startNodeClient(settings);
+        internalCluster().startCoordinatingOnlyNode(settings);
 
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
@@ -429,7 +429,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        PendingClusterTasksResponse response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().get();
+        PendingClusterTasksResponse response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
         assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
@@ -489,7 +489,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
         assertTrue(controlSources.isEmpty());
 
-        response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().get();
+        response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : response) {

@@ -102,7 +102,7 @@ public final class ShardStateMetaData {
         return "version [" + legacyVersion + "], primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
-    public static final MetaDataStateFormat<ShardStateMetaData> FORMAT = new MetaDataStateFormat<ShardStateMetaData>(XContentType.JSON, SHARD_STATE_FILE_PREFIX) {
+    public static final MetaDataStateFormat<ShardStateMetaData> FORMAT = new MetaDataStateFormat<ShardStateMetaData>(XContentType.SMILE, SHARD_STATE_FILE_PREFIX) {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {

@@ -56,7 +56,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -307,9 +306,26 @@ class InstallPluginCommand extends Command {
             perms.add(PosixFilePermission.OTHERS_READ);
             perms.add(PosixFilePermission.OTHERS_EXECUTE);
             return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(perms));
-        } catch (IllegalArgumentException | UnsupportedOperationException e) {
-            return Files.createTempDirectory(pluginsDir, ".installing-");
+        } catch (IllegalArgumentException e) {
+            // Jimfs throws an IAE where it should throw an UOE
+            // remove when google/jimfs#30 is integrated into Jimfs
+            // and the Jimfs test dependency is upgraded to include
+            // this pull request
+            final StackTraceElement[] elements = e.getStackTrace();
+            if (elements.length >= 1 &&
+                elements[0].getClassName().equals("com.google.common.jimfs.AttributeService") &&
+                elements[0].getMethodName().equals("setAttributeInternal")) {
+                return stagingDirectoryWithoutPosixPermissions(pluginsDir);
+            } else {
+                throw e;
+            }
+        } catch (UnsupportedOperationException e) {
+            return stagingDirectoryWithoutPosixPermissions(pluginsDir);
         }
+    }
+
+    private Path stagingDirectoryWithoutPosixPermissions(Path pluginsDir) throws IOException {
+        return Files.createTempDirectory(pluginsDir, ".installing-");
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */

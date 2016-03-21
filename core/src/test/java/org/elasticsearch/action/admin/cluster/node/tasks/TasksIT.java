@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -59,6 +60,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -404,6 +406,17 @@ public class TasksIT extends ESIntegTestCase {
 
         // It should finish quickly and without complaint
         assertThat(waitResponseFuture.get().getTasks(), emptyCollectionOf(TaskInfo.class));
+    }
+
+    public void testTasksWaitForAllTask() throws Exception {
+        // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
+        ListTasksResponse response = client().admin().cluster().prepareListTasks().setWaitForCompletion(true)
+            .setTimeout(timeValueSeconds(10)).get();
+
+        // It should finish quickly and without complaint and list the list tasks themselves
+        assertThat(response.getNodeFailures(), emptyCollectionOf(FailedNodeException.class));
+        assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
+        assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }
 
     @Override

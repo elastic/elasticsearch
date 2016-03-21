@@ -32,8 +32,10 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("nodename/tribe1", clientSettings.get("node.name"));
         assertEquals("tribe1", clientSettings.get("tribe.name"));
         assertEquals("false", clientSettings.get("http.enabled"));
-        assertEquals("true", clientSettings.get("node.client"));
-        assertEquals(5, clientSettings.getAsMap().size());
+        assertEquals("false", clientSettings.get("node.master"));
+        assertEquals("false", clientSettings.get("node.data"));
+        assertEquals("false", clientSettings.get("node.ingest"));
+        assertEquals(7, clientSettings.getAsMap().size());
     }
 
     public void testEnvironmentSettings() {

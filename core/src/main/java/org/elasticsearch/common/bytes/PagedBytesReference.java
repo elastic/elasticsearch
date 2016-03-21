@@ -445,5 +445,10 @@ public class PagedBytesReference implements BytesReference {
             // do nothing
         }
 
+        @Override
+        public int available() throws IOException {
+            return length - pos;
+        }
+
     }
 }

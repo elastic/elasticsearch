@@ -2,7 +2,7 @@
 ==== Percolator query
 
 See:
- * {ref}/query-percolator-query.html[Percolator Query]
+ * {ref}/query-dsl-percolator-query.html[Percolator Query]
 
 [source,java]
 --------------------------------------------------

@@ -22,10 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
-import org.elasticsearch.action.fieldstats.IndexConstraint;
-import org.elasticsearch.action.fieldstats.IndexConstraint.Comparison;
-import org.elasticsearch.action.fieldstats.IndexConstraint.Property;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -259,8 +255,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        FieldStatsProvider fieldStatsProvider = queryShardContext.getFieldStatsProvider();
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        FieldStatsProvider fieldStatsProvider = queryRewriteContext.getFieldStatsProvider();
         // If the fieldStatsProvider is null we are not on the shard and cannot
         // rewrite so just return without rewriting
         if (fieldStatsProvider != null) {
@@ -271,17 +267,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             case DISJOINT:
                 return new MatchNoneQueryBuilder();
             case WITHIN:
-                FieldStats<?> fieldStats = fieldStatsProvider.get(fieldName);
-                if (!(fieldStats.getMinValue().equals(from) && fieldStats.getMaxValue().equals(to) && includeUpper && includeLower)) {
-                    // Rebuild the range query with the bounds for this shard.
-                    // The includeLower/Upper values are preserved only if the
-                    // bound has not been changed by the rewrite
+                if (from != null || to != null) {
                     RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
-                    String dateFormatString = format == null ? null : format.format();
-                    newRangeQuery.from(fieldStats.getMinValue(), includeLower || fieldStats.match(
-                            new IndexConstraint(fieldName, Property.MIN, Comparison.GT, fieldStats.stringValueOf(from, dateFormatString))));
-                    newRangeQuery.to(fieldStats.getMaxValue(), includeUpper || fieldStats.match(
-                            new IndexConstraint(fieldName, Property.MAX, Comparison.LT, fieldStats.stringValueOf(to, dateFormatString))));
+                    newRangeQuery.from(null);
+                    newRangeQuery.to(null);
                     newRangeQuery.format = format;
                     newRangeQuery.timeZone = timeZone;
                     return newRangeQuery;

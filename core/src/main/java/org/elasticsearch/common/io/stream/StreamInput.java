@@ -39,7 +39,12 @@ import org.joda.time.DateTimeZone;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -314,6 +319,9 @@ public abstract class StreamInput extends InputStream {
      */
     @Override
     public abstract void close() throws IOException;
+
+    @Override
+    public abstract int available() throws IOException;
 
     public String[] readStringArray() throws IOException {
         int size = readVInt();

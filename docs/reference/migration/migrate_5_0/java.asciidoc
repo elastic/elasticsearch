@@ -229,16 +229,16 @@ The `field` setter has been deleted. Instead the field name needs to be specifie
 ==== SearchSourceBuilder
 
 All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
-relevant builder object for that feature. This means that all search requests can now be validated at call time which results in much clearer
-errors.
+relevant builder object for that feature (e.g. HighlightBuilder, AggregationBuilder, SuggesterBuilder) . This means that all search requests
+can now be validated at call time which results in much clearer errors.
 
 The `defaultResourceWindowSize(int)` method has been removed. The window size should be set explicitly on all RescoreBuilder objects.
 
 ==== SearchRequestBuilder
 
 All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
-relevant builder object for that feature. This means that all search requests can now be validated at call time which results in much clearer
-errors.
+relevant builder object for that feature (e.g. HighlightBuilder, AggregationBuilder, SuggesterBuilder) . This means that all search requests
+can now be validated at call time which results in much clearer errors.
 
 All highlighter methods have been removed in favor of a single `highlighter(HighlightBuilder)` method.
 
@@ -252,13 +252,31 @@ The `setTemplateSource(String)` and `setTemplateSource(BytesReference)` methods 
 
 All template methods have been removed in favor of a single `template(Template)` method.
 
-All source methods have been removed in favor of a single `source(SearchSourceBuilder)` method. This means that all search requests can now be validated at call time which results in much clearer
-errors.
+All source methods have been removed in favor of a single `source(SearchSourceBuilder)` method. This means that all search requests can now be validated
+at call time which results in much clearer errors.
 
 All extraSource methods have been removed.
 
 ==== AggregationBuilder
 
-All method which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
-relevant builder object for that feature. This means that all requests can now be validated at call time which results in much clearer
-errors.
+All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
+relevant builder object (i.e. `subAggregation(AggregationBuilder)` or `subAggregation(PipelineAggregationBuilder)`). This means that all
+requests can now be validated at call time which results in much clearer errors.
+
+==== ValidateQueryRequest
+
+`source(QuerySourceBuilder)`, `source(Map)`, `source(XContentBuilder)`, `source(String)`, `source(byte[])`, `source(byte[], int, int)`,
+`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder<?>)` and `query()`
+
+==== ValidateQueryRequestBuilder
+
+`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder<?>)`
+
+==== ExplainRequest
+
+`source(QuerySourceBuilder)`, `source(Map)`, `source(BytesReference)` and `source()` have been removed in favor of using
+`query(QueryBuilder<?>)` and `query()`
+
+==== ExplainRequestBuilder
+
+The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder<?>)`

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.object;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -140,14 +141,15 @@ public class RootObjectMapper extends ObjectMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                        || processField(builder, fieldName, fieldNode)) {
+                        || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
                     iterator.remove();
                 }
             }
             return builder;
         }
 
-        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
+        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode,
+                Version indexVersionCreated) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 List<FormatDateTimeFormatter> dateTimeFormatters = new ArrayList<>();
                 if (fieldNode instanceof List) {
@@ -185,7 +187,10 @@ public class RootObjectMapper extends ObjectMapper {
                         throw new MapperParsingException("A dynamic template must be defined with a name");
                     }
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
-                    ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
+                    String templateName = entry.getKey();
+                    Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
+                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, indexVersionCreated);
+                    ((Builder) builder).add(template);
                 }
                 return true;
             } else if (fieldName.equals("date_detection")) {
@@ -329,8 +334,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.startArray("dynamic_templates");
             for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
                 builder.startObject();
-                builder.field(dynamicTemplate.name());
-                builder.map(dynamicTemplate.conf());
+                builder.field(dynamicTemplate.name(), dynamicTemplate);
                 builder.endObject();
             }
             builder.endArray();

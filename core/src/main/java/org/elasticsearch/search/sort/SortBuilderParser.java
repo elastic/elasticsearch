@@ -19,9 +19,11 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 
@@ -36,5 +38,10 @@ public interface SortBuilderParser<T extends ToXContent> extends NamedWriteable<
      *            call
      * @return the new item
      */
-    SortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException;
+    T fromXContent(QueryParseContext context, String elementName) throws IOException;
+
+    /**
+     * Create a @link {@link SortField} from this builder.
+     */
+    SortField build(QueryShardContext context) throws IOException;
 }

@@ -23,6 +23,8 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 
+import java.io.IOException;
+
 /**
  *
  */
@@ -30,5 +32,5 @@ public interface SortParser {
 
     String[] names();
 
-    SortField parse(XContentParser parser, QueryShardContext context) throws Exception;
+    SortField parse(XContentParser parser, QueryShardContext context) throws IOException;
 }

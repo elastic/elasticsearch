@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
@@ -31,18 +30,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.function.Supplier;
 
 /**
@@ -155,6 +152,9 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 }
             }
         }
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        metaDataBuilder.persistentSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.persistentSettings()));
+        metaDataBuilder.transientSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.transientSettings()));
         ClusterState.Builder builder = ClusterState.builder(clusterService.state().getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());

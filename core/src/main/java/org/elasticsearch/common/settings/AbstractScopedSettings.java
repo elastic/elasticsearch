@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
  * This service offers transactional application of updates settings.
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
+    public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
     private Settings lastSettingsApplied = Settings.EMPTY;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
@@ -477,5 +478,49 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
         }
         return null;
+    }
+
+    /**
+     * Archives broken or unknown settings. Any setting that is not recognized or fails
+     * validation will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
+     * and remains in the settings object. This can be used to detect broken settings via APIs.
+     */
+    public Settings archiveUnknownOrBrokenSettings(Settings settings) {
+        Settings.Builder builder = Settings.builder();
+        boolean changed = false;
+        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            try {
+                Setting<?> setting = get(entry.getKey());
+                if (setting != null) {
+                    setting.get(settings);
+                    builder.put(entry.getKey(), entry.getValue());
+                } else {
+                    if (entry.getKey().startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(entry.getKey())) {
+                        builder.put(entry.getKey(), entry.getValue());
+                    } else {
+                        changed = true;
+                        logger.warn("found unknown setting: {} value: {} - archiving", entry.getKey(), entry.getValue());
+                        // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The setting can remain there
+                        // but we want users to be aware that some of their setting are broken and they can research why and what they need to do to replace them.
+                        builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                    }
+                }
+            } catch (IllegalArgumentException ex) {
+                changed = true;
+                logger.warn("found invalid setting: {} value: {} - archiving",ex , entry.getKey(), entry.getValue());
+                // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The setting can remain there
+                // but we want users to be aware that some of their setting sare broken and they can research why and what they need to do to replace them.
+                builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+            }
+        }
+        if (changed) {
+            return builder.build();
+        } else {
+            return settings;
+        }
+    }
+
+    protected boolean isPrivateSetting(String key) {
+        return false;
     }
 }

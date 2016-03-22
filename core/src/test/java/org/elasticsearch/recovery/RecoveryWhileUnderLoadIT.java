@@ -23,12 +23,17 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -49,7 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("_root:DEBUG")
+@TestLogging("_root:DEBUG,index.shard:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
@@ -280,13 +285,31 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 error = true;
             }
         }
-
         if (error) {
             //Printing out shards and their doc count
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
                 logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(), shardStats.getShardRouting().primary());
+            }
+
+            ClusterService clusterService = clusterService();
+            final ClusterState state = clusterService.state();
+            for (int shard = 0; shard < numberOfShards; shard++) {
+                // background indexer starts using ids on 1
+                for (int id = 1; id <= numberOfDocs; id++) {
+                    ShardId docShard = clusterService.operationRouting()
+                            .shardId(state, "test", "type", Long.toString(id), null);
+                    if (docShard.id() == shard) {
+                        for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
+                            GetResponse response = client().prepareGet("test", "type", Long.toString(id))
+                                    .setPreference("_only_node:" + shardRouting.currentNodeId()).get();
+                            if (response.isExists() == false) {
+                                logger.info("missing id [{}] on shard {}", id, shardRouting);
+                            }
+                        }
+                    }
+                }
             }
 
             //if there was an error we try to wait and see if at some point it'll get fixed

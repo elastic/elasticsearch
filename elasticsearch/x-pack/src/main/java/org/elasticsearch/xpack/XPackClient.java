@@ -7,12 +7,10 @@ package org.elasticsearch.xpack;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.watcher.client.WatcherClient;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;

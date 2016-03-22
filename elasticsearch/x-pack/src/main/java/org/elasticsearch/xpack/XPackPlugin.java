@@ -22,15 +22,19 @@ import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationService;
+import org.elasticsearch.xpack.extensions.XPackExtension;
+import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 public class XPackPlugin extends Plugin {
 
@@ -67,6 +71,7 @@ public class XPackPlugin extends Plugin {
     }
 
     protected final Settings settings;
+    protected final XPackExtensionsService extensionsService;
 
     protected Licensing licensing;
     protected Shield shield;
@@ -81,6 +86,14 @@ public class XPackPlugin extends Plugin {
         this.marvel = new Marvel(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
+        // Check if the node is a transport client.
+        if (transportClientMode(settings) == false) {
+            Environment env = new Environment(settings);
+            this.extensionsService =
+                    new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
+        } else {
+            this.extensionsService = null;
+        }
     }
 
     @Override public String name() {
@@ -89,6 +102,11 @@ public class XPackPlugin extends Plugin {
 
     @Override public String description() {
         return "Elastic X-Pack";
+    }
+
+    // For tests only
+    public Collection<Class<? extends XPackExtension>> getExtensions() {
+        return Collections.emptyList();
     }
 
     @Override
@@ -157,6 +175,12 @@ public class XPackPlugin extends Plugin {
         graph.onModule(module);
     }
 
+    public void onModule(AuthenticationModule module) {
+        if (extensionsService != null) {
+            extensionsService.onModule(module);
+        }
+    }
+
     public void onIndexModule(IndexModule module) {
         shield.onIndexModule(module);
         graph.onIndexModule(module);
@@ -220,5 +244,9 @@ public class XPackPlugin extends Plugin {
         settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
         settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
                 defaultValue, Setting.Property.NodeScope));
+    }
+
+    public static Path resolveXPackExtensionsFile(Environment env) {
+        return env.pluginsFile().resolve("xpack").resolve("extensions");
     }
 }

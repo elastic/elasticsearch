@@ -19,24 +19,23 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 /**
@@ -53,10 +52,15 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
     private final Supplier<Integer> minimumMasterNodesProvider;
+    private final IndicesService indicesService;
+    private final NodeServicesProvider nodeServicesProvider;
 
     public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery) {
+                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                   NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
+        this.nodeServicesProvider = nodeServicesProvider;
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.metaState = metaState;
@@ -66,9 +70,9 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        ObjectHashSet<String> nodesIds = new ObjectHashSet<>(clusterService.state().nodes().masterNodes().keys());
-        logger.trace("performing state recovery from {}", nodesIds);
-        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
+        String[] nodesIds = clusterService.state().nodes().masterNodes().keys().toArray(String.class);
+        logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
+        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 
         int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
@@ -80,7 +84,6 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             }
         }
 
-        ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
@@ -93,55 +96,34 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             } else if (nodeState.metaData().version() > electedGlobalState.version()) {
                 electedGlobalState = nodeState.metaData();
             }
-            for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.getIndex(), 1);
-            }
         }
         if (found < requiredAllocation) {
             listener.onFailure("found [" + found + "] metadata states, required [" + requiredAllocation + "]");
             return;
         }
-        // update the global state, and clean the indices, we elect them in the next phase
-        MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState).removeAllIndices();
-
-        assert !indices.containsKey(null);
-        final Object[] keys = indices.keys;
-        for (int i = 0; i < keys.length; i++) {
-            if (keys[i] != null) {
-                Index index = (Index) keys[i];
-                IndexMetaData electedIndexMetaData = null;
-                int indexMetaDataCount = 0;
-                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
-                    if (nodeState.metaData() == null) {
-                        continue;
-                    }
-                    IndexMetaData indexMetaData = nodeState.metaData().index(index);
-                    if (indexMetaData == null) {
-                        continue;
-                    }
-                    if (electedIndexMetaData == null) {
-                        electedIndexMetaData = indexMetaData;
-                    } else if (indexMetaData.getVersion() > electedIndexMetaData.getVersion()) {
-                        electedIndexMetaData = indexMetaData;
-                    }
-                    indexMetaDataCount++;
+        // verify index metadata
+        MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState);
+        for (IndexMetaData indexMetaData : electedGlobalState) {
+            try {
+                if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                    // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
+                    indicesService.verifyIndexMetadata(nodeServicesProvider, indexMetaData);
                 }
-                if (electedIndexMetaData != null) {
-                    if (indexMetaDataCount < requiredAllocation) {
-                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
-                    }
-                    metaDataBuilder.put(electedIndexMetaData, false);
-                }
+            } catch (Exception e) {
+                logger.warn("recovering index {} failed - recovering as closed", e, indexMetaData.getIndex());
+                indexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).build();
+                metaDataBuilder.put(indexMetaData, true);
             }
         }
         ClusterState.Builder builder = ClusterState.builder(clusterService.state().getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }
+
     public void reset() throws Exception {
         try {
             Path[] dataPaths = nodeEnv.nodeDataPaths();
-            logger.trace("removing node data paths: [{}]", (Object)dataPaths);
+            logger.trace("removing node data paths: [{}]", (Object) dataPaths);
             IOUtils.rm(dataPaths);
         } catch (Exception ex) {
             logger.debug("failed to delete shard locations", ex);

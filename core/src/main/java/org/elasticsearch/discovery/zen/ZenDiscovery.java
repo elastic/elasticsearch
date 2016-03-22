@@ -24,7 +24,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -35,7 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -929,7 +928,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     protected ClusterState rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
-        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
+        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME);
 
         logger.warn("{}, current nodes: {}", reason, clusterState.nodes());
         nodesFD.stop();
@@ -959,7 +958,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().localNodeMaster() : "handleAnotherMaster called but current node is not a master";
-        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
 
         if (otherClusterStateVersion > localClusterState.version()) {
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
@@ -1197,7 +1196,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         private void assertClusterStateThread() {
-            assert clusterService instanceof InternalClusterService == false || ((InternalClusterService) clusterService).assertClusterStateThread();
+            assert clusterService instanceof ClusterService == false || ((ClusterService) clusterService).assertClusterStateThread();
         }
 
     }

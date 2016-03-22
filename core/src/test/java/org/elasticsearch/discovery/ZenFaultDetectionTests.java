@@ -24,13 +24,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -44,10 +44,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenFaultDetectionTests extends ESTestCase {
     protected ThreadPool threadPool;
+    protected ClusterService clusterService;
 
     protected static final Version version0 = Version.fromId(/*0*/99);
     protected DiscoveryNode nodeA;
@@ -62,6 +65,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new ThreadPool(getClass().getName());
+        clusterService = createClusterService(threadPool);
         serviceA = build(Settings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
         serviceB = build(Settings.builder().put("name", "TS_B").build(), version1);
@@ -100,6 +104,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         super.tearDown();
         serviceA.close();
         serviceB.close();
+        clusterService.close();
         terminate(threadPool);
     }
 
@@ -186,21 +191,18 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
         ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
         final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
+        setState(clusterService, state);
         MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
-                new NoopClusterService(state));
+                clusterService);
         masterFD.start(nodeB, "test");
 
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
         final CountDownLatch notified = new CountDownLatch(1);
-        masterFD.addListener(new MasterFaultDetection.Listener() {
-
-            @Override
-            public void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason) {
-                failureNode[0] = masterNode;
-                failureReason[0] = reason;
-                notified.countDown();
-            }
+        masterFD.addListener((masterNode, cause, reason) -> {
+            failureNode[0] = masterNode;
+            failureReason[0] = reason;
+            notified.countDown();
         });
         // will raise a disconnect on A
         serviceB.stop();

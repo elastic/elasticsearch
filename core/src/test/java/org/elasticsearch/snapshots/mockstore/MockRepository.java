@@ -20,9 +20,9 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;

@@ -20,7 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;

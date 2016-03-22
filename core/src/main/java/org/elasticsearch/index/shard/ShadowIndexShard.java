@@ -20,8 +20,8 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -34,6 +34,7 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
@@ -45,9 +46,13 @@ import java.io.IOException;
  */
 public final class ShadowIndexShard extends IndexShard {
 
-    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
-                            IndexEventListener indexEventListener, IndexSearcherWrapper wrapper, NodeServicesProvider provider, SearchSlowLog searchSlowLog, Engine.Warmer engineWarmer) throws IOException {
-        super(shardId, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory, indexEventListener, wrapper, provider, searchSlowLog, engineWarmer);
+    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
+                            MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
+                            @Nullable EngineFactory engineFactory, IndexEventListener indexEventListener, IndexSearcherWrapper wrapper,
+                            ThreadPool threadPool, BigArrays bigArrays, SearchSlowLog searchSlowLog, Engine.Warmer engineWarmer)
+        throws IOException {
+        super(shardId, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
+            indexEventListener, wrapper, threadPool, bigArrays, searchSlowLog, engineWarmer);
     }
 
     /**

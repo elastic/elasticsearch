@@ -32,9 +32,10 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolateStats;
+import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -101,8 +102,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Segments:
                     segments = new SegmentsStats();
                     break;
-                case Percolate:
-                    percolate = new PercolateStats();
+                case PercolatorCache:
+                    percolatorCache = new PercolatorQueryCacheStats();
                     break;
                 case Translog:
                     translog = new TranslogStats();
@@ -123,7 +124,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
 
-    public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+    public CommonStats(IndicesQueryCache indicesQueryCache, PercolatorQueryCache percolatorQueryCache,
+                       IndexShard indexShard, CommonStatsFlags flags) {
 
         CommonStatsFlags.Flag[] setFlags = flags.getFlags();
 
@@ -168,8 +170,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Segments:
                     segments = indexShard.segmentStats(flags.includeSegmentFileSizes());
                     break;
-                case Percolate:
-                    percolate = indexShard.percolateStats();
+                case PercolatorCache:
+                    percolatorCache = percolatorQueryCache.getStats(indexShard.shardId());
                     break;
                 case Translog:
                     translog = indexShard.translogStats();
@@ -223,7 +225,7 @@ public class CommonStats implements Streamable, ToXContent {
     public FieldDataStats fieldData;
 
     @Nullable
-    public PercolateStats percolate;
+    public PercolatorQueryCacheStats percolatorCache;
 
     @Nullable
     public CompletionStats completion;
@@ -333,13 +335,13 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             fieldData.add(stats.getFieldData());
         }
-        if (percolate == null) {
-            if (stats.getPercolate() != null) {
-                percolate = new PercolateStats();
-                percolate.add(stats.getPercolate());
+        if (percolatorCache == null) {
+            if (stats.getPercolatorCache() != null) {
+                percolatorCache = new PercolatorQueryCacheStats();
+                percolatorCache.add(stats.getPercolatorCache());
             }
         } else {
-            percolate.add(stats.getPercolate());
+            percolatorCache.add(stats.getPercolatorCache());
         }
         if (completion == null) {
             if (stats.getCompletion() != null) {
@@ -447,8 +449,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public PercolateStats getPercolate() {
-        return percolate;
+    public PercolatorQueryCacheStats getPercolatorCache() {
+        return percolatorCache;
     }
 
     @Nullable
@@ -489,7 +491,7 @@ public class CommonStats implements Streamable, ToXContent {
 
     /**
      * Utility method which computes total memory by adding
-     * FieldData, Percolate, Segments (memory, index writer, version map)
+     * FieldData, PercolatorCache, Segments (memory, index writer, version map)
      */
     public ByteSizeValue getTotalMemory() {
         long size = 0;
@@ -498,9 +500,6 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (this.getQueryCache() != null) {
             size += this.getQueryCache().getMemorySizeInBytes();
-        }
-        if (this.getPercolate() != null) {
-            size += this.getPercolate().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
             size += this.getSegments().getMemoryInBytes() +
@@ -547,7 +546,7 @@ public class CommonStats implements Streamable, ToXContent {
             fieldData = FieldDataStats.readFieldDataStats(in);
         }
         if (in.readBoolean()) {
-            percolate = PercolateStats.readPercolateStats(in);
+            percolatorCache = PercolatorQueryCacheStats.readPercolateStats(in);
         }
         if (in.readBoolean()) {
             completion = CompletionStats.readCompletionStats(in);
@@ -629,11 +628,11 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             fieldData.writeTo(out);
         }
-        if (percolate == null) {
+        if (percolatorCache == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            percolate.writeTo(out);
+            percolatorCache.writeTo(out);
         }
         if (completion == null) {
             out.writeBoolean(false);
@@ -689,8 +688,8 @@ public class CommonStats implements Streamable, ToXContent {
         if (fieldData != null) {
             fieldData.toXContent(builder, params);
         }
-        if (percolate != null) {
-            percolate.toXContent(builder, params);
+        if (percolatorCache != null) {
+            percolatorCache.toXContent(builder, params);
         }
         if (completion != null) {
             completion.toXContent(builder, params);

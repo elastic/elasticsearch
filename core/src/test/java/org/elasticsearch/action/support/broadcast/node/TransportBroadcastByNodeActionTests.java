@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -53,13 +54,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -75,6 +76,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -85,7 +88,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     private static final String TEST_CLUSTER = "test-cluster";
     private static ThreadPool THREAD_POOL;
 
-    private TestClusterService clusterService;
+    private ClusterService clusterService;
     private CapturingTransport transport;
 
     private TestTransportBroadcastByNodeAction action;
@@ -184,7 +187,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         transport = new CapturingTransport();
-        clusterService = new TestClusterService(THREAD_POOL);
+        clusterService = createClusterService(THREAD_POOL);
         final TransportService transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -199,7 +202,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         );
     }
 
-    void setClusterState(TestClusterService clusterService, String index) {
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+    }
+
+    void setClusterState(ClusterService clusterService, String index) {
         int numberOfNodes = randomIntBetween(3, 5);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(index, "_na_"));
@@ -232,7 +241,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         stateBuilder.metaData(MetaData.builder().put(indexMetaData));
         stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable.build()).build());
         ClusterState clusterState = stateBuilder.build();
-        clusterService.setState(clusterState);
+        setState(clusterService, clusterState);
     }
 
     static DiscoveryNode newNode(int nodeId) {
@@ -252,7 +261,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
                 .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
+        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
@@ -267,7 +276,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
                 .addIndexBlock(TEST_INDEX, new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
+        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
@@ -312,7 +321,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
         builder.remove(masterNode.id());
 
-        clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
+        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 
         action.new AsyncAction(null, request, listener).start();
 
@@ -398,7 +407,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             builder.remove(failedMasterNode.id());
             builder.masterNodeId(null);
 
-            clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
+            setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
         }
 
         action.new AsyncAction(null, request, listener).start();

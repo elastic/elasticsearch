@@ -282,8 +282,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new search context.
      */
     protected SearchContext createSearchContext(IndexService indexService) {
-        BigArrays bigArrays = indexService.getIndexServices().getBigArrays();
-        ThreadPool threadPool = indexService.getIndexServices().getThreadPool();
+        BigArrays bigArrays = indexService.getBigArrays();
+        ThreadPool threadPool = indexService.getThreadPool();
         PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
         return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService);

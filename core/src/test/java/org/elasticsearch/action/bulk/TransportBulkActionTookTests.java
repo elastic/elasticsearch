@@ -28,19 +28,19 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -57,16 +58,23 @@ import static org.mockito.Mockito.mock;
 public class TransportBulkActionTookTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private ClusterService clusterService;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = mock(ThreadPool.class);
+        clusterService = createClusterService(threadPool);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
     }
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        ClusterService clusterService = new TestClusterService(threadPool);
         TransportService transportService = new TransportService(capturingTransport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

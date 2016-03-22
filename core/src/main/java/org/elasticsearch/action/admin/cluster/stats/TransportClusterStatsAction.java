@@ -28,10 +28,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,7 +56,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
             CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments,
-            CommonStatsFlags.Flag.Percolate);
+            CommonStatsFlags.Flag.PercolatorCache);
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
@@ -106,8 +106,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
                     shardsStats.add(new ShardStats(indexShard.routingEntry(), indexShard.shardPath(),
-                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS), indexShard.commitStats(),
-                            indexShard.seqNoStats()));
+                            new CommonStats(indicesService.getIndicesQueryCache(), indexService.cache().getPercolatorQueryCache(),
+                                    indexShard, SHARD_STATS_FLAGS),
+                            indexShard.commitStats(), indexShard.seqNoStats()));
                 }
             }
         }

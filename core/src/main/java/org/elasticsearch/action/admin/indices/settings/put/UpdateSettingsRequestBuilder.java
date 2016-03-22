@@ -84,4 +84,9 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
         request.settings(source);
         return this;
     }
+
+    public UpdateSettingsRequestBuilder setPreserveExisting(boolean preserveExisting) {
+        request.setPreserveExisting(preserveExisting);
+        return this;
+    }
 }

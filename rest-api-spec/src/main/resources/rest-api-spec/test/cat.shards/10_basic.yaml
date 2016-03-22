@@ -48,11 +48,7 @@
                     merges.total_docs                .+   \n
                     merges.total_size                .+   \n
                     merges.total_time                .+   \n
-                    percolate.current                .+   \n
-                    percolate.memory_size            .+   \n
                     percolate.queries                .+   \n
-                    percolate.time                   .+   \n
-                    percolate.total                  .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
                     search.fetch_current             .+   \n

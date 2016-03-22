@@ -127,7 +127,8 @@ class InstallPluginCommand extends Command {
             "repository-azure",
             "repository-hdfs",
             "repository-s3",
-            "store-smb")));
+            "store-smb",
+            "xpack")));
 
     private final Environment env;
     private final OptionSpec<Void> batchOption;

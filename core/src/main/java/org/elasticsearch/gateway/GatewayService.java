@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -43,6 +43,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -95,9 +97,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     @Inject
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
                           ThreadPool threadPool, NodeEnvironment nodeEnvironment, GatewayMetaState metaState,
-                          TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery) {
+                          TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                          NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, nodeEnvironment, metaState, listGatewayMetaState, discovery);
+        this.gateway = new Gateway(settings, clusterService, nodeEnvironment, metaState, listGatewayMetaState, discovery,
+            nodeServicesProvider, indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

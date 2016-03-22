@@ -28,11 +28,11 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
@@ -51,7 +50,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public class PipelineStore extends AbstractComponent implements Closeable, ClusterStateListener {
 

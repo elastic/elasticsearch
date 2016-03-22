@@ -53,7 +53,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -137,7 +137,7 @@ public class ClusterModule extends AbstractModule {
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();
         bind(DiscoveryNodeService.class).asEagerSingleton();
-        bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
+        bind(ClusterService.class).asEagerSingleton();
         bind(NodeConnectionsService.class).asEagerSingleton();
         bind(OperationRouting.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -32,12 +32,14 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -60,10 +62,16 @@ public class MetaDataIndexStateService extends AbstractComponent {
     private final AllocationService allocationService;
 
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
+    private final NodeServicesProvider nodeServiceProvider;
+    private final IndicesService indicesService;
 
     @Inject
-    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
+    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+                                     MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                                     NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
+        this.nodeServiceProvider = nodeServicesProvider;
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
@@ -163,6 +171,12 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     // The index might be closed because we couldn't import it due to old incompatible version
                     // We need to check that this index can be upgraded to the current version
                     indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+                    try {
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, indexMetaData);
+                    } catch (Exception e) {
+                        throw new ElasticsearchException("Failed to verify index " + indexMetaData.getIndex(), e);
+                    }
+
                     mdBuilder.put(indexMetaData, true);
                     blocksBuilder.removeIndexBlock(indexName, INDEX_CLOSED_BLOCK);
                 }

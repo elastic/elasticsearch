@@ -20,13 +20,12 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.percolator;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
@@ -44,11 +44,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.ExtractQueryTermsService;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -75,13 +76,22 @@ public class PercolatorQueryTests extends ESTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
-    private Map<BytesRef, Query> queries;
+    private Map<String, Query> queries;
+    private PercolatorQuery.QueryRegistry queryRegistry;
     private DirectoryReader directoryReader;
 
     @Before
     public void init() throws Exception {
         directory = newDirectory();
         queries = new HashMap<>();
+        queryRegistry = ctx -> docId -> {
+            try {
+                String val = ctx.reader().document(docId).get(UidFieldMapper.NAME);
+                return queries.get(Uid.createUid(val).id());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
         IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
         config.setMergePolicy(NoMergePolicy.INSTANCE);
         indexWriter = new IndexWriter(directory, config);
@@ -127,8 +137,10 @@ public class PercolatorQueryTests extends ESTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
 
         PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
+                "docType",
+                queryRegistry,
+                new BytesArray("{}"),
                 percolateSearcher,
-                queries,
                 new MatchAllDocsQuery()
         );
         builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
@@ -140,39 +152,6 @@ public class PercolatorQueryTests extends ESTestCase {
         assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
         assertThat(topDocs.scoreDocs[3].doc, equalTo(5));
         assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
-    }
-
-    public void testWithScoring() throws Exception {
-        addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), "field", "value1");
-
-        indexWriter.close();
-        directoryReader = DirectoryReader.open(directory);
-        // don't use newSearcher, which randomizes similarity. if it gets classic sim, the test eats it,
-        // as the score becomes 1 due to querynorm.
-        IndexSearcher shardSearcher = new IndexSearcher(directoryReader);
-
-        MemoryIndex memoryIndex = new MemoryIndex();
-        memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
-        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-
-        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
-                percolateSearcher,
-                queries,
-                new MatchAllDocsQuery()
-        );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
-        builder.setPercolateQuery(new TermQuery(new Term("field", "value1")));
-
-        PercolatorQuery percolatorQuery = builder.build();
-        TopDocs topDocs = shardSearcher.search(percolatorQuery, 1);
-        assertThat(topDocs.totalHits, equalTo(1));
-        assertThat(topDocs.scoreDocs.length, equalTo(1));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
-        assertThat(topDocs.scoreDocs[0].score, not(1f));
-
-        Explanation explanation = shardSearcher.explain(percolatorQuery, 0);
-        assertThat(explanation.isMatch(), is(true));
-        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
     }
 
     public void testDuel() throws Exception {
@@ -203,8 +182,10 @@ public class PercolatorQueryTests extends ESTestCase {
             IndexSearcher percolateSearcher = memoryIndex.createSearcher();
 
             PercolatorQuery.Builder builder1 = new PercolatorQuery.Builder(
+                    "docType",
+                    queryRegistry,
+                    new BytesArray("{}"),
                     percolateSearcher,
-                    queries,
                     new MatchAllDocsQuery()
             );
             // enables the optimization that prevents queries from being evaluated that don't match
@@ -212,8 +193,10 @@ public class PercolatorQueryTests extends ESTestCase {
             TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
 
             PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
+                    "docType",
+                    queryRegistry,
+                    new BytesArray("{}"),
                     percolateSearcher,
-                    queries,
                     new MatchAllDocsQuery()
             );
             TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
@@ -227,10 +210,11 @@ public class PercolatorQueryTests extends ESTestCase {
     }
 
     void addPercolatorQuery(String id, Query query, String... extraFields) throws IOException {
-        queries.put(new BytesRef(id), query);
+        queries.put(id, query);
         ParseContext.Document document = new ParseContext.Document();
-        ExtractQueryTermsService.extractQueryTerms(query, document, EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, EXTRACTED_TERMS_FIELD_TYPE);
-        document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
+        ExtractQueryTermsService.extractQueryTerms(query, document, EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME,
+                EXTRACTED_TERMS_FIELD_TYPE);
+        document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorFieldMapper.TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {
             document.add(new StringField(extraFields[i], extraFields[++i], Field.Store.NO));

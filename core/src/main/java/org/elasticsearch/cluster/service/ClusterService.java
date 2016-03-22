@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.service;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -88,11 +87,11 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 /**
  *
  */
-public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
+public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-        Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
-            Property.Dynamic, Property.NodeScope);
+            Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
+                    Property.Dynamic, Property.NodeScope);
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
@@ -116,7 +115,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final Map<ClusterStateTaskExecutor, List<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
     // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
     private final Collection<ClusterStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
-    private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(priorityClusterStateListeners, clusterStateListeners, lastClusterStateListeners);
+    private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(priorityClusterStateListeners,
+            clusterStateListeners, lastClusterStateListeners);
 
     private final LocalNodeMasterListeners localNodeMasterListeners;
 
@@ -129,8 +129,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private NodeConnectionsService nodeConnectionsService;
 
     @Inject
-    public InternalClusterService(Settings settings, OperationRouting operationRouting,
-                                  ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName) {
+    public ClusterService(Settings settings, OperationRouting operationRouting,
+                          ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName) {
         super(settings);
         this.operationRouting = operationRouting;
         this.threadPool = threadPool;
@@ -139,7 +139,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
-        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                this::setSlowTaskLoggingThreshold);
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
 
@@ -167,7 +168,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.nodeConnectionsService = nodeConnectionsService;
     }
 
-    @Override
+    /**
+     * Adds an initial block to be set on the first cluster state created.
+     */
     synchronized public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
             throw new IllegalStateException("can't set initial block when started");
@@ -175,12 +178,16 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         initialBlocks.addGlobalBlock(block);
     }
 
-    @Override
+    /**
+     * Remove an initial block to be set on the first cluster state created.
+     */
     synchronized public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         removeInitialStateBlock(block.id());
     }
 
-    @Override
+    /**
+     * Remove an initial block to be set on the first cluster state created.
+     */
     synchronized public void removeInitialStateBlock(int blockId) throws IllegalStateException {
         if (lifecycle.started()) {
             throw new IllegalStateException("can't set initial block when started");
@@ -195,7 +202,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
-        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME), threadPool.getThreadContext());
+        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
+                threadPool.getThreadContext());
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
     }
 
@@ -217,37 +225,48 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     synchronized protected void doClose() {
     }
 
-    @Override
+    /**
+     * The local node.
+     */
     public DiscoveryNode localNode() {
         return clusterState.getNodes().localNode();
     }
 
-    @Override
     public OperationRouting operationRouting() {
         return operationRouting;
     }
 
-    @Override
+    /**
+     * The current state.
+     */
     public ClusterState state() {
         return this.clusterState;
     }
 
-    @Override
+    /**
+     * Adds a priority listener for updated cluster states.
+     */
     public void addFirst(ClusterStateListener listener) {
         priorityClusterStateListeners.add(listener);
     }
 
-    @Override
+    /**
+     * Adds last listener.
+     */
     public void addLast(ClusterStateListener listener) {
         lastClusterStateListeners.add(listener);
     }
 
-    @Override
+    /**
+     * Adds a listener for updated cluster states.
+     */
     public void add(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
     }
 
-    @Override
+    /**
+     * Removes a listener for updated cluster states.
+     */
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
         priorityClusterStateListeners.remove(listener);
@@ -262,17 +281,27 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    @Override
+    /**
+     * Add a listener for on/off local node master events
+     */
     public void add(LocalNodeMasterListener listener) {
         localNodeMasterListeners.add(listener);
     }
 
-    @Override
+    /**
+     * Remove the given listener for on/off local master events
+     */
     public void remove(LocalNodeMasterListener listener) {
         localNodeMasterListeners.remove(listener);
     }
 
-    @Override
+    /**
+     * Adds a cluster state listener that will timeout after the provided timeout,
+     * and is executed after the clusterstate has been successfully applied ie. is
+     * in state {@link org.elasticsearch.cluster.ClusterState.ClusterStateStatus#APPLIED}
+     * NOTE: a {@code null} timeout means that the listener will never be removed
+     * automatically
+     */
     public void add(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
@@ -301,13 +330,37 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    @Override
+    /**
+     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
+     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
+     *
+     * @param source     the source of the cluster state update task
+     * @param updateTask the full context for the cluster state update
+     *                   task
+     */
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
     }
 
 
-    @Override
+    /**
+     * Submits a cluster state update task; submitted updates will be
+     * batched across the same instance of executor. The exact batching
+     * semantics depend on the underlying implementation but a rough
+     * guideline is that if the update task is submitted while there
+     * are pending update tasks for the same executor, these update
+     * tasks will all be executed on the executor in a single batch
+     *
+     * @param source   the source of the cluster state update task
+     * @param task     the state needed for the cluster state update task
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param listener callback after the cluster state update task
+     *                 completes
+     * @param <T>      the type of the cluster state update task state
+     */
     public <T> void submitStateUpdateTask(final String source, final T task,
                                           final ClusterStateTaskConfig config,
                                           final ClusterStateTaskExecutor<T> executor,
@@ -317,9 +370,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     private <T> void innerSubmitStateUpdateTask(final String source, final T task,
-                                           final ClusterStateTaskConfig config,
-                                           final ClusterStateTaskExecutor executor,
-                                           final SafeClusterStateTaskListener listener) {
+                                                final ClusterStateTaskConfig config,
+                                                final ClusterStateTaskExecutor executor,
+                                                final SafeClusterStateTaskListener listener) {
         if (!lifecycle.started()) {
             return;
         }
@@ -349,7 +402,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    @Override
+    /**
+     * Returns the tasks that are pending.
+     */
     public List<PendingClusterTask> pendingTasks() {
         PrioritizedEsThreadPoolExecutor.Pending[] pendings = updateTasksExecutor.getPending();
         List<PendingClusterTask> pendingClusterTasks = new ArrayList<>(pendings.length);
@@ -370,24 +425,32 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 timeInQueue = 0;
             }
 
-            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(source), timeInQueue, pending.executing));
+            pendingClusterTasks.add(
+                    new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(source), timeInQueue, pending.executing));
         }
         return pendingClusterTasks;
     }
 
-    @Override
+    /**
+     * Returns the number of currently pending tasks.
+     */
     public int numberOfPendingTasks() {
         return updateTasksExecutor.getNumberOfPendingTasks();
     }
 
-    @Override
+    /**
+     * Returns the maximum wait time for tasks in the queue
+     *
+     * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
+     */
     public TimeValue getMaxTaskWaitTime() {
         return updateTasksExecutor.getMaxTaskWaitTime();
     }
 
     /** asserts that the current thread is the cluster state update thread */
     public boolean assertClusterStateThread() {
-        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) :
+                "not called from the cluster state update thread";
         return true;
     }
 
@@ -444,16 +507,20 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         } catch (Throwable e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
-                logger.trace("failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}", e, executionTime, previousClusterState.version(), source,
-                    previousClusterState.nodes().prettyPrint(), previousClusterState.routingTable().prettyPrint(), previousClusterState.getRoutingNodes().prettyPrint());
+                logger.trace("failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}", e, executionTime,
+                        previousClusterState.version(), source, previousClusterState.nodes().prettyPrint(),
+                        previousClusterState.routingTable().prettyPrint(), previousClusterState.getRoutingNodes().prettyPrint());
             }
             warnAboutSlowTaskIfNeeded(executionTime, source);
-            batchResult = ClusterStateTaskExecutor.BatchResult.<T>builder().failures(toExecute.stream().map(updateTask -> updateTask.task)::iterator, e).build(previousClusterState);
+            batchResult = ClusterStateTaskExecutor.BatchResult.<T>builder()
+                    .failures(toExecute.stream().map(updateTask -> updateTask.task)::iterator, e)
+                    .build(previousClusterState);
         }
 
         assert batchResult.executionResults != null;
         assert batchResult.executionResults.size() == toExecute.size()
-                : String.format(Locale.ROOT, "expected [%d] task result%s but was [%d]", toExecute.size(), toExecute.size() == 1 ? "" : "s", batchResult.executionResults.size());
+                : String.format(Locale.ROOT, "expected [%d] task result%s but was [%d]", toExecute.size(),
+                toExecute.size() == 1 ? "" : "s", batchResult.executionResults.size());
         boolean assertsEnabled = false;
         assert (assertsEnabled = true);
         if (assertsEnabled) {
@@ -498,7 +565,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // only the master controls the version numbers
                 Builder builder = ClusterState.builder(newClusterState).incrementVersion();
                 if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                    builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1).build());
+                    builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
+                            .version(newClusterState.routingTable().version() + 1).build());
                 }
                 if (previousClusterState.metaData() != newClusterState.metaData()) {
                     builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
@@ -511,7 +579,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                             ackedListener.onAckTimeout();
                         } else {
                             try {
-                                ackListeners.add(new AckCountDownListener(ackedListener, newClusterState.version(), newClusterState.nodes(), threadPool));
+                                ackListeners.add(new AckCountDownListener(ackedListener, newClusterState.version(), newClusterState.nodes(),
+                                        threadPool));
                             } catch (EsRejectedExecutionException ex) {
                                 if (logger.isDebugEnabled()) {
                                     logger.debug("Couldn't schedule timeout thread - node might be shutting down", ex);
@@ -613,13 +682,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
 
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            logger.debug("processing [{}]: took [{}] done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.stateUUID());
+            logger.debug("processing [{}]: took [{}] done applying updated cluster_state (version: {}, uuid: {})", source, executionTime,
+                    newClusterState.version(), newClusterState.stateUUID());
             warnAboutSlowTaskIfNeeded(executionTime, source);
         } catch (Throwable t) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}{}{}", t, executionTime,
-                newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.nodes().prettyPrint(),
-                newClusterState.routingTable().prettyPrint(), newClusterState.getRoutingNodes().prettyPrint());
+                    newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.nodes().prettyPrint(),
+                    newClusterState.routingTable().prettyPrint(), newClusterState.getRoutingNodes().prettyPrint());
             // TODO: do we want to call updateTask.onFailure here?
         }
 
@@ -669,11 +739,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 listener.clusterStateProcessed(source, oldState, newState);
             } catch (Exception e) {
                 logger.error(
-                    "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n{}\nnew cluster state:\n{}",
-                    e,
-                    source,
-                    oldState.prettyPrint(),
-                    newState.prettyPrint());
+                        "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n" +
+                                "{}\nnew cluster state:\n{}",
+                        e,
+                        source,
+                        oldState.prettyPrint(),
+                        newState.prettyPrint());
             }
         }
     }
@@ -725,7 +796,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         public final ClusterStateTaskListener listener;
         public final AtomicBoolean processed = new AtomicBoolean();
 
-        UpdateTask(String source, T task, ClusterStateTaskConfig config, ClusterStateTaskExecutor<T> executor, ClusterStateTaskListener listener) {
+        UpdateTask(String source, T task, ClusterStateTaskConfig config, ClusterStateTaskExecutor<T> executor,
+                   ClusterStateTaskListener listener) {
             super(config.priority(), source);
             this.task = task;
             this.config = config;
@@ -741,7 +813,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source) {
         if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
-            logger.warn("cluster state update task [{}] took [{}] above the warn threshold of {}", source, executionTime, slowTaskLoggingThreshold);
+            logger.warn("cluster state update task [{}] took [{}] above the warn threshold of {}", source, executionTime,
+                    slowTaskLoggingThreshold);
         }
     }
 
@@ -876,7 +949,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         private final Future<?> ackTimeoutCallback;
         private Throwable lastFailure;
 
-        AckCountDownListener(AckedClusterStateTaskListener ackedTaskListener, long clusterStateVersion, DiscoveryNodes nodes, ThreadPool threadPool) {
+        AckCountDownListener(AckedClusterStateTaskListener ackedTaskListener, long clusterStateVersion, DiscoveryNodes nodes,
+                             ThreadPool threadPool) {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
             this.nodes = nodes;

@@ -30,7 +30,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -39,7 +38,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -84,8 +83,6 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.percolator.PercolatorModule;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
@@ -226,7 +223,6 @@ public class Node implements Closeable {
             modules.add(new ActionModule(DiscoveryNode.ingestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
-            modules.add(new PercolatorModule());
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
@@ -299,9 +295,7 @@ public class Node implements Closeable {
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
 
-        assert injector.getInstance(ClusterService.class) instanceof InternalClusterService :
-                "node cluster service implementation must inherit from InternalClusterService";
-        final InternalClusterService clusterService = (InternalClusterService) injector.getInstance(ClusterService.class);
+        final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
         final NodeConnectionsService nodeConnectionsService = injector.getInstance(NodeConnectionsService.class);
         nodeConnectionsService.start();
@@ -486,8 +480,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(RestController.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
-        toClose.add(() -> stopWatch.stop().start("percolator_service"));
-        toClose.add(injector.getInstance(PercolatorService.class));
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));

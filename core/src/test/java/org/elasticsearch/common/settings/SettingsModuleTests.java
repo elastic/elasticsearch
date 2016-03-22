@@ -36,12 +36,35 @@ public class SettingsModuleTests extends ModuleTestCase {
         {
             Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]").build();
             SettingsModule module = new SettingsModule(settings);
-            try {
-                assertInstanceBinding(module, Settings.class, (s) -> s == settings);
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
-            }
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> assertInstanceBinding(module, Settings.class, (s) -> s == settings));
+            assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+        }
+
+        {
+            Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]")
+                .put("some.foo.bar", 1).build();
+            SettingsModule module = new SettingsModule(settings);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> assertInstanceBinding(module, Settings.class, (s) -> s == settings));
+            assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+            assertEquals(1, ex.getSuppressed().length);
+            assertEquals("unknown setting [some.foo.bar]", ex.getSuppressed()[0].getMessage());
+        }
+
+        {
+            Settings settings = Settings.builder().put("index.codec", "default")
+                .put("index.foo.bar", 1).build();
+            SettingsModule module = new SettingsModule(settings);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> assertInstanceBinding(module, Settings.class, (s) -> s == settings));
+            assertEquals("node settings must not contain any index level settings", ex.getMessage());
+        }
+
+        {
+            Settings settings = Settings.builder().put("index.codec", "default").build();
+            SettingsModule module = new SettingsModule(settings);
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
     }
 

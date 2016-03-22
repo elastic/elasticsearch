@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -176,6 +176,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final Settings skippedSettigns = skipppedSettings.build();
         final Settings closedSettings = settingsForClosedIndices.build();
         final Settings openSettings = settingsForOpenIndices.build();
+        final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings",
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
@@ -221,7 +222,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
-                if (updatedNumberOfReplicas != -1) {
+                if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
@@ -239,6 +240,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         Settings.Builder updates = Settings.builder();
                         Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
                         if (indexScopedSettings.updateDynamicSettings(openSettings, indexSettings, updates, index.getName())) {
+                            if (preserveExisting) {
+                                indexSettings.put(indexMetaData.getSettings());
+                            }
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
                         }
                     }
@@ -250,6 +254,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         Settings.Builder updates = Settings.builder();
                         Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
                         if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index.getName())) {
+                            if (preserveExisting) {
+                                indexSettings.put(indexMetaData.getSettings());
+                            }
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
                         }
                     }

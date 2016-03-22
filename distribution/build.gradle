@@ -34,7 +34,7 @@ buildscript {
     }
   }
   dependencies {
-    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.1.0'
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.4.0'
   }
 }
 

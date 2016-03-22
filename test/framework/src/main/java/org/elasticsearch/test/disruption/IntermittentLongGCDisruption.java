@@ -92,7 +92,7 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
         if (disruptionNodeCopy == null) {
             return;
         }
-        logger.info("node [{}] goes into GC for for [{}]", disruptionNodeCopy, duration);
+        logger.info("node [{}] goes into GC for [{}]", disruptionNodeCopy, duration);
         final Set<Thread> nodeThreads = new HashSet<>();
         try {
             while (stopNodeThreads(disruptionNodeCopy, nodeThreads)) ;

@@ -23,7 +23,7 @@ package org.elasticsearch.common.util;
 import java.util.Locale;
 
 /**
- * Utilities for for dealing with {@link Locale} objects
+ * Utilities for dealing with {@link Locale} objects
  */
 public class LocaleUtils {
 

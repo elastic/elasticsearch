@@ -204,7 +204,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     /**
-     * This stateUUID is automatically generated for for each version of cluster state. It is used to make sure that
+     * This stateUUID is automatically generated for each version of cluster state. It is used to make sure that
      * we are applying diffs to the right previous state.
      */
     public String stateUUID() {

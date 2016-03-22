@@ -161,8 +161,30 @@ public class DynamicTemplate implements ToXContent {
     }
 
     public String mappingType(String dynamicType) {
-        return mapping.containsKey("type") ? mapping.get("type").toString().replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType) : dynamicType;
-    }
+        String type;
+        if (mapping.containsKey("type")) {
+            type = mapping.get("type").toString();
+            type = type.replace("{dynamic_type}", dynamicType);
+            type = type.replace("{dynamicType}", dynamicType);
+        } else {
+            type = dynamicType;
+        }
+        if (type.equals(mapping.get("type")) == false // either the type was not set, or we updated it through replacements
+                && "text".equals(type)) { // and the result is "text"
+            // now that string has been splitted into text and keyword, we use text for
+            // dynamic mappings. However before it used to be possible to index as a keyword
+            // by setting index=not_analyzed, so for now we will use a keyword field rather
+            // than a text field if index=not_analyzed and the field type was not specified
+            // explicitly
+            // TODO: remove this in 6.0
+            // TODO: how to do it in the future?
+            final Object index = mapping.get("index");
+            if ("not_analyzed".equals(index) || "no".equals(index)) {
+                type = "keyword";
+            }
+        }
+        return type;
+     }
 
     private boolean patternMatch(String pattern, String str) {
         if (matchType == MatchType.SIMPLE) {

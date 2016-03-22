@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +34,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -238,5 +241,97 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
                 assertEquals(hasNorms, field.fieldType().omitNorms() == false);
             }
         }
+    }
+
+    public void testUpgradeTemplateWithDynamicType() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("store", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(TextFieldMapper.class));
+        assertTrue(((TextFieldMapper) fooMapper).fieldType().stored());
+    }
+
+    public void testUpgradeTemplateWithDynamicType2() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("type", "{dynamic_type}")
+                                .field("store", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(TextFieldMapper.class));
+        assertTrue(((TextFieldMapper) fooMapper).fieldType().stored());
+    }
+
+    public void testUpgradeTemplateWithDynamicTypeKeyword() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testUpgradeTemplateWithDynamicTypeKeyword2() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("type", "{dynamic_type}")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
     }
 }

@@ -6,8 +6,6 @@ esplugin {
   name 'xpack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
-  // FIXME we still can't be isolated due to shield custom realms
-  isolated false
 }
 
 ext.versions = [

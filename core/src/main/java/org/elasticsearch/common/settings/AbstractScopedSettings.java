@@ -520,6 +520,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
     }
 
+    /**
+     * Returns <code>true</code> iff the setting is a private setting ie. it should be treated as valid even though it has no internal
+     * representation. Otherwise <code>false</code>
+     */
+    // TODO this should be replaced by Setting.Property.HIDDEN or something like this.
     protected boolean isPrivateSetting(String key) {
         return false;
     }

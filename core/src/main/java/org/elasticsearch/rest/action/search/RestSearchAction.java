@@ -92,7 +92,7 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, null);
+        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, null);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
@@ -123,16 +123,15 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (restContent != null) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            if (isTemplateRequest) {
-                try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                    context.reset(parser);
-                    context.parseFieldMatcher(parseFieldMatcher);
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                context.reset(parser);
+                context.parseFieldMatcher(parseFieldMatcher);
+                if (isTemplateRequest) {
                     Template template = TemplateQueryParser.parse(parser, context.parseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
+                } else {
+                    searchRequest.source().parseXContent(parser, context, aggParsers, suggesters);
                 }
-            } else {
-                RestActions.parseRestSearchSource(searchRequest.source(), restContent, indicesQueriesRegistry, parseFieldMatcher,
-                        aggParsers, suggesters);
             }
         }
 

@@ -762,6 +762,14 @@ public final class Settings implements ToXContent {
     }
 
     /**
+     * Returns <tt>true</tt> if this settings object contains no settings
+     * @return <tt>true</tt> if this settings object contains no settings
+     */
+    public boolean isEmpty() {
+        return this.settings.isEmpty();
+    }
+
+    /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#settingsBuilder()} in order to
      * construct it.

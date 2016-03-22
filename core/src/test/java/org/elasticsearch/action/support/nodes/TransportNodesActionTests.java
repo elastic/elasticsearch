@@ -24,17 +24,17 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -50,12 +50,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+
 public class TransportNodesActionTests extends ESTestCase {
 
     private static ThreadPool THREAD_POOL;
     private static ClusterName CLUSTER_NAME = new ClusterName("test-cluster");
 
-    private TestClusterService clusterService;
+    private ClusterService clusterService;
     private CapturingTransport transport;
     private TestTransportNodesAction action;
 
@@ -114,7 +117,7 @@ public class TransportNodesActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         transport = new CapturingTransport();
-        clusterService = new TestClusterService(THREAD_POOL);
+        clusterService = createClusterService(THREAD_POOL);
         final TransportService transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -142,7 +145,7 @@ public class TransportNodesActionTests extends ESTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(CLUSTER_NAME);
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();
-        clusterService.setState(clusterState);
+        setState(clusterService, clusterState);
         action = new TestTransportNodesAction(
                 Settings.EMPTY,
                 THREAD_POOL,
@@ -153,6 +156,13 @@ public class TransportNodesActionTests extends ESTestCase {
                 TestNodeRequest::new,
                 ThreadPool.Names.SAME
         );
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+        transport.close();
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes) {

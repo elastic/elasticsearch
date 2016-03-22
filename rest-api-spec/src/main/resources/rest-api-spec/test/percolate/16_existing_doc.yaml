@@ -108,5 +108,5 @@
             term:
               tag: tag1
 
-  - match: {'matches': [{_index: percolator_index, _id: test_percolator}]}
+  - match: {'matches': [{_index: percolator_index, _id: test_percolator, _score: 1.0}]}
 

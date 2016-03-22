@@ -19,7 +19,11 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 
@@ -30,10 +34,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
@@ -58,9 +66,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             if (setting.getProperties().contains(scope) == false) {
                 throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
             }
-            if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
-                throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
-            }
+            validateSettingKey(setting);
+
             if (setting.hasComplexMatcher()) {
                 Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
                 if (overlappingSetting != null) {
@@ -74,6 +81,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
         this.keySettings = Collections.unmodifiableMap(keySettings);
+    }
+
+    protected void validateSettingKey(Setting setting) {
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+        }
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
@@ -216,9 +229,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * * Validates that all given settings are registered and valid
      */
     public final void validate(Settings settings) {
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            validate(entry.getKey(), settings);
+        List<RuntimeException> exceptions = new ArrayList<>();
+        // we want them sorted for deterministic error messages
+        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
+        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+            try {
+                validate(entry.getKey(), settings);
+            } catch (RuntimeException ex) {
+                exceptions.add(ex);
+            }
         }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
 
@@ -228,7 +249,21 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public final void validate(String key, Settings settings) {
         Setting setting = get(key);
         if (setting == null) {
-            throw new IllegalArgumentException("unknown setting [" + key + "]");
+            LevensteinDistance ld = new LevensteinDistance();
+            List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
+            for (String k : this.keySettings.keySet()) {
+                float distance = ld.getDistance(key, k);
+                if (distance > 0.7f) {
+                    scoredKeys.add(new Tuple<>(distance, k));
+                }
+            }
+            CollectionUtil.timSort(scoredKeys, (a,b) -> b.v1().compareTo(a.v1()));
+            String msg = "unknown setting [" + key + "]";
+            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
+            if (keys.isEmpty() == false) {
+                msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
+            }
+            throw new IllegalArgumentException(msg);
         }
         setting.get(settings);
     }

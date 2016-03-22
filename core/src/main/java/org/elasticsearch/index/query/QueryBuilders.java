@@ -832,6 +832,18 @@ public abstract class QueryBuilders {
         return new ExistsQueryBuilder(name);
     }
 
+    public static PercolatorQueryBuilder percolatorQuery(String documentType, BytesReference document) {
+        return new PercolatorQueryBuilder(documentType, document);
+    }
+
+    public static PercolatorQueryBuilder percolatorQuery(String documentType, String indexedDocumentIndex,
+                                                         String indexedDocumentType, String indexedDocumentId,
+                                                         String indexedDocumentRouting, String indexedDocumentPreference,
+                                                         Long indexedDocumentVersion) {
+        return new PercolatorQueryBuilder(documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
+                indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
+    }
+
     private QueryBuilders() {
 
     }

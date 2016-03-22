@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -61,7 +61,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
@@ -74,6 +73,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggregatorBuilder> extends ESTestCase {
@@ -84,8 +85,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
-    protected static final String[] mappedFieldNames = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME };
+    protected static final String[] mappedFieldNames = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME};
 
     private static Injector injector;
     private static Index index;
@@ -109,7 +110,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
      */
     @BeforeClass
     public static void init() throws IOException {
-     // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
@@ -118,11 +119,12 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
 
-        namedWriteableRegistry =  new NamedWriteableRegistry();
+        namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        final TestClusterService clusterService = new TestClusterService();
-        clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
+        final ThreadPool threadPool = new ThreadPool(settings);
+        final ClusterService clusterService = createClusterService(threadPool);
+        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
                 .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
         SettingsModule settingsModule = new SettingsModule(settings);
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
@@ -159,7 +161,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 settingsModule,
-                new ThreadPoolModule(new ThreadPool(settings)),
+                new ThreadPoolModule(threadPool),
                 scriptModule,
                 new IndicesModule() {
 
@@ -172,6 +174,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                     protected void configureSearch() {
                         // Skip me
                     }
+
                     @Override
                     protected void configureSuggesters() {
                         // Skip me
@@ -200,6 +203,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
     @AfterClass
     public static void afterClass() throws Exception {
+        injector.getInstance(ClusterService.class).close();
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
@@ -310,7 +314,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
             }
         } else {
             if (randomBoolean()) {
-                types = new String[] { MetaData.ALL };
+                types = new String[]{MetaData.ALL};
             } else {
                 types = new String[0];
             }
@@ -321,13 +325,13 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     public String randomNumericField() {
         int randomInt = randomInt(3);
         switch (randomInt) {
-        case 0:
-            return DATE_FIELD_NAME;
-        case 1:
-            return DOUBLE_FIELD_NAME;
-        case 2:
-        default:
-            return INT_FIELD_NAME;
+            case 0:
+                return DATE_FIELD_NAME;
+            case 1:
+                return DOUBLE_FIELD_NAME;
+            case 2:
+            default:
+                return INT_FIELD_NAME;
         }
     }
 }

@@ -86,8 +86,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             try {
                 ensureNoPre019State();
-                pre20Upgrade();
                 IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);
+                upgradeMetaData();
                 long startNS = System.nanoTime();
                 metaStateService.loadFullState();
                 logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
@@ -222,7 +222,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * MetaDataIndexUpgradeService might also update obsolete settings if needed. When this happens we rewrite
      * index metadata with new settings.
      */
-    private void pre20Upgrade() throws Exception {
+    private void upgradeMetaData() throws Exception {
         MetaData metaData = loadMetaState();
         List<IndexMetaData> updateIndexMetaData = new ArrayList<>();
         for (IndexMetaData indexMetaData : metaData) {
@@ -235,7 +235,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         // means the upgrade can continue. Now it's safe to overwrite index metadata with the new version.
         for (IndexMetaData indexMetaData : updateIndexMetaData) {
             // since we still haven't upgraded the index folders, we write index state in the old folder
-            metaStateService.writeIndex("upgrade", indexMetaData, nodeEnv.resolveIndexFolder(indexMetaData.getIndex().getName()));
+            metaStateService.writeIndex("upgrade", indexMetaData, nodeEnv.resolveIndexFolder(indexMetaData.getIndex().getUUID()));
         }
     }
 

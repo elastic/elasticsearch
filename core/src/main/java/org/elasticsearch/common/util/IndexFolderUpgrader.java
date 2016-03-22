@@ -47,7 +47,6 @@ public class IndexFolderUpgrader {
     private final NodeEnvironment nodeEnv;
     private final Settings settings;
     private final ESLogger logger = Loggers.getLogger(IndexFolderUpgrader.class);
-    private final MetaDataStateFormat<IndexMetaData> indexStateFormat = readOnlyIndexMetaDataStateFormat();
 
     /**
      * Creates a new upgrader instance
@@ -90,7 +89,7 @@ public class IndexFolderUpgrader {
     void upgrade(final String indexFolderName) throws IOException {
         for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
             final Path indexFolderPath = nodePath.indicesPath.resolve(indexFolderName);
-            final IndexMetaData indexMetaData = indexStateFormat.loadLatestState(logger, indexFolderPath);
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolderPath);
             if (indexMetaData != null) {
                 final Index index = indexMetaData.getIndex();
                 if (needsUpgrade(index, indexFolderName)) {
@@ -134,21 +133,5 @@ public class IndexFolderUpgrader {
 
     static boolean needsUpgrade(Index index, String indexFolderName) {
         return indexFolderName.equals(index.getUUID()) == false;
-    }
-
-    static MetaDataStateFormat<IndexMetaData> readOnlyIndexMetaDataStateFormat() {
-        // NOTE: XContentType param is not used as we use the format read from the serialized index state
-        return new MetaDataStateFormat<IndexMetaData>(XContentType.SMILE, MetaStateService.INDEX_STATE_FILE_PREFIX) {
-
-            @Override
-            public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-                return IndexMetaData.Builder.fromXContent(parser);
-            }
-        };
     }
 }

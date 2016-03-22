@@ -29,14 +29,14 @@
 
   - do:
       cat.thread_pool:
-          h: id,ba,fa,gea,ga,ia,maa,ma,fma,pa
+          h: id,ba,fa,gea,ga,ia,maa,ma,fma
           v: true
           full_id: true
 
   - match:
       $body: |
-               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  fma   \s+  pa    \n
-                  (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+   \n)+  $/
+               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  fma    \n
+                  (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+   \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -107,16 +107,6 @@
       $body: |
                /^  id  \s+  force_merge.type            \s+  force_merge.active  \s+  force_merge.size  \s+  force_merge.queue  \s+  force_merge.queueSize  \s+  force_merge.rejected  \s+  force_merge.largest  \s+  force_merge.completed  \s+  force_merge.min  \s+  force_merge.max  \s+  force_merge.keepAlive    \n
                   (\S+ \s+  (cached|fixed|scaling)?  \s+              \d+  \s+            \d+  \s+             \d+  \s+                 \d*  \s+                \d+  \s+               \d+  \s+                 \d+  \s+           \d*  \s+           \d*  \s+                 \S*    \n)+  $/
-
-  - do:
-      cat.thread_pool:
-          h: id,percolate.type,percolate.active,percolate.size,percolate.queue,percolate.queueSize,percolate.rejected,percolate.largest,percolate.completed,percolate.min,percolate.max,percolate.keepAlive
-          v: true
-
-  - match:
-      $body: |
-               /^  id  \s+  percolate.type           \s+  percolate.active  \s+  percolate.size  \s+  percolate.queue  \s+  percolate.queueSize  \s+  percolate.rejected  \s+  percolate.largest  \s+  percolate.completed  \s+  percolate.min  \s+  percolate.max  \s+  percolate.keepAlive    \n
-                  (\S+ \s+  (cached|fixed|scaling)?  \s+               \d+  \s+             \d+  \s+              \d+  \s+                  \d*  \s+                 \d+  \s+                \d+  \s+                  \d+  \s+            \d*  \s+            \d*  \s+                  \S*    \n)+  $/
 
   - do:
       cat.thread_pool:

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -84,6 +85,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
+        client().admin().indices()
+            .preparePutTemplate("random_index_template")
+            .setTemplate("*")
+            .setOrder(0)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
     private static void stopNode() throws IOException {
@@ -172,8 +179,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+
             .put("script.inline", "true")
             .put("script.indexed", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
@@ -276,8 +282,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new search context.
      */
     protected SearchContext createSearchContext(IndexService indexService) {
-        BigArrays bigArrays = indexService.getIndexServices().getBigArrays();
-        ThreadPool threadPool = indexService.getIndexServices().getThreadPool();
+        BigArrays bigArrays = indexService.getBigArrays();
+        ThreadPool threadPool = indexService.getThreadPool();
         PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
         return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService);

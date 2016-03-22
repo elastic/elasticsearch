@@ -417,10 +417,15 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+            if (value instanceof Long) {
+                return ((Long) value).longValue();
+            }
+
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
             }
+
             String strValue;
             if (value instanceof BytesRef) {
                 strValue = ((BytesRef) value).utf8ToString();

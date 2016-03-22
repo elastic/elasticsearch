@@ -30,6 +30,7 @@
 export_elasticsearch_paths() {
     export ESHOME="/usr/share/elasticsearch"
     export ESPLUGINS="$ESHOME/plugins"
+    export ESMODULES="$ESHOME/modules"
     export ESCONFIG="/etc/elasticsearch"
     export ESSCRIPTS="$ESCONFIG/scripts"
     export ESDATA="/var/lib/elasticsearch"
@@ -81,7 +82,8 @@ verify_package_installation() {
     assert_file "$ESSCRIPTS" d root elasticsearch 750
     assert_file "$ESDATA" d elasticsearch elasticsearch 755
     assert_file "$ESLOG" d elasticsearch elasticsearch 755
-    assert_file "$ESPLUGINS" d elasticsearch elasticsearch 755
+    assert_file "$ESPLUGINS" d root root 755
+    assert_file "$ESMODULES" d root root 755
     assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
     assert_file "$ESHOME/README.textile" f root root 644

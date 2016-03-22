@@ -12,10 +12,24 @@ that plugins that define custom settings must register all of their settings
 during plugin loading using the `SettingsModule#registerSettings(Setting)`
 method.
 
+==== Index Level Settings
+
+In previous versions Elasticsearch allowed to specify index level setting
+as _defaults_ on the node level, inside the `elasticsearch.yaml` file or even via
+command-line parameters. From Elasticsearch 5.0 on only selected settings like
+for instance `index.codec` can be set on the node level. All other settings must be
+set on each individual index. To set default values on every index, index templates
+should be used instead.
+
 ==== Node settings
 
 The `name` setting has been removed and is replaced by `node.name`. Usage of
 `-Dname=some_node_name` is not supported anymore.
+
+==== Gateway settings
+
+The `gateway.format` setting for configuring global and index state serialization
+format has been removed. By default, `smile` is used as the format.
 
 ==== Transport Settings
 

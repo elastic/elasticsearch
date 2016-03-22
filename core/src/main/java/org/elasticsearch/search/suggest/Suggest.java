@@ -46,9 +46,7 @@ import java.util.Map;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    public static class Fields {
-        public static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
-    }
+    private static final XContentBuilderString NAME = new XContentBuilderString("suggest");
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
@@ -61,26 +59,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          }
     };
 
-    private final XContentBuilderString name;
-
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
-        this.name = null;
-    }
-
-    public Suggest(XContentBuilderString name) {
-        this.name = name;
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this(null, suggestions);
-    }
-
-    public Suggest(XContentBuilderString name, List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this.name = name;
         this.suggestions = suggestions;
     }
 
@@ -148,23 +134,24 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-        } else {
-            builder.startObject(name);
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
+        builder.startObject(NAME);
+        toInnerXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 
-    public static Suggest readSuggest(XContentBuilderString name, StreamInput in) throws IOException {
-        Suggest result = new Suggest(name);
+    /**
+     * use to write suggestion entries without <code>NAME</code> object
+     */
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        for (Suggestion<?> suggestion : suggestions) {
+            suggestion.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public static Suggest readSuggest(StreamInput in) throws IOException {
+        Suggest result = new Suggest();
         result.readFrom(in);
         return result;
     }

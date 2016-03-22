@@ -61,8 +61,9 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
                 return SimpleFSLockFactory.INSTANCE;
             default:
                 throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
-        }
-    }, Property.IndexScope);
+        } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
+    }, Property.IndexScope, Property.NodeScope);
+
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 
@@ -108,7 +109,8 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
 
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.DEFAULT.getSettingsKey());
+        final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+            IndexModule.Type.DEFAULT.getSettingsKey());
         if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
             final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
             if (open instanceof MMapDirectory && Constants.WINDOWS == false) {

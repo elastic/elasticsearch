@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -485,6 +486,11 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return indexService.fieldData();
+    }
+
+    @Override
+    public PercolatorQueryCache percolatorQueryCache() {
+        return indexService.cache().getPercolatorQueryCache();
     }
 
     @Override

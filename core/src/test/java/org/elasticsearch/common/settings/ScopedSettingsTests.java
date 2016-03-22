@@ -187,6 +187,15 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
     }
 
+    public void testValidateWithSuggestion() {
+        IndexScopedSettings settings = new IndexScopedSettings(
+            Settings.EMPTY,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build()));
+        assertEquals(iae.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
+    }
+
     public void testValidate() {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
@@ -251,22 +260,41 @@ public class ScopedSettingsTests extends ESTestCase {
 
         try {
             new IndexScopedSettings(
-                Settings.EMPTY, Collections.singleton(Setting.groupSetting("boo .", Property.IndexScope)));
+                Settings.EMPTY, Collections.singleton(Setting.groupSetting("foo.bar.", Property.IndexScope)));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("illegal settings key: [boo .]", e.getMessage());
+            assertEquals("illegal settings key: [foo.bar.] must start with [index.]", e.getMessage());
         }
-        new IndexScopedSettings(
-            Settings.EMPTY, Collections.singleton(Setting.groupSetting("boo.", Property.IndexScope)));
+
         try {
             new IndexScopedSettings(
-                Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo.", true, Property.IndexScope)));
+                Settings.EMPTY, Collections.singleton(Setting.simpleString("foo.bar", Property.IndexScope)));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("illegal settings key: [boo.]", e.getMessage());
+            assertEquals("illegal settings key: [foo.bar] must start with [index.]", e.getMessage());
+        }
+
+        try {
+            new IndexScopedSettings(
+                Settings.EMPTY, Collections.singleton(Setting.groupSetting("index. foo.", Property.IndexScope)));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal settings key: [index. foo.]", e.getMessage());
         }
         new IndexScopedSettings(
-            Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo", true, Property.IndexScope)));
+            Settings.EMPTY, Collections.singleton(Setting.groupSetting("index.", Property.IndexScope)));
+        try {
+            new IndexScopedSettings(
+                Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.", true, Property.IndexScope)));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal settings key: [index.]", e.getMessage());
+        }
+        new IndexScopedSettings(
+            Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.IndexScope)));
+
+        new ClusterSettings(
+            Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.NodeScope)));
     }
 
     public void testLoggingUpdates() {

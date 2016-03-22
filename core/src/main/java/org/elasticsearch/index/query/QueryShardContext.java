@@ -44,9 +44,9 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -87,13 +87,15 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final PercolatorQueryCache percolatorQueryCache;
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     boolean isFilter; // pkg private for testing
 
     public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry) {
+                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache) {
         super(indexSettings, scriptService, indicesQueriesRegistry);
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -101,17 +103,18 @@ public class QueryShardContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataService;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.percolatorQueryCache = percolatorQueryCache;
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry);
+        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache);
         this.types = source.getTypes();
     }
 
 
     public QueryShardContext clone() {
-        return new QueryShardContext(indexSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
+        return new QueryShardContext(indexSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache);
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
@@ -146,6 +149,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public MapperService getMapperService() {
         return mapperService;
+    }
+
+    public PercolatorQueryCache getPercolatorQueryCache() {
+        return percolatorQueryCache;
     }
 
     public Similarity getSearchSimilarity() {

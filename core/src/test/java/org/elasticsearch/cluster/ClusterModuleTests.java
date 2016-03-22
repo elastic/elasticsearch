@@ -87,8 +87,8 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterIndexDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.IndexScope));
-        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
+        module.registerSetting(Setting.boolSetting("index.foo.bar", false, Property.Dynamic, Property.IndexScope));
+        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("index.foo.bar"));
     }
 
     public void testRegisterAllocationDeciderDuplicate() {

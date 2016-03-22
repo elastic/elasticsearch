@@ -187,6 +187,15 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
     }
 
+    public void testValidateWithSuggestion() {
+        IndexScopedSettings settings = new IndexScopedSettings(
+            Settings.EMPTY,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build()));
+        assertEquals(iae.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
+    }
+
     public void testValidate() {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,

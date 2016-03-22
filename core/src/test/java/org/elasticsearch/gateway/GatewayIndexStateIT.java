@@ -19,9 +19,13 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -31,7 +35,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -40,6 +48,7 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -363,5 +372,124 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+    }
+
+    /**
+     * This test really tests worst case scenario where we have a broken setting or any setting that prevents an index from being
+     * allocated in our metadata that we recover. In that case we now have the ability to check the index on local recovery from disk
+     * if it is sane and if we can successfully create an IndexService. This also includes plugins etc.
+     */
+    public void testRecoverBrokenIndexMetadata() throws Exception {
+        logger.info("--> starting one node");
+        internalCluster().startNode();
+        logger.info("--> indexing a simple document");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        logger.info("--> waiting for green status");
+        if (usually()) {
+            ensureYellow();
+        } else {
+            internalCluster().startNode();
+            client().admin().cluster()
+                .health(Requests.clusterHealthRequest()
+                    .waitForGreenStatus()
+                    .waitForEvents(Priority.LANGUID)
+                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+        }
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexMetaData metaData = state.getMetaData().index("test");
+        for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
+            IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0_beta1.id)
+                 // this is invalid but should be archived
+                .put("index.similarity.BM25.type", "classic")
+                 // this one is not validated ahead of time and breaks allocation
+                .put("index.analysis.filter.myCollator.type", "icu_collation")
+            ).build();
+            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+        }
+        internalCluster().fullRestart();
+        // ensureGreen(closedIndex) waits for the index to show up in the metadata
+        // this is crucial otherwise the state call below might not contain the index yet
+        ensureGreen(metaData.getIndex().getName());
+        state = client().admin().cluster().prepareState().get().getState();
+        assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
+        assertEquals("classic", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
+        // try to open it with the broken setting - fail again!
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
+        assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
+        assertNotNull(ex.getCause());
+        assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
+        assertEquals(ex.getCause().getMessage(), "Unknown tokenfilter type [icu_collation] for [myCollator]");
+
+        client().admin().indices().prepareUpdateSettings()
+            .setSettings(Settings.builder().putNull("index.analysis.filter.myCollator.type")).get();
+        client().admin().indices().prepareOpen("test").get();
+        ensureYellow();
+        logger.info("--> verify 1 doc in the index");
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+    }
+
+    /**
+     * This test really tests worst case scenario where we have a missing analyzer setting.
+     * In that case we now have the ability to check the index on local recovery from disk
+     * if it is sane and if we can successfully create an IndexService.
+     * This also includes plugins etc.
+     */
+    public void testRecoverMissingAnalyzer() throws Exception {
+        logger.info("--> starting one node");
+        internalCluster().startNode();
+        prepareCreate("test").setSettings(Settings.builder()
+            .put("index.analysis.analyzer.test.tokenizer", "keyword")
+            .put("index.number_of_shards", "1"))
+            .addMapping("type1", "{\n" +
+                "    \"type1\": {\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"text\",\n" +
+                "          \"analyzer\": \"test\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }}").get();
+        logger.info("--> indexing a simple document");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value one").setRefresh(true).execute().actionGet();
+        logger.info("--> waiting for green status");
+        if (usually()) {
+            ensureYellow();
+        } else {
+            internalCluster().startNode();
+            client().admin().cluster()
+                .health(Requests.clusterHealthRequest()
+                    .waitForGreenStatus()
+                    .waitForEvents(Priority.LANGUID)
+                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+        }
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexMetaData metaData = state.getMetaData().index("test");
+        for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
+            IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
+                .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
+            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+        }
+        internalCluster().fullRestart();
+        // ensureGreen(closedIndex) waits for the index to show up in the metadata
+        // this is crucial otherwise the state call below might not contain the index yet
+        ensureGreen(metaData.getIndex().getName());
+        state = client().admin().cluster().prepareState().get().getState();
+        assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
+
+        // try to open it with the broken setting - fail again!
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
+        assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
+        assertNotNull(ex.getCause());
+        assertEquals(MapperParsingException.class, ex.getCause().getClass());
+        assertEquals(ex.getCause().getMessage(), "analyzer [test] not found for field [field1]");
+
+        client().admin().indices().prepareUpdateSettings()
+            .setSettings(Settings.builder().put("index.analysis.analyzer.test.tokenizer", "keyword")).get();
+        client().admin().indices().prepareOpen("test").get();
+        ensureYellow();
+        logger.info("--> verify 1 doc in the index");
+        assertHitCount(client().prepareSearch().setQuery(matchQuery("field1", "value one")).get(), 1L);
     }
 }

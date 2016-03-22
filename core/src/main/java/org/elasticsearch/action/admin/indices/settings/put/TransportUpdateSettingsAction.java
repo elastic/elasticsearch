@@ -80,6 +80,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
                 .indices(concreteIndices)
                 .settings(request.settings())
+                .setPreserveExisting(request.isPreserveExisting())
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
 

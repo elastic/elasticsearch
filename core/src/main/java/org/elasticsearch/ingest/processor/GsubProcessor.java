@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -27,6 +28,9 @@ import org.elasticsearch.ingest.core.ConfigurationUtils;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
 
 /**
  * Processor that allows to search for patterns in field content and replace them with corresponding string replacement.
@@ -79,10 +83,15 @@ public final class GsubProcessor extends AbstractProcessor {
     public static final class Factory extends AbstractProcessorFactory<GsubProcessor> {
         @Override
         public GsubProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String pattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");
-            String replacement = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "replacement");
-            Pattern searchPattern = Pattern.compile(pattern);
+            String field = readStringProperty(TYPE, processorTag, config, "field");
+            String pattern = readStringProperty(TYPE, processorTag, config, "pattern");
+            String replacement = readStringProperty(TYPE, processorTag, config, "replacement");
+            Pattern searchPattern;
+            try {
+                searchPattern = Pattern.compile(pattern);
+            } catch (Exception e) {
+                throw newConfigurationException(TYPE, processorTag, "pattern", "Invalid regex pattern. " + e.getMessage());
+            }
             return new GsubProcessor(processorTag, field, searchPattern, replacement);
         }
     }

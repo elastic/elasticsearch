@@ -84,4 +84,33 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.getGrok().match("foo!"), equalTo(true));
     }
+
+    public void testCreateWithInvalidPattern() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("pattern", "[");
+        try {
+            factory.create(config);
+            fail("should fail");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[pattern] Invalid regex pattern. premature end of char-class"));
+        }
+
+    }
+
+    public void testCreateWithInvalidPatternDefinition() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("pattern", "%{MY_PATTERN:name}!");
+        config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "["));
+        try {
+            factory.create(config);
+            fail("should fail");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[pattern] Invalid regex pattern. premature end of char-class"));
+        }
+
+    }
 }

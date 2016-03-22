@@ -27,6 +27,8 @@ import org.elasticsearch.ingest.core.IngestDocument;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
+
 public final class GrokProcessor extends AbstractProcessor {
 
     public static final String TYPE = "grok";
@@ -82,7 +84,12 @@ public final class GrokProcessor extends AbstractProcessor {
                 patternBank.putAll(customPatternBank);
             }
 
-            Grok grok = new Grok(patternBank, matchPattern);
+            Grok grok;
+            try {
+                grok = new Grok(patternBank, matchPattern);
+            } catch (Exception e) {
+                throw newConfigurationException(TYPE, processorTag, "pattern", "Invalid regex pattern. " + e.getMessage());
+            }
             return new GrokProcessor(processorTag, grok, matchField);
         }
 

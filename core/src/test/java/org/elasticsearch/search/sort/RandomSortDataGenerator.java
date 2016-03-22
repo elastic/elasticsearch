@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -79,15 +79,10 @@ public class RandomSortDataGenerator {
 
     public static Object missing(Object original) {
         Object missing = null;
-        Object otherMissing = null;
-        if (original instanceof BytesRef) {
-            otherMissing = ((BytesRef) original).utf8ToString();
-        } else {
-            otherMissing = original;
-        }
+        Object otherMissing = original;
 
         while (missing == null || missing.equals(otherMissing)) {
-          int missingId = ESTestCase.randomIntBetween(0, 3);
+          int missingId = ESTestCase.randomIntBetween(0, 4);
           switch (missingId) {
           case 0:
               missing = ("_last");
@@ -99,6 +94,9 @@ public class RandomSortDataGenerator {
               missing = ESTestCase.randomAsciiOfLength(10);
               break;
           case 3:
+              missing = ESTestCase.randomUnicodeOfCodepointLengthBetween(5, 15);
+              break;
+          case 4:
               missing = ESTestCase.randomInt();
               break;
           default:
@@ -109,9 +107,14 @@ public class RandomSortDataGenerator {
         return missing;
     }
 
-    public static SortOrder order(SortOrder original) {
-        SortOrder order = SortOrder.ASC;
-        if (order.equals(original)) {
+    /**
+     * return a random {@link SortOrder} settings, except the one provided by parameter if set
+     */
+    public static SortOrder order(@Nullable SortOrder original) {
+        if (original == null) {
+            return ESTestCase.randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
+        }
+        if (original.equals(SortOrder.ASC)) {
             return SortOrder.DESC;
         } else {
             return SortOrder.ASC;

@@ -62,6 +62,7 @@ import java.util.Objects;
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> implements SortBuilderParser<GeoDistanceSortBuilder> {
     public static final String NAME = "_geo_distance";
+    public static final String ALTERNATIVE_NAME = "_geoDistance";
     public static final boolean DEFAULT_COERCE = false;
     public static final boolean DEFAULT_IGNORE_MALFORMED = false;
     public static final ParseField UNIT_FIELD = new ParseField("unit");

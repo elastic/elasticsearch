@@ -34,17 +34,17 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
 
     @Override
     protected ScoreSortBuilder createTestItem() {
+        return randomScoreSortBuilder();
+    }
+
+    public static ScoreSortBuilder randomScoreSortBuilder() {
         return new ScoreSortBuilder().order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
     }
 
     @Override
     protected ScoreSortBuilder mutate(ScoreSortBuilder original) throws IOException {
         ScoreSortBuilder result = new ScoreSortBuilder();
-        if (original.order() == SortOrder.ASC) {
-            result.order(SortOrder.DESC);
-        } else {
-            result.order(SortOrder.ASC);
-        }
+        result.order(RandomSortDataGenerator.order(original.order()));
         return result;
     }
 

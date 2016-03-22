@@ -40,11 +40,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     @Override
     protected ScriptSortBuilder createTestItem() {
+        return randomScriptSortBuilder();
+    }
+
+    public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
-                builder.order(RandomSortDataGenerator.order(builder.order()));
+                builder.order(RandomSortDataGenerator.order(null));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {

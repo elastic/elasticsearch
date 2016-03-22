@@ -38,7 +38,7 @@ import java.util.Objects;
  */
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements SortBuilderParser<ScoreSortBuilder> {
 
-    private static final String NAME = "_score";
+    public static final String NAME = "_score";
     static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
@@ -88,6 +88,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
         return result;
     }
 
+    @Override
     public SortField build(QueryShardContext context) {
         if (order == SortOrder.DESC) {
             return SORT_SCORE;

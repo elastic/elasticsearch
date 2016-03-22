@@ -229,15 +229,15 @@ The `field` setter has been deleted. Instead the field name needs to be specifie
 ==== SearchSourceBuilder
 
 All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
-relevant builder object for that feature (e.g. HighlightBuilder, AggregationBuilder, SuggesterBuilder) . This means that all search requests
+relevant builder object for that feature (e.g. `HighlightBuilder`, `AggregationBuilder`, `SuggestBuilder`) . This means that all search requests
 can now be validated at call time which results in much clearer errors.
 
-The `defaultResourceWindowSize(int)` method has been removed. The window size should be set explicitly on all RescoreBuilder objects.
+The `defaultResourceWindowSize(int)` method has been removed. The window size should be set explicitly on all `RescoreBuilder` objects.
 
 ==== SearchRequestBuilder
 
 All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
-relevant builder object for that feature (e.g. HighlightBuilder, AggregationBuilder, SuggesterBuilder) . This means that all search requests
+relevant builder object for that feature (e.g. `HighlightBuilder`, `AggregationBuilder`, `SuggestBuilder`) . This means that all search requests
 can now be validated at call time which results in much clearer errors.
 
 All highlighter methods have been removed in favor of a single `highlighter(HighlightBuilder)` method.
@@ -250,12 +250,12 @@ The `setTemplateSource(String)` and `setTemplateSource(BytesReference)` methods 
 
 ==== SearchRequest
 
-All template methods have been removed in favor of a single `template(Template)` method.
+All `template` methods have been removed in favor of a single `template(Template)` method.
 
-All source methods have been removed in favor of a single `source(SearchSourceBuilder)` method. This means that all search requests can now be validated
+All `source` methods have been removed in favor of a single `source(SearchSourceBuilder)` method. This means that all search requests can now be validated
 at call time which results in much clearer errors.
 
-All extraSource methods have been removed.
+All `extraSource` methods have been removed.
 
 ==== AggregationBuilder
 

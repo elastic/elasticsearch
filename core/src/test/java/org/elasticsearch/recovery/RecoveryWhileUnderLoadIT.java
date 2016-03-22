@@ -54,7 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("_root:DEBUG,index.shard:TRA")
+@TestLogging("_root:DEBUG,index.shard:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);

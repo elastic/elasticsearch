@@ -32,7 +32,6 @@ import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,14 +42,12 @@ import static org.elasticsearch.index.query.support.InnerHitsQueryParserHelper.p
  */
 public class InnerHitsParseElement implements SearchParseElement {
 
-    private final SortParseElement sortParseElement;
     private final FetchSourceParseElement sourceParseElement;
     private final HighlighterParseElement highlighterParseElement;
     private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
     private final ScriptFieldsParseElement scriptFieldsParseElement;
 
-    public InnerHitsParseElement(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
-        this.sortParseElement = sortParseElement;
+    public InnerHitsParseElement(FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
         this.sourceParseElement = sourceParseElement;
         this.highlighterParseElement = highlighterParseElement;
         this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
@@ -184,10 +181,10 @@ public class InnerHitsParseElement implements SearchParseElement {
                 } else if ("inner_hits".equals(fieldName)) {
                     childInnerHits = parseInnerHits(parser, context, searchContext);
                 } else {
-                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
+                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                 }
             } else {
-                parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
+                parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
             }
         }
 

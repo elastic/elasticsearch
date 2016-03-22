@@ -37,14 +37,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -68,7 +67,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -724,6 +722,13 @@ public abstract class StreamInput extends InputStream {
      */
     public SuggestionBuilder<?> readSuggestion() throws IOException {
         return readNamedWriteable(SuggestionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SortBuilder} from the current stream
+     */
+    public SortBuilder<?> readSortBuilder() throws IOException {
+        return readNamedWriteable(SortBuilder.class);
     }
 
     /**

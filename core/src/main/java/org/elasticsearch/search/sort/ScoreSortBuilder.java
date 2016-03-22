@@ -39,7 +39,7 @@ import java.util.Objects;
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
-    static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
+    public static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
     private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);

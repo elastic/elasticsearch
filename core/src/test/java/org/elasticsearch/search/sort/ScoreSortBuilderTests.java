@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -78,5 +79,11 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         context.reset(parser);
         ScoreSortBuilder scoreSort = ScoreSortBuilder.PROTOTYPE.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
+    }
+
+    @Override
+    protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField) {
+        assertEquals(SortField.Type.SCORE, sortField.getType());
+        assertEquals(builder.order() == SortOrder.DESC ? false : true, sortField.getReverse());
     }
 }

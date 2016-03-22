@@ -35,7 +35,6 @@ import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,8 +50,8 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
     private FetchPhase fetchPhase;
 
     @Inject
-    public InnerHitsFetchSubPhase(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
-        parseElements = singletonMap("inner_hits", new InnerHitsParseElement(sortParseElement, sourceParseElement, highlighterParseElement,
+    public InnerHitsFetchSubPhase(FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
+        parseElements = singletonMap("inner_hits", new InnerHitsParseElement(sourceParseElement, highlighterParseElement,
                 fieldDataFieldsParseElement, scriptFieldsParseElement));
     }
 

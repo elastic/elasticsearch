@@ -21,13 +21,9 @@ package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
@@ -38,6 +34,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -57,7 +54,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     private boolean explain = false;
     private boolean version = false;
     private boolean trackScores = false;
-    private List<BytesReference> sorts = null;
+    private List<SortBuilder<?>> sorts = null;
     private HighlightBuilder highlightBuilder;
     private List<String> fieldNames;
     private List<String> fieldDataFields;
@@ -119,6 +116,9 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         if (order == null) {
             throw new IllegalArgumentException("sort [order] must not be null: [" + name + "]");
         }
+        if (name.equals(ScoreSortBuilder.NAME)) {
+            sort(SortBuilders.scoreSort().order(order));
+        }
         sort(SortBuilders.fieldSort(name).order(order));
         return this;
     }
@@ -133,6 +133,9 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         if (name == null) {
             throw new IllegalArgumentException("sort [name] must not be null: [" + name + "]");
         }
+        if (name.equals(ScoreSortBuilder.NAME)) {
+            sort(SortBuilders.scoreSort());
+        }
         sort(SortBuilders.fieldSort(name));
         return this;
     }
@@ -140,39 +143,28 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     /**
      * Adds a sort builder.
      */
-    public TopHitsAggregatorBuilder sort(SortBuilder sort) {
+    public TopHitsAggregatorBuilder sort(SortBuilder<?> sort) {
         if (sort == null) {
             throw new IllegalArgumentException("[sort] must not be null: [" + name + "]");
         }
-        try {
-            if (sorts == null) {
+        if (sorts == null) {
                 sorts = new ArrayList<>();
-            }
-            // NORELEASE when sort has been refactored and made writeable
-            // add the sortBuilcer to the List directly instead of
-            // serialising to XContent
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            sort.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            sorts.add(builder.bytes());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
+        sorts.add(sort);
         return this;
     }
 
     /**
      * Adds a sort builder.
      */
-    public TopHitsAggregatorBuilder sorts(List<BytesReference> sorts) {
+    public TopHitsAggregatorBuilder sorts(List<SortBuilder<?>> sorts) {
         if (sorts == null) {
             throw new IllegalArgumentException("[sorts] must not be null: [" + name + "]");
         }
         if (this.sorts == null) {
             this.sorts = new ArrayList<>();
         }
-        for (BytesReference sort : sorts) {
+        for (SortBuilder<?> sort : sorts) {
             this.sorts.add(sort);
         }
         return this;
@@ -181,7 +173,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     /**
      * Gets the bytes representing the sort builders for this request.
      */
-    public List<BytesReference> sorts() {
+    public List<SortBuilder<?>> sorts() {
         return sorts;
     }
 
@@ -509,10 +501,10 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         }
         if (sorts != null) {
             builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName());
-            for (BytesReference sort : sorts) {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(sort);
-                parser.nextToken();
-                builder.copyCurrentStructure(parser);
+            for (SortBuilder<?> sort : sorts) {
+                    builder.startObject();
+                    sort.toXContent(builder, params);
+                    builder.endObject();
             }
             builder.endArray();
         }
@@ -562,9 +554,9 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         factory.size = in.readVInt();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<BytesReference> sorts = new ArrayList<>();
+            List<SortBuilder<?>> sorts = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                sorts.add(in.readBytesReference());
+                sorts.add(in.readSortBuilder());
             }
             factory.sorts = sorts;
         }
@@ -612,8 +604,8 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         out.writeBoolean(hasSorts);
         if (hasSorts) {
             out.writeVInt(sorts.size());
-            for (BytesReference sort : sorts) {
-                out.writeBytesReference(sort);
+            for (SortBuilder<?> sort : sorts) {
+                out.writeSortBuilder(sort);
             }
         }
         out.writeBoolean(trackScores);

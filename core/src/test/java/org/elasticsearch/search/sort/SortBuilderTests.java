@@ -48,8 +48,6 @@ public class SortBuilderTests extends ESTestCase {
 
     static IndicesQueriesRegistry indicesQueriesRegistry;
 
-    SortParseElement parseElement = new SortParseElement();
-
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
@@ -195,7 +193,7 @@ public class SortBuilderTests extends ESTestCase {
                 list.add(new ScoreSortBuilder());
                 break;
             case 1:
-                String fieldName = rarely() ? SortParseElement.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+                String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
                 list.add(new FieldSortBuilder(fieldName));
                 break;
             case 2:

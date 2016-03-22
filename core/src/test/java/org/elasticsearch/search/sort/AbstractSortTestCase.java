@@ -66,7 +66,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +77,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     static IndicesQueriesRegistry indicesQueriesRegistry;
-    private static SortParseElement parseElement = new SortParseElement();
     private static ScriptService scriptService;
 
     @BeforeClass
@@ -163,23 +161,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortField sortField = sortBuilder.build(mockShardContext);
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            if (randomBoolean()) {
-                builder.prettyPrint();
-            }
-            builder.startObject();
-            sortBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
-            parser.nextToken();
-            List<SortField> sortFields = parseElement.parse(parser, mockShardContext);
-            assertEquals(1, sortFields.size());
-            SortField sortFieldOldStyle = sortFields.get(0);
-            assertEquals(sortFieldOldStyle.getField(), sortField.getField());
-            assertEquals(sortFieldOldStyle.getReverse(), sortField.getReverse());
-            assertEquals(sortFieldOldStyle.getType(), sortField.getType());
+            sortFieldAssertions(sortBuilder, sortField);
         }
     }
+
+    protected abstract void sortFieldAssertions(T builder, SortField sortField) throws IOException;
 
     /**
      * Test serialization and deserialization of the test sort.

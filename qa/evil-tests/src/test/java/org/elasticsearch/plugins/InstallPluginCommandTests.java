@@ -23,14 +23,17 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
+import org.junit.After;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,12 +74,25 @@ public class InstallPluginCommandTests extends ESTestCase {
     private final FileSystem fs;
     private final boolean isPosix;
     private final boolean isReal;
+    private final String javaIoTmpdir;
 
+    @SuppressForbidden(reason = "sets java.io.tmpdir")
     public InstallPluginCommandTests(FileSystem fs, Function<String, Path> temp) {
         this.fs = fs;
         this.temp = temp;
         this.isPosix = fs.supportedFileAttributeViews().contains("posix");
         this.isReal = fs == PathUtils.getDefaultFileSystem();
+        PathUtilsForTesting.installMock(fs);
+        javaIoTmpdir = System.getProperty("java.io.tmpdir");
+        System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
+    }
+
+    @After
+    @SuppressForbidden(reason = "resets java.io.tmpdir")
+    public void tearDown() throws Exception {
+        System.setProperty("java.io.tmpdir", javaIoTmpdir);
+        PathUtilsForTesting.teardown();
+        super.tearDown();
     }
 
     @ParametersFactory
@@ -85,26 +101,26 @@ public class InstallPluginCommandTests extends ESTestCase {
             private final FileSystem fileSystem;
             private final Function<String, Path> temp;
 
-            public Parameter(FileSystem fileSystem, Supplier<String> root) {
-                this(fileSystem, root, s -> {
+            public Parameter(FileSystem fileSystem, String root) {
+                this(fileSystem, s -> {
                     try {
-                        return Files.createTempDirectory(fileSystem.getPath(root.get()), s);
+                        return Files.createTempDirectory(fileSystem.getPath(root), s);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 });
             }
 
-            public Parameter(FileSystem fileSystem, Supplier<String> root, Function<String, Path> temp) {
+            public Parameter(FileSystem fileSystem, Function<String, Path> temp) {
                 this.fileSystem = fileSystem;
                 this.temp = temp;
             }
         }
         List<Parameter> parameters = new ArrayList<>();
-        parameters.add(new Parameter(Jimfs.newFileSystem(Configuration.windows()), () -> "c:\\"));
-        parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.osX())), () -> "/"));
-        parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.unix())), () -> "/"));
-        parameters.add(new Parameter(PathUtils.getDefaultFileSystem(), () -> createTempDir().toString(), LuceneTestCase::createTempDir ));
+        parameters.add(new Parameter(Jimfs.newFileSystem(Configuration.windows()), "c:\\"));
+        parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.osX())), "/"));
+        parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.unix())), "/"));
+        parameters.add(new Parameter(PathUtils.getDefaultFileSystem(), LuceneTestCase::createTempDir ));
         return parameters.stream().map(p -> new Object[] { p.fileSystem, p.temp }).collect(Collectors.toList());
     }
 
@@ -124,7 +140,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", home)
             .build();
-        return new Environment(fs, settings);
+        return new Environment(settings);
     }
 
     static Path createPluginDir(Function<String, Path> temp) throws IOException {

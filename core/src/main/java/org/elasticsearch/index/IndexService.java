@@ -44,6 +44,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -114,6 +115,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
     private final SearchSlowLog searchSlowLog;
+    private final ThreadPool threadPool;
+    private final BigArrays bigArrays;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -132,9 +135,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, IndexService.this::newQueryShardContext);
-        this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, nodeServicesProvider.getCircuitBreakerService(), mapperService);
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry,
+            IndexService.this::newQueryShardContext);
+        this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
+            nodeServicesProvider.getCircuitBreakerService(), mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
+        this.bigArrays = nodeServicesProvider.getBigArrays();
+        this.threadPool = nodeServicesProvider.getThreadPool();
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
         this.nodeServicesProvider = nodeServicesProvider;
@@ -142,7 +149,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         indexFieldData.setListener(new FieldDataCacheListener(this));
         this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
         PercolatorQueryCache percolatorQueryCache = new PercolatorQueryCache(indexSettings, IndexService.this::newQueryShardContext);
-        this.warmer = new IndexWarmer(indexSettings.getSettings(), nodeServicesProvider.getThreadPool(), bitsetFilterCache.createListener(nodeServicesProvider.getThreadPool()), percolatorQueryCache.createListener(nodeServicesProvider.getThreadPool()));
+        this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool,
+            bitsetFilterCache.createListener(threadPool),
+            percolatorQueryCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache, percolatorQueryCache);
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
@@ -232,7 +241,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService, refreshTask, fsyncTask, cache().getPercolatorQueryCache());
+                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService, refreshTask, fsyncTask,
+                    cache().getPercolatorQueryCache());
             }
         }
     }
@@ -302,7 +312,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                     }
                     dataPathToShardCount.put(dataPath, curCount + 1);
                 }
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings,
+                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                        ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
                     dataPathToShardCount);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
@@ -323,11 +335,16 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                     warmer.warm(searcher, shard, IndexService.this.indexSettings, toLevel);
                 }
             };
-            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
+            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
+                new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, searchSlowLog, engineWarmer); // no indexing listeners - shadow  engines don't index
+                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
+                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, searchSlowLog, engineWarmer);
+                // no indexing listeners - shadow  engines don't index
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider, searchSlowLog, engineWarmer, listeners);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
+                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, searchSlowLog, engineWarmer,
+                    listeners);
             }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -372,7 +389,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
                     try {
-                        final boolean flushEngine = deleted.get() == false && closed.get(); // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                        // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                        final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Throwable e) {
                         logger.debug("[{}] failed to close index shard", e, shardId);
@@ -419,7 +437,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     }
 
     /**
-     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via {@link QueryShardContext#setTypes(String...)}
+     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
+     * {@link QueryShardContext#setTypes(String...)}
      */
     public QueryShardContext newQueryShardContext() {
         return new QueryShardContext(
@@ -429,8 +448,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         );
     }
 
-    ThreadPool getThreadPool() {
-        return nodeServicesProvider.getThreadPool();
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
+
+    public BigArrays getBigArrays() {
+        return bigArrays;
     }
 
     public SearchSlowLog getSearchSlowLog() {
@@ -547,7 +570,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 AliasMetaData alias = aliases.get(aliasName);
                 if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(indexSettings.getIndex(), aliasNames[0], "Unknown alias name was passed to alias Filter");
+                    throw new InvalidAliasNameException(indexSettings.getIndex(), aliasNames[0],
+                        "Unknown alias name was passed to alias Filter");
                 }
                 Query parsedFilter = parse(alias, context);
                 if (parsedFilter != null) {
@@ -723,7 +747,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             } catch (Exception ex) {
                 if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                     // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
-                    indexService.logger.warn("failed to run task {} - suppressing re-occurring exceptions unless the exception changes", ex, toString());
+                    indexService.logger.warn("failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
+                        ex, toString());
                     lastThrownException = ex;
                 }
             } finally {

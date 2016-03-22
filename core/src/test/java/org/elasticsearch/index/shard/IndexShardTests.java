@@ -1158,11 +1158,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
         ShardRouting routing = new ShardRouting(shard.routingEntry());
         shard.close("simon says", true);
-        NodeServicesProvider indexServices = indexService.getIndexServices();
         IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(),
                 shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
                 indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-                indexServices, indexService.getSearchSlowLog(), null, listeners
+                indexService.getThreadPool(), indexService.getBigArrays(), indexService.getSearchSlowLog(), null, listeners
         );
         ShardRoutingHelper.reinit(routing);
         newShard.updateRoutingEntry(routing, false);

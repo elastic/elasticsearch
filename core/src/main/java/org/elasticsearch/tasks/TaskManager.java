@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Consumer;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.transport.TransportRequest;
@@ -36,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import org.elasticsearch.common.util.Consumer;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
@@ -66,8 +66,8 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     public Task register(String type, String action, TransportRequest request) {
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action);
         if (task != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+            if (logger.isTraceEnabled()) {
+                logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
             }
 
             if (task instanceof CancellableTask) {

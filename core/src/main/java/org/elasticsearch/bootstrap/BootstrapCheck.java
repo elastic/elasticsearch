@@ -254,7 +254,7 @@ final class BootstrapCheck {
 
         @Override
         public boolean check() {
-            return getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != JNACLibrary.RLIM_INFINITY;
+            return getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity();
         }
 
         @Override
@@ -264,6 +264,11 @@ final class BootstrapCheck {
                 "max size virtual memory [%d] for user [%s] likely too low, increase to [unlimited]",
                 getMaxSizeVirtualMemory(),
                 BootstrapInfo.getSystemProperties().get("user.name"));
+        }
+
+        // visible for testing
+        long getRlimInfinity() {
+            return JNACLibrary.RLIM_INFINITY;
         }
 
         // visible for testing

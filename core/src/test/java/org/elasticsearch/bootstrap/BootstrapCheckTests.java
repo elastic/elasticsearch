@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -158,12 +159,17 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testMaxSizeVirtualMemory() {
-        final long limit = JNACLibrary.RLIM_INFINITY;
-        final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomInt());
+        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
+        final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapCheck.MaxSizeVirtualMemoryCheck check = new BootstrapCheck.MaxSizeVirtualMemoryCheck() {
             @Override
             long getMaxSizeVirtualMemory() {
                 return maxSizeVirtualMemory.get();
+            }
+
+            @Override
+            long getRlimInfinity() {
+                return rlimInfinity;
             }
         };
 
@@ -174,7 +180,7 @@ public class BootstrapCheckTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("max size virtual memory"));
         }
 
-        maxSizeVirtualMemory.set(limit);
+        maxSizeVirtualMemory.set(rlimInfinity);
 
         BootstrapCheck.check(true, Collections.singletonList(check));
 

@@ -78,9 +78,9 @@ REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
 REM Avoid empty elements in classpath to make JarHell happy
 if "%ES_CLASSPATH%" == "" (
-  set ES_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*;%ES_HOME%/plugins/xpack/*
+  set ES_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/plugins/xpack/*
 ) else (
-  set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*;%ES_HOME%/plugins/xpack/*
+  set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/*;%ES_HOME%/plugins/xpack/*
 )
 set ES_PARAMS=-Des.path.home="%ES_HOME%"
 

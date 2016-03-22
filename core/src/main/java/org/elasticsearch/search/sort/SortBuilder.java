@@ -54,7 +54,9 @@ public abstract class SortBuilder<T extends SortBuilder<?>> implements ToXConten
             }
             Query innerDocumentsQuery;
             if (nestedFilter != null) {
-                innerDocumentsQuery = nestedFilter.toFilter(context);
+                context.nestedScope().nextLevel(nestedObjectMapper);
+                innerDocumentsQuery = QueryBuilder.rewriteQuery(nestedFilter, context).toFilter(context);
+                context.nestedScope().previousLevel();
             } else {
                 innerDocumentsQuery = nestedObjectMapper.nestedTypeFilter();
             }

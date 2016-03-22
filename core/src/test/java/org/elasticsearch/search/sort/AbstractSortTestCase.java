@@ -242,7 +242,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T> & SortBuilde
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry) {
+                indicesQueriesRegistry, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

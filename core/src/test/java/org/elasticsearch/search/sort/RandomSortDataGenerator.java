@@ -26,6 +26,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class RandomSortDataGenerator {
     private RandomSortDataGenerator() {
         // this is a helper class only, doesn't need a constructor
@@ -44,7 +47,7 @@ public class RandomSortDataGenerator {
                 break;
             default:
             case 2:
-                nested = new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomAsciiOfLengthBetween(1, 10));
+                nested = new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomDouble());
                 break;
             }
             nested.boost((float) ESTestCase.randomDoubleBetween(0, 10, false));
@@ -61,8 +64,14 @@ public class RandomSortDataGenerator {
     }
 
     public static SortMode mode(SortMode original) {
+        Set<SortMode> set = new HashSet<>();
+        set.add(original);
+        return mode(set);
+    }
+
+    public static SortMode mode(Set<SortMode> except) {
         SortMode mode = ESTestCase.randomFrom(SortMode.values());
-        while (mode.equals(original)) {
+        while (except.contains(mode)) {
             mode = ESTestCase.randomFrom(SortMode.values());
         }
         return mode;

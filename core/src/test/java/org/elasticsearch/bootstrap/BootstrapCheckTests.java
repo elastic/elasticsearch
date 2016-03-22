@@ -157,6 +157,33 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, Collections.singletonList(check));
     }
 
+    public void testMaxSizeVirtualMemory() {
+        final long limit = JNACLibrary.RLIM_INFINITY;
+        final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomInt());
+        final BootstrapCheck.MaxSizeVirtualMemoryCheck check = new BootstrapCheck.MaxSizeVirtualMemoryCheck() {
+            @Override
+            long getMaxSizeVirtualMemory() {
+                return maxSizeVirtualMemory.get();
+            }
+        };
+
+        try {
+            BootstrapCheck.check(true, Collections.singletonList(check));
+            fail("should have failed due to max size virtual memory too low");
+        } catch (final RuntimeException e) {
+            assertThat(e.getMessage(), containsString("max size virtual memory"));
+        }
+
+        maxSizeVirtualMemory.set(limit);
+
+        BootstrapCheck.check(true, Collections.singletonList(check));
+
+        // nothing should happen if max size virtual memory is not
+        // available
+        maxSizeVirtualMemory.set(Long.MIN_VALUE);
+        BootstrapCheck.check(true, Collections.singletonList(check));
+    }
+
     public void testEnforceLimits() {
         final Set<Setting> enforceSettings = BootstrapCheck.enforceSettings();
         final Setting setting = randomFrom(Arrays.asList(enforceSettings.toArray(new Setting[enforceSettings.size()])));

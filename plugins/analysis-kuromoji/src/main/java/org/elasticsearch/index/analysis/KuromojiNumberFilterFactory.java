@@ -16,21 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.analysis;
 
-package org.elasticsearch.search.sort;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ja.JapaneseNumberFilter;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
-import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+public class KuromojiNumberFilterFactory extends AbstractTokenFilterFactory {
 
-import java.io.IOException;
+    public KuromojiNumberFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
+    }
 
-/**
- *
- */
-public interface SortParser {
-
-    String[] names();
-
-    SortField parse(XContentParser parser, QueryShardContext context) throws IOException;
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new JapaneseNumberFilter(tokenStream);
+    }
 }

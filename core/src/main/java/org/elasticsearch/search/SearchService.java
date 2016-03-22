@@ -549,8 +549,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
         context.getQueryShardContext().setFieldStatsProvider(new FieldStatsProvider(engineSearcher, indexService.mapperService()));
-        request.rewrite(context.getQueryShardContext());
         SearchContext.setCurrent(context);
+        request.rewrite(context.getQueryShardContext());
+        // reset that we have used nowInMillis from the context since it may
+        // have been rewritten so its no longer in the query and the request can
+        // be cached. If it is still present in the request (e.g. in a range
+        // aggregation) it will still be caught when the aggregation is
+        // evaluated.
+        context.resetNowInMillisUsed();
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());

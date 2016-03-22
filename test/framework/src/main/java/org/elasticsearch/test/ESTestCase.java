@@ -691,10 +691,18 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @SafeVarargs
     public static AnalysisService createAnalysisService(Index index, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        return createAnalysisService(index, nodeSettings, settings, moduleConsumers);
+    }
+
+    /**
+     * Creates an AnalysisService to test analysis factories and analyzers.
+     */
+    @SafeVarargs
+    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
         Settings indexSettings = settingsBuilder().put(settings)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
-        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment env = new Environment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env);
         for (Consumer<AnalysisModule> consumer : moduleConsumers) {

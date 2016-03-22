@@ -66,7 +66,7 @@ public class ScriptSortParser implements SortParser {
     }
 
     @Override
-    public SortField parse(XContentParser parser, QueryShardContext context) throws Exception {
+    public SortField parse(XContentParser parser, QueryShardContext context) throws IOException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
         ScriptSortType type = null;
@@ -140,7 +140,6 @@ public class ScriptSortParser implements SortParser {
             sortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
-        // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
             BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
@@ -182,7 +181,6 @@ public class ScriptSortParser implements SortParser {
                 };
                 break;
             case NUMBER:
-                // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
                     LeafSearchScript leafScript;
                     @Override

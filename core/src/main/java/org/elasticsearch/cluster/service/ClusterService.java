@@ -1002,4 +1002,8 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
         }
     }
+
+    public ClusterSettings getClusterSettings() {
+        return clusterSettings;
+    }
 }

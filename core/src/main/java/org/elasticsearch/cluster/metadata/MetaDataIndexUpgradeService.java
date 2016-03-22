@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -34,7 +33,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.Collections;
-import java.util.Map;
+
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -47,13 +47,13 @@ import java.util.Map;
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
     private final MapperRegistry mapperRegistry;
-    private final IndexScopedSettings indexScopedSettigns;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
     public MetaDataIndexUpgradeService(Settings settings, MapperRegistry mapperRegistry, IndexScopedSettings indexScopedSettings) {
         super(settings);
         this.mapperRegistry = mapperRegistry;
-        this.indexScopedSettigns = indexScopedSettings;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     /**
@@ -94,8 +94,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private void checkSupportedVersion(IndexMetaData indexMetaData) {
         if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v2.0.0.beta1 and wasn't " +
-                    "upgraded."
+            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v2.0.0.beta1 and wasn't upgraded."
                     + " This index should be open using a version before " + Version.CURRENT.minimumCompatibilityVersion()
                     + " and upgraded using the upgrade API.");
         }
@@ -128,12 +127,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
 
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
-                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry,
-                        () -> null)) {
+                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
-                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY,
-                                false);
+                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
                     }
                 }
             }
@@ -147,8 +144,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Marks index as upgraded so we don't have to test it again
      */
     private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
-        Settings settings = Settings.builder().put(indexMetaData.getSettings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version
-                .CURRENT).build();
+        Settings settings = Settings.builder().put(indexMetaData.getSettings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
         return IndexMetaData.builder(indexMetaData).settings(settings).build();
     }
 
@@ -180,45 +176,13 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         }
     }
 
-    private static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
-
     IndexMetaData archiveBrokenIndexSettings(IndexMetaData indexMetaData) {
-        Settings settings = indexMetaData.getSettings();
-        Settings.Builder builder = Settings.builder();
-        boolean changed = false;
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            try {
-                Setting<?> setting = indexScopedSettigns.get(entry.getKey());
-                if (setting != null) {
-                    setting.get(settings);
-                    builder.put(entry.getKey(), entry.getValue());
-                } else {
-                    if (indexScopedSettigns.isPrivateSetting(entry.getKey()) || entry.getKey().startsWith(ARCHIVED_SETTINGS_PREFIX)) {
-                        builder.put(entry.getKey(), entry.getValue());
-                    } else {
-                        changed = true;
-                        logger.warn("[{}] found unknown index setting: {} value: {} - archiving", indexMetaData.getIndex(), entry.getKey
-                                (), entry.getValue());
-                        // we put them back in here such that tools can check from the outside if there are any indices with broken
-                        // settings. The setting can remain there
-                        // but we want users to be aware that some of their setting are broken and they can research why and what they
-                        // need to do to replace them.
-                        builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
-                    }
-                }
-            } catch (IllegalArgumentException ex) {
-                changed = true;
-                logger.warn("[{}] found invalid index setting: {} value: {} - archiving", ex, indexMetaData.getIndex(), entry.getKey(),
-                        entry.getValue());
-                // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The
-                // setting can remain there
-                // but we want users to be aware that some of their setting sare broken and they can research why and what they need to
-                // do to replace them.
-                builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
-            }
+        final Settings settings = indexMetaData.getSettings();
+        final Settings upgrade = indexScopedSettings.archiveUnknownOrBrokenSettings(settings);
+        if (upgrade != settings) {
+            return IndexMetaData.builder(indexMetaData).settings(upgrade).build();
+        } else {
+            return indexMetaData;
         }
-
-        return changed ? IndexMetaData.builder(indexMetaData).settings(builder.build()).build() : indexMetaData;
     }
-
 }

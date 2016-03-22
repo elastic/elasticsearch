@@ -25,7 +25,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     @Override
     protected FieldSortBuilder createTestItem() {
-        String fieldName = randomAsciiOfLengthBetween(1, 10);
+        String fieldName = rarely() ? SortParseElement.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
         if (randomBoolean()) {
             builder.order(RandomSortDataGenerator.order(builder.order()));
@@ -50,7 +50,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         if (randomBoolean()) {
             builder.setNestedPath(RandomSortDataGenerator.randomAscii(builder.getNestedPath()));
         }
-        
+
         return builder;
     }
 

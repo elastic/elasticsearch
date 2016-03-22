@@ -33,18 +33,29 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuilder> {
 
     @Override
     protected ScriptSortBuilder createTestItem() {
+        ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
-                randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+                type);
         if (randomBoolean()) {
-            builder.order(RandomSortDataGenerator.order(builder.order()));
+                builder.order(RandomSortDataGenerator.order(builder.order()));
         }
         if (randomBoolean()) {
-            builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+            if (type == ScriptSortType.NUMBER) {
+                builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+            } else {
+                Set<SortMode> exceptThis = new HashSet<>();
+                exceptThis.add(SortMode.SUM);
+                exceptThis.add(SortMode.AVG);
+                exceptThis.add(SortMode.MEDIAN);
+                builder.sortMode(RandomSortDataGenerator.mode(exceptThis));
+            }
         }
         if (randomBoolean()) {
             builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
@@ -68,7 +79,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
             result.order(original.order());
-            if (original.sortMode() != null) {
+            if (original.sortMode() != null && result.type() == ScriptSortType.NUMBER) {
                 result.sortMode(original.sortMode());
             }
             result.setNestedFilter(original.getNestedFilter());
@@ -85,7 +96,16 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 1:
-                result.sortMode(RandomSortDataGenerator.mode(original.sortMode()));
+                if (original.type() == ScriptSortType.NUMBER) {
+                    result.sortMode(RandomSortDataGenerator.mode(original.sortMode()));
+                } else {
+                    // script sort type String only allows MIN and MAX, so we only switch
+                    if (original.sortMode() == SortMode.MIN) {
+                        result.sortMode(SortMode.MAX);
+                    } else {
+                        result.sortMode(SortMode.MIN);
+                    }
+                }
                 break;
             case 2:
                 result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
@@ -237,5 +257,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("unexpected token [START_ARRAY]");
         ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+    }
+
+    /**
+     * script sort of type {@link ScriptSortType} does not work with {@link SortMode#AVG}, {@link SortMode#MEDIAN} or {@link SortMode#SUM}
+     */
+    public void testBadSortMode() throws IOException {
+        ScriptSortBuilder builder = new ScriptSortBuilder(new Script("something"), ScriptSortType.STRING);
+        exceptionRule.expect(IllegalArgumentException.class);
+        exceptionRule.expectMessage("script sort of type [string] doesn't support mode");
+        builder.sortMode(SortMode.fromString(randomFrom(new String[]{"avg", "median", "sum"})));
     }
 }

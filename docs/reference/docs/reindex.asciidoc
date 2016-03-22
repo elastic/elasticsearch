@@ -299,7 +299,8 @@ POST /_reindex
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
-supports `refresh`, `wait_for_completion`, `consistency`, and `timeout`.
+supports `refresh`, `wait_for_completion`, `consistency`, `timeout`, and
+`requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -317,8 +318,14 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 {ref}/docs-bulk.html[Bulk API].
 
-`timeout` controls how long each batch waits for the target shard to become
-available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
+`requests_per_second` can be set to any decimal number (1.4, 6, 1000, etc) and
+throttle the number of requests per second that the reindex issues. The
+throttling is done waiting between bulk batches so that it can manipulate the
+scroll timeout. The wait time is the difference between the time it took the
+batch to complete and the time `requests_per_second * requests_in_the_batch`.
+Since the batch isn't broken into multiple bulk requests large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth".
 
 [float]
 === Response body
@@ -333,6 +340,8 @@ The JSON response looks like this:
   "created": 123,
   "batches": 1,
   "version_conflicts": 2,
+  "retries": 0,
+  "throttled_millis": 0,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -356,6 +365,14 @@ The number of scroll responses pulled back by the the reindex.
 `version_conflicts`::
 
 The number of version conflicts that reindex hit.
+
+`retries`::
+
+The number of retries that the reindex did in response to a full queue.
+
+`throttled_millis`::
+
+Number of milliseconds the request slept to conform to `requests_per_second`.
 
 `failures`::
 
@@ -403,7 +420,9 @@ The responses looks like:
           "deleted" : 0,
           "batches" : 36,
           "version_conflicts" : 0,
-          "noops" : 0
+          "noops" : 0,
+          "retries": 0,
+          "throttled_millis": 0
         },
         "description" : ""
       } ]

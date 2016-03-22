@@ -135,6 +135,8 @@ final class Bootstrap {
 
         JNANatives.trySetMaxNumberOfThreads();
 
+        JNANatives.trySetMaxSizeVirtualMemory();
+
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
     }

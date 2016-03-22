@@ -62,7 +62,7 @@ public class GeoDistanceSortParser implements SortParser {
     }
 
     @Override
-    public SortField parse(XContentParser parser, QueryShardContext context) throws Exception {
+    public SortField parse(XContentParser parser, QueryShardContext context) throws IOException {
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;

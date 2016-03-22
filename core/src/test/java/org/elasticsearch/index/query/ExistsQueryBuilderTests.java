@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -55,13 +54,8 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     @Override
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
-        if (objectMapper != null) {
-            // automatic make the object mapper pattern
-            fieldPattern = fieldPattern + ".*";
-        }
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
-        if (getCurrentTypes().length == 0 || fields.size() == 0) {
+        if (getCurrentTypes().length == 0) {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
             assertThat(booleanQuery.clauses().size(), equalTo(0));

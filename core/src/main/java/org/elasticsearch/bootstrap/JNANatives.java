@@ -52,6 +52,8 @@ class JNANatives {
     // the user ID that owns the running Elasticsearch process
     static long MAX_NUMBER_OF_THREADS = -1;
 
+    static long MAX_SIZE_VIRTUAL_MEMORY = Long.MIN_VALUE;
+
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
         String errMsg = null;
@@ -120,6 +122,17 @@ class JNANatives {
                 MAX_NUMBER_OF_THREADS = rlimit.rlim_cur.longValue();
             } else {
                 logger.warn("unable to retrieve max number of threads [" + JNACLibrary.strerror(Native.getLastError()) + "]");
+            }
+        }
+    }
+
+    static void trySetMaxSizeVirtualMemory() {
+        if (Constants.LINUX || Constants.MAC_OS_X) {
+            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
+            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_AS, rlimit) == 0) {
+                MAX_SIZE_VIRTUAL_MEMORY = rlimit.rlim_cur.longValue();
+            } else {
+                logger.warn("unable to retrieve max size virtual memory [" + JNACLibrary.strerror(Native.getLastError()) + "]");
             }
         }
     }

@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
-import org.elasticsearch.cluster.metadata.PersistedIndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexStateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -131,7 +131,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     if (isDataOnlyNode(state)) {
                         Set<Index> newPreviouslyWrittenIndices = new HashSet<>(previouslyWrittenIndices.size());
                         for (IndexMetaData indexMetaData : newMetaData) {
-                            PersistedIndexMetaData indexMetaDataOnDisk = null;
+                            IndexStateMetaData indexMetaDataOnDisk = null;
                             if (indexMetaData.getState().equals(IndexMetaData.State.CLOSE)) {
                                 indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex());
                             }
@@ -161,14 +161,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             // check and write changes in indices
             for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
                 try {
-                    metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.getPersistedIndexMetaData());
+                    metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.getIndexStateMetaData());
                 } catch (Throwable e) {
                     success = false;
                 }
             }
         }
 
-        danglingIndicesState.processDanglingIndices(newMetaData);
+        danglingIndicesState.processDanglingIndices(state);
         if (success) {
             previousMetaData = newMetaData;
             previouslyWrittenIndices = unmodifiableSet(relevantIndices);
@@ -224,21 +224,21 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * index metadata with new settings.
      */
     private void pre20Upgrade() throws Exception {
-        List<PersistedIndexMetaData> metaData = metaStateService.loadIndicesStatesNoFolderNameValidation();
-        List<PersistedIndexMetaData> updateList = new ArrayList<>();
-        for (PersistedIndexMetaData persistedIndexMetaData : metaData) {
-            final IndexMetaData indexMetaData = persistedIndexMetaData.getIndexMetaData();
+        List<IndexStateMetaData> metaData = metaStateService.loadIndicesStatesNoFolderNameValidation();
+        List<IndexStateMetaData> updateList = new ArrayList<>();
+        for (IndexStateMetaData indexStateMetaData : metaData) {
+            final IndexMetaData indexMetaData = indexStateMetaData.getIndexMetaData();
             IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
             if (indexMetaData != newMetaData) {
-                updateList.add(new PersistedIndexMetaData(newMetaData, persistedIndexMetaData.getClusterUUID()));
+                updateList.add(new IndexStateMetaData(newMetaData, indexStateMetaData.getClusterUUID()));
             }
         }
         // We successfully checked all indices for backward compatibility and found no non-upgradable indices, which
         // means the upgrade can continue. Now it's safe to overwrite index metadata with the new version.
-        for (PersistedIndexMetaData persistedIndexMetaData : updateList) {
+        for (IndexStateMetaData indexStateMetaData : updateList) {
             // since we still haven't upgraded the index folders, we write index state in the old folder
-            metaStateService.writeIndex("upgrade", persistedIndexMetaData,
-                nodeEnv.resolveIndexFolder(persistedIndexMetaData.getIndexMetaData().getIndex().getName()));
+            metaStateService.writeIndex("upgrade", indexStateMetaData,
+                nodeEnv.resolveIndexFolder(indexStateMetaData.getIndexMetaData().getIndex().getName()));
         }
     }
 
@@ -281,7 +281,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 writeReason = "version changed from [" + previousIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]";
             }
             if (writeReason != null) {
-                final PersistedIndexMetaData persistedIndex = new PersistedIndexMetaData(newIndexMetaData, newMetaData.clusterUUID());
+                final IndexStateMetaData persistedIndex = new IndexStateMetaData(newIndexMetaData, newMetaData.clusterUUID());
                 indicesToWrite.add(new GatewayMetaState.IndexMetaWriteInfo(persistedIndex, writeReason));
             }
         }
@@ -325,16 +325,16 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
 
     public static class IndexMetaWriteInfo {
-        final PersistedIndexMetaData persistedIndexMetaData;
+        final IndexStateMetaData indexStateMetaData;
         final String reason;
 
-        public IndexMetaWriteInfo(PersistedIndexMetaData metaData, String reason) {
-            this.persistedIndexMetaData = metaData;
+        public IndexMetaWriteInfo(IndexStateMetaData metaData, String reason) {
+            this.indexStateMetaData = metaData;
             this.reason = reason;
         }
 
-        public PersistedIndexMetaData getPersistedIndexMetaData() {
-            return persistedIndexMetaData;
+        public IndexStateMetaData getIndexStateMetaData() {
+            return indexStateMetaData;
         }
 
         public String getReason() {
@@ -344,8 +344,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("[IndexMetaWriteInfo, index=").append(persistedIndexMetaData.getIndexMetaData().getIndex().getName())
-                   .append(", uuid=").append(persistedIndexMetaData.getIndexMetaData().getIndexUUID())
+            builder.append("[IndexMetaWriteInfo, index=").append(indexStateMetaData.getIndexMetaData().getIndex().getName())
+                   .append(", uuid=").append(indexStateMetaData.getIndexMetaData().getIndexUUID())
                    .append(", reason=").append(reason).append("]");
             return builder.toString();
         }

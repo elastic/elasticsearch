@@ -20,11 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -36,9 +33,8 @@ import java.util.Objects;
 /**
  * Index metadata that is persisted on disk.
  */
-final public class PersistedIndexMetaData implements FromXContentBuilder<PersistedIndexMetaData>, ToXContent {
+final public class IndexStateMetaData implements ToXContent {
 
-    public static final PersistedIndexMetaData PROTOTYPE = new PersistedIndexMetaData(null, null);
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
     public static final String CLUSTER_UUID_NA_VALUE = "_na_";
     private static final String CLUSTER_UUID_FIELD = "clusterUUID";
@@ -47,7 +43,7 @@ final public class PersistedIndexMetaData implements FromXContentBuilder<Persist
     private final IndexMetaData indexMetaData;
     private final String clusterUUID;
 
-    public PersistedIndexMetaData(final IndexMetaData indexMetaData, final String clusterUUID) {
+    public IndexStateMetaData(final IndexMetaData indexMetaData, final String clusterUUID) {
         this.indexMetaData = indexMetaData;
         this.clusterUUID = clusterUUID;
     }
@@ -74,7 +70,7 @@ final public class PersistedIndexMetaData implements FromXContentBuilder<Persist
         if (other == null || this.getClass() != other.getClass()) {
             return false;
         }
-        final PersistedIndexMetaData that = (PersistedIndexMetaData) other;
+        final IndexStateMetaData that = (IndexStateMetaData) other;
         return Objects.equals(clusterUUID, that.clusterUUID) && Objects.equals(indexMetaData, that.indexMetaData);
     }
 
@@ -83,20 +79,15 @@ final public class PersistedIndexMetaData implements FromXContentBuilder<Persist
         return Objects.hash(clusterUUID, indexMetaData);
     }
 
-    @Override
-    public PersistedIndexMetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        if (parser.currentToken() == null) { // fresh parser? move to the first token
-            parser.nextToken();
+    public static IndexStateMetaData fromXContent(final XContentParser parser) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("IndexStateMetaData must start as an object");
         }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
-            parser.nextToken();
-        }
-
-        XContentParser.Token token = parser.currentToken();
+        XContentParser.Token token = parser.nextToken();
         // first field is not the cluster UUID, so it must be the old way of storing index metadata
         if (token != XContentParser.Token.FIELD_NAME || parser.currentName().equals(CLUSTER_UUID_FIELD) == false) {
             // set the cluster UUID with _na_ so we can save the updated index metadata format later
-            return new PersistedIndexMetaData(IndexMetaData.Builder.fromXContent(parser), CLUSTER_UUID_NA_VALUE);
+            return new IndexStateMetaData(IndexMetaData.Builder.fromXContent(parser), CLUSTER_UUID_NA_VALUE);
         }
 
         if (token != XContentParser.Token.FIELD_NAME) {
@@ -129,9 +120,9 @@ final public class PersistedIndexMetaData implements FromXContentBuilder<Persist
             throw new ElasticsearchParseException("Could not parse indexMetaData from x-content");
         }
         if (clusterUUID == null) {
-            clusterUUID = PersistedIndexMetaData.CLUSTER_UUID_NA_VALUE;
+            clusterUUID = IndexStateMetaData.CLUSTER_UUID_NA_VALUE;
         }
-        return new PersistedIndexMetaData(indexMetaData, clusterUUID);
+        return new IndexStateMetaData(indexMetaData, clusterUUID);
     }
 
     @Override
@@ -154,31 +145,25 @@ final public class PersistedIndexMetaData implements FromXContentBuilder<Persist
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return "IndexStateMetaData[clusterUUID=" + clusterUUID + ", indexUUID=" + indexMetaData.getIndexUUID() +
+               ", indexName=" + indexMetaData.getIndex().getName() + ", state=" + indexMetaData.getState() +
+               ", noOfShards=" + indexMetaData.getNumberOfShards() + ", noOfReplicas=" + indexMetaData.getNumberOfReplicas() + "]";
     }
 
     private static final ToXContent.Params FORMAT_PARAMS = new MapParams(Collections.singletonMap("binary", "true"));
 
     /**
-     * StateFormat that can read and write {@link PersistedIndexMetaData}
+     * StateFormat that can read and write {@link IndexStateMetaData}
      */
-    public static MetaDataStateFormat<PersistedIndexMetaData> FORMAT =
-        new MetaDataStateFormat<PersistedIndexMetaData>(XContentType.SMILE, INDEX_STATE_FILE_PREFIX) {
+    public static MetaDataStateFormat<IndexStateMetaData> FORMAT =
+        new MetaDataStateFormat<IndexStateMetaData>(XContentType.SMILE, INDEX_STATE_FILE_PREFIX) {
             @Override
-            public void toXContent(final XContentBuilder builder, final PersistedIndexMetaData persistedIndex) throws IOException {
+            public void toXContent(final XContentBuilder builder, final IndexStateMetaData persistedIndex) throws IOException {
                 persistedIndex.toXContent(builder, FORMAT_PARAMS);
             }
             @Override
-            public PersistedIndexMetaData fromXContent(final XContentParser parser) throws IOException {
-                return PersistedIndexMetaData.PROTOTYPE.fromXContent(parser, ParseFieldMatcher.EMPTY);
+            public IndexStateMetaData fromXContent(final XContentParser parser) throws IOException {
+                return IndexStateMetaData.fromXContent(parser);
             }
         };
 

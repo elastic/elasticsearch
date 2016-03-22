@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.PersistedIndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexStateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -46,9 +46,9 @@ public class MetaStateServiceTests extends ESTestCase {
 
             final IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
             final String clusterUUID = Strings.randomBase64UUID();
-            final PersistedIndexMetaData persistedIndex = new PersistedIndexMetaData(index, clusterUUID);
+            final IndexStateMetaData persistedIndex = new IndexStateMetaData(index, clusterUUID);
             metaStateService.writeIndex("test_write", persistedIndex);
-            final PersistedIndexMetaData readPersistedIndex = metaStateService.loadIndexState(index.getIndex());
+            final IndexStateMetaData readPersistedIndex = metaStateService.loadIndexState(index.getIndex());
             assertThat(readPersistedIndex.getIndexMetaData(), equalTo(index));
             assertThat(readPersistedIndex.getClusterUUID(), equalTo(clusterUUID));
         }
@@ -95,7 +95,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
             final String clusterUUID = Strings.randomBase64UUID();
             IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
-            final PersistedIndexMetaData persistedIndex = new PersistedIndexMetaData(index, clusterUUID);
+            final IndexStateMetaData persistedIndex = new IndexStateMetaData(index, clusterUUID);
             MetaData metaData = MetaData.builder()
                     .persistentSettings(Settings.builder().put("test1", "value1").build())
                     .put(index, true)

@@ -20,9 +20,10 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.PersistedIndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexStateMetaData;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,32 +58,33 @@ public class DanglingIndicesState extends AbstractComponent {
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
-
+    private final IndicesService indicesService;
     private final Map<Index, IndexMetaData> danglingIndices = new HashMap<>();
-    private final Map<Index, IndexMetaData> deletedIndices = new HashMap<>();
 
     @Inject
     public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                                LocalAllocateDangledIndices allocateDangledIndices) {
+                                LocalAllocateDangledIndices allocateDangledIndices, IndicesService indicesService) {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
+        this.indicesService = indicesService;
     }
 
     /**
-     * Process dangling indices based on the provided meta data, handling cleanup, finding
+     * Process dangling indices based on the provided cluster state, handling cleanup, finding
      * new dangling indices, and allocating outstanding ones.
      */
-    public void processDanglingIndices(MetaData metaData) {
+    public void processDanglingIndices(final ClusterState clusterState) {
         // we are assuming we are running this functionality in the single threaded environment of the cluster state update thread
         assert InternalClusterService.assertClusterStateThread();
         if (nodeEnv.hasNodeFile() == false) {
             return;
         }
+        final MetaData metaData = clusterState.metaData();
         cleanupAllocatedDangledIndices(metaData);
-        findNewAndAddDanglingIndices(metaData);
-        cleanDeletedIndices();
+        final Map<Index, IndexMetaData> deletedIndices = findOnDiskAndAddDanglingIndices(metaData);
+        cleanDeletedIndices(deletedIndices, clusterState);
         allocateDanglingIndices();
     }
 
@@ -91,13 +94,6 @@ public class DanglingIndicesState extends AbstractComponent {
     Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
         return unmodifiableMap(new HashMap<>(danglingIndices));
-    }
-
-    /**
-     * The current set of deleted indices that should be removed from the local file system instead of imported.
-     */
-    Map<Index, IndexMetaData> getDeletedIndices() {
-        return unmodifiableMap(new HashMap<>(deletedIndices));
     }
 
     /**
@@ -120,32 +116,44 @@ public class DanglingIndicesState extends AbstractComponent {
     }
 
     /**
-     * Finds (@{link #findNewAndAddDanglingIndices}) and adds the new dangling indices
-     * to the currently tracked dangling indices.
+     * Finds (@{link #findDanglingAndDeletedIndices}) and adds the new dangling indices
+     * to the currently tracked dangling indices, while returning the indices to be deleted.
      */
-    void findNewAndAddDanglingIndices(MetaData metaData) {
-        Tuple<Map<Index, IndexMetaData>, Map<Index, IndexMetaData>> result = findNewDanglingIndices(metaData);
+    Map<Index, IndexMetaData> findOnDiskAndAddDanglingIndices(MetaData metaData) {
+        Tuple<Map<Index, IndexMetaData>, Map<Index, IndexMetaData>> result = findDanglingAndDeletedIndices(metaData);
         danglingIndices.putAll(result.v1());
-        deletedIndices.putAll(result.v2());
+        return result.v2();
     }
 
     /**
-     * Finds new dangling indices by iterating over the indices and trying to find indices
+     * Finds new dangling and deleted indices by iterating over the indices and trying to find indices
      * that have state on disk, but are not part of the provided meta data, or not detected
-     * as dangled already.  The second tuple value contains dangling indices that should not
-     * be imported but rather should be deleted and cleaned up.
+     * as dangled already.  The first tuple entry are the dangling indices, the second tuple entry are
+     * the deleted indices.
+     *
+     * If the cluster UUID of the on-disk index matches the cluster UUID of the
+     * cluster state, then we know that the master node of the cluster has indeed deleted the index on
+     * this cluster, so we should delete it from disk.  A common scenario here is when a node holding
+     * a shard copy for an index gets removed from the cluster, and while the node is removed, the index
+     * gets deleted.  When the node comes back up, the index and its metadata exists on the node's disk,
+     * but not in the cluster state, so it should be deleted instead of imported as dangling.
+     *
+     * If on the other hand, the cluster UUID of the on-disk index does not match the cluster UUID, the
+     * likely scenario is that the master node had its data directory wiped out, so it started with a
+     * fresh cluster UUID and no indices, so we want to import whatever indices exist on the node's disk
+     * as a dangling index.
      */
-    Tuple<Map<Index, IndexMetaData>, Map<Index, IndexMetaData>> findNewDanglingIndices(MetaData metaData) {
+    Tuple<Map<Index, IndexMetaData>, Map<Index, IndexMetaData>> findDanglingAndDeletedIndices(MetaData metaData) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
         }
         excludeIndexPathIds.addAll(danglingIndices.keySet().stream().map(Index::getUUID).collect(Collectors.toList()));
         try {
-            final List<PersistedIndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
+            final List<IndexStateMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
             Map<Index, IndexMetaData> delIndices = new HashMap<>();
-            for (PersistedIndexMetaData persistedIndex : indexMetaDataList) {
+            for (IndexStateMetaData persistedIndex : indexMetaDataList) {
                 if (persistedIndex != null) {
                     final Index index = persistedIndex.getIndexMetaData().getIndex();
                     final String clusterUUID = metaData.clusterUUID();
@@ -155,17 +163,15 @@ public class DanglingIndicesState extends AbstractComponent {
                         // dangling files are probably due to remnants from deleted indices (e.g. the node was offline while
                         // the index was deleted) or failed cleanup
                         logger.info("[{}] dangling index exists on the local file system, but it is deleted in the metadata of the " +
-                                    "same cluster that created it, deleting the index on the local file system", index.getName());
+                                    "same cluster that created it, deleting the index on the local file system", index);
                         delIndices.put(index, persistedIndex.getIndexMetaData());
+                    } else if (metaData.hasIndex(index.getName())) {
+                        logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists " +
+                                    "in cluster metadata", index);
                     } else {
-                        if (metaData.hasIndex(index.getName())) {
-                            logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists " +
-                                        "in cluster metadata", index.getName());
-                        } else {
-                            logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, " +
-                                        "auto import to cluster state", index.getName());
-                            newIndices.put(index, persistedIndex.getIndexMetaData());
-                        }
+                        logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, " +
+                                    "auto import to cluster state", index);
+                        newIndices.put(index, persistedIndex.getIndexMetaData());
                     }
                 }
             }
@@ -180,18 +186,12 @@ public class DanglingIndicesState extends AbstractComponent {
      * Cleans the indices that exist on the local file system but should be deleted according to the metadata state
      * and we have decided that the indices should not be imported as dangling.
      */
-    void cleanDeletedIndices() {
-        if (deletedIndices.isEmpty()) {
-            return;
-        }
-        for (Iterator<Map.Entry<Index, IndexMetaData>> entries = deletedIndices.entrySet().iterator(); entries.hasNext();) {
-            Map.Entry<Index, IndexMetaData> entry = entries.next();
+    void cleanDeletedIndices(final Map<Index, IndexMetaData> deletedIndices, final ClusterState clusterState) {
+        for (Map.Entry<Index, IndexMetaData> entry : deletedIndices.entrySet()) {
             final String indexName = entry.getKey().getName();
             final IndexMetaData indexMetaData = entry.getValue();
             try {
-                nodeEnv.deleteIndexDirectoryUnderLock(indexMetaData.getIndex(), new IndexSettings(indexMetaData, settings));
-                entries.remove();
-                logger.info("[{}] dangling index deleted from local file system", indexName);
+                indicesService.deleteIndexStore("index deleted but metadata still on file system", indexMetaData, clusterState, false);
             } catch (IOException e) {
                 logger.warn("[{}] failed to delete dangling index from the local file system", e, indexName);
             }
@@ -207,17 +207,18 @@ public class DanglingIndicesState extends AbstractComponent {
             return;
         }
         try {
-            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())), new LocalAllocateDangledIndices.Listener() {
-                @Override
-                public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
-                    logger.trace("allocated dangled");
-                }
+            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
+                new LocalAllocateDangledIndices.Listener() {
+                    @Override
+                    public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
+                        logger.trace("allocated dangled");
+                    }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.info("failed to send allocated dangled", e);
-                }
-            });
+                    @Override
+                    public void onFailure(Throwable e) {
+                        logger.info("failed to send allocated dangled", e);
+                    }
+                });
         } catch (Throwable e) {
             logger.warn("failed to send allocate dangled", e);
         }

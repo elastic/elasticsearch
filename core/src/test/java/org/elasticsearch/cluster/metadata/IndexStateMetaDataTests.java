@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,9 +32,9 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Unit level tests for the {@link PersistedIndexMetaData} class.
+ * Unit level tests for the {@link IndexStateMetaData} class.
  */
-public class PersistedIndexMetaDataTests extends ESTestCase {
+public class IndexStateMetaDataTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final int numIterations = 5;
@@ -43,20 +42,33 @@ public class PersistedIndexMetaDataTests extends ESTestCase {
             final String indexName = "idxMetaTest";
             final IndexMetaData indexMetaData = IndexMetaDataTests.randomIndexMetadata(indexName);
             final String clusterUUID = Strings.randomBase64UUID();
-            final PersistedIndexMetaData persistedIndex = new PersistedIndexMetaData(indexMetaData, clusterUUID);
-            final PersistedIndexMetaData fromStream = writeThenRead(persistedIndex);
+            final IndexStateMetaData persistedIndex = new IndexStateMetaData(indexMetaData, clusterUUID);
+            final IndexStateMetaData fromStream = writeThenRead(persistedIndex);
             assertThat(fromStream, equalTo(persistedIndex));
         }
     }
 
-    private static PersistedIndexMetaData writeThenRead(final PersistedIndexMetaData original) throws IOException {
+    public void testOldFormatSerialization() throws IOException {
+        final int numIterations = 5;
+        for (int i = 0; i < numIterations; i++) {
+            final String indexName = "idxMetaTest";
+            final IndexMetaData indexMetaData = IndexMetaDataTests.randomIndexMetadata(indexName);
+            final IndexStateMetaData persistedIndex = new IndexStateMetaData(indexMetaData, IndexStateMetaData.CLUSTER_UUID_NA_VALUE);
+            // old format just writes the IndexMetaData
+            final IndexStateMetaData fromStream = writeThenRead(indexMetaData);
+            assertThat(fromStream, equalTo(persistedIndex));
+        }
+    }
+
+    private static IndexStateMetaData writeThenRead(final ToXContent original) throws IOException {
         XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
         xContentBuilder.startObject();
         original.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         xContentBuilder.endObject();
         final byte[] bytes = xContentBuilder.bytes().toBytes();
         try (XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes)) {
-            return PersistedIndexMetaData.PROTOTYPE.fromXContent(parser, ParseFieldMatcher.EMPTY);
+            return IndexStateMetaData.fromXContent(parser);
         }
     }
+
 }

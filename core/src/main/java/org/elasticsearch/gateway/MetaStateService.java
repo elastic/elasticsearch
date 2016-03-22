@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.PersistedIndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexStateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -61,8 +61,8 @@ public class MetaStateService extends AbstractComponent {
             metaDataBuilder = MetaData.builder();
         }
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            PersistedIndexMetaData persistedIndex =
-                PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            IndexStateMetaData persistedIndex =
+                IndexStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
             if (persistedIndex != null) {
                 metaDataBuilder.put(persistedIndex.getIndexMetaData(), false);
             } else {
@@ -76,8 +76,8 @@ public class MetaStateService extends AbstractComponent {
      * Loads the index state for the provided index name, returning null if doesn't exists.
      */
     @Nullable
-    PersistedIndexMetaData loadIndexState(Index index) throws IOException {
-        return PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
+    IndexStateMetaData loadIndexState(Index index) throws IOException {
+        return IndexStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
     }
 
     /**
@@ -85,11 +85,11 @@ public class MetaStateService extends AbstractComponent {
      * This should only be used if loading indices states on initialization prior to the index folder name upgrade
      * taking place through {@link org.elasticsearch.common.util.IndexFolderUpgrader#upgradeIndicesIfNeeded(Settings, NodeEnvironment)}.
      */
-    List<PersistedIndexMetaData> loadIndicesStatesNoFolderNameValidation() throws IOException {
-        List<PersistedIndexMetaData> indexMetaDataList = new ArrayList<>();
+    List<IndexStateMetaData> loadIndicesStatesNoFolderNameValidation() throws IOException {
+        List<IndexStateMetaData> indexMetaDataList = new ArrayList<>();
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            PersistedIndexMetaData persistedIndex =
-                PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            IndexStateMetaData persistedIndex =
+                IndexStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
             if (persistedIndex != null) {
                 indexMetaDataList.add(persistedIndex);
             } else {
@@ -102,14 +102,14 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Loads all indices states available on disk
      */
-    List<PersistedIndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
-        List<PersistedIndexMetaData> indexMetaDataList = new ArrayList<>();
+    List<IndexStateMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
+        List<IndexStateMetaData> indexMetaDataList = new ArrayList<>();
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             if (excludeIndexPathIdsPredicate.test(indexFolderName)) {
                 continue;
             }
-            PersistedIndexMetaData persistedIndex =
-                PersistedIndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            IndexStateMetaData persistedIndex =
+                IndexStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
             if (persistedIndex != null) {
                 final String indexPathId = persistedIndex.getIndexMetaData().getIndex().getUUID();
                 if (indexFolderName.equals(indexPathId)) {
@@ -141,7 +141,7 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Writes the index state.
      */
-    void writeIndex(String reason, PersistedIndexMetaData persistedIndex) throws IOException {
+    void writeIndex(String reason, IndexStateMetaData persistedIndex) throws IOException {
         writeIndex(reason, persistedIndex, nodeEnv.indexPaths(persistedIndex.getIndexMetaData().getIndex()));
     }
 
@@ -149,12 +149,12 @@ public class MetaStateService extends AbstractComponent {
      * Writes the index state in <code>locations</code>, use {@link #writeGlobalState(String, MetaData)}
      * to write index state in index paths
      */
-    void writeIndex(String reason, PersistedIndexMetaData persistedIndex, Path[] locations) throws IOException {
+    void writeIndex(String reason, IndexStateMetaData persistedIndex, Path[] locations) throws IOException {
         final IndexMetaData indexMetaData = persistedIndex.getIndexMetaData();
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            PersistedIndexMetaData.FORMAT.write(persistedIndex, indexMetaData.getVersion(), locations);
+            IndexStateMetaData.FORMAT.write(persistedIndex, indexMetaData.getVersion(), locations);
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, index);
             throw new IOException("failed to write state for [" + index + "]", ex);

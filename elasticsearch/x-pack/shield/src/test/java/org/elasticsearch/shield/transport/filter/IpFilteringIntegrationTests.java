@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -46,8 +45,9 @@ public class IpFilteringIntegrationTests extends ShieldIntegTestCase {
                 .put("transport.profiles.client.port", randomClientPortRange)
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
-                .put("transport.profiles.client.shield.filter.deny", "_all")
-                .put("shield.http.filter.deny", "_all").build();
+                .put("transport.profiles.client.xpack.security.filter.deny", "_all")
+                .put(IPFilter.TRANSPORT_FILTER_DENY_SETTING.getKey(), "_all")
+                .build();
     }
 
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {

@@ -50,8 +50,8 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         Settings settings = settingsBuilder()
-                .put("shield.transport.filter.allow", "127.0.0.1")
-                .put("shield.transport.filter.deny", "10.0.0.0/8")
+                .put("xpack.security.transport.filter.allow", "127.0.0.1")
+                .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
                 .build();
 
         boolean isHttpEnabled = randomBoolean();

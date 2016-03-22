@@ -109,9 +109,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         settings = Settings.builder()
-                .put("shield.audit.logfile.prefix.emit_node_host_address", randomBoolean())
-                .put("shield.audit.logfile.prefix.emit_node_host_name", randomBoolean())
-                .put("shield.audit.logfile.prefix.emit_node_name", randomBoolean())
+                .put("xpack.security.audit.logfile.prefix.emit_node_host_address", randomBoolean())
+                .put("xpack.security.audit.logfile.prefix.emit_node_host_name", randomBoolean())
+                .put("xpack.security.audit.logfile.prefix.emit_node_name", randomBoolean())
                 .build();
         transport = mock(Transport.class);
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);

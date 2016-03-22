@@ -8,7 +8,6 @@ package org.elasticsearch.shield.transport.filter;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.BeforeClass;
@@ -40,7 +39,7 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), httpEnabled)
-                .put("shield.transport.filter.deny", "127.0.0.200")
+                .put("xpack.security.transport.filter.deny", "127.0.0.200")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .build();
     }
@@ -55,23 +54,23 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
         assertConnectionAccepted("client", "127.0.0.8");
 
         Settings settings = settingsBuilder()
-                .put("shield.transport.filter.allow", "127.0.0.1")
-                .put("shield.transport.filter.deny", "127.0.0.8")
+                .put("xpack.security.transport.filter.allow", "127.0.0.1")
+                .put("xpack.security.transport.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
 
         settings = settingsBuilder()
-                .putArray("shield.http.filter.allow", "127.0.0.1")
-                .putArray("shield.http.filter.deny", "127.0.0.8")
+                .putArray("xpack.security.http.filter.allow", "127.0.0.1")
+                .putArray("xpack.security.http.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
         assertConnectionRejected(".http", "127.0.0.8");
 
         settings = settingsBuilder()
-                .put("transport.profiles.client.shield.filter.allow", "127.0.0.1")
-                .put("transport.profiles.client.shield.filter.deny", "127.0.0.8")
+                .put("transport.profiles.client.xpack.security.filter.allow", "127.0.0.1")
+                .put("transport.profiles.client.xpack.security.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
@@ -80,12 +79,12 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
 
         // check that all is in cluster state
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().settings().get("shield.transport.filter.allow"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("shield.transport.filter.deny"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().settings().get("shield.http.filter.allow.0"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("shield.http.filter.deny.0"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.allow"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.deny"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.allow.0"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.deny.0"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.allow"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 
         // now disable ip filtering dynamically and make sure nothing is rejected
         settings = settingsBuilder()
@@ -98,12 +97,12 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
 
         // disabling should not have any effect on the cluster state settings
         clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().settings().get("shield.transport.filter.allow"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("shield.transport.filter.deny"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().settings().get("shield.http.filter.allow.0"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("shield.http.filter.deny.0"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.allow"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.deny"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.allow.0"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("xpack.security.http.filter.deny.0"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.allow"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("transport.profiles.client.xpack.security.filter.deny"), is("127.0.0.8"));
 
         // now also disable for HTTP
         if (httpEnabled) {
@@ -121,13 +120,13 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
     // issue #762, occured because in the above test we use HTTP and transport
     public void testThatDisablingIpFilterWorksAsExpected() throws Exception {
         Settings settings = settingsBuilder()
-                .put("shield.transport.filter.deny", "127.0.0.8")
+                .put("xpack.security.transport.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
 
         settings = settingsBuilder()
-                .put("shield.transport.filter.enabled", false)
+                .put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false)
                 .build();
         updateSettings(settings);
         assertConnectionAccepted("default", "127.0.0.8");
@@ -135,13 +134,13 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
 
     public void testThatDisablingIpFilterForProfilesWorksAsExpected() throws Exception {
         Settings settings = settingsBuilder()
-                .put("transport.profiles.client.shield.filter.deny", "127.0.0.8")
+                .put("transport.profiles.client.xpack.security.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
         assertConnectionRejected("client", "127.0.0.8");
 
         settings = settingsBuilder()
-                .put("shield.transport.filter.enabled", false)
+                .put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false)
                 .build();
         updateSettings(settings);
         assertConnectionAccepted("client", "127.0.0.8");

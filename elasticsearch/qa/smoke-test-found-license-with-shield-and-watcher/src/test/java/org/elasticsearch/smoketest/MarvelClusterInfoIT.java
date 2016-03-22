@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.shield.Shield;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
@@ -31,7 +32,7 @@ public class MarvelClusterInfoIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put("shield.user", ADMIN_USER_PW)
+                .put(Shield.USER_SETTING.getKey(), ADMIN_USER_PW)
                 .build();
     }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -40,7 +41,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         return Settings.builder()
                 .put("client.transport.sniff", false)
                 // Use just the transport user here, so we can test Watcher roles specifically
-                .put("shield.user", "transport_client:changeme")
+                .put(Security.USER_SETTING.getKey(), "transport_client:changeme")
                 .build();
     }
 

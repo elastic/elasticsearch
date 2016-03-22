@@ -72,8 +72,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          * verification tests since a re-established connection does not perform hostname verification.
          */
         clientSSLService = new ClientSSLService(settingsBuilder()
-                .put("shield.ssl.keystore.path", keystore)
-                .put("shield.ssl.keystore.password", "changeit")
+                .put("xpack.security.ssl.keystore.path", keystore)
+                .put("xpack.security.ssl.keystore.password", "changeit")
                 .build());
         clientSSLService.setEnvironment(env);
 
@@ -528,7 +528,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         Settings.Builder builder = settingsBuilder();
         for (Map.Entry<String, String> entry : ldapSettings.getAsMap().entrySet()) {
-            builder.put("shield.authc.realms.ldap1." + entry.getKey(), entry.getValue());
+            builder.put("xpack.security.authc.realms.ldap1." + entry.getKey(), entry.getValue());
         }
         builder.put("path.home", createTempDir());
 

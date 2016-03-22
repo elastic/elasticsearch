@@ -7,24 +7,40 @@ package org.elasticsearch.shield.audit;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.shield.Security.featureEnabledSetting;
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  *
  */
 public class AuditTrailModule extends AbstractShieldModule.Node {
 
+    public static final Setting<Boolean> ENABLED_SETTING =
+            Setting.boolSetting(featureEnabledSetting("audit"), false, Property.NodeScope);
+    public static final Setting<List<String>> OUTPUTS_SETTING =
+            Setting.listSetting(setting("audit.outputs"),
+                    s -> s.getAsMap().containsKey(setting("audit.outputs")) ?
+                            Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
+                    Function.identity(), Property.NodeScope);
     private final boolean enabled;
 
     public AuditTrailModule(Settings settings) {
         super(settings);
-        enabled = auditingEnabled(settings);
+        enabled = ENABLED_SETTING.get(settings);
     }
 
     @Override
@@ -33,8 +49,8 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
-        String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { LoggingAuditTrail.NAME });
-        if (outputs.length == 0) {
+        List<String> outputs = OUTPUTS_SETTING.get(settings);
+        if (outputs.isEmpty()) {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
@@ -59,12 +75,12 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
     }
 
     public static boolean auditingEnabled(Settings settings) {
-        return settings.getAsBoolean("shield.audit.enabled", false);
+        return ENABLED_SETTING.get(settings);
     }
 
     public static boolean indexAuditLoggingEnabled(Settings settings) {
         if (auditingEnabled(settings)) {
-            String[] outputs = settings.getAsArray("shield.audit.outputs");
+            List<String> outputs = OUTPUTS_SETTING.get(settings);
             for (String output : outputs) {
                 if (output.equals(IndexAuditTrail.NAME)) {
                     return true;
@@ -76,7 +92,7 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
 
     public static boolean fileAuditLoggingEnabled(Settings settings) {
         if (auditingEnabled(settings)) {
-            String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { LoggingAuditTrail.NAME });
+            List<String> outputs = OUTPUTS_SETTING.get(settings);
             for (String output : outputs) {
                 if (output.equals(LoggingAuditTrail.NAME)) {
                     return true;
@@ -84,5 +100,12 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
             }
         }
         return false;
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(ENABLED_SETTING);
+        settingsModule.registerSetting(OUTPUTS_SETTING);
+        LoggingAuditTrail.registerSettings(settingsModule);
+        IndexAuditTrail.registerSettings(settingsModule);
     }
 }

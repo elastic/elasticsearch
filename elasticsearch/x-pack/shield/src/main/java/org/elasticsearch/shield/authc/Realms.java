@@ -8,7 +8,10 @@ package org.elasticsearch.shield.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.file.FileRealm;
@@ -22,10 +25,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.shield.Security.setting;
+
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
 public class Realms extends AbstractLifecycleComponent<Realms> implements Iterable<Realm> {
+
+    public static final Setting<Settings> REALMS_GROUPS_SETTINGS = Setting.groupSetting(setting("authc.realms."), Property.NodeScope);
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
@@ -92,7 +99,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     protected List<Realm> initRealms() {
-        Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
+        Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         for (String name : realmsSettings.names()) {
@@ -140,7 +147,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
      * configured, there can only be one configured instance.
      */
     public static Settings fileRealmSettings(Settings settings) {
-        Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
+        Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
         Settings result = null;
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
@@ -164,9 +171,13 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         if (indexRealmFactory != null) {
             realms.add(indexRealmFactory.createDefault("default_" + NativeRealm.TYPE));
         }
-        Realm.Factory esUsersRealm = factories.get(FileRealm.TYPE);
-        if (esUsersRealm != null) {
-            realms.add(esUsersRealm.createDefault("default_" + FileRealm.TYPE));
+        Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
+        if (fileRealm != null) {
+            realms.add(fileRealm.createDefault("default_" + FileRealm.TYPE));
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(REALMS_GROUPS_SETTINGS);
     }
 }

@@ -50,7 +50,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
     static final String SETTINGS_SSL_PREFIX = "watcher.http.ssl.";
     static final String SETTINGS_PROXY_PREFIX = "watcher.http.proxy.";
-    static final String SETTINGS_SSL_SHIELD_PREFIX = "shield.ssl.";
+    static final String SETTINGS_SSL_SHIELD_PREFIX = "xpack.security.ssl.";
 
     public static final String SETTINGS_SSL_PROTOCOL = SETTINGS_SSL_PREFIX + "protocol";
     static final String SETTINGS_SSL_SHIELD_PROTOCOL = SETTINGS_SSL_SHIELD_PREFIX + "protocol";

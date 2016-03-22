@@ -33,7 +33,7 @@ public class WatcherF {
         settings.put("http.cors.enabled", "true");
         settings.put("http.cors.allow-origin", "*");
         settings.put("script.inline", "true");
-        settings.put("shield.enabled", "false");
+        settings.put("xpack.security.enabled", "false");
         settings.put("security.manager.enabled", "false");
         settings.put("cluster.name", WatcherF.class.getSimpleName());
 

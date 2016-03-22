@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,17 +43,19 @@ import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.audit.index.IndexNameResolver;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.shield.authc.Realms;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
-import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.license.LicenseModule;
@@ -70,6 +73,8 @@ import org.elasticsearch.shield.rest.action.user.RestPutUserAction;
 import org.elasticsearch.shield.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.shield.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.shield.ssl.SSLModule;
+import org.elasticsearch.shield.ssl.SSLSettings;
+import org.elasticsearch.shield.support.OptionalStringSetting;
 import org.elasticsearch.shield.transport.ShieldClientTransportService;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.shield.transport.ShieldTransportModule;
@@ -86,25 +91,27 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
  *
  */
-public class Shield {
+public class Security {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
-    public static final String NAME = "shield";
-    public static final String DLS_FLS_FEATURE = "shield.dls_fls";
+    public static final String NAME = "security";
+    public static final String DLS_FLS_FEATURE = "security.dls_fls";
     public static final String OPT_OUT_QUERY_CACHE = "opt_out_cache";
+    public static final Setting<Optional<String>> USER_SETTING = OptionalStringSetting.create(setting("user"), Property.NodeScope);
 
     private final Settings settings;
     private final boolean enabled;
     private final boolean transportClientMode;
     private ShieldLicenseState shieldLicenseState;
 
-    public Shield(Settings settings) {
+    public Security(Settings settings) {
         this.settings = settings;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
@@ -166,57 +173,69 @@ public class Shield {
         }
 
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
-        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Shield.NAME);
-        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Shield.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Shield.NAME);
+        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
+        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
+        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
         return settingsBuilder.build();
     }
 
     public void onModule(SettingsModule settingsModule) {
-        //TODO shouldn't we register these settings only if shield is enabled and we're not in a client mode?
-        settingsModule.registerSetting(IPFilter.IP_FILTER_ENABLED_SETTING);
-        settingsModule.registerSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING);
-        settingsModule.registerSetting(IPFilter.HTTP_FILTER_ALLOW_SETTING);
-        settingsModule.registerSetting(IPFilter.HTTP_FILTER_DENY_SETTING);
-        settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_ALLOW_SETTING);
-        settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_DENY_SETTING);
+        // always register for both client and node modes
         XPackPlugin.registerFeatureEnabledSettings(settingsModule, NAME, true);
-        XPackPlugin.registerFeatureEnabledSettings(settingsModule, DLS_FLS_FEATURE, true);
-        settingsModule.registerSetting(Setting.groupSetting("shield.audit.", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.listSetting("shield.hide_settings", Collections.emptyList(), Function.identity(),
-                Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.groupSetting("shield.ssl.", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.groupSetting("shield.authc.", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("shield.authz.store.files.roles", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("shield.system_key.file", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.boolSetting(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING,
-                ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT, Setting.Property.NodeScope));
-        // FIXME need to register a real setting with the defaults here
-        settingsModule.registerSetting(Setting.simpleString(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING,
-                Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.boolSetting(ShieldNettyTransport.TRANSPORT_SSL_SETTING,
-                ShieldNettyTransport.TRANSPORT_SSL_DEFAULT, Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING,
-                Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("shield.user", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("shield.encryption_key.algorithm", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("shield.encryption.algorithm", Setting.Property.NodeScope));
+        settingsModule.registerSetting(USER_SETTING);
 
-        String[] asArray = settings.getAsArray("shield.hide_settings");
+        // SSL settings
+        SSLSettings.registerSettings(settingsModule);
+
+        // transport settings
+        ShieldNettyTransport.registerSettings(settingsModule);
+
+        if (transportClientMode) {
+            return;
+        }
+
+        // The following just apply in node mode
+        XPackPlugin.registerFeatureEnabledSettings(settingsModule, DLS_FLS_FEATURE, true);
+
+        // IP Filter settings
+        IPFilter.registerSettings(settingsModule);
+
+        // audit settings
+        AuditTrailModule.registerSettings(settingsModule);
+
+        // authentication settings
+        FileRolesStore.registerSettings(settingsModule);
+        AnonymousService.registerSettings(settingsModule);
+        Realms.registerSettings(settingsModule);
+        NativeUsersStore.registerSettings(settingsModule);
+        NativeRolesStore.registerSettings(settingsModule);
+        InternalAuthenticationService.registerSettings(settingsModule);
+
+        // HTTP settings
+        ShieldNettyHttpServerTransport.registerSettings(settingsModule);
+
+        // encryption settings
+        InternalCryptoService.registerSettings(settingsModule);
+
+        // hide settings
+        settingsModule.registerSetting(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),
+                Property.NodeScope, Property.Filtered));
+        String[] asArray = settings.getAsArray(setting("hide_settings"));
         for (String pattern : asArray) {
             settingsModule.registerSettingsFilter(pattern);
         }
-        settingsModule.registerSettingsFilter("shield.hide_settings");
-        settingsModule.registerSettingsFilter("shield.ssl.*");
-        settingsModule.registerSettingsFilter("shield.authc.realms.*.bind_dn");
-        settingsModule.registerSettingsFilter("shield.authc.realms.*.bind_password");
-        settingsModule.registerSettingsFilter("shield.authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING);
-        settingsModule.registerSettingsFilter("shield.authc.realms.*.truststore.password");
-        settingsModule.registerSettingsFilter("shield.authc.realms.*.truststore.path");
-        settingsModule.registerSettingsFilter("shield.authc.realms.*.truststore.algorithm");
-        settingsModule.registerSettingsFilter("transport.profiles.*.shield.*");
+
+        settingsModule.registerSettingsFilter(setting("authc.realms.*.bind_dn"));
+        settingsModule.registerSettingsFilter(setting("authc.realms.*.bind_password"));
+        settingsModule.registerSettingsFilter(setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING));
+        settingsModule.registerSettingsFilter(setting("authc.realms.*.truststore.password"));
+        settingsModule.registerSettingsFilter(setting("authc.realms.*.truststore.path"));
+        settingsModule.registerSettingsFilter(setting("authc.realms.*.truststore.algorithm"));
+
+        // hide settings where we don't define them - they are part of a group...
+        settingsModule.registerSettingsFilter("transport.profiles.*." + setting("*"));
     }
 
     public void onIndexModule(IndexModule module) {
@@ -232,12 +251,12 @@ public class Shield {
                     shieldLicenseState));
         }
         if (transportClientMode == false) {
-            module.registerQueryCache(Shield.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
+            module.registerQueryCache(Security.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
             /*  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
              *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
              *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
              *  unauthorized users. */
-            module.forceQueryCacheType(Shield.OPT_OUT_QUERY_CACHE);
+            module.forceQueryCacheType(Security.OPT_OUT_QUERY_CACHE);
         }
     }
 
@@ -265,8 +284,8 @@ public class Shield {
 
         if (transportClientMode) {
             if (enabled) {
-                module.registerTransport(Shield.NAME, ShieldNettyTransport.class);
-                module.registerTransportService(Shield.NAME, ShieldClientTransportService.class);
+                module.registerTransport(Security.NAME, ShieldNettyTransport.class);
+                module.registerTransportService(Security.NAME, ShieldClientTransportService.class);
             }
             return;
         }
@@ -275,8 +294,8 @@ public class Shield {
         module.registerRestHandler(RestShieldInfoAction.class);
 
         if (enabled) {
-            module.registerTransport(Shield.NAME, ShieldNettyTransport.class);
-            module.registerTransportService(Shield.NAME, ShieldServerTransportService.class);
+            module.registerTransport(Security.NAME, ShieldNettyTransport.class);
+            module.registerTransportService(Security.NAME, ShieldServerTransportService.class);
             module.registerRestHandler(RestAuthenticateAction.class);
             module.registerRestHandler(RestClearRealmCacheAction.class);
             module.registerRestHandler(RestClearRolesCacheAction.class);
@@ -286,7 +305,7 @@ public class Shield {
             module.registerRestHandler(RestGetRolesAction.class);
             module.registerRestHandler(RestPutRoleAction.class);
             module.registerRestHandler(RestDeleteRoleAction.class);
-            module.registerHttpTransport(Shield.NAME, ShieldNettyHttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME, ShieldNettyHttpServerTransport.class);
         }
     }
 
@@ -295,18 +314,18 @@ public class Shield {
         if (settings.get(authHeaderSettingName) != null) {
             return;
         }
-        String userSetting = settings.get("shield.user");
-        if (userSetting == null) {
-            return;
-        }
-        int i = userSetting.indexOf(":");
-        if (i < 0 || i == userSetting.length() - 1) {
-            throw new IllegalArgumentException("invalid [shield.user] setting. must be in the form of \"<username>:<password>\"");
-        }
-        String username = userSetting.substring(0, i);
-        String password = userSetting.substring(i + 1);
-        settingsBuilder.put(authHeaderSettingName, UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password
-                .toCharArray())));
+        Optional<String> userOptional = USER_SETTING.get(settings);
+        userOptional.ifPresent(userSetting -> {
+            final int i = userSetting.indexOf(":");
+            if (i < 0 || i == userSetting.length() - 1) {
+                throw new IllegalArgumentException("invalid [" + USER_SETTING.getKey() + "] setting. must be in the form of " +
+                        "\"<username>:<password>\"");
+            }
+            String username = userSetting.substring(0, i);
+            String password = userSetting.substring(i + 1);
+            settingsBuilder.put(authHeaderSettingName, UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password
+                    .toCharArray())));
+        });
     }
 
     /**
@@ -357,7 +376,7 @@ public class Shield {
             // we passed all the checks now we need to copy in all of the shield settings
             for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
                 String key = entry.getKey();
-                if (key.startsWith("shield.")) {
+                if (key.startsWith("xpack.security.")) {
                     settingsBuilder.put(tribePrefix + key, entry.getValue());
                 }
             }
@@ -372,6 +391,23 @@ public class Shield {
         return XPackPlugin.featureEnabled(settings, DLS_FLS_FEATURE, true);
     }
 
+    public static String enabledSetting() {
+        return XPackPlugin.featureEnabledSetting(NAME);
+    }
+
+    public static String settingPrefix() {
+        return XPackPlugin.featureSettingPrefix(NAME) + ".";
+    }
+
+    public static String setting(String setting) {
+        assert setting != null && setting.startsWith(".") == false;
+        return settingPrefix() + setting;
+    }
+
+    public static String featureEnabledSetting(String feature) {
+        assert feature != null && feature.startsWith(".") == false;
+        return XPackPlugin.featureEnabledSetting("security." + feature);
+    }
 
     static void validateAutoCreateIndex(Settings settings) {
         String value = settings.get("action.auto_create_index");

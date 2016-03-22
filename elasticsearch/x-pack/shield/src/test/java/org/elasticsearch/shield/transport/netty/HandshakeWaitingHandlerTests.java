@@ -72,8 +72,8 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
         iterations = randomIntBetween(10, 100);
 
         Settings settings = settingsBuilder()
-                .put("shield.ssl.keystore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks"))
-                .put("shield.ssl.keystore.password", "testnode")
+                .put("xpack.security.ssl.keystore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
         ServerSSLService sslService = new ServerSSLService(settings, env);

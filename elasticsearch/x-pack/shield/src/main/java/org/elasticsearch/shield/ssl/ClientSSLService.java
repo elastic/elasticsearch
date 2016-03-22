@@ -35,6 +35,7 @@ public class ClientSSLService extends AbstractSSLService {
             if (sslSettings.keyStorePassword == null) {
                 throw new IllegalArgumentException("no keystore password configured");
             }
+            assert sslSettings.keyPassword != null;
         }
 
         if (sslSettings.trustStorePath != null) {

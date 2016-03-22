@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class AnonymousUserHolderTests extends ESTestCase {
     public void testResolveAnonymousUser() throws Exception {
         Settings settings = Settings.builder()
-                .put("shield.authc.anonymous.username", "anonym1")
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .put(AnonymousService.USERNAME_SETTING.getKey(), "anonym1")
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         User user = AnonymousService.resolveAnonymousUser(settings);
         assertThat(user, notNullValue());
@@ -31,7 +31,7 @@ public class AnonymousUserHolderTests extends ESTestCase {
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
 
         settings = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         user = AnonymousService.resolveAnonymousUser(settings);
         assertThat(user, notNullValue());
@@ -42,7 +42,7 @@ public class AnonymousUserHolderTests extends ESTestCase {
     public void testResolveAnonymousUser_NoSettings() throws Exception {
         Settings settings = randomBoolean() ?
                 Settings.EMPTY :
-                Settings.builder().put("shield.authc.anonymous.username", "user1").build();
+                Settings.builder().put(AnonymousService.USERNAME_SETTING.getKey(), "user1").build();
         User user = AnonymousService.resolveAnonymousUser(settings);
         assertThat(user, nullValue());
     }
@@ -57,7 +57,7 @@ public class AnonymousUserHolderTests extends ESTestCase {
 
     public void testWhenAnonymousEnabled() throws Exception {
         Settings settings = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         AnonymousService anonymousService = new AnonymousService(settings);
         assertThat(anonymousService.enabled(), is(true));
@@ -74,8 +74,8 @@ public class AnonymousUserHolderTests extends ESTestCase {
 
     public void testDisablingAuthorizationExceptions() {
         Settings settings = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
-                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED, false)
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3")
+                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED.getKey(), false)
                 .build();
         AnonymousService holder = new AnonymousService(settings);
         assertThat(holder.authorizationExceptionsEnabled(), is(false));

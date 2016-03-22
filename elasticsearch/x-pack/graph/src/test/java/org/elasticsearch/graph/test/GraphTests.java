@@ -27,7 +27,7 @@ import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -125,7 +125,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     public Settings nodeSettings()  {
         // Disable Shield otherwise authentication failures happen creating indices. 
         Builder newSettings = Settings.builder();
-        newSettings.put(XPackPlugin.featureEnabledSetting(Shield.NAME), false);
+        newSettings.put(XPackPlugin.featureEnabledSetting(Security.NAME), false);
         newSettings.put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false);
         newSettings.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);          
         return newSettings.build();

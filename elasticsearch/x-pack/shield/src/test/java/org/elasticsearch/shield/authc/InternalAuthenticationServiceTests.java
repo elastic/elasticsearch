@@ -378,7 +378,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAutheticateTransportContextAndHeaderNoSigning() throws Exception {
-        Settings settings = Settings.builder().put(InternalAuthenticationService.SETTING_SIGN_USER_HEADER, false).build();
+        Settings settings = Settings.builder().put(InternalAuthenticationService.SIGN_USER_HEADER.getKey(), false).build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService,
                 new DefaultAuthenticationFailureHandler(), threadPool);
 
@@ -472,9 +472,9 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     public void testAnonymousUserRest() throws Exception {
         String username = randomBoolean() ? AnonymousService.ANONYMOUS_USERNAME : "user1";
         Settings.Builder builder = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3");
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3");
         if (username != AnonymousService.ANONYMOUS_USERNAME) {
-            builder.put("shield.authc.anonymous.username", username);
+            builder.put(AnonymousService.USERNAME_SETTING.getKey(), username);
         }
         Settings settings = builder.build();
         AnonymousService holder = new AnonymousService(settings);
@@ -494,7 +494,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     public void testAnonymousUserTransportNoDefaultUser() throws Exception {
         Settings settings = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings),
                 new DefaultAuthenticationFailureHandler(), threadPool);
@@ -509,7 +509,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
     public void testAnonymousUserTransportWithDefaultUser() throws Exception {
         Settings settings = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
+                .putArray(AnonymousService.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings),
                 new DefaultAuthenticationFailureHandler(), threadPool);

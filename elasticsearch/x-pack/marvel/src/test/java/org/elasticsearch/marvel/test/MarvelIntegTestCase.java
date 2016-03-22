@@ -26,8 +26,10 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
@@ -118,11 +120,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             return Settings.builder()
                     .put(super.transportClientSettings())
                     .put("client.transport.sniff", false)
-                    .put("shield.user", "test:changeme")
+                    .put(Security.USER_SETTING.getKey(), "test:changeme")
                     .build();
         }
         return Settings.builder().put(super.transportClientSettings())
-                .put("shield.enabled", false)
+                .put("xpack.security.enabled", false)
                 .build();
     }
 
@@ -518,22 +520,22 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static void apply(boolean enabled, Settings.Builder builder)  {
             if (!enabled) {
-                builder.put("shield.enabled", false);
+                builder.put("xpack.security.enabled", false);
                 return;
             }
             try {
                 Path folder = createTempDir().resolve("marvel_shield");
                 Files.createDirectories(folder);
 
-                builder.put("shield.enabled", true)
-                        .put("shield.authc.realms.file.type", FileRealm.TYPE)
-                        .put("shield.authc.realms.file.order", 0)
-                        .put("shield.authc.realms.file.files.users", writeFile(folder, "users", USERS))
-                        .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                        .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                        .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
-                        .put("shield.authc.sign_user_header", false)
-                        .put("shield.audit.enabled", auditLogsEnabled);
+                builder.put("xpack.security.enabled", true)
+                        .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
+                        .put("xpack.security.authc.realms.esusers.order", 0)
+                        .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
+                        .put("xpack.security.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
+                        .put(InternalCryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
+                        .put("xpack.security.authc.sign_user_header", false)
+                        .put("xpack.security.audit.enabled", auditLogsEnabled);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

@@ -24,14 +24,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,7 +51,6 @@ import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
@@ -70,6 +71,7 @@ import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -78,6 +80,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
 import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
@@ -93,6 +96,7 @@ import static org.elasticsearch.shield.audit.index.IndexAuditLevel.SYSTEM_ACCESS
 import static org.elasticsearch.shield.audit.index.IndexAuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.shield.audit.index.IndexAuditLevel.parse;
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.resolve;
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  * Audit trail implementation that writes events into an index.
@@ -107,12 +111,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public static final String NAME = "index";
     public static final String INDEX_NAME_PREFIX = ".shield_audit_log";
     public static final String DOC_TYPE = "event";
-    public static final String ROLLOVER_SETTING = "shield.audit.index.rollover";
-    public static final String QUEUE_SIZE_SETTING = "shield.audit.index.queue_max_size";
+    public static final Setting<IndexNameResolver.Rollover> ROLLOVER_SETTING =
+            new Setting<>(setting("audit.index.rollover"), (s) -> DEFAULT_ROLLOVER.name(),
+                    s -> IndexNameResolver.Rollover.valueOf(s.toUpperCase(Locale.ENGLISH)), Property.NodeScope);
+    public static final Setting<Integer> QUEUE_SIZE_SETTING =
+            Setting.intSetting(setting("audit.index.queue_max_size"), DEFAULT_MAX_QUEUE_SIZE, 1, Property.NodeScope);
     public static final String INDEX_TEMPLATE_NAME = "shield_audit_log";
     public static final String DEFAULT_CLIENT_NAME = "shield-audit-client";
 
-    static final String[] DEFAULT_EVENT_INCLUDES = new String[]{
+    static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
             ACCESS_DENIED.toString(),
             ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(),
@@ -122,14 +129,29 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             TAMPERED_REQUEST.toString(),
             RUN_AS_DENIED.toString(),
             RUN_AS_GRANTED.toString()
-    };
-
+    );
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
+
+    public static final Setting<Settings> INDEX_SETTINGS =
+            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope);
+    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
+            Setting.listSetting(setting("audit.index.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(),
+                    Property.NodeScope);
+    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
+            Setting.listSetting(setting("audit.index.events.exclude"), Collections.emptyList(),
+                    Function.identity(), Property.NodeScope);
+    public static final Setting<Settings> REMOTE_CLIENT_SETTINGS =
+            Setting.groupSetting(setting("audit.index.client."), Property.NodeScope);
+    public static final Setting<Integer> BULK_SIZE_SETTING =
+            Setting.intSetting(setting("audit.index.bulk_size"), DEFAULT_BULK_SIZE, 1, MAX_BULK_SIZE, Property.NodeScope);
+    public static final Setting<TimeValue> FLUSH_TIMEOUT_SETTING =
+            Setting.timeSetting(setting("audit.index.flush_interval"), DEFAULT_FLUSH_INTERVAL,
+                    TimeValue.timeValueMillis(1L), Property.NodeScope);
+
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final String nodeName;
     private final Provider<InternalClient> clientProvider;
-    private final AuthenticationService authenticationService;
     private final LinkedBlockingQueue<Message> eventQueue;
     private final QueueConsumer queueConsumer;
     private final Transport transport;
@@ -151,10 +173,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Inject
-    public IndexAuditTrail(Settings settings, AuthenticationService authenticationService, Transport transport,
+    public IndexAuditTrail(Settings settings, Transport transport,
                            Provider<InternalClient> clientProvider, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
-        this.authenticationService = authenticationService;
         this.clientProvider = clientProvider;
         this.transport = transport;
         this.threadPool = threadPool;
@@ -162,35 +183,23 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         this.nodeName = settings.get("name");
         this.queueConsumer = new QueueConsumer(EsExecutors.threadName(settings, "audit-queue-consumer"));
 
-        int maxQueueSize = settings.getAsInt(QUEUE_SIZE_SETTING, DEFAULT_MAX_QUEUE_SIZE);
-        if (maxQueueSize <= 0) {
-            logger.warn("invalid value [{}] for setting [{}]. using default value [{}]", maxQueueSize, QUEUE_SIZE_SETTING,
-                    DEFAULT_MAX_QUEUE_SIZE);
-            maxQueueSize = DEFAULT_MAX_QUEUE_SIZE;
-        }
+        int maxQueueSize = QUEUE_SIZE_SETTING.get(settings);
         this.eventQueue = new LinkedBlockingQueue<>(maxQueueSize);
 
         // we have to initialize this here since we use rollover in determining if we can start...
-        try {
-            rollover = IndexNameResolver.Rollover.valueOf(
-                    settings.get(ROLLOVER_SETTING, DEFAULT_ROLLOVER.name()).toUpperCase(Locale.ENGLISH));
-        } catch (IllegalArgumentException e) {
-            logger.warn("invalid value for setting [shield.audit.index.rollover]; falling back to default [{}]",
-                    DEFAULT_ROLLOVER.name());
-            rollover = DEFAULT_ROLLOVER;
-        }
+        rollover = ROLLOVER_SETTING.get(settings);
 
         // we have to initialize the events here since we can receive events before starting...
-        String[] includedEvents = settings.getAsArray("shield.audit.index.events.include", DEFAULT_EVENT_INCLUDES);
-        String[] excludedEvents = settings.getAsArray("shield.audit.index.events.exclude");
+        List<String> includedEvents = INCLUDE_EVENT_SETTINGS.get(settings);
+        List<String> excludedEvents = EXCLUDE_EVENT_SETTINGS.get(settings);
         try {
             events = parse(includedEvents, excludedEvents);
         } catch (IllegalArgumentException e) {
             logger.warn("invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]",
                     e, includedEvents, excludedEvents);
-            events = parse(DEFAULT_EVENT_INCLUDES, Strings.EMPTY_ARRAY);
+            events = parse(DEFAULT_EVENT_INCLUDES, Collections.emptyList());
         }
-        this.indexToRemoteCluster = settings.getByPrefix("shield.audit.index.client.").names().size() > 0;
+        this.indexToRemoteCluster = REMOTE_CLIENT_SETTINGS.get(settings).names().size() > 0;
 
     }
 
@@ -684,16 +693,16 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             // in the absence of client settings for remote indexing, fall back to the client that was passed in.
             this.client = clientProvider.get();
         } else {
-            Settings clientSettings = settings.getByPrefix("shield.audit.index.client.");
+            Settings clientSettings = REMOTE_CLIENT_SETTINGS.get(settings);
             String[] hosts = clientSettings.getAsArray("hosts");
             if (hosts.length == 0) {
                 throw new ElasticsearchException("missing required setting " +
-                        "[shield.audit.index.client.hosts] for remote audit log indexing");
+                        "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts] for remote audit log indexing");
             }
 
             if (clientSettings.get("cluster.name", "").isEmpty()) {
                 throw new ElasticsearchException("missing required setting " +
-                        "[shield.audit.index.client.cluster.name] for remote audit log indexing");
+                        "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".cluster.name] for remote audit log indexing");
             }
 
             List<Tuple<String, Integer>> hostPortPairs = new ArrayList<>();
@@ -701,13 +710,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             for (String host : hosts) {
                 List<String> hostPort = Arrays.asList(host.trim().split(":"));
                 if (hostPort.size() != 1 && hostPort.size() != 2) {
-                    logger.warn("invalid host:port specified: [{}] for setting [shield.audit.index.client.hosts]", host);
+                    logger.warn("invalid host:port specified: [{}] for setting [" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]", host);
                 }
                 hostPortPairs.add(new Tuple<>(hostPort.get(0), hostPort.size() == 2 ? Integer.valueOf(hostPort.get(1)) : 9300));
             }
 
             if (hostPortPairs.size() == 0) {
-                throw new ElasticsearchException("no valid host:port pairs specified for setting [shield.audit.index.client.hosts]");
+                throw new ElasticsearchException("no valid host:port pairs specified for setting ["
+                        + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]");
             }
             final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
             final TransportClient transportClient = TransportClient.builder()
@@ -732,7 +742,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     Settings customAuditIndexSettings(Settings nodeSettings) {
         Settings newSettings = Settings.builder()
-                .put(nodeSettings.getAsSettings("shield.audit.index.settings.index"))
+                .put(INDEX_SETTINGS.get(nodeSettings))
                 .build();
         if (newSettings.names().isEmpty()) {
             return Settings.EMPTY;
@@ -801,11 +811,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private void initializeBulkProcessor() {
 
-        int bulkSize = Math.min(settings.getAsInt("shield.audit.index.bulk_size", DEFAULT_BULK_SIZE), MAX_BULK_SIZE);
-        bulkSize = (bulkSize < 1) ? DEFAULT_BULK_SIZE : bulkSize;
-
-        TimeValue interval = settings.getAsTime("shield.audit.index.flush_interval", DEFAULT_FLUSH_INTERVAL);
-        interval = (interval.millis() < 1) ? DEFAULT_FLUSH_INTERVAL : interval;
+        final int bulkSize = BULK_SIZE_SETTING.get(settings);
+        final TimeValue interval = FLUSH_TIMEOUT_SETTING.get(settings);
 
         bulkProcessor = BulkProcessor.builder(client, new BulkProcessor.Listener() {
             @Override
@@ -864,6 +871,17 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 }
             });
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(INDEX_SETTINGS);
+        settingsModule.registerSetting(EXCLUDE_EVENT_SETTINGS);
+        settingsModule.registerSetting(INCLUDE_EVENT_SETTINGS);
+        settingsModule.registerSetting(ROLLOVER_SETTING);
+        settingsModule.registerSetting(BULK_SIZE_SETTING);
+        settingsModule.registerSetting(FLUSH_TIMEOUT_SETTING);
+        settingsModule.registerSetting(QUEUE_SIZE_SETTING);
+        settingsModule.registerSetting(REMOTE_CLIENT_SETTINGS);
     }
 
     private class QueueConsumer extends Thread {

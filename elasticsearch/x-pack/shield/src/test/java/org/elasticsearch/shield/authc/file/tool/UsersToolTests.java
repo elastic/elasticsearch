@@ -78,7 +78,7 @@ public class UsersToolTests extends CommandTestCase {
         ), StandardCharsets.UTF_8);
         settingsBuilder = Settings.builder()
             .put("path.home", homeDir)
-            .put("shield.authc.realms.file.type", "file");
+            .put("xpack.security.authc.realms.file.type", "file");
     }
 
     @AfterClass

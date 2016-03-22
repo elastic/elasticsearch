@@ -43,8 +43,8 @@ public class SearchGroupsResolverTests extends ESTestCase {
         Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         ClientSSLService clientSSLService = new ClientSSLService(Settings.builder()
-                .put("shield.ssl.keystore.path", keystore)
-                .put("shield.ssl.keystore.password", "changeit")
+                .put("xpack.security.ssl.keystore.path", keystore)
+                .put("xpack.security.ssl.keystore.password", "changeit")
                 .build());
         clientSSLService.setEnvironment(env);
 

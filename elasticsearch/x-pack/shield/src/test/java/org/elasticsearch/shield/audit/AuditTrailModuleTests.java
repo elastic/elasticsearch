@@ -33,10 +33,10 @@ public class AuditTrailModuleTests extends ESTestCase {
     public void testEnabled() throws Exception {
         Settings settings = Settings.builder()
                 .put("client.type", "node")
-                .put("shield.audit.enabled", false)
+                .put(AuditTrailModule.ENABLED_SETTING.getKey(), false)
                 .build();
         SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
+        settingsModule.registerSetting(AuditTrailModule.ENABLED_SETTING);
         Injector injector = Guice.createInjector(settingsModule, new AuditTrailModule(settings));
         AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
         assertThat(auditTrail, is(AuditTrail.NOOP));
@@ -52,13 +52,13 @@ public class AuditTrailModuleTests extends ESTestCase {
 
     public void testLogfile() throws Exception {
         Settings settings = Settings.builder()
-                .put("shield.audit.enabled", true)
+                .put(AuditTrailModule.ENABLED_SETTING.getKey(), true)
                 .put("client.type", "node")
                 .build();
         ThreadPool pool = new ThreadPool("testLogFile");
         try {
             SettingsModule settingsModule = new SettingsModule(settings);
-            settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
+            settingsModule.registerSetting(AuditTrailModule.ENABLED_SETTING);
             Injector injector = Guice.createInjector(
                     settingsModule,
                     new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry()) {
@@ -85,13 +85,13 @@ public class AuditTrailModuleTests extends ESTestCase {
 
     public void testUnknownOutput() throws Exception {
         Settings settings = Settings.builder()
-                .put("shield.audit.enabled", true)
-                .put("shield.audit.outputs" , "foo")
+                .put(AuditTrailModule.ENABLED_SETTING.getKey(), true)
+                .put(AuditTrailModule.OUTPUTS_SETTING.getKey() , "foo")
                 .put("client.type", "node")
                 .build();
         SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("shield.audit.outputs", Setting.Property.NodeScope));
+        settingsModule.registerSetting(AuditTrailModule.ENABLED_SETTING);
+        settingsModule.registerSetting(AuditTrailModule.OUTPUTS_SETTING);
         try {
             Guice.createInjector(settingsModule, new AuditTrailModule(settings));
             fail("Expect initialization to fail when an unknown audit trail output is configured");

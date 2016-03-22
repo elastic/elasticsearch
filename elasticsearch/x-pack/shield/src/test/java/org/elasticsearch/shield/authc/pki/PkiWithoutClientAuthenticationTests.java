@@ -62,12 +62,12 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, false)
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, randomFrom(SSLClientAuth.NO.name(), false, "false", "FALSE",
-                        SSLClientAuth.NO.name().toLowerCase(Locale.ROOT)))
-                .put("shield.authc.realms.pki1.type", "pki")
-                .put("shield.authc.realms.pki1.order", "0")
+                .put(ShieldNettyTransport.CLIENT_AUTH_SETTING.getKey(), false)
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(),
+                        randomFrom(SSLClientAuth.NO.name(), false, "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT)))
+                .put("xpack.security.authc.realms.pki1.type", "pki")
+                .put("xpack.security.authc.realms.pki1.order", "0")
                 .build();
     }
 

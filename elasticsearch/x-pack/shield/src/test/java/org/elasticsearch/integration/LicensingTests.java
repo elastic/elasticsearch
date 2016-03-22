@@ -30,7 +30,7 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -144,7 +144,7 @@ public class LicensingTests extends ShieldIntegTestCase {
             fail("expected an license expired exception when executing an index stats action");
         } catch (ElasticsearchSecurityException ee) {
             // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Shield.NAME));
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
             assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
@@ -153,7 +153,7 @@ public class LicensingTests extends ShieldIntegTestCase {
             fail("expected an license expired exception when executing cluster stats action");
         } catch (ElasticsearchSecurityException ee) {
             // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Shield.NAME));
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
             assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
@@ -162,7 +162,7 @@ public class LicensingTests extends ShieldIntegTestCase {
             fail("expected an license expired exception when executing cluster health action");
         } catch (ElasticsearchSecurityException ee) {
             // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Shield.NAME));
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
             assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
@@ -171,7 +171,7 @@ public class LicensingTests extends ShieldIntegTestCase {
             fail("expected an license expired exception when executing cluster health action");
         } catch (ElasticsearchSecurityException ee) {
             // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Shield.NAME));
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
             assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
@@ -207,7 +207,7 @@ public class LicensingTests extends ShieldIntegTestCase {
         Settings.Builder builder = Settings.builder()
             .put(internalCluster().transportClient().settings());
         // remove user info
-        builder.remove("shield.user");
+        builder.remove(Security.USER_SETTING.getKey());
         builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
 
         // basic has no auth

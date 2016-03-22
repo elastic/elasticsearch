@@ -14,7 +14,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
@@ -25,6 +28,7 @@ import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 
+import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 
 /**
@@ -34,8 +38,10 @@ import static org.elasticsearch.shield.support.Exceptions.authenticationError;
  */
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
-    public static final String SETTING_SIGN_USER_HEADER = "shield.authc.sign_user_header";
-    public static final String SETTING_RUN_AS_ENABLED = "shield.authc.run_as.enabled";
+    public static final Setting<Boolean> SIGN_USER_HEADER =
+            Setting.boolSetting(setting("authc.sign_user_header"), true, Property.NodeScope);
+    public static final Setting<Boolean> RUN_AS_ENABLED =
+            Setting.boolSetting(setting("authc.run_as.enabled"), true, Property.NodeScope);
     public static final String RUN_AS_USER_HEADER = "es-shield-runas-user";
 
     static final String TOKEN_KEY = "_shield_token";
@@ -61,8 +67,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         this.anonymousService = anonymousService;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
-        this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
-        this.runAsEnabled = settings.getAsBoolean(SETTING_RUN_AS_ENABLED, true);
+        this.signUserHeader = SIGN_USER_HEADER.get(settings);
+        this.runAsEnabled = RUN_AS_ENABLED.get(settings);
     }
 
     @Override
@@ -429,5 +435,10 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             }
         }
         return null;
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SIGN_USER_HEADER);
+        settingsModule.registerSetting(RUN_AS_ENABLED);
     }
 }

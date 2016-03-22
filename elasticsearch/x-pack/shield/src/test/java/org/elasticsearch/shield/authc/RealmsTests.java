@@ -62,8 +62,8 @@ public class RealmsTests extends ESTestCase {
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 2; i++) {
-            builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
-            builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
+            builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
+            builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
         Settings settings = builder.build();
@@ -82,10 +82,10 @@ public class RealmsTests extends ESTestCase {
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
         Settings settings = Settings.builder()
-                .put("shield.authc.realms.realm_1.type", FileRealm.TYPE)
-                .put("shield.authc.realms.realm_1.order", 0)
-                .put("shield.authc.realms.realm_2.type", FileRealm.TYPE)
-                .put("shield.authc.realms.realm_2.order", 1)
+                .put("xpack.security.authc.realms.realm_1.type", FileRealm.TYPE)
+                .put("xpack.security.authc.realms.realm_1.order", 0)
+                .put("xpack.security.authc.realms.realm_2.type", FileRealm.TYPE)
+                .put("xpack.security.authc.realms.realm_2.order", 1)
                 .put("path.home", createTempDir())
                 .build();
         Environment env = new Environment(settings);
@@ -124,8 +124,8 @@ public class RealmsTests extends ESTestCase {
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 2; i++) {
-            builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
-            builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
+            builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
+            builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
         Settings settings = builder.build();
@@ -156,10 +156,10 @@ public class RealmsTests extends ESTestCase {
         assertThat(factories.get("type_0"), notNullValue());
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("shield.authc.realms.foo.type", "ldap")
-                .put("shield.authc.realms.foo.order", "0")
-                .put("shield.authc.realms.custom.type", "type_0")
-                .put("shield.authc.realms.custom.order", "1");
+                .put("xpack.security.authc.realms.foo.type", "ldap")
+                .put("xpack.security.authc.realms.foo.order", "0")
+                .put("xpack.security.authc.realms.custom.type", "type_0")
+                .put("xpack.security.authc.realms.custom.order", "1");
         Settings settings = builder.build();
         Environment env = new Environment(settings);
         Realms realms = new Realms(settings, env, factories, shieldLicenseState);
@@ -192,10 +192,10 @@ public class RealmsTests extends ESTestCase {
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < factories.size() - 2; i++) {
-            builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
-            builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
+            builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
+            builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             boolean enabled = randomBoolean();
-            builder.put("shield.authc.realms.realm_" + i + ".enabled", enabled);
+            builder.put("xpack.security.authc.realms.realm_" + i + ".enabled", enabled);
             if (enabled) {
                 orderToIndex.put(orders.get(i), i);
                 logger.error("put [{}] -> [{}]", orders.get(i), i);
@@ -223,7 +223,7 @@ public class RealmsTests extends ESTestCase {
             } else {
                 assertThat(realm.type(), equalTo("type_" + index));
                 assertThat(realm.name(), equalTo("realm_" + index));
-                assertThat(settings.getAsBoolean("shield.authc.realms.realm_" + index + ".enabled", true), equalTo(Boolean.TRUE));
+                assertThat(settings.getAsBoolean("xpack.security.authc.realms.realm_" + index + ".enabled", true), equalTo(Boolean.TRUE));
                 count++;
             }
         }

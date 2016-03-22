@@ -36,7 +36,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayService;
@@ -71,6 +74,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.shield.Security.setting;
+
 /**
  * ESNativeUsersStore is a {@code UserStore} that, instead of reading from a
  * file, reads from an Elasticsearch index instead. This {@code UserStore} in
@@ -81,6 +86,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * No caching is done by this class, it is handled at a higher level
  */
 public class NativeUsersStore extends AbstractComponent implements ClusterStateListener {
+
+    public static final Setting<Integer> SCROLL_SIZE_SETTING =
+            Setting.intSetting(setting("authc.native.scroll.size"), 1000, Property.NodeScope);
+
+    public static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
+            Setting.timeSetting(setting("authc.native.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
+
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING =
+            Setting.timeSetting(setting("authc.native.reload.interval"), TimeValue.timeValueSeconds(30L), Property.NodeScope);
 
     public enum State {
         INITIALIZED,
@@ -445,8 +459,8 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.client = clientProvider.get();
-                this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
-                this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
+                this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
+                this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
 
                 // FIXME only start if a realm is using this
                 UserStorePoller poller = new UserStorePoller();
@@ -455,8 +469,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 } catch (Exception e) {
                     logger.warn("failed to do initial poll of users", e);
                 }
-                userPoller = new SelfReschedulingRunnable(poller, threadPool,
-                        settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)), Names.GENERIC, logger);
+                userPoller = new SelfReschedulingRunnable(poller, threadPool, POLL_INTERVAL_SETTING.get(settings), Names.GENERIC, logger);
                 userPoller.start();
                 state.set(State.STARTED);
             }
@@ -726,5 +739,11 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     interface ChangeListener {
 
         void onUsersChanged(List<String> username);
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
+        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
+        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
     }
 }

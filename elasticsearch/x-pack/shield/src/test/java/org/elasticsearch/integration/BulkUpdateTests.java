@@ -10,7 +10,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -31,7 +31,7 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), randomBoolean())
+                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), randomBoolean())
                 .build();
     }
 

@@ -6,10 +6,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Map;
 
@@ -22,7 +21,7 @@ public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
     protected Settings transportClientSettings() {
         return Settings.settingsBuilder()
                 .put(super.transportClientSettings())
-                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), true)
+                .put(Security.enabledSetting(), true)
                 .build();
     }
 

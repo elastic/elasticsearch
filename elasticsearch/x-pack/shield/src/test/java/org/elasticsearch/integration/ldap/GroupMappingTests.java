@@ -13,7 +13,7 @@ import java.io.IOException;
  * This tests the group to role mappings from LDAP sources provided by the super class - available from super.realmConfig.
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
-//@Network
+@Network
 public class GroupMappingTests extends AbstractAdLdapRealmTestCase {
     public void testAuthcAuthz() throws IOException {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";

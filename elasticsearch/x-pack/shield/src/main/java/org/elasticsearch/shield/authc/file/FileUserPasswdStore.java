@@ -172,9 +172,9 @@ public class FileUserPasswdStore {
         return unmodifiableMap(users);
     }
 
-    public static void writeFile(Map<String, char[]> esUsers, Path path) {
+    public static void writeFile(Map<String, char[]> users, Path path) {
         try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
-            for (Map.Entry<String, char[]> entry : esUsers.entrySet()) {
+            for (Map.Entry<String, char[]> entry : users.entrySet()) {
                 writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {

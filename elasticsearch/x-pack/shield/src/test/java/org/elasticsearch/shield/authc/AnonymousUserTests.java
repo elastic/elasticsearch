@@ -35,8 +35,8 @@ public class AnonymousUserTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("shield.authc.anonymous.roles", "anonymous")
-                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED, authorizationExceptionsEnabled)
+                .put(AnonymousService.ROLES_SETTING.getKey(), "anonymous")
+                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED.getKey(), authorizationExceptionsEnabled)
                 .build();
     }
 

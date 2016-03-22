@@ -46,27 +46,27 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        return settingsBuilder.put("shield.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("shield.ssl.keystore.password", "testnode-ip-only")
-                .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("shield.ssl.truststore.password", "testnode-ip-only")
+        return settingsBuilder.put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.ssl.keystore.password", "testnode-ip-only")
+                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.ssl.truststore.password", "testnode-ip-only")
                 .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
-                .put("shield.ssl.client.auth", "false")
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
+                .put("xpack.security.ssl.client.auth", "false")
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         return settingsBuilder().put(super.transportClientSettings())
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
-                .put("shield.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("shield.ssl.keystore.password", "testnode-ip-only")
-                .put("shield.ssl.truststore.path", keystore.toAbsolutePath())
-                .put("shield.ssl.truststore.password", "testnode-ip-only")
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
+                .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())
+                .put("xpack.security.ssl.keystore.password", "testnode-ip-only")
+                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
+                .put("xpack.security.ssl.truststore.password", "testnode-ip-only")
                 .build();
     }
 

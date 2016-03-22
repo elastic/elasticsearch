@@ -46,12 +46,12 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        return settingsBuilder.put("shield.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("shield.ssl.keystore.password", "testnode-no-subjaltname")
-                .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
+        return settingsBuilder.put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.ssl.keystore.password", "testnode-no-subjaltname")
+                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname")
                 // disable hostname verification as this test uses non-localhost addresses
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
                 .build();
     }
 
@@ -60,9 +60,9 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
         Path keystore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
         assert keystore != null;
         return Settings.builder().put(super.transportClientSettings())
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
-                .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname")
                 .build();
     }
 
@@ -73,7 +73,7 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
 
         Settings settings = settingsBuilder().put(transportClientSettings())
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
                 .build();
 
         try (TransportClient client = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {

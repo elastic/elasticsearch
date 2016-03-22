@@ -6,7 +6,10 @@
 package org.elasticsearch.shield.authc.esnative;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
@@ -81,5 +84,4 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
             return create(config);
         }
     }
-
 }

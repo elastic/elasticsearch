@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
@@ -194,17 +195,16 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
     static void checkSSLEnabled(RealmConfig config, ESLogger logger) {
         Settings settings = config.globalSettings();
 
+        final boolean httpSsl = ShieldNettyHttpServerTransport.SSL_SETTING.get(settings);
+        final boolean httpClientAuth = ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.get(settings).enabled();
         // HTTP
-        if (settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT)
-                && SSLClientAuth.parse(settings.get(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING),
-                ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT).enabled()) {
+        if (httpSsl && httpClientAuth) {
             return;
         }
 
         // Default Transport
-        final boolean ssl = settings.getAsBoolean(ShieldNettyTransport.TRANSPORT_SSL_SETTING, ShieldNettyTransport.TRANSPORT_SSL_DEFAULT);
-        final SSLClientAuth clientAuth = SSLClientAuth.parse(settings.get(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING),
-                ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_DEFAULT);
+        final boolean ssl = ShieldNettyTransport.SSL_SETTING.get(settings);
+        final SSLClientAuth clientAuth = ShieldNettyTransport.CLIENT_AUTH_SETTING.get(settings);
         if (ssl && clientAuth.enabled()) {
             return;
         }
@@ -212,9 +212,9 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         // Transport Profiles
         Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
         for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
-            Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
-            if (profileSettings.getAsBoolean(ShieldNettyTransport.TRANSPORT_PROFILE_SSL_SETTING, ssl)
-                    && SSLClientAuth.parse(profileSettings.get(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING), clientAuth).enabled()) {
+            Settings profileSettings = entry.getValue().getByPrefix(Security.settingPrefix());
+            if (ShieldNettyTransport.profileSsl(profileSettings, settings)
+                    && ShieldNettyTransport.CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled()) {
                 return;
             }
         }

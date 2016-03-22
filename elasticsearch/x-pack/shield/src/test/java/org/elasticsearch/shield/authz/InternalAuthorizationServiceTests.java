@@ -342,7 +342,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     public void testDenialForAnonymousUser() {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
-        AnonymousService anonymousService = new AnonymousService(Settings.builder().put("shield.authc.anonymous.roles", "a_all").build());
+        AnonymousService anonymousService =
+                new AnonymousService(Settings.builder().put(AnonymousService.ROLES_SETTING.getKey(), "a_all").build());
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
                 anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
 
@@ -367,8 +368,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
         AnonymousService anonymousService = new AnonymousService(Settings.builder()
-                .put("shield.authc.anonymous.roles", "a_all")
-                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED, false)
+                .put(AnonymousService.ROLES_SETTING.getKey(), "a_all")
+                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED.getKey(), false)
                 .build());
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
                 anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);

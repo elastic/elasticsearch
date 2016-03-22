@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -120,7 +120,7 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), true)
+                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), true)
                 .build();
     }
 

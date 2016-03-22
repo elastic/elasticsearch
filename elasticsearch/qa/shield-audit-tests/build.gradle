@@ -7,8 +7,8 @@ dependencies {
 integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    setting 'shield.audit.enabled', 'true'
-    setting 'shield.audit.outputs', 'index'
+    setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.security.audit.outputs', 'index'
     setupCommand 'setupDummyUser',
                  'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->

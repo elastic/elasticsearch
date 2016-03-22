@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -52,16 +54,17 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, sslClientAuth)
-                .put("shield.authc.realms.file.type", "file")
-                .put("shield.authc.realms.file.order", "0")
-                .put("shield.authc.realms.pki1.type", "pki")
-                .put("shield.authc.realms.pki1.order", "1")
-                .put("shield.authc.realms.pki1.truststore.path",
+
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), sslClientAuth)
+                .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
+                .put("xpack.security.authc.realms.file.order", "0")
+                .put("xpack.security.authc.realms.pki1.type", PkiRealm.TYPE)
+                .put("xpack.security.authc.realms.pki1.order", "1")
+                .put("xpack.security.authc.realms.pki1.truststore.path",
                         getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
-                .put("shield.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
+                .put("xpack.security.authc.realms.pki1.truststore.password", "truststore-testnode-only")
+                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .build();
     }
 
@@ -139,7 +142,7 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
                 .put(transportClientSettings())
                 .put(additionalSettings)
                 .put("cluster.name", internalCluster().getClusterName());
-        builder.remove("shield.user");
+        builder.remove(Security.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
         return TransportClient.builder().settings(builder).addPlugin(XPackPlugin.class).build();
     }

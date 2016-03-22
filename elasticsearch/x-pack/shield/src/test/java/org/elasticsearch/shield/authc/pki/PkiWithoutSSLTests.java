@@ -33,8 +33,8 @@ public class PkiWithoutSSLTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("shield.authc.realms.pki1.type", "pki")
-                .put("shield.authc.realms.pki1.order", "0")
+                .put("xpack.security.authc.realms.pki1.type", "pki")
+                .put("xpack.security.authc.realms.pki1.order", "0")
                 .build();
     }
 

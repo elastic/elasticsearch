@@ -44,7 +44,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 public class WatcherExecutorServiceBenchmark {
 
     private final static Settings SETTINGS = Settings.builder()
-            .put("shield.enabled", false)
+            .put("xpack.security.enabled", false)
             .put("cluster.name", "bench")
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)

@@ -64,7 +64,7 @@ public class SystemKeyToolTests extends CommandTestCase {
 
         Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
         Files.createDirectories(path.getParent());
-        settingsBuilder.put("shield.system_key.file", path.toAbsolutePath().toString());
+        settingsBuilder.put(InternalCryptoService.FILE_SETTING.getKey(), path.toAbsolutePath().toString());
         execute();
         byte[] bytes = Files.readAllBytes(path);
         assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);

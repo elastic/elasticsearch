@@ -11,7 +11,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.ServerSSLService;
@@ -31,6 +34,8 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.shield.Security.setting;
+import static org.elasticsearch.shield.Security.settingPrefix;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslRecordException;
 
@@ -39,14 +44,32 @@ import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslReco
  */
 public class ShieldNettyTransport extends NettyTransport {
 
-    public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
-    public static final String HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING = "shield.ssl.hostname_verification.resolve_name";
-    public static final String TRANSPORT_SSL_SETTING = "shield.transport.ssl";
-    public static final boolean TRANSPORT_SSL_DEFAULT = false;
-    public static final String TRANSPORT_CLIENT_AUTH_SETTING = "shield.transport.ssl.client.auth";
-    public static final SSLClientAuth TRANSPORT_CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
-    public static final String TRANSPORT_PROFILE_SSL_SETTING = "shield.ssl";
-    public static final String TRANSPORT_PROFILE_CLIENT_AUTH_SETTING = "shield.ssl.client.auth";
+    public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED.name();
+    public static final boolean SSL_DEFAULT = false;
+
+    public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
+            Setting.boolSetting(setting("ssl.hostname_verification"), true, Property.NodeScope, Property.Filtered);
+    public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =
+            Setting.boolSetting(setting("ssl.hostname_verification.resolve_name"), true, Property.NodeScope, Property.Filtered);
+
+    public static final Setting<Boolean> DEPRECATED_SSL_SETTING =
+            Setting.boolSetting(setting("transport.ssl"), SSL_DEFAULT,
+                    Property.Filtered, Property.NodeScope, Property.Deprecated);
+    public static final Setting<Boolean> SSL_SETTING =
+            Setting.boolSetting(setting("transport.ssl.enabled"), DEPRECATED_SSL_SETTING, Property.Filtered, Property.NodeScope);
+
+    public static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING =
+            new Setting<>(setting("transport.ssl.client.auth"), CLIENT_AUTH_DEFAULT,
+                    SSLClientAuth::parse, Property.NodeScope, Property.Filtered);
+
+    public static final Setting<Boolean> DEPRECATED_PROFILE_SSL_SETTING =
+            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated);
+    public static final Setting<Boolean> PROFILE_SSL_SETTING =
+            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope);
+
+    public static final Setting<SSLClientAuth> PROFILE_CLIENT_AUTH_SETTING =
+            new Setting<>(setting("ssl.client.auth"), CLIENT_AUTH_SETTING, SSLClientAuth::parse,
+                    Property.NodeScope, Property.Filtered);
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
@@ -59,7 +82,7 @@ public class ShieldNettyTransport extends NettyTransport {
                                 ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry);
         this.authenticator = authenticator;
-        this.ssl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
+        this.ssl = SSL_SETTING.get(settings);
         this.serverSslService = serverSSLService;
         this.clientSSLService = clientSSLService;
     }
@@ -110,6 +133,18 @@ public class ShieldNettyTransport extends NettyTransport {
         }
     }
 
+    public static boolean profileSsl(Settings profileSettings, Settings settings) {
+        // we can't use the fallback mechanism here since it may not exist in the profile settings and we get the wrong value
+        // for the profile if they use the old setting
+        if (PROFILE_SSL_SETTING.exists(profileSettings)) {
+            return SSL_SETTING.get(profileSettings);
+        } else if (DEPRECATED_PROFILE_SSL_SETTING.exists(profileSettings)) {
+            return DEPRECATED_PROFILE_SSL_SETTING.get(profileSettings);
+        } else {
+            return SSL_SETTING.get(settings);
+        }
+    }
+
     private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {
 
         private final Settings profileSettings;
@@ -122,13 +157,13 @@ public class ShieldNettyTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, ssl);
-            final SSLClientAuth clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING,
-                    settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT);
+            final boolean profileSsl = profileSsl(profileSettings, settings);
+            final SSLClientAuth clientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings);
             if (profileSsl) {
                 SSLEngine serverEngine;
-                if (profileSettings.get("shield.truststore.path") != null) {
-                    serverEngine = serverSslService.createSSLEngine(profileSettings.getByPrefix("shield."));
+                Settings securityProfileSettings = profileSettings.getByPrefix(settingPrefix());
+                if (securityProfileSettings.names().isEmpty() == false) {
+                    serverEngine = serverSslService.createSSLEngine(securityProfileSettings);
                 } else {
                     serverEngine = serverSslService.createSSLEngine();
                 }
@@ -168,7 +203,7 @@ public class ShieldNettyTransport extends NettyTransport {
             @Override
             public void connectRequested(ChannelHandlerContext ctx, ChannelStateEvent e) {
                 SSLEngine sslEngine;
-                if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
+                if (HOSTNAME_VERIFICATION_SETTING.get(settings)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
                     sslEngine = clientSSLService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress),
                             inetSocketAddress.getPort());
@@ -193,7 +228,7 @@ public class ShieldNettyTransport extends NettyTransport {
             @SuppressForbidden(reason = "need to use getHostName to resolve DNS name for SSL connections and hostname verification")
             private String getHostname(InetSocketAddress inetSocketAddress) {
                 String hostname;
-                if (settings.getAsBoolean(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, true)) {
+                if (HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.get(settings)) {
                     hostname = inetSocketAddress.getHostName();
                 } else {
                     hostname = inetSocketAddress.getHostString();
@@ -206,5 +241,18 @@ public class ShieldNettyTransport extends NettyTransport {
                 return hostname;
             }
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SSL_SETTING);
+        settingsModule.registerSetting(HOSTNAME_VERIFICATION_SETTING);
+        settingsModule.registerSetting(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING);
+        settingsModule.registerSetting(CLIENT_AUTH_SETTING);
+        settingsModule.registerSetting(PROFILE_SSL_SETTING);
+        settingsModule.registerSetting(PROFILE_CLIENT_AUTH_SETTING);
+
+        // deprecated transport settings
+        settingsModule.registerSetting(DEPRECATED_SSL_SETTING);
+        settingsModule.registerSetting(DEPRECATED_PROFILE_SSL_SETTING);
     }
 }

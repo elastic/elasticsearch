@@ -22,8 +22,8 @@ import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationService;
@@ -78,7 +78,7 @@ public class XPackPlugin extends Plugin {
     protected final XPackExtensionsService extensionsService;
 
     protected Licensing licensing;
-    protected Shield shield;
+    protected Security security;
     protected Marvel marvel;
     protected Watcher watcher;
     protected Graph graph;
@@ -86,7 +86,7 @@ public class XPackPlugin extends Plugin {
     public XPackPlugin(Settings settings) {
         this.settings = settings;
         this.licensing = new Licensing(settings);
-        this.shield = new Shield(settings);
+        this.security = new Security(settings);
         this.marvel = new Marvel(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
@@ -118,7 +118,7 @@ public class XPackPlugin extends Plugin {
         ArrayList<Module> modules = new ArrayList<>();
         modules.add(new LazyInitializationModule());
         modules.addAll(licensing.nodeModules());
-        modules.addAll(shield.nodeModules());
+        modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(marvel.nodeModules());
         modules.addAll(graph.nodeModules());
@@ -133,7 +133,7 @@ public class XPackPlugin extends Plugin {
         // constructs
         services.add(LazyInitializationService.class);
         services.addAll(licensing.nodeServices());
-        services.addAll(shield.nodeServices());
+        services.addAll(security.nodeServices());
         services.addAll(watcher.nodeServices());
         services.addAll(marvel.nodeServices());
         services.addAll(graph.nodeServices());
@@ -143,7 +143,7 @@ public class XPackPlugin extends Plugin {
     @Override
     public Settings additionalSettings() {
         Settings.Builder builder = Settings.builder();
-        builder.put(shield.additionalSettings());
+        builder.put(security.additionalSettings());
         builder.put(watcher.additionalSettings());
         builder.put(graph.additionalSettings());
         return builder.build();
@@ -158,7 +158,7 @@ public class XPackPlugin extends Plugin {
         // we add the `xpack.version` setting to all internal indices
         module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
-        shield.onModule(module);
+        security.onModule(module);
         marvel.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
@@ -168,7 +168,7 @@ public class XPackPlugin extends Plugin {
     public void onModule(NetworkModule module) {
         licensing.onModule(module);
         marvel.onModule(module);
-        shield.onModule(module);
+        security.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
     }
@@ -176,7 +176,7 @@ public class XPackPlugin extends Plugin {
     public void onModule(ActionModule module) {
         licensing.onModule(module);
         marvel.onModule(module);
-        shield.onModule(module);
+        security.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
     }
@@ -188,7 +188,7 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onIndexModule(IndexModule module) {
-        shield.onIndexModule(module);
+        security.onIndexModule(module);
         graph.onIndexModule(module);
     }
 

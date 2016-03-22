@@ -38,8 +38,8 @@ public class ShieldNettyTransportTests extends ESTestCase {
     public void createSSLService() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
         Settings settings = settingsBuilder()
-                .put("shield.ssl.keystore.path", testnodeStore)
-                .put("shield.ssl.keystore.password", "testnode")
+                .put("xpack.security.ssl.keystore.path", testnodeStore)
+                .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
         serverSSLService = new ServerSSLService(settings, env);
@@ -48,27 +48,27 @@ public class ShieldNettyTransportTests extends ESTestCase {
     }
 
     public void testThatSSLCanBeDisabledByProfile() throws Exception {
-        Settings settings = settingsBuilder().put("shield.transport.ssl", true).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                settingsBuilder().put("shield.ssl", false).build());
+                settingsBuilder().put("xpack.security.ssl", false).build());
         assertThat(factory.getPipeline().get(SslHandler.class), nullValue());
     }
 
     public void testThatSSLCanBeEnabledByProfile() throws Exception {
-        Settings settings = settingsBuilder().put("shield.transport.ssl", false).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), false).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                settingsBuilder().put("shield.ssl", true).build());
+                settingsBuilder().put("xpack.security.ssl", true).build());
         assertThat(factory.getPipeline().get(SslHandler.class), notNullValue());
     }
 
     public void testThatProfileTakesDefaultSSLSetting() throws Exception {
-        Settings settings = settingsBuilder().put("shield.transport.ssl", true).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -77,7 +77,7 @@ public class ShieldNettyTransportTests extends ESTestCase {
     }
 
     public void testDefaultClientAuth() throws Exception {
-        Settings settings = settingsBuilder().put("shield.transport.ssl", true).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -89,8 +89,8 @@ public class ShieldNettyTransportTests extends ESTestCase {
     public void testRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true");
         Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", true)
-                .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, value).build();
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -102,8 +102,8 @@ public class ShieldNettyTransportTests extends ESTestCase {
     public void testNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT));
         Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", true)
-                .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, value).build();
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -115,8 +115,8 @@ public class ShieldNettyTransportTests extends ESTestCase {
     public void testOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", true)
-                .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, value).build();
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -127,37 +127,37 @@ public class ShieldNettyTransportTests extends ESTestCase {
 
     public void testProfileRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true", "TRUE");
-        Settings settings = settingsBuilder().put("shield.transport.ssl", true).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                Settings.builder().put(ShieldNettyTransport.TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, value).build());
+                Settings.builder().put(ShieldNettyTransport.PROFILE_CLIENT_AUTH_SETTING, value).build());
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
     }
 
     public void testProfileNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT));
-        Settings settings = settingsBuilder().put("shield.transport.ssl", true).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                Settings.builder().put(ShieldNettyTransport.TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, value).build());
+                Settings.builder().put(ShieldNettyTransport.PROFILE_CLIENT_AUTH_SETTING.getKey(), value).build());
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
     }
 
     public void testProfileOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
-        Settings settings = settingsBuilder().put("shield.transport.ssl", true).build();
+        Settings settings = settingsBuilder().put(ShieldNettyTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyTransport transport = new ShieldNettyTransport(settings, mock(ThreadPool.class),
                 mock(NetworkService.class), mock(BigArrays.class), Version.CURRENT, null, serverSSLService, clientSSLService,
                 mock(NamedWriteableRegistry.class));
         NettyMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                Settings.builder().put(ShieldNettyTransport.TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, value).build());
+                Settings.builder().put(ShieldNettyTransport.PROFILE_CLIENT_AUTH_SETTING.getKey(), value).build());
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(true));
     }

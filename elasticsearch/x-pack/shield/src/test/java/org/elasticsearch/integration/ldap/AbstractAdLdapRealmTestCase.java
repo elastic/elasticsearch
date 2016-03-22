@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
  */
 abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
 
-    public static final String SHIELD_AUTHC_REALMS_EXTERNAL = "shield.authc.realms.external";
+    public static final String SHIELD_AUTHC_REALMS_EXTERNAL = "xpack.security.authc.realms.external";
     public static final String PASSWORD = "NickFuryHeartsES";
     public static final String ASGARDIAN_INDEX = "gods";
     public static final String PHILANTHROPISTS_INDEX = "philanthropists";
@@ -161,11 +161,11 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
         }
 
         return settingsBuilder()
-                .put("shield.ssl.keystore.path", store)
-                .put("shield.ssl.keystore.password", password)
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
-                .put("shield.ssl.truststore.path", store)
-                .put("shield.ssl.truststore.password", password).build();
+                .put("xpack.security.ssl.keystore.path", store)
+                .put("xpack.security.ssl.keystore.password", password)
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+                .put("xpack.security.ssl.truststore.path", store)
+                .put("xpack.security.ssl.truststore.password", password).build();
     }
 
     /**

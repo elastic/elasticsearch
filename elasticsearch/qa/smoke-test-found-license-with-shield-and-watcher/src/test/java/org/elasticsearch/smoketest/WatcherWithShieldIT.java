@@ -15,6 +15,7 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -80,7 +81,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put("shield.user", TEST_ADMIN_USERNAME + ":" + TEST_ADMIN_PASSWORD)
+                .put(Shield.USER_SETTING.getKey(), TEST_ADMIN_USERNAME + ":" + TEST_ADMIN_PASSWORD)
                 .build();
     }
 

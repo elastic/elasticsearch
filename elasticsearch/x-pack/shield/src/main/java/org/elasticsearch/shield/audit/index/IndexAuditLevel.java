@@ -7,6 +7,7 @@ package org.elasticsearch.shield.audit.index;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 
 public enum IndexAuditLevel {
@@ -22,7 +23,7 @@ public enum IndexAuditLevel {
     RUN_AS_GRANTED,
     RUN_AS_DENIED;
 
-    static EnumSet<IndexAuditLevel> parse(String[] levels) {
+    static EnumSet<IndexAuditLevel> parse(List<String> levels) {
         EnumSet<IndexAuditLevel> enumSet = EnumSet.noneOf(IndexAuditLevel.class);
         for (String level : levels) {
             String lowerCaseLevel = level.trim().toLowerCase(Locale.ROOT);
@@ -67,7 +68,7 @@ public enum IndexAuditLevel {
         return enumSet;
     }
 
-    public static EnumSet<IndexAuditLevel> parse(String[] includeLevels, String[] excludeLevels) {
+    public static EnumSet<IndexAuditLevel> parse(List<String> includeLevels, List<String> excludeLevels) {
         EnumSet<IndexAuditLevel> included = parse(includeLevels);
         EnumSet<IndexAuditLevel> excluded = parse(excludeLevels);
         included.removeAll(excluded);

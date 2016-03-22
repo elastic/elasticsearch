@@ -27,7 +27,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -64,6 +67,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  * ESNativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -74,6 +78,15 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * No caching is done by this class, it is handled at a higher level
  */
 public class NativeRolesStore extends AbstractComponent implements RolesStore, ClusterStateListener {
+
+    public static final Setting<Integer> SCROLL_SIZE_SETTING =
+            Setting.intSetting(setting("authz.store.roles.index.scroll.size"), 1000, Property.NodeScope);
+
+    public static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
+
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.reload.interval"), TimeValue.timeValueSeconds(30L), Property.NodeScope);
 
     public enum State {
         INITIALIZED,
@@ -133,9 +146,9 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.client = clientProvider.get();
                 this.securityClient = new SecurityClient(client);
-                this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
-                this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
-                TimeValue pollInterval = settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L));
+                this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
+                this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
+                TimeValue pollInterval = POLL_INTERVAL_SETTING.get(settings);
                 RolesStorePoller poller = new RolesStorePoller();
                 try {
                     poller.doRun();
@@ -588,5 +601,11 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         long getVersion() {
             return version;
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
+        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
+        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
     }
 }

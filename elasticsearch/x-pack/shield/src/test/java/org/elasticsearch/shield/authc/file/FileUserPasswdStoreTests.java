@@ -77,11 +77,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-        Settings esusersSettings = Settings.builder()
+        Settings fileSettings = Settings.builder()
                 .put("files.users", file.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
         assertThat(store.usersCount(), is(0));
@@ -92,12 +92,12 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path tmp = createTempFile();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings esusersSettings = Settings.builder()
+        Settings fileSettings = Settings.builder()
                 .put("files.users", tmp.toAbsolutePath())
                 .build();
 
 
-        RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -131,12 +131,12 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path tmp = createTempFile();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings esusersSettings = Settings.builder()
+        Settings fileSettings = Settings.builder()
                 .put("files.users", tmp.toAbsolutePath())
                 .build();
 
 
-        RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 

@@ -7,13 +7,14 @@ package org.elasticsearch.shield.transport.filter;
 
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.shield.Security.setting;
 
 public class IPFilter {
 
@@ -41,24 +43,32 @@ public class IPFilter {
      */
     public static final String HTTP_PROFILE_NAME = ".http";
 
-    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting("shield.http.filter.enabled", true,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = new Setting<>("shield.transport.filter.enabled", (s) ->
-            IP_FILTER_ENABLED_HTTP_SETTING.getDefaultRaw(s), Booleans::parseBooleanExact, Setting.Property.Dynamic,
-            Setting.Property.NodeScope);
-    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting("shield.transport.filter.allow",
-            Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting("shield.transport.filter.deny",
-            Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> ALLOW_BOUND_ADDRESSES_SETTING =
+            Setting.boolSetting(setting("filter.always_allow_bound_address"), true, Property.NodeScope);
 
-    public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting("shield.http.filter.allow", (s) -> {
-        return Arrays.asList(s.getAsArray("transport.profiles.default.shield.filter.allow",
-                TRANSPORT_FILTER_ALLOW_SETTING.get(s).toArray(new String[0])));
-    }, Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting("shield.http.filter.deny", (s) -> {
-        return Arrays.asList(s.getAsArray("transport.profiles.default.shield.filter.deny",
-                TRANSPORT_FILTER_DENY_SETTING.get(s).toArray(new String[0])));
-    }, Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting(setting("http.filter.enabled"),
+            true, Property.Dynamic, Property.NodeScope);
+
+    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = Setting.boolSetting(setting("transport.filter.enabled"),
+            true, Property.Dynamic, Property.NodeScope);
+
+    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(setting("transport.filter.allow"),
+            Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+
+    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(setting("transport.filter.deny"),
+            Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+
+    private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK =
+            Setting.listSetting("transport.profiles.default.xpack.security.filter.allow", TRANSPORT_FILTER_ALLOW_SETTING, s -> s,
+                    Property.NodeScope);
+    public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting(setting("http.filter.allow"),
+            HTTP_FILTER_ALLOW_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
+
+    private static final Setting<List<String>> HTTP_FILTER_DENY_FALLBACK =
+            Setting.listSetting("transport.profiles.default.xpack.security.filter.deny", TRANSPORT_FILTER_DENY_SETTING, s -> s,
+                    Property.NodeScope);
+    public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(setting("http.filter.deny"),
+            HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
 
 
     public static final ShieldIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new ShieldIpFilterRule(true, "default:accept_all") {
@@ -101,7 +111,7 @@ public class IPFilter {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;
-        this.alwaysAllowBoundAddresses = settings.getAsBoolean("shield.filter.always_allow_bound_address", true);
+        this.alwaysAllowBoundAddresses = ALLOW_BOUND_ADDRESSES_SETTING.get(settings);
         httpDenyFilter = HTTP_FILTER_DENY_SETTING.get(settings);
         httpAllowFilter = HTTP_FILTER_ALLOW_SETTING.get(settings);
         transportAllowFilter = TRANSPORT_FILTER_ALLOW_SETTING.get(settings);
@@ -205,7 +215,7 @@ public class IPFilter {
                         logger.warn("skipping ip filter rules for profile [{}] since the profile is not bound to any addresses", profile);
                         continue;
                     }
-                    Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
+                    Settings profileSettings = entry.getValue().getByPrefix(setting("filter."));
                     profileRules.put(profile, createRules(Arrays.asList(profileSettings.getAsArray("allow")),
                             Arrays.asList(profileSettings.getAsArray("deny")), profileBoundTransportAddress.boundAddresses()));
                 }
@@ -248,5 +258,15 @@ public class IPFilter {
     public void setBoundHttpTransportAddress(BoundTransportAddress boundHttpTransportAddress) {
         this.boundHttpTransportAddress.set(boundHttpTransportAddress);
         updateRules();
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(ALLOW_BOUND_ADDRESSES_SETTING);
+        settingsModule.registerSetting(IP_FILTER_ENABLED_SETTING);
+        settingsModule.registerSetting(IP_FILTER_ENABLED_HTTP_SETTING);
+        settingsModule.registerSetting(HTTP_FILTER_ALLOW_SETTING);
+        settingsModule.registerSetting(HTTP_FILTER_DENY_SETTING);
+        settingsModule.registerSetting(TRANSPORT_FILTER_ALLOW_SETTING);
+        settingsModule.registerSetting(TRANSPORT_FILTER_DENY_SETTING);
     }
 }

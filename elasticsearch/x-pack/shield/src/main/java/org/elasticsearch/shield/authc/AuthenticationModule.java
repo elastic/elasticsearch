@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
@@ -58,6 +59,7 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
             bind(AuthenticationFailureHandler.class).to(authcFailureHandler).asEagerSingleton();
         }
         bind(AuthenticationService.class).to(InternalAuthenticationService.class).asEagerSingleton();
+        bind(NativeUsersStore.class).asEagerSingleton();
     }
 
     /**

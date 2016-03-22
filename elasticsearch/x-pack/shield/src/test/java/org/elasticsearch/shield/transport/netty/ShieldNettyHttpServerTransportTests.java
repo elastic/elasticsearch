@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.netty.NettyHttpMockUtil;
@@ -35,15 +34,15 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
     public void createSSLService() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
         Settings settings = settingsBuilder()
-                .put("shield.ssl.keystore.path", testnodeStore)
-                .put("shield.ssl.keystore.password", "testnode")
+                .put("xpack.security.ssl.keystore.path", testnodeStore)
+                .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
         serverSSLService = new ServerSSLService(settings, env);
     }
 
     public void testDefaultClientAuth() throws Exception {
-        Settings settings = Settings.builder().put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true).build();
+        Settings settings = Settings.builder().put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
         NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -55,8 +54,8 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
     public void testOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, value).build();
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
         NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -68,8 +67,8 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
     public void testRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true", "TRUE");
         Settings settings = Settings.builder()
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, value).build();
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
         NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -81,8 +80,8 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
     public void testNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), SSLClientAuth.NO.name().toLowerCase(Locale.ROOT), "false", "FALSE");
         Settings settings = Settings.builder()
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, value).build();
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         ShieldNettyHttpServerTransport transport = new ShieldNettyHttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
         NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);

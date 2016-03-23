@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
+import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -116,6 +117,11 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     }
 
     Map<String, Exporter> initExporters(Settings settings) {
+        Settings globalSettings = Settings.builder()
+                .put(settings)
+                .put(Node.NODE_NAME_SETTING.getKey(), nodeName())
+                .build();
+
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
         boolean hasDisabled = false;
@@ -129,7 +135,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
             if (factory == null) {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
-            Exporter.Config config = new Exporter.Config(name, settings, exporterSettings);
+            Exporter.Config config = new Exporter.Config(name, globalSettings, exporterSettings);
             if (!config.enabled()) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
@@ -155,7 +161,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         //          fallback on the default
         //
         if (exporters.isEmpty() && !hasDisabled) {
-            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, settings, Settings.EMPTY);
+            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, globalSettings, Settings.EMPTY);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 

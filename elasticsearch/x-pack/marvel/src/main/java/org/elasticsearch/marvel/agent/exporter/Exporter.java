@@ -95,7 +95,7 @@ public abstract class Exporter implements AutoCloseable {
         }
 
         public ESLogger logger(Class clazz) {
-            return Loggers.getLogger(clazz, globalSettings);
+            return Loggers.getLogger(clazz, globalSettings, name);
         }
     }
 

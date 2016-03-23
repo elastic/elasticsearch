@@ -141,9 +141,9 @@ public class TasksIT extends ESIntegTestCase {
 
         // Verify that one of these tasks is a parent of another task
         if (tasks.get(0).getParentTaskId().isSet()) {
-            assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
-        } else {
             assertParentTask(Collections.singletonList(tasks.get(0)), tasks.get(1));
+        } else {
+            assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
         }
     }
 
@@ -653,7 +653,7 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void assertParentTask(List<TaskInfo> tasks, TaskInfo parentTask) {
         for (TaskInfo task : tasks) {
-            assertFalse(task.getParentTaskId().isSet());
+            assertTrue(task.getParentTaskId().isSet());
             assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
             assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
             assertEquals(parentTask.getId(), task.getParentTaskId().getId());

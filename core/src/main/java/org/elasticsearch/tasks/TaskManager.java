@@ -76,7 +76,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
                 CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
                 assert oldHolder == null;
                 // Check if this task was banned before we start it
-                if (task.getParentTaskId().isSet() == false && banedParents.isEmpty() == false) {
+                if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
                     String reason = banedParents.get(task.getParentTaskId());
                     if (reason != null) {
                         try {
@@ -241,7 +241,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
                 CancellableTaskHolder holder = taskEntry.getValue();
                 CancellableTask task = holder.getTask();
                 TaskId parentTaskId = task.getParentTaskId();
-                if (parentTaskId.isSet() == false && lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId()) == false) {
+                if (parentTaskId.isSet() && lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId()) == false) {
                     if (task.cancelOnParentLeaving()) {
                         holder.cancel("Coordinating node [" + parentTaskId.getNodeId() + "] left the cluster");
                     }

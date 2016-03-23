@@ -20,12 +20,10 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,7 +42,7 @@ import java.util.Objects;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("");
+    public static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("_na_");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
@@ -109,19 +107,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * <tt>_first</tt> to sort missing last or first respectively.
      */
     public FieldSortBuilder missing(Object missing) {
-        if (missing instanceof String) {
-            this.missing = BytesRefs.toBytesRef(missing);
-        } else {
-            this.missing = missing;
-        }
+        this.missing = missing;
         return this;
     }
 
     /** Returns the value used when a field is missing in a doc. */
     public Object missing() {
-        if (missing instanceof BytesRef) {
-            return ((BytesRef) missing).utf8ToString();
-        }
         return missing;
     }
 
@@ -208,14 +199,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(fieldName);
         builder.field(ORDER_FIELD.getPreferredName(), order);
         if (missing != null) {
-            if (missing instanceof BytesRef) {
-                builder.field(MISSING.getPreferredName(), ((BytesRef) missing).utf8ToString());
-            } else {
-                builder.field(MISSING.getPreferredName(), missing);
-            }
+            builder.field(MISSING.getPreferredName(), missing);
         }
         if (unmappedType != null) {
             builder.field(UNMAPPED_TYPE.getPreferredName(), unmappedType);
@@ -229,6 +217,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (nestedPath != null) {
             builder.field(NESTED_PATH.getPreferredName(), nestedPath);
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -376,7 +365,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
                     nestedPath = parser.text();
                 } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
-                    missing = parser.objectBytes();
+                    missing = parser.objectText();
                 } else if (context.parseFieldMatcher().match(currentFieldName, REVERSE)) {
                     if (parser.booleanValue()) {
                         order = SortOrder.DESC;

@@ -21,7 +21,6 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -127,7 +126,7 @@ public class PercolateRequestBuilder extends ActionRequestBuilder<PercolateReque
     /**
      * Delegates to {@link PercolateSourceBuilder#addSort(SortBuilder)}
      */
-    public PercolateRequestBuilder addSort(SortBuilder sort) {
+    public PercolateRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().addSort(sort);
         return this;
     }

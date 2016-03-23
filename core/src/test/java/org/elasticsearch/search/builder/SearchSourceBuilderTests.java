@@ -74,6 +74,8 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -551,7 +553,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
                         aggParsers, suggesters);
                 assertEquals(1, searchSourceBuilder.sorts().size());
-                assertEquals("{\"foo\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
+                assertEquals(new FieldSortBuilder("foo"), searchSourceBuilder.sorts().get(0));
             }
         }
 
@@ -567,11 +569,11 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.parseSearchSource(parser, createParseContext(parser),
                         aggParsers, suggesters);
                 assertEquals(5, searchSourceBuilder.sorts().size());
-                assertEquals("{\"post_date\":{\"order\":\"asc\"}}", searchSourceBuilder.sorts().get(0).toUtf8());
-                assertEquals("\"user\"", searchSourceBuilder.sorts().get(1).toUtf8());
-                assertEquals("{\"name\":\"desc\"}", searchSourceBuilder.sorts().get(2).toUtf8());
-                assertEquals("{\"age\":\"desc\"}", searchSourceBuilder.sorts().get(3).toUtf8());
-                assertEquals("\"_score\"", searchSourceBuilder.sorts().get(4).toUtf8());
+                assertEquals(new FieldSortBuilder("post_date"), searchSourceBuilder.sorts().get(0));
+                assertEquals(new FieldSortBuilder("user"), searchSourceBuilder.sorts().get(1));
+                assertEquals(new FieldSortBuilder("name").order(SortOrder.DESC), searchSourceBuilder.sorts().get(2));
+                assertEquals(new FieldSortBuilder("age").order(SortOrder.DESC), searchSourceBuilder.sorts().get(3));
+                assertEquals(new ScoreSortBuilder(), searchSourceBuilder.sorts().get(4));
             }
         }
     }

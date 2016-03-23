@@ -27,7 +27,7 @@ import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
+import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 
@@ -35,7 +35,6 @@ public class InnerHitsQueryParserHelper {
 
     public static final InnerHitsQueryParserHelper INSTANCE = new InnerHitsQueryParserHelper();
 
-    private static final SortParseElement sortParseElement = new SortParseElement();
     private static final FetchSourceParseElement sourceParseElement = new FetchSourceParseElement();
     private static final HighlighterParseElement highlighterParseElement = new HighlighterParseElement();
     private static final ScriptFieldsParseElement scriptFieldsParseElement = new ScriptFieldsParseElement();
@@ -54,10 +53,10 @@ public class InnerHitsQueryParserHelper {
                     if ("name".equals(fieldName)) {
                         innerHitName = parser.textOrNull();
                     } else {
-                        parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
+                        parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                     }
                 } else {
-                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
+                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                 }
             }
         } catch (Exception e) {
@@ -67,10 +66,10 @@ public class InnerHitsQueryParserHelper {
     }
 
     public static void parseCommonInnerHitOptions(XContentParser parser, XContentParser.Token token, String fieldName, SubSearchContext subSearchContext,
-                                                  SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement,
+                                                  FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement,
                                                   ScriptFieldsParseElement scriptFieldsParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement) throws Exception {
         if ("sort".equals(fieldName)) {
-            sortParseElement.parse(parser, subSearchContext);
+            SortBuilder.parseSort(parser, subSearchContext);
         } else if ("_source".equals(fieldName)) {
             sourceParseElement.parse(parser, subSearchContext);
         } else if (token == XContentParser.Token.START_OBJECT) {

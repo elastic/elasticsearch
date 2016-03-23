@@ -39,7 +39,7 @@ import java.util.Objects;
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
-    static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
+    public static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
     private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
@@ -53,8 +53,10 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
         builder.field(ORDER_FIELD.getPreferredName(), order);
+        builder.endObject();
         builder.endObject();
         return builder;
     }

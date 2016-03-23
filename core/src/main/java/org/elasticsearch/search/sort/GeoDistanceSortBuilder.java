@@ -74,7 +74,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
 
-    static final GeoDistanceSortBuilder PROTOTYPE = new GeoDistanceSortBuilder("", -1, -1);
+    public static final GeoDistanceSortBuilder PROTOTYPE = new GeoDistanceSortBuilder("_na_", -1, -1);
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -300,6 +300,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
 
         builder.startArray(fieldName);
@@ -325,6 +326,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         builder.field(COERCE_FIELD.getPreferredName(), coerce);
         builder.field(IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
 
+        builder.endObject();
         builder.endObject();
         return builder;
     }

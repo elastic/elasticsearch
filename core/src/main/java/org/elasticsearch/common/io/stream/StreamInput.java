@@ -37,12 +37,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -687,21 +688,21 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link AggregatorBuilder} from the current stream
      */
-    public AggregatorBuilder readAggregatorFactory() throws IOException {
+    public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
         return readNamedWriteable(AggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link PipelineAggregatorBuilder} from the current stream
      */
-    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
+    public PipelineAggregatorBuilder<?> readPipelineAggregatorFactory() throws IOException {
         return readNamedWriteable(PipelineAggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link QueryBuilder} from the current stream
      */
-    public QueryBuilder readQuery() throws IOException {
+    public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
     }
 
@@ -724,6 +725,13 @@ public abstract class StreamInput extends InputStream {
      */
     public SuggestionBuilder<?> readSuggestion() throws IOException {
         return readNamedWriteable(SuggestionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SortBuilder} from the current stream
+     */
+    public SortBuilder<?> readSortBuilder() throws IOException {
+        return readNamedWriteable(SortBuilder.class);
     }
 
     /**

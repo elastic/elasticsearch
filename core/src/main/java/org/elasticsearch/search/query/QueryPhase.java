@@ -58,7 +58,6 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
@@ -98,7 +97,6 @@ public class QueryPhase implements SearchPhase {
         parseElements.put("query", new QueryParseElement());
         parseElements.put("post_filter", new PostFilterParseElement());
         parseElements.put("postFilter", new PostFilterParseElement());
-        parseElements.put("sort", new SortParseElement());
         parseElements.put("trackScores", new TrackScoresParseElement());
         parseElements.put("track_scores", new TrackScoresParseElement());
         parseElements.put("min_score", new MinScoreParseElement());

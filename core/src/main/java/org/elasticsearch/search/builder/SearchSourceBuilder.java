@@ -52,6 +52,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -139,7 +140,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private Boolean version;
 
-    private List<BytesReference> sorts;
+    private List<SortBuilder<?>> sorts;
 
     private boolean trackScores = false;
 
@@ -336,6 +337,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      *            The sort ordering
      */
     public SearchSourceBuilder sort(String name, SortOrder order) {
+        if (name.equals(ScoreSortBuilder.NAME)) {
+            return sort(SortBuilders.scoreSort().order(order));
+        }
         return sort(SortBuilders.fieldSort(name).order(order));
     }
 
@@ -346,32 +350,27 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      *            The name of the field to sort by
      */
     public SearchSourceBuilder sort(String name) {
+        if (name.equals(ScoreSortBuilder.NAME)) {
+            return sort(SortBuilders.scoreSort());
+        }
         return sort(SortBuilders.fieldSort(name));
     }
 
     /**
      * Adds a sort builder.
      */
-    public SearchSourceBuilder sort(SortBuilder sort) {
-        try {
+    public SearchSourceBuilder sort(SortBuilder<?> sort) {
             if (sorts == null) {
                 sorts = new ArrayList<>();
             }
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            sort.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            sorts.add(builder.bytes());
+            sorts.add(sort);
             return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     /**
      * Gets the bytes representing the sort builders for this request.
      */
-    public List<BytesReference> sorts() {
+    public List<SortBuilder<?>> sorts() {
         return sorts;
     }
 
@@ -907,9 +906,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
-                    sorts = new ArrayList<>();
-                    XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                    sorts.add(xContentBuilder.bytes());
+                    sorts = new ArrayList<>(SortBuilder.fromXContent(context));
                 } else if (context.parseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     ext = xContentBuilder.bytes();
@@ -940,11 +937,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
-                    sorts = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                        sorts.add(xContentBuilder.bytes());
-                    }
+                    sorts = new ArrayList<>(SortBuilder.fromXContent(context));
                 } else if (context.parseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
                     rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -1057,10 +1050,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (sorts != null) {
             builder.startArray(SORT_FIELD.getPreferredName());
-            for (BytesReference sort : sorts) {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(sort);
-                parser.nextToken();
-                builder.copyCurrentStructure(parser);
+            for (SortBuilder<?> sort : sorts) {
+                sort.toXContent(builder, params);
             }
             builder.endArray();
         }
@@ -1266,9 +1257,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         builder.size = in.readVInt();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<BytesReference> sorts = new ArrayList<>();
+            List<SortBuilder<?>> sorts = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                sorts.add(in.readBytesReference());
+                sorts.add(in.readSortBuilder());
             }
             builder.sorts = sorts;
         }
@@ -1382,8 +1373,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(hasSorts);
         if (hasSorts) {
             out.writeVInt(sorts.size());
-            for (BytesReference sort : sorts) {
-                out.writeBytesReference(sort);
+            for (SortBuilder<?> sort : sorts) {
+                out.writeSortBuilder(sort);
             }
         }
         boolean hasStats = stats != null;

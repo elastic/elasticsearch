@@ -131,6 +131,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             templateBuilder = IndexTemplateMetaData.builder(request.name);
             templateBuilder.order(request.order);
             templateBuilder.template(request.template);
+            templateBuilder.excludeTemplate(request.excludeTemplate);
             templateBuilder.settings(request.settings);
             for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                 templateBuilder.putMapping(entry.getKey(), entry.getValue());
@@ -196,20 +197,12 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {
             validationErrors.add("name must be lower cased");
         }
-        if (request.template.contains(" ")) {
-            validationErrors.add("template must not contain a space");
-        }
-        if (request.template.contains(",")) {
-            validationErrors.add("template must not contain a ','");
-        }
-        if (request.template.contains("#")) {
-            validationErrors.add("template must not contain a '#'");
-        }
-        if (request.template.startsWith("_")) {
-            validationErrors.add("template must not start with '_'");
-        }
-        if (!Strings.validFileNameExcludingAstrix(request.template)) {
-            validationErrors.add("template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
+
+        validateTemplate("template", request.template, validationErrors);
+
+        // exclude template is optional
+        if (request.excludeTemplate != null) {
+            validateTemplate("exclude_template", request.excludeTemplate, validationErrors);
         }
 
         List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);
@@ -229,6 +222,21 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
     }
 
+    private void validateTemplate(String fieldName, String template, List<String> validationErrors) {
+        if (template.contains("#")) {
+            validationErrors.add(fieldName + " must not contain a '#'");
+        }
+        if (template.startsWith("_")) {
+            validationErrors.add(fieldName + " must not start with '_'");
+        }
+
+        // excludes things like ',', ' ' (space), etc.
+        if (Strings.validFileNameExcludingAstrix(template) == false) {
+            validationErrors.add(fieldName + " must not contain the following characters " +
+                                 Strings.INVALID_FILENAME_CHARS_EXCLUDING_ASTERISK);
+        }
+    }
+
     public static interface PutListener {
 
         void onResponse(PutResponse response);
@@ -242,6 +250,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         boolean create;
         int order;
         String template;
+        String excludeTemplate;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
@@ -264,6 +273,10 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             return this;
         }
 
+        public PutRequest excludeTemplate(String excludeTemplate) {
+            this.excludeTemplate = excludeTemplate;
+            return this;
+        }
         public PutRequest create(boolean create) {
             this.create = create;
             return this;

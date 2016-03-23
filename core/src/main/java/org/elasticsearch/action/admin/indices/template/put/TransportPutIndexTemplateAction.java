@@ -78,6 +78,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         indexScopedSettings.validate(templateSettingsBuilder);
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .template(request.template())
+                .excludeTemplate(request.excludeTemplate())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())

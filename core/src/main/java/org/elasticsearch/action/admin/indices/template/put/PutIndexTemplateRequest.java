@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -61,6 +62,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private String cause = "";
 
     private String template;
+
+    private String excludeTemplate;
 
     private int order;
 
@@ -111,13 +114,45 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return this.name;
     }
 
+    /**
+     * Sets the template pattern used to match indexes to this template.
+     * <p>
+     * For example:
+     * <ul>
+     * <li>"*" matches any index name</li>
+     * <li>"test*" matches any index name that is prefixed by "test" (e.g., "test3")</li>
+     * </ul>
+     */
     public PutIndexTemplateRequest template(String template) {
         this.template = template;
         return this;
     }
 
+    /**
+     * The template pattern used to match indexes to this template.
+     */
     public String template() {
         return this.template;
+    }
+
+    /**
+     * Sets the exclude template pattern used to ignore indexes that match the {@link #template()}.
+     * <p>
+     * This is particularly useful for hiding indices from global templates.
+     * <p>
+     * The same semantics apply to this as the {@link #template()}. This runs before the template to determine if the index should be
+     * ignored.
+     */
+    public PutIndexTemplateRequest excludeTemplate(String excludeTemplate) {
+        this.excludeTemplate = excludeTemplate;
+        return this;
+    }
+
+    /**
+     * The exclude template pattern used to ignore indexes that match the {@link #template()}.
+     */
+    public String excludeTemplate() {
+        return this.excludeTemplate;
     }
 
     public PutIndexTemplateRequest order(int order) {
@@ -276,6 +311,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             String name = entry.getKey();
             if (name.equals("template")) {
                 template(entry.getValue().toString());
+            } else if (name.equals("exclude_template")) {
+                excludeTemplate(entry.getValue().toString());
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
             } else if (name.equals("settings")) {
@@ -432,6 +469,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         cause = in.readString();
         name = in.readString();
         template = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_5_0_0)) {
+            excludeTemplate = in.readOptionalString();
+        }
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
@@ -457,6 +497,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeString(cause);
         out.writeString(name);
         out.writeString(template);
+        out.writeOptionalString(excludeTemplate);
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);

@@ -58,7 +58,8 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
-        request.template("_test_shards*");
+        request.template("_test_shards#*");
+        request.excludeTemplate("#invalid");
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
@@ -69,6 +70,8 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
         assertThat(throwables.get(0).getMessage(), containsString("template must not start with '_'"));
+        assertThat(throwables.get(0).getMessage(), containsString("template must not contain a '#'"));
+        assertThat(throwables.get(0).getMessage(), containsString("exclude_template must not contain a '#'"));
         assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
     }
 
@@ -94,7 +97,11 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 new HashSet<>(),
                 null,
                 null, null);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, new AliasValidator(Settings.EMPTY));
+        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
+                Settings.EMPTY,
+                null,
+                createIndexService,
+                new AliasValidator(Settings.EMPTY));
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {

@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -136,6 +138,48 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
+    }
+
+    public void testExcludeTemplateWorks() throws Exception {
+        int defaultPrimaryShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY);
+        int primaryShards = defaultPrimaryShards + 1;
+        int priority = randomIntBetween(50, 100);
+
+        // sets arbitrary settings that are not set by default to track them
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("*")
+                .setExcludeTemplate("t*")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, Integer.toString(primaryShards)))
+                .execute().actionGet();
+        // tests the default is ".*" when using a global template
+        client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("*")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, Integer.toString(priority)))
+                .execute().actionGet();
+
+        // create an index that matches the global template, but gets excluded by default exclude_template (".*")
+        client().admin().indices().prepareCreate(".hidden").execute().actionGet();
+        // create an index expecting the default exclude template settings, so it should work for this
+        client().admin().indices().prepareCreate("test-default-exclude").execute().actionGet();
+
+        Settings hiddenSettings = client().admin().indices().prepareGetIndex()
+                .addIndices(".hidden")
+                .addFeatures(GetIndexRequest.Feature.SETTINGS)
+                .execute().actionGet()
+                .settings().get(".hidden");
+        Settings defaultExcludeSettings = client().admin().indices().prepareGetIndex()
+                .addIndices("test-default-exclude")
+                .addFeatures(GetIndexRequest.Feature.SETTINGS)
+                .execute().actionGet()
+                .settings().get("test-default-exclude");
+
+        // .hidden settings should only have the global template applied that overrides the default exclude template (primary shards)
+        assertThat(hiddenSettings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(primaryShards));
+        assertThat(hiddenSettings.get(IndexMetaData.SETTING_PRIORITY),
+                   equalTo(IndexMetaData.INDEX_PRIORITY_SETTING.getDefault(Settings.EMPTY)));
+        // test-default-exclude settings should only have the global template applied that did _not_ override the default exclude template
+        assertThat(defaultExcludeSettings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(defaultPrimaryShards));
+        assertThat(hiddenSettings.get(IndexMetaData.SETTING_PRIORITY), equalTo(priority));
     }
 
     public void testDeleteIndexTemplate() throws Exception {

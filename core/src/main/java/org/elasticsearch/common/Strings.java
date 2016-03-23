@@ -44,6 +44,7 @@ import java.util.TreeSet;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.common.util.set.Sets.union;
 
 /**
  *
@@ -456,23 +457,34 @@ public class Strings {
         return sb.toString();
     }
 
+    public static final Set<Character> INVALID_FILENAME_CHARS_EXCLUDING_ASTERISK = unmodifiableSet(
+            newHashSet('\\', '/', '?', '"', '<', '>', '|', ' ', ','));
+
     public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
-            newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ','));
+            union(newHashSet('*'), INVALID_FILENAME_CHARS_EXCLUDING_ASTERISK));
 
     public static boolean validFileName(String fileName) {
-        for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (INVALID_FILENAME_CHARS.contains(c)) {
-                return false;
-            }
-        }
-        return true;
+        return validName(fileName, INVALID_FILENAME_CHARS);
     }
 
+    /**
+     * @see #INVALID_FILENAME_CHARS_EXCLUDING_ASTERISK
+     */
     public static boolean validFileNameExcludingAstrix(String fileName) {
-        for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+        return validName(fileName, INVALID_FILENAME_CHARS_EXCLUDING_ASTERISK);
+    }
+
+    /**
+     * Ensure that the {@code name} does not contain any of the {@code invalidChars}.
+     *
+     * @param name The name to test
+     * @param invalidChars Invalid characters that must not exist in the {@code name}
+     * @return {@code false} if {@code name} contains any {@code invalidChars}.
+     */
+    private static boolean validName(String name, Set<Character> invalidChars) {
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (invalidChars.contains(c)) {
                 return false;
             }
         }

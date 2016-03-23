@@ -487,7 +487,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {
         @Override
         public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
-            return Regex.simpleMatch(template.template(), request.index());
+            boolean excludeTemplate = false;
+
+            // exclude templates provide a mechanism to exclude (ignore/skip) processing for matching indices
+            if (Strings.isEmpty(template.excludeTemplate()) == false) {
+                excludeTemplate = Regex.simpleMatch(template.excludeTemplate(), request.index());
+            }
+            //  For global templates ('*'), we automatically hide any index starting with '.' unless explicitly told not too
+            else if (template.excludeTemplate() == null && "*".equals(template.template())) {
+                excludeTemplate = Regex.simpleMatch(IndexTemplateMetaData.DEFAULT_GLOBAL_EXCLUDE_TEMPLATE, request.index());
+            }
+
+            return excludeTemplate == false && Regex.simpleMatch(template.template(), request.index());
         }
     }
 }

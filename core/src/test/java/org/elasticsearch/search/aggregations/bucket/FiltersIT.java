@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -310,6 +311,77 @@ public class FiltersIT extends ESIntegTestCase {
         bucket = filters.getBucketByKey("_other_");
         assertThat(bucket, Matchers.notNullValue());
         assertThat(bucket.getDocCount(), equalTo((long) numOtherDocs));
+    }
+
+    public void testEmptyBucketWithOtherBucket() throws Exception {
+        SearchResponse response = client().prepareSearch("empty_bucket_idx")
+                .addAggregation(histogram("histo").interval(1).field("value")
+                        .subAggregation(filters("foo", new KeyedFilter("0", termQuery("value", 0))).otherBucket(true)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets, notNullValue());
+        assertThat(buckets.size(), equalTo(3));
+
+        Bucket histoBucket = buckets.get(0);
+        assertThat(histoBucket, notNullValue());
+        assertThat(histoBucket.getKey(), equalTo(0L));
+        assertThat(histoBucket.getDocCount(), equalTo(1L));
+
+        Filters filters = histoBucket.getAggregations().get("foo");
+        assertThat(filters, notNullValue());
+        assertThat(filters.getName(), equalTo("foo"));
+        assertThat(filters.getBuckets().size(), equalTo(2));
+
+        Filters.Bucket filtersBucket = filters.getBucketByKey("0");
+        assertThat(filtersBucket, Matchers.notNullValue());
+        assertThat(filtersBucket.getDocCount(), equalTo(1L));
+
+        filtersBucket = filters.getBucketByKey("_other_");
+        assertThat(filtersBucket, Matchers.notNullValue());
+        assertThat(filtersBucket.getDocCount(), equalTo(0L));
+
+        histoBucket = buckets.get(1);
+        assertThat(histoBucket, notNullValue());
+        assertThat(histoBucket.getKey(), equalTo(1L));
+        assertThat(histoBucket.getDocCount(), equalTo(0L));
+
+        filters = histoBucket.getAggregations().get("foo");
+        assertThat(filters, notNullValue());
+        assertThat(filters.getName(), equalTo("foo"));
+        assertThat(filters.getBuckets().size(), equalTo(2));
+
+        filtersBucket = filters.getBucketByKey("0");
+        assertThat(filtersBucket, Matchers.notNullValue());
+        assertThat(filtersBucket.getDocCount(), equalTo(0L));
+
+        filtersBucket = filters.getBucketByKey("_other_");
+        assertThat(filtersBucket, Matchers.notNullValue());
+        assertThat(filtersBucket.getDocCount(), equalTo(0L));
+
+        histoBucket = buckets.get(2);
+        assertThat(histoBucket, notNullValue());
+        assertThat(histoBucket.getKey(), equalTo(2L));
+        assertThat(histoBucket.getDocCount(), equalTo(1L));
+
+        filters = histoBucket.getAggregations().get("foo");
+        assertThat(filters, notNullValue());
+        assertThat(filters.getName(), equalTo("foo"));
+        assertThat(filters.getBuckets().size(), equalTo(2));
+
+        filtersBucket = filters.getBucketByKey("0");
+        assertThat(filtersBucket, Matchers.notNullValue());
+        assertThat(filtersBucket.getDocCount(), equalTo(0L));
+
+        filtersBucket = filters.getBucketByKey("_other_");
+        assertThat(filtersBucket, Matchers.notNullValue());
+        assertThat(filtersBucket.getDocCount(), equalTo(1L));
     }
 
     public void testOtherNamedBucket() throws Exception {

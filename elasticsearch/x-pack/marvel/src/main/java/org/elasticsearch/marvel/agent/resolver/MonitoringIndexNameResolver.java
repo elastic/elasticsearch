@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -23,6 +24,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.Function;
 
 /**
@@ -100,6 +102,16 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         }
     }
 
+    /**
+     * @return the template name that is required by the resolver.
+     */
+    public abstract String templateName();
+
+    /**
+     * @return the template source required by the resolver
+     */
+    public abstract String template();
+
     int getVersion() {
         return version;
     }
@@ -145,6 +157,16 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         public String indexPattern() {
             return index;
         }
+
+        @Override
+        public String templateName() {
+            return String.format(Locale.ROOT, "%s-%s-%d", PREFIX, DATA, getVersion());
+        }
+
+        @Override
+        public String template() {
+            return MarvelTemplateUtils.loadTemplate(DATA, getVersion());
+        }
     }
 
     /**
@@ -186,6 +208,16 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         public String id(T document) {
             // Documents in timestamped indices are usually indexed with auto-generated ids
             return null;
+        }
+
+        @Override
+        public String templateName() {
+            return String.format(Locale.ROOT, "%s-%s-%d", PREFIX, getId(), getVersion());
+        }
+
+        @Override
+        public String template() {
+            return MarvelTemplateUtils.loadTemplate(getId(), getVersion());
         }
 
         String getId() {

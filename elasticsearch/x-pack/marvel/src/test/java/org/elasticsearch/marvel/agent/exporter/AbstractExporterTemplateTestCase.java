@@ -19,8 +19,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -58,8 +56,9 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         doExporting();
 
         logger.debug("--> templates does not exist: it should have been created in the current version");
-        assertTemplateExist(indexTemplateName());
-        assertTemplateExist(dataTemplateName());
+        for (String template : monitoringTemplates().keySet()) {
+            assertTemplateExist(template);
+        }
 
         doExporting();
 
@@ -82,8 +81,9 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         assertTemplateExist(indexTemplateName(version));
 
         logger.debug("--> existing templates are old: new templates should be created");
-        assertTemplateExist(indexTemplateName());
-        assertTemplateExist(dataTemplateName());
+        for (String template : monitoringTemplates().keySet()) {
+            assertTemplateExist(template);
+        }
 
         doExporting();
 
@@ -101,12 +101,13 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         doExporting();
 
         logger.debug("--> existing templates are up to date");
-        assertTemplateExist(indexTemplateName());
-        assertTemplateExist(dataTemplateName());
+        for (String template : monitoringTemplates().keySet()) {
+            assertTemplateExist(template);
+        }
 
         logger.debug("--> existing templates has the same version: they should not be changed");
-        assertTemplateNotUpdated(indexTemplateName());
-        assertTemplateNotUpdated(dataTemplateName());
+        assertTemplateNotUpdated(indexTemplateName(currentVersion));
+        assertTemplateNotUpdated(dataTemplateName(currentVersion));
 
         doExporting();
 
@@ -135,8 +136,9 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         doExporting();
 
         logger.debug("--> templates should exist in current version");
-        assertTemplateExist(indexTemplateName());
-        assertTemplateExist(dataTemplateName());
+        for (String template : monitoringTemplates().keySet()) {
+            assertTemplateExist(template);
+        }
 
         if (previousIndexTemplateExist) {
             logger.debug("--> index template should exist in version [{}]", previousIndexTemplateVersion);
@@ -167,6 +169,16 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         exporters.export(collector.collect());
     }
 
+    private String dataTemplateName(Integer version) {
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(version);
+        return resolver.templateName();
+    }
+
+    private String indexTemplateName(Integer version) {
+        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, version, exporterSettings());
+        return resolver.templateName();
+    }
+
     private String currentDataIndexName() {
         MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(currentVersion);
         return resolver.index(null);
@@ -188,7 +200,6 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
                                 .startObject("settings")
                                     .field("index.number_of_shards", 1)
                                     .field("index.number_of_replicas", 1)
-                                    .field(MarvelSettings.INDEX_TEMPLATE_VERSION.getKey(), String.valueOf(version))
                                 .endObject()
                                 .startObject("mappings")
                                     .startObject("_default_")

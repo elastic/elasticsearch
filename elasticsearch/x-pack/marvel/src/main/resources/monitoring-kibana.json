@@ -1,0 +1,57 @@
+{
+  "template": ".monitoring-kibana-${monitoring.template.version}-*",
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1,
+    "index.codec": "best_compression"
+  },
+  "mappings": {
+    "_default_": {
+      "_all": {
+        "enabled": false
+      },
+      "properties": {
+        "cluster_uuid": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date",
+          "format": "date_time"
+        },
+        "source_node": {
+          "properties": {
+            "uuid": {
+              "type": "keyword"
+            },
+            "host": {
+              "type": "keyword"
+            },
+            "transport_address": {
+              "type": "keyword"
+            },
+            "ip": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "attributes": {
+              "dynamic": true,
+              "properties": {
+                "data": {
+                  "type": "boolean"
+                },
+                "master": {
+                  "type": "boolean"
+                },
+                "client": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

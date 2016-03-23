@@ -43,14 +43,17 @@ import static org.elasticsearch.marvel.MonitoredSystem.ES;
 
 public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> {
 
+    private static final int ES_TEMPLATE_VERSION = MarvelTemplateUtils.TEMPLATE_VERSION;
+    private static final int KIBANA_TEMPLATE_VERSION = MarvelTemplateUtils.TEMPLATE_VERSION;
+
     private final List<Registration> registrations = new ArrayList<>();
 
     public ResolversRegistry(Settings settings) {
         // register built-in defaults resolvers
-        registerBuiltIn(ES, MarvelTemplateUtils.TEMPLATE_VERSION, settings);
+        registerBuiltIn(ES, ES_TEMPLATE_VERSION, settings);
 
-        // register resolvers for external applications
-        registerKibana(settings);
+        // register resolvers for monitored systems
+        registerMonitoredSystem(MonitoredSystem.KIBANA, KIBANA_TEMPLATE_VERSION, settings);
     }
 
     /**
@@ -70,11 +73,11 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
     }
 
     /**
-     * Registers resolvers for Kibana
+     * Registers resolvers for monitored systems
      */
-    private void registerKibana(Settings settings) {
-        final MonitoringBulkResolver kibana =  new MonitoringBulkResolver(MonitoredSystem.KIBANA, 0, settings);
-        registrations.add(resolveByClassSystemVersion(MonitoringBulkDoc.class, MonitoredSystem.KIBANA, Version.CURRENT, kibana));
+    private void registerMonitoredSystem(MonitoredSystem id, int version, Settings settings) {
+        final MonitoringBulkResolver resolver =  new MonitoringBulkResolver(id, version, settings);
+        registrations.add(resolveByClassSystemVersion(MonitoringBulkDoc.class, id, Version.CURRENT, resolver));
     }
 
     /**

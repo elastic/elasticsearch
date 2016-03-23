@@ -25,7 +25,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.ExportException;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
@@ -47,6 +46,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -55,6 +55,8 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  *
@@ -107,11 +109,6 @@ public class HttpExporter extends Exporter {
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
 
-    /**
-     * Version number of built-in templates
-     **/
-    private final Integer templateVersion;
-
     boolean keepAlive;
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
@@ -145,14 +142,16 @@ public class HttpExporter extends Exporter {
         sslSocketFactory = createSSLSocketFactory(config.settings().getAsSettings(SSL_SETTING));
         hostnameVerification = config.settings().getAsBoolean(SSL_HOSTNAME_VERIFICATION_SETTING, true);
 
-        // Loads the current version number of built-in templates
-        templateVersion = MarvelTemplateUtils.TEMPLATE_VERSION;
-        if (templateVersion == null) {
-            throw new IllegalStateException("unable to find built-in template version");
-        }
         resolvers = new ResolversRegistry(config.settings());
-        logger.debug("initialized with hosts [{}], index prefix [{}], template version [{}]",
-                Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX, templateVersion);
+        // Checks that required templates are loaded
+        for (MonitoringIndexNameResolver resolver : resolvers) {
+            if (resolver.template() == null) {
+                throw new IllegalStateException("unable to find built-in template " + resolver.templateName());
+            }
+        }
+
+        logger.debug("initialized with hosts [{}], index prefix [{}]",
+                Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX);
     }
 
     ResolversRegistry getResolvers() {
@@ -424,24 +423,18 @@ public class HttpExporter extends Exporter {
      * @return true if template exists or was uploaded successfully.
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
-        String templateName = MarvelTemplateUtils.indexTemplateName(templateVersion);
-        boolean templateInstalled = hasTemplate(templateName, host);
+        // List of distinct templates
+        Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
-        // Works like LocalExporter on master:
-        // Install the index template for timestamped indices first, so that other nodes can ship data
-        if (!templateInstalled) {
-            logger.debug("could not find existing monitoring template, installing a new one");
-            if (!putTemplate(host, templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate())) {
-                return false;
-            }
-        }
-
-        // Install the index template for data index
-        templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
-        if (!hasTemplate(templateName, host)) {
-            logger.debug("could not find existing monitoring template for data index, installing a new one");
-            if (!putTemplate(host, templateName, MarvelTemplateUtils.loadDataIndexTemplate())) {
-                return false;
+        for (Map.Entry<String, String> template : templates.entrySet()) {
+            if (hasTemplate(template.getKey(), host) == false) {
+                logger.debug("template [{}] not found", template.getKey());
+                if (!putTemplate(host, template.getKey(), template.getValue())) {
+                    return false;
+                }
+            } else {
+                logger.debug("template [{}] found", template.getKey());
             }
         }
         return true;
@@ -481,7 +474,7 @@ public class HttpExporter extends Exporter {
         return false;
     }
 
-    boolean putTemplate(String host, String template, byte[] source) {
+    boolean putTemplate(String host, String template, String source) {
         logger.debug("installing template [{}]", template);
         HttpURLConnection connection = null;
         try {
@@ -492,13 +485,13 @@ public class HttpExporter extends Exporter {
             }
 
             // Uploads the template and closes the outputstream
-            Streams.copy(source, connection.getOutputStream());
+            Streams.copy(source.getBytes(StandardCharsets.UTF_8), connection.getOutputStream());
             if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
                 logConnectionError("error adding the monitoring template [" + template + "] to [" + host + "]", connection);
                 return false;
             }
 
-            logger.info("monitoring template [{}] updated to version [{}]", template, templateVersion);
+            logger.info("monitoring template [{}] updated ", template);
             return true;
         } catch (IOException e) {
             logger.error("failed to update monitoring template [{}] on host [{}]:\n{}", template, host, e.getMessage());

@@ -73,15 +73,15 @@ public final class TaskId implements Writeable<TaskId> {
     }
 
     public boolean isSet() {
-        return id == -1L;
+        return id != -1L;
     }
 
     @Override
     public String toString() {
         if (isSet()) {
-            return "unset";
-        } else {
             return nodeId + ":" + id;
+        } else {
+            return "unset";
         }
     }
 

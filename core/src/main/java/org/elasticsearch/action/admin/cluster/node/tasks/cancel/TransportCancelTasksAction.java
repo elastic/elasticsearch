@@ -84,7 +84,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
-        if (request.getTaskId().isSet() == false) {
+        if (request.getTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             CancellableTask task = taskManager.getCancellableTask(request.getTaskId().getId());
             if (task != null) {

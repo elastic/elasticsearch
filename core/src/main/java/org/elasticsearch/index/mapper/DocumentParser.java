@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
+import org.elasticsearch.index.mapper.object.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
@@ -471,7 +472,7 @@ final class DocumentParser {
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT);
                 if (builder == null) {
                     builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
                 }
@@ -516,7 +517,7 @@ final class DocumentParser {
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, XContentFieldType.OBJECT);
                 if (builder == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {
@@ -596,34 +597,34 @@ final class DocumentParser {
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", XContentFieldType.STRING);
         } else if (fieldType instanceof TextFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", XContentFieldType.STRING);
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName)
                         .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
         } else if (fieldType instanceof KeywordFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", XContentFieldType.STRING);
         } else {
             switch (fieldType.typeName()) {
             case DateFieldMapper.CONTENT_TYPE:
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
+                builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
                 break;
             case "long":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "long", XContentFieldType.LONG);
                 break;
             case "double":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "double", XContentFieldType.DOUBLE);
                 break;
             case "integer":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "integer", XContentFieldType.LONG);
                 break;
             case "float":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "float", XContentFieldType.DOUBLE);
                 break;
             case BooleanFieldMapper.CONTENT_TYPE:
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean", XContentFieldType.BOOLEAN);
                 break;
             default:
                 break;
@@ -682,7 +683,7 @@ final class DocumentParser {
                     for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                         try {
                             dateTimeFormatter.parser().parseMillis(text);
-                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
                             if (builder == null) {
                                 builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
                             }
@@ -697,7 +698,7 @@ final class DocumentParser {
                 String text = context.parser().text();
                 try {
                     Long.parseLong(text);
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
+                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                     if (builder == null) {
                         builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                     }
@@ -707,7 +708,7 @@ final class DocumentParser {
                 }
                 try {
                     Double.parseDouble(text);
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
+                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                     if (builder == null) {
                         builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                     }
@@ -716,7 +717,7 @@ final class DocumentParser {
                     // not a long number
                 }
             }
-            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName)
                         .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
@@ -725,13 +726,13 @@ final class DocumentParser {
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = context.parser().numberType();
             if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
                     builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
@@ -741,19 +742,19 @@ final class DocumentParser {
                 return builder;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
+            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.BOOLEAN);
             if (builder == null) {
                 builder = new BooleanFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "binary");
+            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.BINARY);
             if (builder == null) {
                 builder = new BinaryFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else {
-            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, null);
+            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder != null) {
                 return builder;
             }
@@ -858,7 +859,7 @@ final class DocumentParser {
                         case STRICT:
                             throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
                         case TRUE:
-                            Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], "object");
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);
                             if (builder == null) {
                                 builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                             }

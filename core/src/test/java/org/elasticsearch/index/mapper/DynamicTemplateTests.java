@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.object.DynamicTemplate;
+import org.elasticsearch.index.mapper.object.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -47,6 +48,31 @@ public class DynamicTemplateTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", builder.string());
+    }
+
+    public void testParseUnknownMatchType() {
+        Map<String, Object> templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", "short");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        // if a wrong match type is specified, we ignore the template
+        assertNull(DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha5));
+    }
+
+    public void testMatchAllTemplate() {
+        Map<String, Object> templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", "*");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha5);
+        assertTrue(template.match("a.b", "b", randomFrom(XContentFieldType.values())));
+    }
+
+    public void testMatchTypeTemplate() {
+        Map<String, Object> templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", "string");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha5);
+        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
+        assertFalse(template.match("a.b", "b", XContentFieldType.BOOLEAN));
     }
 
     public void testSerialization() throws Exception {

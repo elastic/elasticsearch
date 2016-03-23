@@ -617,9 +617,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction(Settings.EMPTY, "testTasksAction", clusterName, threadPool, testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
-                    logger.info("Task action on node " + node);
-                    if (failTaskOnNode == node && task.getParentTaskId().isSet() == false) {
-                        logger.info("Failing on node " + node);
+                    logger.info("Task action on node {}", node);
+                    if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
+                        logger.info("Failing on node {}", node);
                         throw new RuntimeException("Task level failure");
                     }
                     return new TestTaskResponse("Success on node " + node);

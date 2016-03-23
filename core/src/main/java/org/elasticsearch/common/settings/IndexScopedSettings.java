@@ -135,7 +135,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
-        IndexWarmer.INDEX_NORMS_LOADING_SETTING,
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
             Map<String, Settings> groups = s.getAsGroups();
@@ -171,7 +170,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         super.validateSettingKey(setting);
     }
 
-    public boolean isPrivateSetting(String key) {
+    @Override
+    protected final boolean isPrivateSetting(String key) {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:
             case IndexMetaData.SETTING_INDEX_UUID:

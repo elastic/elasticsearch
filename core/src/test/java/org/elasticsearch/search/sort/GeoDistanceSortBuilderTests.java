@@ -26,6 +26,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -87,6 +89,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         }
 
         return result;
+    }
+
+    @Override
+    protected MappedFieldType provideMappedFieldType(String name) {
+        MappedFieldType clone = GeoPointFieldMapper.Defaults.FIELD_TYPE.clone();
+        clone.setName(name);
+        return clone;
     }
 
     private static SortMode mode(SortMode original) {
@@ -167,7 +176,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             break;
         }
         return result;
-
     }
 
     public void testSortModeSumIsRejectedInSetter() {

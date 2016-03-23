@@ -16,6 +16,26 @@ values.  For backwards compatibility purposes, during the 5.x series:
   with `string` fields are no longer possible with `text`/`keyword` fields
   such as enabling `term_vectors` on a not-analyzed `keyword` field.
 
+==== Default string mappings
+
+String mappings now have the following default mappings:
+
+[source,json]
+---------------
+{
+  "type": "text",
+  "fields": {
+    "keyword": {
+      "type": "keyword",
+      "ignore_above": 256
+    }
+  }
+}
+---------------
+
+This allows to perform full-text search on the original field name and to sort
+and run aggregations on the sub keyword field.
+
 ==== `index` property
 
 On all field datatypes (except for the deprecated `string` field), the `index`
@@ -35,11 +55,21 @@ now defaults to using `float` instead of `double`. The reasoning is that
 floats should be more than enough for most cases but would decrease storage
 requirements significantly.
 
+==== `norms`
+
+`norms` now take a boolean instead of an object. This boolean is the replacement
+for `norms.enabled`. There is no replacement for `norms.loading` since eager
+loading of norms is not useful anymore now that norms are disk-based.
+
 ==== `fielddata.format`
 
 Setting `fielddata.format: doc_values` in the mappings used to implicitly
 enable doc-values on a field. This no longer works: the only way to enable or
 disable doc-values is by using the `doc_values` property of mappings.
+
+==== `fielddata.frequency.regex`
+
+Regex filters are not supported anymore and will be dropped on upgrade.
 
 ==== Source-transform removed
 

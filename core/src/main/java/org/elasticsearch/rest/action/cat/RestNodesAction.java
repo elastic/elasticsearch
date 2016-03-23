@@ -151,13 +151,13 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("query_cache.memory_size", "alias:fcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
-        table.addCell("query_cache.evictions", "alias:fce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
 
-        table.addCell("request_cache.memory_size", "alias:qcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
-        table.addCell("request_cache.evictions", "alias:qce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
-        table.addCell("request_cache.hit_count", "alias:qchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit counts");
-        table.addCell("request_cache.miss_count", "alias:qcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss counts");
+        table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.evictions", "alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
+        table.addCell("request_cache.hit_count", "alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit counts");
+        table.addCell("request_cache.miss_count", "alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss counts");
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");

@@ -1083,6 +1083,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
+        client().admin().indices().preparePutMapping("test").setType("test").setSource("foo", "type=text,fielddata=true").get();
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
         client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
 
@@ -1158,11 +1159,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
         ShardRouting routing = new ShardRouting(shard.routingEntry());
         shard.close("simon says", true);
-        NodeServicesProvider indexServices = indexService.getIndexServices();
         IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(),
                 shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
                 indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-                indexServices, indexService.getSearchSlowLog(), null, listeners
+                indexService.getThreadPool(), indexService.getBigArrays(), indexService.getSearchSlowLog(), null, listeners
         );
         ShardRoutingHelper.reinit(routing);
         newShard.updateRoutingEntry(routing, false);

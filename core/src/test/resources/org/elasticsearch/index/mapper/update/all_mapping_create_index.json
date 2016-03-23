@@ -10,10 +10,7 @@
         "norms": false,
         "analyzer": "standard",
         "search_analyzer": "whitespace",
-        "similarity": "my_similarity",
-        "fielddata": {
-           "format": "paged_bytes"
-        }
+        "similarity": "my_similarity"
       }
     }
   },

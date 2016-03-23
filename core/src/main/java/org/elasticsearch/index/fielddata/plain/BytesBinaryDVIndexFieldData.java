@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -37,8 +36,8 @@ import java.io.IOException;
 
 public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVAtomicFieldData> {
 
-    public BytesBinaryDVIndexFieldData(Index index, String fieldName, FieldDataType fieldDataType) {
-        super(index, fieldName, fieldDataType);
+    public BytesBinaryDVIndexFieldData(Index index, String fieldName) {
+        super(index, fieldName);
     }
 
     @Override
@@ -67,7 +66,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final String fieldName = fieldType.name();
-            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName, fieldType.fieldDataType());
+            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
         }
 
     }

@@ -23,18 +23,16 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -82,38 +80,18 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             return Queries.newMatchNoDocsQuery();
         }
 
-        ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
-        if (objectMapper != null) {
-            // automatic make the object mapper pattern
-            fieldPattern = fieldPattern + ".*";
-        }
-
-        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
-        if (fields.isEmpty()) {
-            // no fields exists, so we should not match anything
-            return Queries.newMatchNoDocsQuery();
+        final Collection<String> fields;
+        if (context.getObjectMapper(fieldPattern) != null) {
+            // the _field_names field also indexes objects, so we don't have to
+            // do any more work to support exists queries on whole objects
+            fields = Collections.singleton(fieldPattern);
+        } else {
+            fields = context.simpleMatchToIndexNames(fieldPattern);
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
-            MappedFieldType fieldType = context.fieldMapper(field);
-            Query filter = null;
-            if (fieldNamesFieldType.isEnabled()) {
-                final String f;
-                if (fieldType != null) {
-                    f = fieldType.name();
-                } else {
-                    f = field;
-                }
-                filter = fieldNamesFieldType.termQuery(f, context);
-            }
-            // if _field_names are not indexed, we need to go the slow way
-            if (filter == null && fieldType != null) {
-                filter = fieldType.rangeQuery(null, null, true, true);
-            }
-            if (filter == null) {
-                filter = new TermRangeQuery(field, null, null, true, true);
-            }
+            Query filter = fieldNamesFieldType.termQuery(field, context);
             boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());

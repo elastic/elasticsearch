@@ -27,7 +27,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.chrono.ISOChronology;
+
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -231,6 +234,124 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(2L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(1L));
+    }
+
+    public void testQueryRewriteDatesWithNow() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date")
+                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                        1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .get());
+        assertAcked(client().admin().indices().prepareCreate("index-2").addMapping("type", "d", "type=date")
+                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                        1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .get());
+        assertAcked(client().admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date")
+                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                        1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .get());
+        DateTime now = new DateTime(ISOChronology.getInstanceUTC());
+        indexRandom(true, client().prepareIndex("index-1", "type", "1").setSource("d", now),
+                client().prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1)),
+                client().prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2)),
+                client().prepareIndex("index-2", "type", "4").setSource("d", now.minusDays(3)),
+                client().prepareIndex("index-2", "type", "5").setSource("d", now.minusDays(4)),
+                client().prepareIndex("index-2", "type", "6").setSource("d", now.minusDays(5)),
+                client().prepareIndex("index-3", "type", "7").setSource("d", now.minusDays(6)),
+                client().prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)),
+                client().prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
+        ensureSearchable("index-1", "index-2", "index-3");
+
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        final SearchResponse r1 = client().prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(8L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L));
+        // Because the query will INTERSECT with the 3rd index it will not be
+        // rewritten and will still contain `now` so won't be recorded as a
+        // cache miss or cache hit since queries containing now can't be cached
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        final SearchResponse r2 = client().prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        assertSearchResponse(r2);
+        assertThat(r2.getHits().getTotalHits(), equalTo(8L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        final SearchResponse r3 = client().prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        assertSearchResponse(r3);
+        assertThat(r3.getHits().getTotalHits(), equalTo(8L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(2L));
+        assertThat(
+                client().admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(2L));
+        assertThat(
+                client().admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(
+                client().admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
     }
 
 }

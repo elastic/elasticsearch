@@ -54,7 +54,6 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -87,11 +86,6 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         public String getFieldName() {
             return "test";
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
         @Override
@@ -172,11 +166,6 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         public String getFieldName() {
             return "test";
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
         @Override

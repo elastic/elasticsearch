@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImplTestCase {
     @Override
-    protected abstract FieldDataType getFieldDataType();
+    protected abstract String getFieldDataType();
 
     protected Field randomGeoPointField(String fieldName, Field.Store store) {
         GeoPoint point = randomPoint(random());

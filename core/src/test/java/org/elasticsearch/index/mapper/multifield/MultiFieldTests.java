@@ -30,13 +30,11 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -118,7 +116,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name.test1").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().tokenized(), equalTo(true));
-        assertThat(docMapper.mappers().getMapper("name.test1").fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
+        assertThat(docMapper.mappers().getMapper("name.test1").fieldType().eagerGlobalOrdinals(), equalTo(true));
 
         assertThat(docMapper.mappers().getMapper("name.test2"), notNullValue());
         assertThat(docMapper.mappers().getMapper("name.test2"), instanceOf(TokenCountFieldMapper.class));
@@ -202,37 +200,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         for (String field : multiFields.keySet()) {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
-    }
-
-    // The fielddata settings need to be the same after deserializing/re-serialsing, else unnecessary mapping sync's can be triggered
-    public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
-        final String MY_MULTI_FIELD = "multi_field";
-
-        // Possible fielddata settings
-        Map<String, Object> possibleSettings = new TreeMap<String, Object>();
-        possibleSettings.put("filter.frequency.min", 1);
-        possibleSettings.put("filter.frequency.max", 2);
-        possibleSettings.put("filter.regex.pattern", ".*");
-        possibleSettings.put("loading", "eager");
-        possibleSettings.put("foo", "bar");
-        possibleSettings.put("zetting", "zValue");
-        possibleSettings.put("aSetting", "aValue");
-
-        // Generate a mapping with the a random subset of possible fielddata settings
-        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("my_field").field("type", "text").startObject("fields").startObject(MY_MULTI_FIELD)
-            .field("type", "text").startObject("fielddata");
-        String[] keys = possibleSettings.keySet().toArray(new String[]{});
-        Collections.shuffle(Arrays.asList(keys), random());
-        for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
-            builder.field(keys[i], possibleSettings.get(keys[i]));
-        builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
-
-        // Check the mapping remains identical when deserialed/re-serialsed
-        final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(builder.string()));
-        DocumentMapper docMapper2 = parser.parse("type", docMapper.mappingSource());
-        assertThat(docMapper.mappingSource(), equalTo(docMapper2.mappingSource()));
     }
 
     public void testObjectFieldNotAllowed() throws Exception {

@@ -25,13 +25,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -41,23 +38,21 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<AtomicOrdinalsFieldData> implements IndexOrdinalsFieldData {
 
-    protected Settings frequency;
-    protected Settings regex;
+    private final double minFrequency, maxFrequency;
+    private final int minSegmentSize;
     protected final CircuitBreakerService breakerService;
 
-    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType,
-                                          IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(indexSettings, fieldName, fieldDataType, cache);
-        final Map<String, Settings> groups = fieldDataType.getSettings().getGroups("filter");
-        frequency = groups.get("frequency");
-        regex = groups.get("regex");
+    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, String fieldName,
+            IndexFieldDataCache cache, CircuitBreakerService breakerService,
+            double minFrequency, double maxFrequency, int minSegmentSize) {
+        super(indexSettings, fieldName, cache);
         this.breakerService = breakerService;
+        this.minFrequency = minFrequency;
+        this.maxFrequency = maxFrequency;
+        this.minSegmentSize = minSegmentSize;
     }
 
     @Override
@@ -110,17 +105,24 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         return AbstractAtomicOrdinalsFieldData.empty();
     }
 
-    protected TermsEnum filter(Terms terms, LeafReader reader) throws IOException {
-        TermsEnum iterator = terms.iterator();
+    protected TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {
         if (iterator == null) {
             return null;
         }
-        if (iterator != null && frequency != null) {
-            iterator = FrequencyFilter.filter(iterator, terms, reader, frequency);
+        int docCount = terms.getDocCount();
+        if (docCount == -1) {
+            docCount = reader.maxDoc();
         }
-
-        if (iterator != null && regex != null) {
-            iterator = RegexFilter.filter(iterator, terms, reader, regex);
+        if (docCount >= minSegmentSize) {
+            final int minFreq = minFrequency > 1.0
+                    ? (int) minFrequency
+                    : (int)(docCount * minFrequency);
+            final int maxFreq = maxFrequency > 1.0
+                    ? (int) maxFrequency
+                    : (int)(docCount * maxFrequency);
+            if (minFreq > 1 || maxFreq < docCount) {
+                iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
+            }
         }
         return iterator;
     }
@@ -135,58 +137,10 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             this.maxFreq = maxFreq;
         }
 
-        public static TermsEnum filter(TermsEnum toFilter, Terms terms, LeafReader reader, Settings settings) throws IOException {
-            int docCount = terms.getDocCount();
-            if (docCount == -1) {
-                docCount = reader.maxDoc();
-            }
-            final double minFrequency = settings.getAsDouble("min", 0d);
-            final double maxFrequency = settings.getAsDouble("max", docCount+1d);
-            final double minSegmentSize = settings.getAsInt("min_segment_size", 0);
-            if (minSegmentSize < docCount) {
-                final int minFreq = minFrequency > 1.0? (int) minFrequency : (int)(docCount * minFrequency);
-                final int maxFreq = maxFrequency > 1.0? (int) maxFrequency : (int)(docCount * maxFrequency);
-                assert minFreq < maxFreq;
-                return new FrequencyFilter(toFilter, minFreq, maxFreq);
-            }
-
-            return toFilter;
-
-        }
-
         @Override
         protected AcceptStatus accept(BytesRef arg0) throws IOException {
             int docFreq = docFreq();
             if (docFreq >= minFreq && docFreq <= maxFreq) {
-                return AcceptStatus.YES;
-            }
-            return AcceptStatus.NO;
-        }
-    }
-
-    private static final class RegexFilter extends FilteredTermsEnum {
-
-        private final Matcher matcher;
-        private final CharsRefBuilder spare = new CharsRefBuilder();
-
-        public RegexFilter(TermsEnum delegate, Matcher matcher) {
-            super(delegate, false);
-            this.matcher = matcher;
-        }
-        public static TermsEnum filter(TermsEnum iterator, Terms terms, LeafReader reader, Settings regex) {
-            String pattern = regex.get("pattern");
-            if (pattern == null) {
-                return iterator;
-            }
-            Pattern p = Pattern.compile(pattern);
-            return new RegexFilter(iterator, p.matcher(""));
-        }
-
-        @Override
-        protected AcceptStatus accept(BytesRef arg0) throws IOException {
-            spare.copyUTF8Bytes(arg0);
-            matcher.reset(spare.get());
-            if (matcher.matches()) {
                 return AcceptStatus.YES;
             }
             return AcceptStatus.NO;

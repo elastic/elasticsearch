@@ -24,13 +24,10 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
@@ -51,7 +48,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -70,7 +66,6 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -91,7 +86,6 @@ public class InternalEngine extends Engine {
      */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    private final Engine.Warmer warmer;
     private final Translog translog;
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
 
@@ -131,7 +125,6 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
-            this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
@@ -931,30 +924,6 @@ public class InternalEngine extends Engine {
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
             iwc.setCodec(engineConfig.getCodec());
             iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
-            // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
-            // of the merge operation and won't slow down _refresh
-            iwc.setMergedSegmentWarmer(new IndexReaderWarmer() {
-                @Override
-                public void warm(LeafReader reader) throws IOException {
-                    try {
-                        LeafReader esLeafReader = new ElasticsearchLeafReader(reader, shardId);
-                        assert isMergedSegment(esLeafReader);
-                        if (warmer != null) {
-                            final Engine.Searcher searcher = new Searcher("warmer", searcherFactory.newSearcher(esLeafReader, null));
-                            warmer.warm(searcher, false);
-                        }
-                    } catch (Throwable t) {
-                        // Don't fail a merge if the warm-up failed
-                        if (isClosed.get() == false) {
-                            logger.warn("Warm-up failed", t);
-                        }
-                        if (t instanceof Error) {
-                            // assertion/out-of-memory error, don't ignore those
-                            throw (Error) t;
-                        }
-                    }
-                }
-            });
             return new IndexWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
@@ -965,14 +934,12 @@ public class InternalEngine extends Engine {
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
     final static class SearchFactory extends EngineSearcherFactory {
         private final Engine.Warmer warmer;
-        private final ShardId shardId;
         private final ESLogger logger;
         private final AtomicBoolean isEngineClosed;
 
         SearchFactory(ESLogger logger, AtomicBoolean isEngineClosed, EngineConfig engineConfig) {
             super(engineConfig);
             warmer = engineConfig.getWarmer();
-            shardId = engineConfig.getShardId();
             this.logger = logger;
             this.isEngineClosed = isEngineClosed;
         }
@@ -987,54 +954,12 @@ public class InternalEngine extends Engine {
                 return searcher;
             }
             if (warmer != null) {
-                // we need to pass a custom searcher that does not release anything on Engine.Search Release,
-                // we will release explicitly
-                IndexSearcher newSearcher = null;
-                boolean closeNewSearcher = false;
                 try {
-                    if (previousReader == null) {
-                        // we are starting up - no writer active so we can't acquire a searcher.
-                        newSearcher = searcher;
-                    } else {
-                        // figure out the newSearcher, with only the new readers that are relevant for us
-                        List<IndexReader> readers = new ArrayList<>();
-                        for (LeafReaderContext newReaderContext : reader.leaves()) {
-                            if (isMergedSegment(newReaderContext.reader())) {
-                                // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
-                                continue;
-                            }
-                            boolean found = false;
-                            for (LeafReaderContext currentReaderContext : previousReader.leaves()) {
-                                if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found) {
-                                readers.add(newReaderContext.reader());
-                            }
-                        }
-                        if (!readers.isEmpty()) {
-                            // we don't want to close the inner readers, just increase ref on them
-                            IndexReader newReader = new MultiReader(readers.toArray(new IndexReader[readers.size()]), false);
-                            newSearcher = super.newSearcher(newReader, null);
-                            closeNewSearcher = true;
-                        }
-                    }
-
-                    if (newSearcher != null) {
-                        warmer.warm(new Searcher("new_reader_warming", newSearcher), false);
-                    }
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warm(new Searcher("top_reader_warming", searcher), true);
+                    warmer.warm(new Searcher("top_reader_warming", searcher));
                 } catch (Throwable e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);
-                    }
-                } finally {
-                    // no need to release the fullSearcher, nothing really is done...
-                    if (newSearcher != null && closeNewSearcher) {
-                        IOUtils.closeWhileHandlingException(newSearcher.getIndexReader()); // ignore
                     }
                 }
             }

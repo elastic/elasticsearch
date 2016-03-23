@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -27,8 +28,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,6 +53,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
     public static final ParseField REVERSE = new ParseField("reverse");
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
+
+    /**
+     * special field name to sort by index order
+     */
+    public static final String DOC_FIELD_NAME = "_doc";
+    private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
+    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
     private final String fieldName;
 
@@ -161,7 +175,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
      * TODO should the above getters and setters be deprecated/ changed in
      * favour of real getters and setters?
      */
-    public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+    public FieldSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -170,7 +184,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
      * Returns the nested filter that the nested objects should match with in
      * order to be taken into account for sorting.
      */
-    public QueryBuilder getNestedFilter() {
+    public QueryBuilder<?> getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -217,6 +231,49 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public SortField build(QueryShardContext context) throws IOException {
+        if (DOC_FIELD_NAME.equals(fieldName)) {
+            if (order == SortOrder.DESC) {
+                return SORT_DOC_REVERSE;
+            } else {
+                return SORT_DOC;
+            }
+        } else {
+            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            if (fieldType == null) {
+                if (unmappedType != null) {
+                    fieldType = context.getMapperService().unmappedFieldType(unmappedType);
+                } else {
+                    throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+                }
+            }
+
+            if (!fieldType.isSortable()) {
+                throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
+            }
+
+            MultiValueMode localSortMode = null;
+            if (sortMode != null) {
+                localSortMode = MultiValueMode.fromString(sortMode.toString());
+            }
+
+            if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+            }
+
+            boolean reverse = (order == SortOrder.DESC);
+            if (localSortMode == null) {
+                localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
+            }
+
+            final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.getForField(fieldType)
+                    .comparatorSource(missing, localSortMode, nested);
+            return new SortField(fieldType.name(), fieldComparatorSource, reverse);
+        }
     }
 
     @Override

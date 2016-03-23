@@ -112,7 +112,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("binary", Settings.builder().put("format", "doc_values"));
+    protected String getFieldDataType() {
+        return "binary";
     }
 }

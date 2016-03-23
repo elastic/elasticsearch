@@ -13,7 +13,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "name": {
-          "type": "string"
+          "type": "text"
         },
         "blob": {
           "type": "binary"

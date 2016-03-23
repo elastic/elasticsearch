@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -102,8 +101,8 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
         }
     }
 
-    public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(indexSettings, fieldName, fieldDataType, cache);
+    public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
+        super(indexSettings, fieldName, cache);
     }
 
     @Override

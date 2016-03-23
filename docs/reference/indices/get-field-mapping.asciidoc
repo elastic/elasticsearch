@@ -22,7 +22,7 @@ For which the response is (assuming `text` is a default string field):
          "text": {
             "full_name": "text",
             "mapping": {
-               "text": { "type": "string" }
+               "text": { "type": "text" }
             }
          }
       }
@@ -73,13 +73,13 @@ For example, consider the following mapping:
  {
      "article": {
          "properties": {
-             "id": { "type": "string" },
-             "title":  { "type": "string"},
-             "abstract": { "type": "string"},
+             "id": { "type": "text" },
+             "title":  { "type": "text"},
+             "abstract": { "type": "text"},
              "author": {
                  "properties": {
-                     "id": { "type": "string" },
-                     "name": { "type": "string" }
+                     "id": { "type": "text" },
+                     "name": { "type": "text" }
                  }
              }
          }
@@ -105,19 +105,19 @@ returns:
          "abstract": {
             "full_name": "abstract",
             "mapping": {
-               "abstract": { "type": "string" }
+               "abstract": { "type": "text" }
             }
          },
          "author.id": {
             "full_name": "author.id",
             "mapping": {
-               "id": { "type": "string" }
+               "id": { "type": "text" }
             }
          },
          "name": {
             "full_name": "author.name",
             "mapping": {
-               "name": { "type": "string" }
+               "name": { "type": "text" }
             }
          }
       }

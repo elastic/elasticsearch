@@ -105,6 +105,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.percolatorQueryCache = percolatorQueryCache;
+        this.nestedScope = new NestedScope();
     }
 
     public QueryShardContext(QueryShardContext source) {
@@ -113,6 +114,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
 
+    @Override
     public QueryShardContext clone() {
         return new QueryShardContext(indexSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache);
     }

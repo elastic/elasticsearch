@@ -19,6 +19,12 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
@@ -27,14 +33,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -56,7 +77,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
     private final Script script;
 
-    private ScriptSortType type;
+    private final ScriptSortType type;
 
     private SortMode sortMode;
 
@@ -104,11 +125,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     }
 
     /**
-     * Defines which distance to use for sorting in the case a document contains multiple geo points.
-     * Possible values: min and max
+     * Defines which distance to use for sorting in the case a document contains multiple values.<br>
+     * For {@link ScriptSortType#STRING}, the set of possible values is restricted to {@link SortMode#MIN} and {@link SortMode#MAX}
      */
     public ScriptSortBuilder sortMode(SortMode sortMode) {
         Objects.requireNonNull(sortMode, "sort mode cannot be null.");
+        if (ScriptSortType.STRING.equals(type) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG ||
+                sortMode == SortMode.MEDIAN)) {
+            throw new IllegalArgumentException("script sort of type [string] doesn't support mode [" + sortMode + "]");
+        }
         this.sortMode = sortMode;
         return this;
     }
@@ -242,6 +267,75 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
             result.setNestedPath(nestedPath);
         }
         return result;
+    }
+
+
+    @Override
+    public SortField build(QueryShardContext context) throws IOException {
+        final SearchScript searchScript = context.getScriptService().search(
+                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+
+        MultiValueMode valueMode = null;
+        if (sortMode != null) {
+            valueMode = MultiValueMode.fromString(sortMode.toString());
+        }
+        boolean reverse = (order == SortOrder.DESC);
+        if (valueMode == null) {
+            valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
+        }
+
+        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+        final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
+        switch (type) {
+            case STRING:
+                fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
+                    LeafSearchScript leafScript;
+                    @Override
+                    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
+                        leafScript = searchScript.getLeafSearchScript(context);
+                        final BinaryDocValues values = new BinaryDocValues() {
+                            final BytesRefBuilder spare = new BytesRefBuilder();
+                            @Override
+                            public BytesRef get(int docID) {
+                                leafScript.setDocument(docID);
+                                spare.copyChars(leafScript.run().toString());
+                                return spare.get();
+                            }
+                        };
+                        return FieldData.singleton(values, null);
+                    }
+                    @Override
+                    protected void setScorer(Scorer scorer) {
+                        leafScript.setScorer(scorer);
+                    }
+                };
+                break;
+            case NUMBER:
+                fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
+                    LeafSearchScript leafScript;
+                    @Override
+                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
+                        leafScript = searchScript.getLeafSearchScript(context);
+                        final NumericDoubleValues values = new NumericDoubleValues() {
+                            @Override
+                            public double get(int docID) {
+                                leafScript.setDocument(docID);
+                                return leafScript.runAsDouble();
+                            }
+                        };
+                        return FieldData.singleton(values, null);
+                    }
+                    @Override
+                    protected void setScorer(Scorer scorer) {
+                        leafScript.setScorer(scorer);
+                    }
+                };
+                break;
+            default:
+            throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
+        }
+
+        return new SortField("_script", fieldComparatorSource, reverse);
     }
 
     @Override

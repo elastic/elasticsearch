@@ -78,7 +78,7 @@ curl -XPOST localhost:9200/test -d '{
     "mappings" : {
         "type1" : {
             "properties" : {
-                "field1" : { "type" : "string", "index" : "not_analyzed" }
+                "field1" : { "type" : "text" }
             }
         }
     }

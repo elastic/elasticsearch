@@ -234,8 +234,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         // We successfully checked all indices for backward compatibility and found no non-upgradable indices, which
         // means the upgrade can continue. Now it's safe to overwrite index metadata with the new version.
         for (IndexMetaData indexMetaData : updateIndexMetaData) {
-            // since we still haven't upgraded the index folders, we write index state in the old folder
-            metaStateService.writeIndex("upgrade", indexMetaData, nodeEnv.resolveIndexFolder(indexMetaData.getIndex().getUUID()));
+            // since we upgraded the index folders already, write index state in the upgraded index folder
+            metaStateService.writeIndex("upgrade", indexMetaData);
         }
     }
 

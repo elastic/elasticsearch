@@ -430,10 +430,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(shardMinValue));
-        assertThat(rewrittenRange.to(), equalTo(shardMaxValue));
-        assertThat(rewrittenRange.includeLower(), equalTo(true));
-        assertThat(rewrittenRange.includeUpper(), equalTo(true));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
     }
 
     public void testRewriteLongToMatchNone() throws IOException {
@@ -509,10 +507,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(shardMinValue));
-        assertThat(rewrittenRange.to(), equalTo(shardMaxValue));
-        assertThat(rewrittenRange.includeLower(), equalTo(true));
-        assertThat(rewrittenRange.includeUpper(), equalTo(true));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
     }
 
     public void testRewriteDoubleToMatchNone() throws IOException {
@@ -588,10 +584,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(shardMinValue));
-        assertThat(rewrittenRange.to(), equalTo(shardMaxValue));
-        assertThat(rewrittenRange.includeLower(), equalTo(true));
-        assertThat(rewrittenRange.includeUpper(), equalTo(true));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
     }
 
     public void testRewriteFloatToMatchNone() throws IOException {
@@ -667,10 +661,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(shardMinValue));
-        assertThat(rewrittenRange.to(), equalTo(shardMaxValue));
-        assertThat(rewrittenRange.includeLower(), equalTo(true));
-        assertThat(rewrittenRange.includeUpper(), equalTo(true));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
     }
 
     public void testRewriteTextToMatchNone() throws IOException {
@@ -746,10 +738,43 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(shardMinValue.getMillis()));
-        assertThat(rewrittenRange.to(), equalTo(shardMaxValue.getMillis()));
-        assertThat(rewrittenRange.includeLower(), equalTo(true));
-        assertThat(rewrittenRange.includeUpper(), equalTo(true));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
+    }
+
+    public void testRewriteDateWithNowToMatchAll() throws IOException {
+        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
+        String queryFromValue = "now-2d";
+        String queryToValue = "now";
+        DateTime shardMinValue = new DateTime().minusHours(12);
+        DateTime shardMaxValue = new DateTime().minusHours(24);
+        query.from(queryFromValue);
+        query.to(queryToValue);
+        QueryShardContext queryShardContext = queryShardContext();
+        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
+
+            @Override
+            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
+                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+                return Relation.WITHIN;
+            }
+
+            @SuppressWarnings("unchecked")
+            @Override
+            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
+                assertThat(field, equalTo(fieldName));
+                return (FieldStats<T>) new FieldStats.Date(randomLong(), randomLong(), randomLong(), randomLong(),
+                        shardMinValue.getMillis(), shardMaxValue.getMillis(), null);
+            }
+        };
+        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
+        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
+        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
     }
 
     public void testRewriteDateToMatchNone() throws IOException {
@@ -773,11 +798,53 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
+    public void testRewriteDateWithNowToMatchNone() throws IOException {
+        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
+        String queryFromValue = "now-2d";
+        String queryToValue = "now";
+        query.from(queryFromValue);
+        query.to(queryToValue);
+        QueryShardContext queryShardContext = queryShardContext();
+        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
+
+            @Override
+            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
+                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+                return Relation.DISJOINT;
+            }
+        };
+        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
+        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
     public void testRewriteDateToSame() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
         DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        query.from(queryFromValue);
+        query.to(queryToValue);
+        QueryShardContext queryShardContext = queryShardContext();
+        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
+
+            @Override
+            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
+                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+                return Relation.INTERSECTS;
+            }
+        };
+        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
+        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, sameInstance(query));
+    }
+
+    public void testRewriteDateWithNowToSame() throws IOException {
+        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
+        String queryFromValue = "now-2d";
+        String queryToValue = "now";
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = queryShardContext();

@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.mapper.internal;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Before;
@@ -37,5 +40,16 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
                 fnft.setEnabled(!fnft.isEnabled());
             }
         });
+    }
+
+    public void testTermQuery() {
+        FieldNamesFieldMapper.FieldNamesFieldType type = new FieldNamesFieldMapper.FieldNamesFieldType();
+        type.setName(FieldNamesFieldMapper.CONTENT_TYPE);
+        type.setEnabled(true);
+        Query termQuery = type.termQuery("field_name", null);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
+        type.setEnabled(false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> type.termQuery("field_name", null));
+        assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
     }
 }

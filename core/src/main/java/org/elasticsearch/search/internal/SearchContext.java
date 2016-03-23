@@ -149,6 +149,10 @@ public abstract class SearchContext implements Releasable {
         return nowInMillisUsed;
     }
 
+    public final void resetNowInMillisUsed() {
+        this.nowInMillisUsed = false;
+    }
+
     protected abstract long nowInMillisImpl();
 
     public abstract ScrollContext scrollContext();

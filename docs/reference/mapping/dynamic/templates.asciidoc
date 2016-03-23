@@ -52,7 +52,7 @@ can be automatically detected: `boolean`, `date`, `double`, `long`, `object`,
 `string`.  It also accepts `*` to match all datatypes.
 
 For example, if we wanted to map all integer fields as `integer` instead of
-`long`, and all `string` fields as both `analyzed` and `not_analyzed`, we
+`long`, and all `string` fields as both `text` and `keyword`, we
 could use the following template:
 
 [source,js]
@@ -74,11 +74,10 @@ PUT my_index
           "strings": {
             "match_mapping_type": "string",
             "mapping": {
-              "type": "string",
+              "type": "text",
               "fields": {
                 "raw": {
-                  "type":  "string",
-                  "index": "not_analyzed",
+                  "type":  "keyword",
                   "ignore_above": 256
                 }
               }
@@ -99,7 +98,7 @@ PUT my_index/my_type/1
 --------------------------------------------------
 // AUTOSENSE
 <1> The `my_integer` field is mapped as an `integer`.
-<2> The `my_string` field is mapped as an analyzed `string`, with a `not_analyzed` <<multi-fields,multi field>>.
+<2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
 
 
 [[match-unmatch]]
@@ -180,7 +179,7 @@ PUT my_index
             "path_match":   "name.*",
             "path_unmatch": "*.middle",
             "mapping": {
-              "type":       "string",
+              "type":       "text",
               "copy_to":    "full_name"
             }
           }
@@ -221,7 +220,7 @@ PUT my_index
             "match_mapping_type": "string",
             "match": "*",
             "mapping": {
-              "type": "string",
+              "type": "text",
               "analyzer": "{name}"
             }
           }

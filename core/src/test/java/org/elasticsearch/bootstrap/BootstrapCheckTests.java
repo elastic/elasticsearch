@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -154,6 +155,38 @@ public class BootstrapCheckTests extends ESTestCase {
         // nothing should happen if current max number of threads is
         // not available
         maxNumberOfThreads.set(-1);
+        BootstrapCheck.check(true, Collections.singletonList(check));
+    }
+
+    public void testMaxSizeVirtualMemory() {
+        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
+        final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
+        final BootstrapCheck.MaxSizeVirtualMemoryCheck check = new BootstrapCheck.MaxSizeVirtualMemoryCheck() {
+            @Override
+            long getMaxSizeVirtualMemory() {
+                return maxSizeVirtualMemory.get();
+            }
+
+            @Override
+            long getRlimInfinity() {
+                return rlimInfinity;
+            }
+        };
+
+        try {
+            BootstrapCheck.check(true, Collections.singletonList(check));
+            fail("should have failed due to max size virtual memory too low");
+        } catch (final RuntimeException e) {
+            assertThat(e.getMessage(), containsString("max size virtual memory"));
+        }
+
+        maxSizeVirtualMemory.set(rlimInfinity);
+
+        BootstrapCheck.check(true, Collections.singletonList(check));
+
+        // nothing should happen if max size virtual memory is not
+        // available
+        maxSizeVirtualMemory.set(Long.MIN_VALUE);
         BootstrapCheck.check(true, Collections.singletonList(check));
     }
 

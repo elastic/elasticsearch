@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
@@ -39,8 +38,11 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
-public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse,
-        TA extends TransportAction<Request, Response>> extends BaseRestHandler {
+public abstract class AbstractBaseReindexRestHandler<
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends BulkIndexByScrollResponse,
+                TA extends TransportAction<Request, Response>
+            > extends BaseRestHandler {
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final AggregatorParsers aggParsers;
     protected final Suggesters suggesters;
@@ -59,6 +61,7 @@ public abstract class AbstractBaseReindexRestHandler<Request extends ActionReque
     }
 
     protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
+        internalRequest.setRequestsPerSecond(request.paramAsFloat("requests_per_second", internalRequest.getRequestsPerSecond()));
         if (request.paramAsBoolean("wait_for_completion", true)) {
             action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
             return;

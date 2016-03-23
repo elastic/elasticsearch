@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.ShortFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -109,7 +108,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s").build(ctx).fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s").fielddata(true).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -121,7 +120,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final AtomicInteger onRemovalCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
-            public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
                 if (wrap) {
                     assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
@@ -131,7 +130,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
                 if (wrap) {
                     assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
@@ -159,12 +158,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
                 @Override
-                public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+                public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
                 }
 
                 @Override
-                public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+                public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
 
                 }
             });
@@ -206,22 +205,4 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType());
     }
 
-    public void testDisabled() {
-        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
-        StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
-        try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
-            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
-            ft.setName("some_str");
-            ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));
-            try {
-                ifds.getForField(ft);
-                fail();
-            } catch (IllegalStateException e) {
-                assertThat(e.getMessage(), containsString("Field data loading is forbidden on [some_str]"));
-            }
-        } finally {
-            threadPool.shutdown();
-        }
-    }
 }

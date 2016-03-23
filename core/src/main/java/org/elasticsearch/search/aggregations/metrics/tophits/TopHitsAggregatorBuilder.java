@@ -502,9 +502,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         if (sorts != null) {
             builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName());
             for (SortBuilder<?> sort : sorts) {
-                    builder.startObject();
                     sort.toXContent(builder, params);
-                    builder.endObject();
             }
             builder.endArray();
         }

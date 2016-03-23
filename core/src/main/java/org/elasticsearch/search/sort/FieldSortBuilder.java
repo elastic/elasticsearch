@@ -42,7 +42,7 @@ import java.util.Objects;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    public static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("");
+    public static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("_na_");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
@@ -199,6 +199,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(fieldName);
         builder.field(ORDER_FIELD.getPreferredName(), order);
         if (missing != null) {
@@ -216,6 +217,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (nestedPath != null) {
             builder.field(NESTED_PATH.getPreferredName(), nestedPath);
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

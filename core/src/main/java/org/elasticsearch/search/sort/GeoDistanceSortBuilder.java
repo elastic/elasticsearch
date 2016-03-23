@@ -300,6 +300,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
 
         builder.startArray(fieldName);
@@ -325,6 +326,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         builder.field(COERCE_FIELD.getPreferredName(), coerce);
         builder.field(IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
 
+        builder.endObject();
         builder.endObject();
         return builder;
     }

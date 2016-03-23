@@ -53,8 +53,10 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
         builder.field(ORDER_FIELD.getPreferredName(), order);
+        builder.endObject();
         builder.endObject();
         return builder;
     }

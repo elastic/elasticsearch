@@ -1051,9 +1051,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (sorts != null) {
             builder.startArray(SORT_FIELD.getPreferredName());
             for (SortBuilder<?> sort : sorts) {
-                builder.startObject();
                 sort.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }

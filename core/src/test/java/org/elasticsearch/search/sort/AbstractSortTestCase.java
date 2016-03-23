@@ -129,10 +129,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
-            builder.startObject();
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
             itemParser.nextToken();
 

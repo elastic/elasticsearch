@@ -160,15 +160,11 @@ public class SortBuilderTests extends ESTestCase {
                         xContentBuilder.endObject();
                         break;
                     case 2:
-                        xContentBuilder.startObject();
                         builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                        xContentBuilder.endObject();
                         break;
                     }
                 } else {
-                    xContentBuilder.startObject();
                     builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                    xContentBuilder.endObject();
                 }
             }
             if (testBuilders.size() > 1) {

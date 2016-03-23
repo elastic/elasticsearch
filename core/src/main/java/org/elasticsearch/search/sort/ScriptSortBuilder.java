@@ -179,6 +179,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
         builder.field(SCRIPT_FIELD.getPreferredName(), script);
         builder.field(TYPE_FIELD.getPreferredName(), type);
@@ -192,6 +193,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (nestedFilter != null) {
             builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, builderParams);
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

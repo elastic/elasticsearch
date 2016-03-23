@@ -69,8 +69,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, 0, timeValueNanos(0), null);
-
+        public static final String NAME = "bulk-by-scroll";
         private final long total;
         private final long updated;
         private final long created;
@@ -178,12 +177,7 @@ public class BulkByScrollTask extends CancellableTask {
 
         @Override
         public String getWriteableName() {
-            return "bulk-by-scroll";
-        }
-
-        @Override
-        public Status readFrom(StreamInput in) throws IOException {
-            return new Status(in);
+            return NAME;
         }
 
         /**

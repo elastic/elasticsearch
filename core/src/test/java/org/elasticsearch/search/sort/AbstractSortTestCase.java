@@ -255,10 +255,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
-                        original.getWriteableName());
-                T copy = prototype.readFrom(in);
-                return copy;
+                return (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).read(in);
             }
         }
     }

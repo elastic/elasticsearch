@@ -44,6 +44,6 @@ public class ReindexPlugin extends Plugin {
     public void onModule(NetworkModule networkModule) {
         networkModule.registerRestHandler(RestReindexAction.class);
         networkModule.registerRestHandler(RestUpdateByQueryAction.class);
-        networkModule.registerTaskStatus(BulkByScrollTask.Status.PROTOTYPE);
+        networkModule.registerTaskStatus(BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new);
     }
 }

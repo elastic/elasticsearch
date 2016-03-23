@@ -283,7 +283,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         updateAllTypes = in.readBoolean();
         readTimeout(in);
-        concreteIndex = in.readOptionalWritable(Index::new);
+        concreteIndex = in.readOptionalWriteable(Index::new);
     }
 
     @Override

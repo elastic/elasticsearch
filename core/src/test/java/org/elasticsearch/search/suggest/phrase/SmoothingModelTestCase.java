@@ -108,9 +108,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
         context.reset(parser);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
-        SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
-                testModel.getWriteableName());
-        SmoothingModel parsedModel = prototype.innerFromXContent(context);
+        SmoothingModel parsedModel = testModel.innerFromXContent(context);
         assertNotSame(testModel, parsedModel);
         assertEquals(testModel, parsedModel);
         assertEquals(testModel.hashCode(), parsedModel.hashCode());
@@ -188,9 +186,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
-                        original.getWriteableName());
-                return prototype.readFrom(in);
+                return namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()).read(in);
             }
         }
     }

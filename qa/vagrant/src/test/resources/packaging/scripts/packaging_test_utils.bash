@@ -402,7 +402,7 @@ wait_for_elasticsearch_status() {
       curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
     else
       echo "Trying to connect to elasticsearch and wait for expected status $desiredStatus for index $index"
-      curl -sS "http://localhost:9200/_cluster/$index/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+      curl -sS "http://localhost:9200/_cluster/health/$index?wait_for_status=$desiredStatus&timeout=60s&pretty"
     fi
     if [ $? -eq 0 ]; then
         echo "Connected"

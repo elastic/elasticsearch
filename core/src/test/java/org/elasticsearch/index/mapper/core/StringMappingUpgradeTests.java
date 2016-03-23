@@ -151,6 +151,19 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals("eager_global_ordinals".equals(loading), field.fieldType().eagerGlobalOrdinals());
     }
 
+    public void testUpgradeIgnoreAbove() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("index", "not_analyzed").field("ignore_above", 200).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(KeywordFieldMapper.class));
+        assertEquals(200, ((KeywordFieldMapper) field).ignoreAbove());
+    }
+
     public void testUpgradeRandomMapping() throws IOException {
         final int iters = 20;
         for (int i = 0; i < iters; ++i) {

@@ -63,10 +63,14 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     public static final String CONTENT_TYPE = "string";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
+    // If a string field is created on 5.x and all parameters are in this list then we
+    // will automatically upgrade to a text/keyword field. Otherwise we will just fail
+    // saying that string fields are not supported anymore.
     private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE = new HashSet<>(Arrays.asList(
             "type",
             // most common parameters, for which the upgrade is straightforward
-            "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to", "fielddata"));
+            "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
+            "fielddata", "ignore_above"));
 
     public static class Defaults {
         public static double FIELDDATA_MIN_FREQUENCY = 0;

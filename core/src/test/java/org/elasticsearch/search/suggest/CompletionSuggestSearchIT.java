@@ -896,9 +896,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
-        final SearchRequest searchRequest = Requests.searchRequest(INDEX);
-        searchRequest.source(new SearchSourceBuilder());
-        searchRequest.source().suggest();
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)).execute().actionGet();
         assertSuggestions(searchResponse, suggestionName, suggestions);
     }

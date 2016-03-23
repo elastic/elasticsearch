@@ -63,7 +63,7 @@ public class MonitoringBulkResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         tookInMillis = in.readVLong();
-        error = in.readOptionalWritable(Error::new);
+        error = in.readOptionalWriteable(Error::new);
     }
 
     @Override

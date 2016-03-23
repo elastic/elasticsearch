@@ -43,7 +43,7 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
-import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -1789,7 +1789,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").addMapping("mapping", mapping));
         try {
             client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
-                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new QueryInnerHits())).endObject())
+                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new InnerHitBuilder())).endObject())
                     .execute().actionGet();
             fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
         } catch (Exception e) {

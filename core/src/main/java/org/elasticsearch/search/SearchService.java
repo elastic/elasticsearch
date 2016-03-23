@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -76,6 +77,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -754,20 +756,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.innerHits() != null) {
-            XContentParser innerHitsParser = null;
-            try {
-                innerHitsParser = XContentFactory.xContent(source.innerHits()).createParser(source.innerHits());
-                innerHitsParser.nextToken();
-                this.elementParsers.get("inner_hits").parse(innerHitsParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
+            for (Map.Entry<String, InnerHitBuilder> entry : source.innerHits().getInnerHitsBuilders().entrySet()) {
                 try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
+                    // This is the same logic in QueryShardContext#toQuery() where we reset also twice.
+                    // Personally I think a reset at the end is sufficient, but I kept the logic consistent with this method.
+
+                    // The reason we need to invoke reset at all here is because inner hits may modify the QueryShardContext#nestedScope,
+                    // so we need to reset at the end.
+                    queryShardContext.reset();
+                    InnerHitBuilder innerHitBuilder = entry.getValue();
+                    InnerHitsContext innerHitsContext = context.innerHits();
+                    innerHitBuilder.buildTopLevel(context, queryShardContext, innerHitsContext);
+                } catch (IOException e) {
+                    throw new SearchContextException(context, "failed to create InnerHitsContext", e);
+                } finally {
+                    queryShardContext.reset();
                 }
-                XContentLocation location = innerHitsParser != null ? innerHitsParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
             }
         }
         if (source.scriptFields() != null) {

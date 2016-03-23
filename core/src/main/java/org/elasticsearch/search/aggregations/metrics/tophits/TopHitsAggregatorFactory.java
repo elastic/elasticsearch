@@ -79,6 +79,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(context.searchContext());
+        subSearchContext.parsedQuery(context.searchContext().parsedQuery());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.trackScores(trackScores);

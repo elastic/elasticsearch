@@ -25,7 +25,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
@@ -49,7 +49,7 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
         QueryBuilder query = null;
         String path = null;
         String currentFieldName = null;
-        QueryInnerHits queryInnerHits = null;
+        InnerHitBuilder innerHitBuilder = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -58,7 +58,7 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     query = parseContext.parseInnerQueryBuilder();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    queryInnerHits = new QueryInnerHits(parser);
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
@@ -76,7 +76,7 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
                 }
             }
         }
-        return new NestedQueryBuilder(path, query, scoreMode, queryInnerHits).queryName(queryName).boost(boost);
+        return new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder).queryName(queryName).boost(boost);
     }
 
     @Override

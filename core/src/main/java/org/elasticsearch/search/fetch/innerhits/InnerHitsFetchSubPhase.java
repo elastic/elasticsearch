@@ -28,36 +28,30 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
-import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
-import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
-import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import static java.util.Collections.singletonMap;
 
 /**
  */
 public class InnerHitsFetchSubPhase implements FetchSubPhase {
-    private final Map<String, ? extends SearchParseElement> parseElements;
 
     private FetchPhase fetchPhase;
 
     @Inject
-    public InnerHitsFetchSubPhase(FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
-        parseElements = singletonMap("inner_hits", new InnerHitsParseElement(sourceParseElement, highlighterParseElement,
-                fieldDataFieldsParseElement, scriptFieldsParseElement));
+    public InnerHitsFetchSubPhase() {
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return parseElements;
+        // SearchParse elements needed because everything is parsed by InnerHitBuilder and eventually put
+        // into the search context.
+        return Collections.emptyMap();
     }
 
     @Override

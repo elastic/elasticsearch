@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -46,9 +48,12 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
+
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -272,66 +277,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
     }
 
-    public void testDanglingIndicesConflictWithAlias() throws Exception {
-        logger.info("--> starting two nodes");
-        internalCluster().startNodesAsync(2).get();
-
-        logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        }
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-
-        internalCluster().stopRandomNonMasterNode();
-
-        // wait for master to processed node left (so delete won't timeout waiting for it)
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut());
-
-        logger.info("--> deleting index");
-        assertAcked(client().admin().indices().prepareDelete("test"));
-
-        index("test2", "type1", "2", "{}");
-
-        logger.info("--> creating index with an alias");
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test2", "test"));
-
-        logger.info("--> starting node back up");
-        internalCluster().startNode();
-
-        ensureGreen();
-
-        // make sure that any other events were processed
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).get()
-            .isTimedOut());
-
-        logger.info("--> verify we read the right thing through alias");
-        assertThat(client().prepareGet("test", "type1", "2").execute().actionGet().isExists(), equalTo(true));
-
-        logger.info("--> deleting alias");
-        assertAcked(client().admin().indices().prepareAliases().removeAlias("test2", "test"));
-
-        logger.info("--> waiting for dangling index to be imported");
-
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertTrue(client().admin().indices().prepareExists("test").execute().actionGet().isExists());
-            }
-        });
-
-        ensureGreen();
-
-        logger.info("--> verifying dangling index contains doc");
-
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-    }
-
     public void testDanglingIndices() throws Exception {
         logger.info("--> starting two nodes");
 
@@ -380,6 +325,76 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+    }
+
+    /**
+     * This test ensures that when an index deletion takes place while a node is offline, when that
+     * node rejoins the cluster, it deletes the index locally instead of importing it as a dangling index.
+     */
+    public void testIndexDeletionWhenNodeRejoins() throws Exception {
+        final String indexName = "test-index-del-on-node-rejoin-idx";
+        final int numNodes = 2;
+
+        final List<String> nodes;
+        if (randomBoolean()) {
+            // test with a regular index
+            logger.info("--> starting a cluster with " + numNodes + " nodes");
+            nodes = internalCluster().startNodesAsync(numNodes).get();
+            logger.info("--> create an index");
+            createIndex(indexName);
+        } else {
+            // test with a shadow replica index
+            final Path dataPath = createTempDir();
+            logger.info("--> created temp data path for shadow replicas [" + dataPath + "]");
+            logger.info("--> starting a cluster with " + numNodes + " nodes");
+            final Settings nodeSettings = Settings.builder()
+                                                  .put("node.add_id_to_custom_path", false)
+                                                  .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
+                                                  .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
+                                                  .build();
+            nodes = internalCluster().startNodesAsync(numNodes, nodeSettings).get();
+            logger.info("--> create a shadow replica index");
+            createShadowReplicaIndex(indexName, dataPath, numNodes - 1);
+        }
+
+        logger.info("--> waiting for green status");
+        ensureGreen();
+        final String indexUUID = resolveIndex(indexName).getUUID();
+
+        logger.info("--> restart a random date node, deleting the index in between stopping and restarting");
+        internalCluster().restartRandomDataNode(new RestartCallback() {
+            @Override
+            public Settings onNodeStopped(final String nodeName) throws Exception {
+                nodes.remove(nodeName);
+                logger.info("--> stopped node[{}], remaining nodes {}", nodeName, nodes);
+                assert nodes.size() > 0;
+                final String otherNode = nodes.get(0);
+                logger.info("--> delete index and verify it is deleted");
+                final Client client = client(otherNode);
+                client.admin().indices().prepareDelete(indexName).execute().actionGet();
+                assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        logger.info("--> wait until all nodes are back online");
+        client().admin().cluster().health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
+                                              .waitForNodes(Integer.toString(numNodes))).actionGet();
+
+        logger.info("--> waiting for green status");
+        ensureGreen();
+
+        logger.info("--> verify that the deleted index is removed from the cluster and not reimported as dangling by the restarted node");
+        assertFalse(client().admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+        assertBusy(() -> {
+            final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
+            try {
+                assertFalse("index folder " + indexUUID + " should be deleted", nodeEnv.availableIndexFolders().contains(indexUUID));
+            } catch (IOException e) {
+                logger.error("Unable to retrieve available index folders from the node", e);
+                fail("Unable to retrieve available index folders from the node");
+            }
+        });
     }
 
     /**

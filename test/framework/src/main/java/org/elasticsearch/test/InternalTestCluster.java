@@ -826,6 +826,10 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
+            startNewNode(newSettings);
+        }
+
+        private void startNewNode(final Settings newSettings) {
             final long newIdSeed = DiscoveryNodeService.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
@@ -1189,7 +1193,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Stops the any of the current nodes but not the master node.
+     * Stops any of the current nodes but not the master node.
      */
     public void stopRandomNonMasterNode() throws IOException {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());

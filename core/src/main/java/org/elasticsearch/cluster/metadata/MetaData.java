@@ -115,6 +115,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         // register non plugin custom metadata
         registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
         registerPrototype(IngestMetadata.TYPE, IngestMetadata.PROTO);
+        registerPrototype(IndexGraveyard.TYPE, IndexGraveyard.PROTO);
     }
 
     /**
@@ -175,7 +176,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
     @SuppressWarnings("unchecked")
-    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices, SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
+    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings,
+             ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
+             ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices,
+             SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
         this.version = version;
         this.transientSettings = transientSettings;
@@ -495,6 +499,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return this.customs;
     }
 
+    /**
+     * The collection of index deletions in the cluster.
+     */
+    public IndexGraveyard indexGraveyard() {
+        return custom(IndexGraveyard.TYPE);
+    }
+
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }
@@ -608,7 +619,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         private Diff<ImmutableOpenMap<String, IndexMetaData>> indices;
         private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
         private Diff<ImmutableOpenMap<String, Custom>> customs;
-
 
         public MetaDataDiff(MetaData before, MetaData after) {
             clusterUUID = after.clusterUUID;
@@ -812,6 +822,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             indices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
+            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
         public Builder(MetaData metaData) {
@@ -912,6 +923,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
             this.customs.putAll(customs);
             return this;
+        }
+
+        public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
+            putCustom(IndexGraveyard.TYPE, indexGraveyard);
+            return this;
+        }
+
+        public IndexGraveyard indexGraveyard() {
+            @SuppressWarnings("unchecked")
+            IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
+            return graveyard;
         }
 
         public Builder updateSettings(Settings settings, String... indices) {
@@ -1031,7 +1053,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                 }
             }
             aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
-            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build(), allIndices, allOpenIndices, allClosedIndices, aliasAndIndexLookup);
+            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
+                                customs.build(), allIndices, allOpenIndices, allClosedIndices, aliasAndIndexLookup);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

@@ -24,6 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -607,7 +609,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public MetaData.Custom randomCreate(String name) {
-                return new RepositoriesMetaData();
+                if (randomBoolean()) {
+                    return new RepositoriesMetaData();
+                } else {
+                    return IndexGraveyard.builder().build();
+                }
             }
 
             @Override

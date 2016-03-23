@@ -709,6 +709,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Creates a shadow replica index and asserts that the index creation was acknowledged.
+     * Can only be invoked on a cluster where each node has been configured with shared data
+     * paths and the other necessary settings for shadow replicas.
+     */
+    public final void createShadowReplicaIndex(final String name, final Path dataPath, final int numReplicas) {
+        assert Files.exists(dataPath);
+        assert numReplicas >= 0;
+        final Settings idxSettings = Settings.builder()
+                                             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                                             .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                                             .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                                             .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                                             .build();
+        assertAcked(prepareCreate(name).setSettings(idxSettings).get());
+    }
+
+    /**
      * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
      */
     public final CreateIndexRequestBuilder prepareCreate(String index) {

@@ -29,8 +29,10 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -283,6 +286,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
 
+        // make sure the index tombstones are the same too
+        assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
+
         // now corrupt all the latest ones and make sure we fail to load the state
         if (numStates > numLegacy) {
             for (int i = 0; i < dirs.length; i++) {
@@ -322,6 +328,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             mdBuilder.put(indexBuilder(randomAsciiOfLength(10) + "idx-"+i));
         }
+        int numDelIndices = randomIntBetween(0, 5);
+        final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
+        for (int i = 0; i < numDelIndices; i++) {
+            graveyard.addTombstone(new Index(randomAsciiOfLength(10) + "del-idx-" + i, Strings.randomBase64UUID()));
+        }
+        mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
     }
 

@@ -21,10 +21,18 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class IndexTests extends ESTestCase {
@@ -40,5 +48,16 @@ public class IndexTests extends ESTestCase {
         } else {
             assertThat(random.toString(), containsString(random.getUUID()));
         }
+    }
+
+    public void testXContent() throws IOException {
+        final String name = randomAsciiOfLengthBetween(4, 15);
+        final String uuid = Strings.randomBase64UUID();
+        final Index original = new Index(name, uuid);
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        original.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        parser.nextToken(); // the beginning of the parser
+        assertThat(Index.fromXContent(parser), equalTo(original));
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -48,6 +49,17 @@ import java.util.stream.Collectors;
  *
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
+
+    /**
+     * Setting for the maximum tombstones allowed in the cluster state;
+     * prevents the cluster state size from exploding too large, but it opens the
+     * very unlikely risk that if there are greater than MAX_TOMBSTONES index
+     * deletions while a node was offline, when it comes back online, it will have
+     * missed index deletions that it may need to process.
+     */
+    public static final Setting<Integer> SETTING_MAX_TOMBSTONES = Setting.intSetting("cluster.indices.tombstones.size",
+                                                                                     500, // the default maximum number of tombstones
+                                                                                     Setting.Property.NodeScope);
 
     private final ThreadPool threadPool;
 
@@ -93,13 +105,23 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 MetaData.Builder metaDataBuilder = MetaData.builder(meta);
                 ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
 
+                final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
+                final int previousGraveyardSize = graveyardBuilder.tombstones().size();
                 for (final Index index : indices) {
                     String indexName = index.getName();
                     logger.debug("[{}] deleting index", index);
                     routingTableBuilder.remove(indexName);
                     clusterBlocksBuilder.removeIndexBlocks(indexName);
                     metaDataBuilder.remove(indexName);
+                    graveyardBuilder.addTombstone(index); // add the index tombstone to the cluster state
                 }
+                final int numPurged = graveyardBuilder.purge(SETTING_MAX_TOMBSTONES.get(settings)); // purge tombstone entries if needed
+                final IndexGraveyard currentGraveyard = graveyardBuilder.build();
+                final int currentGraveyardSize = currentGraveyard.tombstones().size();
+                metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+                logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
+                             numPurged, previousGraveyardSize, currentGraveyardSize);
+
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().getSize();
                 // add the notifications that the store was deleted from *data* nodes

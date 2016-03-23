@@ -64,7 +64,7 @@ import java.util.Objects;
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
-public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements SortBuilderParser<ScriptSortBuilder> {
+public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     public static final String NAME = "_script";
     static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);

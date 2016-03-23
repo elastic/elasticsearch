@@ -60,7 +60,7 @@ import java.util.Objects;
 /**
  * A geo distance based sorting on a geo point like field.
  */
-public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> implements SortBuilderParser<GeoDistanceSortBuilder> {
+public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
     public static final boolean DEFAULT_COERCE = false;

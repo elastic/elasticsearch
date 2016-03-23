@@ -106,7 +106,7 @@ GET /_search
     }
 }
 ------------------------------------------
-<1> Name of the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
+<1> Name of the query template in `config/scripts/`, i.e., `my_template.mustache`.
 
 
 There is also a dedicated `template` endpoint, allows you to template an entire search request.

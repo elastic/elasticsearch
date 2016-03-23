@@ -1,0 +1,78 @@
+---
+"Bulk indexing of monitoring data":
+  # Get the current version
+  - do: {info: {}}
+  - set: {version.number: version}
+
+  - do:
+      monitoring.bulk:
+        system_id:      "kibana"
+        system_version: $version
+        body:
+          - index:
+              _type:  test_type
+          - avg-cpu:
+              user:   13.26
+              nice:   0.17
+              system: 1.51
+              iowait: 0.85
+              idle:   84.20
+              
+          - index:
+              _type:  test_type
+          - avg-cpu:
+              user:   13.23
+              nice:   0.17
+              system: 1.51
+              iowait: 0.85
+              idle:   84.24
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: .monitoring-kibana-*
+
+  - match: {count: 2}
+
+---
+"Bulk indexing of monitoring data using default type":
+  # Get the current version
+  - do: {info: {}}
+  - set: {version.number: version}
+
+  - do:
+      monitoring.bulk:
+        system_id:      "kibana"
+        system_version: $version
+        index: "default_index"
+        type: "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+          - '{"index": {"_type": "test_type"}}'
+          - '{"field_1": "value_2"}'
+          - '{"index": {}}'
+          - '{"field_1": "value_3"}'
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: .monitoring-kibana-*
+        type:  default_type
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: .monitoring-kibana-*
+        type:  test_type
+
+  - match: { hits.total: 1 }

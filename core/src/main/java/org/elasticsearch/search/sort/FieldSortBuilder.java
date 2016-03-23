@@ -43,7 +43,7 @@ import java.util.Objects;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements SortBuilderParser<FieldSortBuilder> {
+public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");

@@ -72,7 +72,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractSortTestCase<T extends SortBuilder<T> & SortBuilderParser<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 

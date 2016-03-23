@@ -38,6 +38,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected GeoDistanceSortBuilder createTestItem() {
+        return randomGeoDistanceSortBuilder();
+    }
+
+    public static GeoDistanceSortBuilder randomGeoDistanceSortBuilder() {
         String fieldName = randomAsciiOfLengthBetween(1, 10);
         GeoDistanceSortBuilder result = null;
 
@@ -70,7 +74,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(result.unit()));
         }
         if (randomBoolean()) {
-            result.order(RandomSortDataGenerator.order(result.order()));
+            result.order(RandomSortDataGenerator.order(null));
         }
         if (randomBoolean()) {
             result.sortMode(mode(result.sortMode()));

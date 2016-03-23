@@ -373,6 +373,9 @@ public abstract class StreamInput extends InputStream {
     @Override
     public abstract void close() throws IOException;
 
+    @Override
+    public abstract int available() throws IOException;
+
     public String[] readStringArray() throws IOException {
         int size = readVInt();
         if (size == 0) {
@@ -685,21 +688,21 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link AggregatorBuilder} from the current stream
      */
-    public AggregatorBuilder readAggregatorFactory() throws IOException {
+    public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
         return readNamedWriteable(AggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link PipelineAggregatorBuilder} from the current stream
      */
-    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
+    public PipelineAggregatorBuilder<?> readPipelineAggregatorFactory() throws IOException {
         return readNamedWriteable(PipelineAggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link QueryBuilder} from the current stream
      */
-    public QueryBuilder readQuery() throws IOException {
+    public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
     }
 

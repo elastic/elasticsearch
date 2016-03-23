@@ -80,16 +80,23 @@ public class ElasticsearchCliTests extends ESTestCase {
         runTest(
             ExitCodes.USAGE,
             false,
-            output -> assertThat(output, containsString("Positional args not allowed, found [foo]")),
+            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, esSettings) -> {},
             "foo"
         );
         runTest(
             ExitCodes.USAGE,
             false,
-            output -> assertThat(output, containsString("Positional args not allowed, found [foo, bar]")),
+            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo, bar]")),
             (foreground, pidFile, esSettings) -> {},
             "foo", "bar"
+        );
+        runTest(
+            ExitCodes.USAGE,
+            false,
+            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
+            (foreground, pidFile, esSettings) -> {},
+            "-E", "something", "foo", "-E", "somethingelse"
         );
     }
 

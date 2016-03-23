@@ -132,6 +132,12 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);
         }
+
+        if (showOtherBucket) {
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed);
+            buckets.add(bucket);
+        }
+
         return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 

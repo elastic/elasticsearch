@@ -106,19 +106,21 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.buffer_size: Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
          * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
          * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
-         * use of the Multipart API and may result in upload errors. Defaults to 5mb.
+         * use of the Multipart API and may result in upload errors. Defaults to 100m.
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.buffer_size", S3BlobStore.MIN_BUFFER_SIZE, Property.NodeScope);
+            Setting.byteSizeSetting("repositories.s3.buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
          */
         Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, Property.NodeScope);
         /**
-         * repositories.s3.chunk_size: Big files can be broken down into chunks during snapshotting if needed. Defaults to 100m.
+         * repositories.s3.chunk_size: Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
          */
         Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB), Property.NodeScope);
+            Setting.byteSizeSetting("repositories.s3.chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * repositories.s3.compress: When set to true metadata files are stored in compressed format. This setting doesn’t affect index
          * files that are already compressed by default. Defaults to false.
@@ -187,7 +189,8 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("buffer_size", S3BlobStore.MIN_BUFFER_SIZE, Property.NodeScope);
+            Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * max_retries
          * @see  Repositories#MAX_RETRIES_SETTING
@@ -197,7 +200,9 @@ public class S3Repository extends BlobStoreRepository {
          * chunk_size
          * @see  Repositories#CHUNK_SIZE_SETTING
          */
-        Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", "-1", Property.NodeScope);
+        Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
+            Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * compress
          * @see  Repositories#COMPRESS_SETTING
@@ -259,6 +264,12 @@ public class S3Repository extends BlobStoreRepository {
         Integer maxRetries = getValue(repositorySettings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
         this.chunkSize = getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
         this.compress = getValue(repositorySettings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
+
+        // We make sure that chunkSize is bigger or equal than/to bufferSize
+        if (this.chunkSize.getMb() < bufferSize.getMb()) {
+            throw new RepositoryException(name.name(), Repository.CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
+                ") can't be lower than " + Repository.BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
+        }
 
         // Parse and validate the user's S3 Storage Class setting
         String storageClass = getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);

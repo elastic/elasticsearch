@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +33,7 @@ import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -52,7 +51,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static final String TYPE = "local";
 
-    private final Client client;
+    private final MonitoringClientProxy client;
     private final ClusterService clusterService;
     private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
@@ -63,7 +62,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     /** Version number of built-in templates **/
     private final Integer templateVersion;
 
-    public LocalExporter(Exporter.Config config, Client client, ClusterService clusterService, CleanerService cleanerService) {
+    public LocalExporter(Exporter.Config config, MonitoringClientProxy client,
+                         ClusterService clusterService, CleanerService cleanerService) {
         super(TYPE, config);
         this.client = client;
         this.clusterService = clusterService;
@@ -282,7 +282,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                 .distinct()
                                                 .toArray(String[]::new);
 
-                MonitoringDoc monitoringDoc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
+                MonitoringDoc monitoringDoc = new MonitoringDoc(null, null);
                 monitoringDoc.setTimestamp(System.currentTimeMillis());
 
                 // Get the names of the current monitoring indices
@@ -344,12 +344,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static class Factory extends Exporter.Factory<LocalExporter> {
 
-        private final InternalClient client;
+        private final MonitoringClientProxy client;
         private final ClusterService clusterService;
         private final CleanerService cleanerService;
 
         @Inject
-        public Factory(InternalClient client, ClusterService clusterService, CleanerService cleanerService) {
+        public Factory(MonitoringClientProxy client, ClusterService clusterService, CleanerService cleanerService) {
             super(TYPE, true);
             this.client = client;
             this.clusterService = clusterService;

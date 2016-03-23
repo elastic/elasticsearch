@@ -23,14 +23,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -59,12 +57,13 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         IndexSettings indexSettings = createIndexSettings();
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         String name = "_field";
-        FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
         indexFieldDataCache = new DummyAccountingFieldDataCache();
         sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name,
-                circuitBreakerService, fieldDataType);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, fieldDataType, indexFieldDataCache,
                 circuitBreakerService);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, indexFieldDataCache,
+                circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
 
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);

@@ -23,6 +23,7 @@ import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
@@ -133,6 +135,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         Map<String, String> headers = Collections.singletonMap("Authorization",
                 basicAuthHeaderValue(ShieldSettings.TEST_USERNAME, new SecuredString(ShieldSettings.TEST_PASSWORD.toCharArray())));
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
+    }
+
+    protected MonitoringClient monitoringClient() {
+        Client client = shieldEnabled ? internalCluster().transportClient() : client();
+        return randomBoolean() ? new XPackClient(client).monitoring() : new MonitoringClient(client);
     }
 
     @Override
@@ -435,9 +442,9 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
-                    " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
-                    " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
-                    " 'cluster:monitor/task']\n" +
+                " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
+                " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
+                " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ all ]\n" +

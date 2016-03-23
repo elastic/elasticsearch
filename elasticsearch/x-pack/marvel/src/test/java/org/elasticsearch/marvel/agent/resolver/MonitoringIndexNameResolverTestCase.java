@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.startsWith;
 public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDoc, R extends MonitoringIndexNameResolver<M>>
         extends ESTestCase {
 
-    private final ResolversRegistry resolversRegistry = new ResolversRegistry(Settings.EMPTY);
+    protected final ResolversRegistry resolversRegistry = new ResolversRegistry(Settings.EMPTY);
 
     /**
      * @return the {@link MonitoringIndexNameResolver} to test

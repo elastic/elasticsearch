@@ -122,7 +122,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
                     bulks.add(bulk);
                 }
             } catch (Exception e) {
-                logger.error("exporter [{}] failed to export monitoring data", e, exporter.name());
+                logger.error("exporter [{}] failed to open exporting bulk", e, exporter.name());
             }
         }
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);
@@ -179,9 +179,9 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     /**
      * Exports a collection of monitoring documents using the configured exporters
      */
-    public synchronized void export(Collection<MonitoringDoc> docs) throws Exception {
+    public synchronized void export(Collection<MonitoringDoc> docs) throws ExportException {
         if (this.lifecycleState() != Lifecycle.State.STARTED) {
-            throw new IllegalStateException("Export service is not started");
+            throw new ExportException("Export service is not started");
         }
         if (docs != null && docs.size() > 0) {
             ExportBulk bulk = openBulk();
@@ -191,7 +191,6 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
             }
 
             try {
-                logger.debug("exporting [{}] monitoring documents", docs.size());
                 bulk.add(docs);
             } finally {
                 bulk.close(lifecycleState() == Lifecycle.State.STARTED);

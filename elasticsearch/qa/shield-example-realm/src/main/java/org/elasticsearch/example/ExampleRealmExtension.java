@@ -8,11 +8,10 @@ package org.elasticsearch.example;
 import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.realm.CustomRealmFactory;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.xpack.extensions.XPackExtension;
 
-public class ExampleRealmPlugin extends Plugin {
-
+public class ExampleRealmExtension extends XPackExtension {
     @Override
     public String name() {
         return "custom realm example";

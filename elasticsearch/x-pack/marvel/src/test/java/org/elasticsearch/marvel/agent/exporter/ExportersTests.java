@@ -17,7 +17,7 @@ import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -67,7 +67,7 @@ public class ExportersTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService,
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(MonitoringClientProxy.of(client), clusterService,
                 mock(CleanerService.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS,
                 MarvelSettings.INTERVAL, MarvelSettings.EXPORTERS_SETTINGS)));
@@ -327,7 +327,6 @@ public class ExportersTests extends ESTestCase {
         }
     }
 
-
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
         public TestFactory(String type, boolean singleton) {
             super(type, singleton);
@@ -424,13 +423,13 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
-            public ExportBulk add(Collection<MonitoringDoc> docs) throws Exception {
+            public ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
                 count.addAndGet(docs.size());
                 return this;
             }
 
             @Override
-            public void flush() throws Exception {
+            public void flush() throws ExportException {
             }
 
             AtomicInteger getCount() {

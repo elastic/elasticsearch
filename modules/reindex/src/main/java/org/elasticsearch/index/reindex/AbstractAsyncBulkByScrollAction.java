@@ -319,9 +319,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         failures.add(failure);
     }
 
+    /**
+     * Start terminating a request that finished non-catastrophically.
+     */
     void startNormalTermination(final List<Failure> indexingFailures, final List<ShardSearchFailure> searchFailures,
             final boolean timedOut) {
-        if (task.isCancelled() || false == mainRequest.isRefresh()) {
+        if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
             finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
         }

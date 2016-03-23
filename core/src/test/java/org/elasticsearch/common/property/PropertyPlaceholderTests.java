@@ -152,6 +152,13 @@ public class PropertyPlaceholderTests extends ESTestCase {
         assertEquals("bar${foo}", propertyPlaceholder.replacePlaceholders("key", "bar${foo}", placeholderResolver));
     }
 
+    public void testNullKey() {
+        final PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
+        final Map<String, String> map = new LinkedHashMap<>();
+        final PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, false);
+        expectThrows(NullPointerException.class, () -> propertyPlaceholder.replacePlaceholders(null, "value", placeholderResolver));
+    }
+
     public void testNullValue() {
         final PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         final Map<String, String> map = new LinkedHashMap<>();

@@ -126,7 +126,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
                         .field("type", "string")
                         .field("index", keyword ? "not_analyzed" : "analyzed")
                         .startObject("fielddata")
-                            .field("forwat", format)
+                            .field("format", format)
                             .field("loading", loading)
                             .startObject("filter")
                                 .startObject("frequency")

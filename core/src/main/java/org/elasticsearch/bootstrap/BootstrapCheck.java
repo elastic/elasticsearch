@@ -123,7 +123,9 @@ final class BootstrapCheck {
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }
-        checks.add(new MaxSizeVirtualMemoryCheck());
+        if (Constants.LINUX || Constants.MAC_OS_X) {
+            checks.add(new MaxSizeVirtualMemoryCheck());
+        }
         return Collections.unmodifiableList(checks);
     }
 

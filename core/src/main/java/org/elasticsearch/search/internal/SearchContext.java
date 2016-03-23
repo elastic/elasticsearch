@@ -358,7 +358,7 @@ public abstract class SearchContext implements Releasable {
      */
     public final boolean hasOnlySuggest() {
         return request().source() != null
-            && request().source().hasOnlySuggest();
+            && request().source().isSuggestOnly();
     }
 
     /**

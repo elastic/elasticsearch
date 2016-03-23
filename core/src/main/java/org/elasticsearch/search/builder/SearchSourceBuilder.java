@@ -732,7 +732,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * @return true if the source only has suggest
      */
-    public boolean hasOnlySuggest() {
+    public boolean isSuggestOnly() {
         return suggestBuilder != null
             && queryBuilder == null && aggregations == null;
     }

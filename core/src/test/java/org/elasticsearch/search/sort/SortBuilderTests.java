@@ -82,6 +82,13 @@ public class SortBuilderTests extends ESTestCase {
         sortBuilder = result.get(0);
         assertEquals(new FieldSortBuilder("field1"), sortBuilder);
 
+        // one element array, see https://github.com/elastic/elasticsearch/issues/17257
+        json = "{ \"sort\" : [\"field1\"] }";
+        result = parseSort(json);
+        assertEquals(1, result.size());
+        sortBuilder = result.get(0);
+        assertEquals(new FieldSortBuilder("field1"), sortBuilder);
+
         json = "{ \"sort\" : { \"_doc\" : \"" + order + "\" }}";
         result = parseSort(json);
         assertEquals(1, result.size());

@@ -270,10 +270,11 @@ clean_before_test() {
 # $1 - expected status - defaults to green
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
+    local index=$2
 
     run_elasticsearch_service 0
 
-    wait_for_elasticsearch_status $desiredStatus
+    wait_for_elasticsearch_status $desiredStatus $index
 
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
@@ -382,6 +383,7 @@ stop_elasticsearch_service() {
 # $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
     local desiredStatus=${1:-green}
+    local index=$2
 
     echo "Making sure elasticsearch is up..."
     wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
@@ -395,8 +397,13 @@ wait_for_elasticsearch_status() {
           false
     }
 
-    echo "Tring to connect to elasticsearch and wait for expected status..."
-    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+    if [ -z "index" ]; then
+      echo "Tring to connect to elasticsearch and wait for expected status $desiredStatus..."
+      curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+    else
+      echo "Trying to connect to elasticsearch and wait for expected status $desiredStatus for index $index"
+      curl -sS "http://localhost:9200/_cluster/$index/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+    fi
     if [ $? -eq 0 ]; then
         echo "Connected"
     else

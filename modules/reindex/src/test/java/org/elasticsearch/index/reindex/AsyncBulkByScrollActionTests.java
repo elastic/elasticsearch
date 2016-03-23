@@ -458,23 +458,29 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testRefreshIsFalseByDefault() throws Exception {
-        refreshTestCase(null, false);
+        refreshTestCase(null, true, false);
     }
 
-    public void testRefreshFalseDoesntMakeVisible() throws Exception {
-        refreshTestCase(false, false);
+    public void testRefreshFalseDoesntExecuteRefresh() throws Exception {
+        refreshTestCase(false, true, false);
     }
 
-    public void testRefreshTrueMakesVisible() throws Exception {
-        refreshTestCase(true, true);
+    public void testRefreshTrueExecutesRefresh() throws Exception {
+        refreshTestCase(true, true, true);
     }
 
-    private void refreshTestCase(Boolean refresh, boolean shouldRefresh) {
+    public void testRefreshTrueSkipsRefreshIfNoDestinationIndexes() throws Exception {
+        refreshTestCase(true, false, false);
+    }
+
+    private void refreshTestCase(Boolean refresh, boolean addDestinationIndexes, boolean shouldRefresh) {
         if (refresh != null) {
             mainRequest.setRefresh(refresh);
         }
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        action.addDestinationIndices(singleton("foo"));
+        if (addDestinationIndexes) {
+            action.addDestinationIndices(singleton("foo"));
+        }
         action.startNormalTermination(emptyList(), emptyList(), false);
         if (shouldRefresh) {
             assertArrayEquals(new String[] {"foo"}, client.lastRefreshRequest.get().indices());

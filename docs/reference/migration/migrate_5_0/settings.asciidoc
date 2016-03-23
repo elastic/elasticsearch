@@ -71,6 +71,10 @@ type for any thread pool has been removed. It is still possible to adjust
 relevant thread pool parameters for each of the thread pools (e.g., depending
 on the thread pool type, `keep_alive`, `queue_size`, etc.).
 
+==== Threadpool settings
+
+The `suggest` threadpool has been removed, now suggest requests use the
+`search` threadpool.
 
 ==== Analysis settings
 

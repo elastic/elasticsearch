@@ -19,13 +19,8 @@ There are several thread pools, but the important ones include:
     queue_size of `200`.
 
 `search`::
-    For count/search operations. Thread pool type is `fixed`
+    For count/search/suggest operations. Thread pool type is `fixed`
     with a size of `int((# of available_processors * 3) / 2) + 1`,
-    queue_size of `1000`.
-
-`suggest`::
-    For suggest operations. Thread pool type is `fixed`
-    with a size of `# of available processors`,
     queue_size of `1000`.
 
 `get`::

@@ -227,7 +227,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
                 "    \"unit\" : \"m\",\n" +
                 "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"reverse\" : true,\n" +
                 "    \"mode\" : \"MAX\",\n" +
                 "    \"nested_filter\" : {\n" +
                 "      \"ids\" : {\n" +

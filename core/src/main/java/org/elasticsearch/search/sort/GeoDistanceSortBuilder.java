@@ -66,7 +66,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final boolean DEFAULT_COERCE = false;
     public static final boolean DEFAULT_IGNORE_MALFORMED = false;
     public static final ParseField UNIT_FIELD = new ParseField("unit");
-    public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
@@ -444,9 +443,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(currentName, REVERSE_FIELD)) {
-                    order = parser.booleanValue() ? SortOrder.DESC : SortOrder.ASC;
-                } else if (parseFieldMatcher.match(currentName, ORDER_FIELD)) {
+                if (parseFieldMatcher.match(currentName, ORDER_FIELD)) {
                     order = SortOrder.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, UNIT_FIELD)) {
                     unit = DistanceUnit.fromString(parser.text());

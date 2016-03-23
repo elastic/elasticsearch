@@ -75,17 +75,6 @@ index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
 
 [float]
-[[delete-index-creation]]
-=== Automatic index creation
-
-The delete operation automatically creates an index if it has not been
-created before (check out the <<indices-create-index,create index API>>
-for manually creating an index), and also automatically creates a
-dynamic type mapping for the specific type if it has not been created
-before (check out the <<indices-put-mapping,put mapping>>
-API for manually creating type mapping).
-
-[float]
 [[delete-distributed]]
 === Distributed
 

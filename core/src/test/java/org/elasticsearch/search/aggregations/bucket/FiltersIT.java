@@ -435,4 +435,26 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat((double) propertiesCounts[2], equalTo((double) sum / numOtherDocs));
     }
 
+    public void testEmptyAggregationWithOtherBucket() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
+                        .subAggregation(filters("filters", new KeyedFilter("foo", matchAllQuery())).otherBucket(true).otherBucketKey("bar")))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        Histogram histo = searchResponse.getAggregations().get("histo");
+        assertThat(histo, Matchers.notNullValue());
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
+        assertThat(bucket, Matchers.notNullValue());
+
+        Filters filters = bucket.getAggregations().get("filters");
+        assertThat(filters, notNullValue());
+
+        Filters.Bucket other = filters.getBucketByKey("bar");
+        assertThat(other, Matchers.notNullValue());
+        assertThat(other.getKeyAsString(), equalTo("bar"));
+        assertThat(other.getDocCount(), is(0L));
+    }
+
 }

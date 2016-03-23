@@ -134,7 +134,7 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         if (showOtherBucket) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed);
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(otherBucketKey, 0, subAggs, keyed);
             buckets.add(bucket);
         }
 
@@ -149,8 +149,8 @@ public class FiltersAggregator extends BucketsAggregator {
 
         private final List<KeyedFilter> filters;
         private final String[] keys;
-        private boolean keyed;
-        private String otherBucketKey;
+        private final boolean keyed;
+        private final String otherBucketKey;
 
         public Factory(String name, List<KeyedFilter> filters, boolean keyed, String otherBucketKey) {
             super(name, InternalFilters.TYPE.name());

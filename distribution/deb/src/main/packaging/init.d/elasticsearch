@@ -109,10 +109,10 @@ export ES_GC_LOG_FILE
 export JAVA_HOME
 export ES_INCLUDE
 
-if [ ! -x "$DAEMON" ] {
-	echo "Could not find elasticsearch executable binary."
+if [ ! -x "$DAEMON" ]; then
+	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"
 	exit 1
-}
+fi
 
 checkJava() {
 	if [ -x "$JAVA_HOME/bin/java" ]; then

@@ -57,6 +57,12 @@ setup() {
     install_package
 }
 
+@test "[INIT.D] elasticsearch startup script exists and is executable" {
+    DAEMON="$ES_HOME/bin/elasticsearch"
+    run test -x "$DAEMON"
+    [ "$status" -eq 0 ]
+}
+
 @test "[INIT.D] daemon isn't enabled on restart" {
     # Rather than restart the VM which would be slow we check for the symlinks
     # that init.d uses to restart the application on startup.

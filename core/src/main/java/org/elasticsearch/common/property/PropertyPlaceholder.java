@@ -76,8 +76,9 @@ public class PropertyPlaceholder {
      * @param placeholderResolver the <code>PlaceholderResolver</code> to use for replacement.
      * @return the supplied value with placeholders replaced inline.
      */
-    public String replacePlaceholders(String value, PlaceholderResolver placeholderResolver) {
-        Objects.requireNonNull(value, "Argument 'value' must not be null.");
+    public String replacePlaceholders(String key, String value, PlaceholderResolver placeholderResolver) {
+        Objects.requireNonNull(key);
+        Objects.requireNonNull(value, "value can not be null for [" + key + "]");
         return parseStringValue(value, placeholderResolver, new HashSet<String>());
     }
 

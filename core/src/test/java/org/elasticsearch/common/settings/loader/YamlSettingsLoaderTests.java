@@ -28,10 +28,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class YamlSettingsLoaderTests extends ESTestCase {
+
     public void testSimpleYamlSettings() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
         Settings settings = settingsBuilder()
@@ -83,13 +81,21 @@ public class YamlSettingsLoaderTests extends ESTestCase {
             fail("expected exception");
         } catch (SettingsException e) {
             assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
-            assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [2], column number [6], previous value [bar], current value [baz]"));
+            assertThat(
+                    e.toString(),
+                    containsString("duplicate settings key [foo] " +
+                            "found at line number [2], " +
+                            "column number [6], " +
+                            "previous value [bar], " +
+                            "current value [baz]"));
         }
     }
 
     public void testNullValuedSettingThrowsException() {
         final String yaml = "foo:";
-        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new YamlSettingsLoader(false).load(yaml));
+        final ElasticsearchParseException e =
+                expectThrows(ElasticsearchParseException.class, () -> new YamlSettingsLoader(false).load(yaml));
         assertThat(e.toString(), containsString("null-valued setting found for key [foo] found at line number [1], column number [5]"));
     }
+
 }

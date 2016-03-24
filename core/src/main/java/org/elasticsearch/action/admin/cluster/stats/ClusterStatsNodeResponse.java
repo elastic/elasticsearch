@@ -69,12 +69,6 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
-    public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse();
-        nodeResponse.readFrom(in);
-        return nodeResponse;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

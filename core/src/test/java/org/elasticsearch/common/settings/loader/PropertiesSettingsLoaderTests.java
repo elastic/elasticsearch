@@ -46,8 +46,8 @@ public class PropertiesSettingsLoaderTests extends ESTestCase {
     }
 
     public void testThatNoDuplicatesPropertiesDoesNotAcceptNullValues() {
-        PropertiesSettingsLoader loader = new PropertiesSettingsLoader();
-        PropertiesSettingsLoader.NoDuplicatesProperties properties = loader.new NoDuplicatesProperties();
+        final PropertiesSettingsLoader loader = new PropertiesSettingsLoader();
+        final PropertiesSettingsLoader.NoDuplicatesProperties properties = loader.new NoDuplicatesProperties();
         expectThrows(NullPointerException.class, () -> properties.put("key", null));
     }
 }

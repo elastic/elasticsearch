@@ -73,10 +73,12 @@ public abstract class IndexingOperationListener {
 
     }
 
-    /**
-     * Called after the indexing operation occurred.
-     */
-    public void postIndex(Engine.Index index) {
+   /**
+    * Called after the indexing operation occurred.
+    * @param index The operation that was executed
+    * @param created indicates of this operation resulted in a new document
+    */
+    public void postIndex(Engine.Index index, boolean created) {
 
     }
 

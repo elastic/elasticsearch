@@ -647,13 +647,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard shard = test.shard(0);
         ShardIndexingService shardIndexingService = shard.indexingService();
         final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
+        final AtomicBoolean docCreated = new AtomicBoolean(false);
 
         shardIndexingService.addListener(new IndexingOperationListener() {
 
             @Override
-            public void postIndex(Engine.Index index) {
+            public void postIndex(Engine.Index index, boolean created) {
                 postIndexCalled.set(true);
-                super.postIndex(index);
+                docCreated.set(created);
+                super.postIndex(index, created);
             }
         });
 
@@ -661,6 +663,37 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
         assertTrue(postIndexCalled.get());
+        assertTrue(docCreated.get());
+    }
+
+    public void testPostIndexWithUpdate() throws IOException {
+        createIndex("testpostindexwithupdate");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("testpostindexwithupdate");
+        IndexShard shard = test.shard(0);
+        ShardIndexingService shardIndexingService = shard.indexingService();
+
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+        shard.index(index);
+
+        final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
+        final AtomicBoolean docCreated = new AtomicBoolean(false);
+
+        shardIndexingService.addListener(new IndexingOperationListener() {
+
+            @Override
+            public void postIndex(Engine.Index index, boolean created) {
+                postIndexCalled.set(true);
+                docCreated.set(created);
+                super.postIndex(index, created);
+            }
+        });
+        index = new Engine.Index(new Term("_uid", "1"), doc);
+        shard.index(index);
+        assertTrue(postIndexCalled.get());
+        assertFalse(docCreated.get());
     }
 
     public void testPostIndexWithException() throws IOException {

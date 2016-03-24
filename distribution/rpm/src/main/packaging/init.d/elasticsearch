@@ -126,25 +126,17 @@ start() {
     else
         # For non-SLES usually something like "daemon $exec"
         daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.conf=$CONF_DIR
-	retval=$?
+        retval=$?
     fi
 
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Ees.default.path.home=$ES_HOME -Ees.default.path.logs=$LOG_DIR -Ees.default.path.data=$DATA_DIR -Ees.default.path.conf=$CONF_DIR
-    retval=$?
-    echo
-    return $retval
 }
 
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d ${stopping.timeout} $prog
-    retval=$?
-    echo
-    return $retval
-
 
     if [ $SUSE ]; then
+        checkJava
         #SLES uses a differnt version of killproc
         killproc -p $pidfile -HUP $JAVA
         rc_status -v
@@ -173,6 +165,7 @@ force_reload() {
 rh_status() {
     # run checks to determine if the service is running or use generic status
     if [ $SUSE ]; then
+        checkJava
         checkproc -p $pidfile $JAVA
         rc_status -v
     else

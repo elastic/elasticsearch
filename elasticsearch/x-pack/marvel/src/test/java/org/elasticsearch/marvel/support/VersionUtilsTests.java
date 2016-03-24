@@ -18,7 +18,7 @@ public class VersionUtilsTests extends ESTestCase {
     public void testParseVersion() {
         List<Version> versions = randomSubsetOf(9, Version.V_2_0_0_beta1, Version.V_2_0_0_beta2, Version.V_2_0_0_rc1, Version.V_2_0_0,
                 Version.V_2_0_1, Version.V_2_0_2, Version.V_2_1_0, Version.V_2_1_1, Version.V_2_1_2, Version.V_2_2_0, Version.V_2_3_0,
-                Version.V_5_0_0);
+                Version.V_5_0_0_alpha1);
         for (Version version : versions) {
             String output = createOutput(VersionUtils.VERSION_NUMBER_FIELD, version.toString());
             assertThat(VersionUtils.parseVersion(output.getBytes(StandardCharsets.UTF_8)), equalTo(version));

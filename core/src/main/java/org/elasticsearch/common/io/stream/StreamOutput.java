@@ -36,13 +36,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -532,7 +532,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
+    public void writeOptionalWriteable(@Nullable Writeable<?> writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
@@ -663,7 +663,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+    void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
@@ -685,7 +685,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link QueryBuilder} to the current stream
      */
-    public void writeQuery(QueryBuilder queryBuilder) throws IOException {
+    public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
     }
 
@@ -745,8 +745,15 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link SuggestionBuilder} to the current stream
      */
-    public void writeSuggestion(SuggestionBuilder suggestion) throws IOException {
+    public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
         writeNamedWriteable(suggestion);
+    }
+
+    /**
+     * Writes a {@link SortBuilder} to the current stream
+     */
+    public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
+        writeNamedWriteable(sort);
     }
 
 }

@@ -154,7 +154,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
     }
 
     public void testStreamInputBulkReadWithOffset() throws IOException {
-        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        final int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         StreamInput si = pbr.streamInput();
         assertNotNull(si);
@@ -162,6 +162,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         // read a bunch of single bytes one by one
         int offset = randomIntBetween(1, length / 2);
         for (int i = 0; i < offset; i++) {
+            assertEquals(si.available(), length - i);
             assertEquals(pbr.get(i), si.readByte());
         }
 
@@ -176,6 +177,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         // bulk-read all
         si.readFully(targetBytes);
         assertArrayEquals(pbrBytesWithOffset, targetBytes);
+        assertEquals(si.available(), 0);
     }
 
     public void testRandomReads() throws IOException {
@@ -216,18 +218,22 @@ public class PagedBytesReferenceTests extends ESTestCase {
         int sliceLength = length - sliceOffset;
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         StreamInput sliceInput = slice.streamInput();
+        assertEquals(sliceInput.available(), sliceLength);
 
         // single reads
         assertEquals(slice.get(0), sliceInput.readByte());
         assertEquals(slice.get(1), sliceInput.readByte());
         assertEquals(slice.get(2), sliceInput.readByte());
+        assertEquals(sliceInput.available(), sliceLength - 3);
 
         // reset the slice stream for bulk reading
         sliceInput.reset();
+        assertEquals(sliceInput.available(), sliceLength);
 
         // bulk read
         byte[] sliceBytes = new byte[sliceLength];
         sliceInput.readFully(sliceBytes);
+        assertEquals(sliceInput.available(), 0);
 
         // compare slice content with upper half of original
         byte[] pbrSliceBytes = Arrays.copyOfRange(pbr.toBytes(), sliceOffset, length);
@@ -239,11 +245,14 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertArrayEquals(sliceBytes, sliceToBytes);
 
         sliceInput.reset();
+        assertEquals(sliceInput.available(), sliceLength);
         byte[] buffer = new byte[sliceLength + scaledRandomIntBetween(1, 100)];
         int offset = scaledRandomIntBetween(0, Math.max(1, buffer.length - sliceLength - 1));
         int read = sliceInput.read(buffer, offset, sliceLength / 2);
+        assertEquals(sliceInput.available(), sliceLength - read);
         sliceInput.read(buffer, offset + read, sliceLength);
         assertArrayEquals(sliceBytes, Arrays.copyOfRange(buffer, offset, offset + sliceLength));
+        assertEquals(sliceInput.available(), 0);
     }
 
     public void testWriteToOutputStream() throws IOException {

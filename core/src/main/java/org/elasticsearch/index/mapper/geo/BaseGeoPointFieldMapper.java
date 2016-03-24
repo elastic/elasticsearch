@@ -220,8 +220,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 } else if (propName.equals(Names.IGNORE_MALFORMED)) {
                     builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
                 }
             }
 

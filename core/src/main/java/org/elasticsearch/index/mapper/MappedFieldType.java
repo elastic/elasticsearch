@@ -341,7 +341,7 @@ public abstract class MappedFieldType extends FieldType {
     public Query termQuery(Object value, @Nullable QueryShardContext context) {
         TermQuery query = new TermQuery(createTerm(value));
         if (boost == 1f ||
-            (context != null && context.indexVersionCreated().before(Version.V_5_0_0))) {
+            (context != null && context.indexVersionCreated().before(Version.V_5_0_0_alpha1))) {
             return query;
         }
         return new BoostQuery(query, boost);

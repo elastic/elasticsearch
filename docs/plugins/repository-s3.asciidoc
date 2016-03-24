@@ -189,7 +189,7 @@ The following settings are supported:
 
     Big files can be broken down into chunks during snapshotting if needed.
     The chunk size can be specified in bytes or by using size value notation,
-    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+    i.e. `1gb`, `10mb`, `5kb`. Defaults to `1gb`.
 
 `compress`::
 
@@ -210,7 +210,7 @@ The following settings are supported:
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to `5mb`.
+    Multipart API and may result in upload errors. Defaults to `100mb`.
 
 `max_retries`::
 

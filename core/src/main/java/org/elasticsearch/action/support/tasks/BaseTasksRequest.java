@@ -60,7 +60,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (taskId.isSet() == false && nodesIds.length > 0) {
+        if (taskId.isSet() && nodesIds.length > 0) {
             validationException = addValidationError("task id cannot be used together with node ids",
                 validationException);
         }
@@ -165,12 +165,12 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
-        if (getTaskId().isSet() == false) {
+        if (getTaskId().isSet()) {
             if(getTaskId().getId() != task.getId()) {
                 return false;
             }
         }
-        if (parentTaskId.isSet() == false) {
+        if (parentTaskId.isSet()) {
             if (parentTaskId.equals(task.getParentTaskId()) == false) {
                 return false;
             }

@@ -163,8 +163,6 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     builder.fielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
                     DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
                     iterator.remove();
-                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
-                    iterator.remove();
                 }
             }
             return builder;

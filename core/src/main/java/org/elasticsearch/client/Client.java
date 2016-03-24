@@ -68,9 +68,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -366,29 +363,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Multi get documents.
      */
     MultiGetRequestBuilder prepareMultiGet();
-
-    /**
-     * Suggestion matching a specific phrase.
-     *
-     * @param request The suggest request
-     * @return The result future
-     * @see Requests#suggestRequest(String...)
-     */
-    ActionFuture<SuggestResponse> suggest(SuggestRequest request);
-
-    /**
-     * Suggestions matching a specific phrase.
-     *
-     * @param request  The suggest request
-     * @param listener A listener to be notified of the result
-     * @see Requests#suggestRequest(String...)
-     */
-    void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener);
-
-    /**
-     * Suggestions matching a specific phrase.
-     */
-    SuggestRequestBuilder prepareSuggest(String... indices);
 
     /**
      * Search across one or more indices and one or more types with a query.

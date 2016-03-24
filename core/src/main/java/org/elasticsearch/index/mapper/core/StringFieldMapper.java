@@ -193,7 +193,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
                 // Automatically upgrade simple mappings for ease of upgrade, otherwise fail
                 if (SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE.containsAll(node.keySet())) {
                     deprecationLogger.deprecated("The [string] field is deprecated, please use [text] or [keyword] instead on [{}]",
@@ -333,8 +333,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     int minSegmentSize = XContentMapValues.nodeIntegerValue(frequencyFilter.remove("min_segment_size"), 0);
                     builder.fielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
                     DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
-                    iterator.remove();
-                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -490,7 +488,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 int positionIncrementGap, int ignoreAbove,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0)) {
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0_alpha1)) {
             throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
                     + "or [keyword] field instead for field [" + fieldType.name() + "]");
         }
@@ -573,7 +571,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
-            if (valueAndBoost.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+            if (valueAndBoost.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 field.setBoost(valueAndBoost.boost());
             }
             fields.add(field);
@@ -600,7 +598,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             return new ValueAndBoost(nullValue, defaultBoost);
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
             XContentParser.Token token;
             String currentFieldName = null;
             String value = nullValue;

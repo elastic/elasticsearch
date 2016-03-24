@@ -490,14 +490,14 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().totalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().totalTime());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCurrent());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getSuggestCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getSuggestCurrent());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getTime());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getSuggestTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getSuggestTime());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCount());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getSuggestCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getSuggestCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());

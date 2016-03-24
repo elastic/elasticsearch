@@ -76,6 +76,9 @@ class Elasticsearch extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        if (options.nonOptionArguments().isEmpty() == false) {
+            throw new UserError(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
+        }
         if (options.has(versionOption)) {
             if (options.has(daemonizeOption) || options.has(pidfileOption)) {
                 throw new UserError(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");

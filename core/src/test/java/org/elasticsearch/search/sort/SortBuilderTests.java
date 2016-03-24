@@ -48,8 +48,6 @@ public class SortBuilderTests extends ESTestCase {
 
     static IndicesQueriesRegistry indicesQueriesRegistry;
 
-    SortParseElement parseElement = new SortParseElement();
-
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
@@ -79,6 +77,13 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new FieldSortBuilder("field1").order(order), sortBuilder);
 
         json = "{ \"sort\" : \"field1\" }";
+        result = parseSort(json);
+        assertEquals(1, result.size());
+        sortBuilder = result.get(0);
+        assertEquals(new FieldSortBuilder("field1"), sortBuilder);
+
+        // one element array, see https://github.com/elastic/elasticsearch/issues/17257
+        json = "{ \"sort\" : [\"field1\"] }";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -162,15 +167,11 @@ public class SortBuilderTests extends ESTestCase {
                         xContentBuilder.endObject();
                         break;
                     case 2:
-                        xContentBuilder.startObject();
                         builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                        xContentBuilder.endObject();
                         break;
                     }
                 } else {
-                    xContentBuilder.startObject();
                     builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                    xContentBuilder.endObject();
                 }
             }
             if (testBuilders.size() > 1) {
@@ -195,7 +196,7 @@ public class SortBuilderTests extends ESTestCase {
                 list.add(new ScoreSortBuilder());
                 break;
             case 1:
-                String fieldName = rarely() ? SortParseElement.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+                String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
                 list.add(new FieldSortBuilder(fieldName));
                 break;
             case 2:

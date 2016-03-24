@@ -273,7 +273,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeString("hello");
         out.writeString("goodbye");
         out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
+        final byte[] bytes = out.bytes().toBytes();
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        assertEquals(in.available(), bytes.length);
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte)1));
         assertThat(in.readShort(), equalTo((short)-1));
@@ -302,9 +304,12 @@ public class BytesStreamsTests extends ESTestCase {
         namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
         TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
         out.writeNamedWriteable(namedWriteableIn);
-        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
         BaseNamedWriteable namedWriteableOut = in.readNamedWriteable(BaseNamedWriteable.class);
         assertEquals(namedWriteableOut, namedWriteableIn);
+        assertEquals(in.available(), 0);
     }
 
     public void testNamedWriteableDuplicates() throws IOException {

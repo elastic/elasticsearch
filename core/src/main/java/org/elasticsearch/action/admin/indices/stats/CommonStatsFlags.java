@@ -190,7 +190,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
-        if (out.getVersion().onOrAfter(Version.V_5_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
             out.writeBoolean(includeSegmentFileSizes);
         }
     }
@@ -208,7 +208,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_5_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
             includeSegmentFileSizes = in.readBoolean();
         } else {
             includeSegmentFileSizes = false;
@@ -244,7 +244,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Completion("completion"),
         Segments("segments"),
         Translog("translog"),
-        Suggest("suggest"),
+        Suggest("suggest"), // unused
         RequestCache("request_cache"),
         Recovery("recovery");
 

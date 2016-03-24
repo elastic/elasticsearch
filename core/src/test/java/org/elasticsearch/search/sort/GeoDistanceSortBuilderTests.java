@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -180,6 +181,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             break;
         }
         return result;
+    }
+
+    @Override
+    protected void sortFieldAssertions(GeoDistanceSortBuilder builder, SortField sortField) throws IOException {
+        assertEquals(SortField.Type.CUSTOM, sortField.getType());
+        assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
+        assertEquals(builder.fieldName(), sortField.getField());
     }
 
     public void testSortModeSumIsRejectedInSetter() {

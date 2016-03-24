@@ -19,6 +19,8 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.SortField;
+
 import java.io.IOException;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
@@ -29,7 +31,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     public static FieldSortBuilder randomFieldSortBuilder() {
-        String fieldName = rarely() ? SortParseElement.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+        String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
         if (randomBoolean()) {
             builder.order(RandomSortDataGenerator.order(null));
@@ -85,5 +87,20 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             throw new IllegalStateException("Unsupported mutation.");
         }
         return mutated;
+    }
+
+    @Override
+    protected void sortFieldAssertions(FieldSortBuilder builder, SortField sortField) throws IOException {
+        SortField.Type expectedType;
+        if (builder.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
+            expectedType = SortField.Type.DOC;
+        } else {
+            expectedType = SortField.Type.CUSTOM;
+        }
+        assertEquals(expectedType, sortField.getType());
+        assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
+        if (expectedType == SortField.Type.CUSTOM) {
+            assertEquals(builder.getFieldName(), sortField.getField());
+        }
     }
 }

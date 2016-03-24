@@ -124,7 +124,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+                } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                     // ignore on old indices, reject on and after 5.0
                     iterator.remove();
                 } else if (fieldName.equals("includes")) {

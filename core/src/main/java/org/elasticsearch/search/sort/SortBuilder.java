@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -155,6 +158,41 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
                 }
             }
         }
+    }
+
+    public static void parseSort(XContentParser parser, SearchContext context) throws IOException {
+        QueryParseContext parseContext = context.getQueryShardContext().parseContext();
+        parseContext.reset(parser);
+        Optional<Sort> sortOptional = buildSort(SortBuilder.fromXContent(parseContext), context.getQueryShardContext());
+        if (sortOptional.isPresent()) {
+            context.sort(sortOptional.get());
+        }
+    }
+
+    public static Optional<Sort> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
+        List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
+        for (SortBuilder<?> builder : sortBuilders) {
+            sortFields.add(builder.build(context));
+        }
+        if (!sortFields.isEmpty()) {
+            // optimize if we just sort on score non reversed, we don't really
+            // need sorting
+            boolean sort;
+            if (sortFields.size() > 1) {
+                sort = true;
+            } else {
+                SortField sortField = sortFields.get(0);
+                if (sortField.getType() == SortField.Type.SCORE && !sortField.getReverse()) {
+                    sort = false;
+                } else {
+                    sort = true;
+                }
+            }
+            if (sort) {
+                return Optional.of(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+            }
+        }
+        return Optional.empty();
     }
 
     protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder<?> nestedFilter) throws IOException {

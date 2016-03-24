@@ -354,6 +354,14 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
+     * @return true if the request contains only suggest
+     */
+    public final boolean hasOnlySuggest() {
+        return request().source() != null
+            && request().source().isSuggestOnly();
+    }
+
+    /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
     public abstract MappedFieldType smartNameFieldType(String name);

@@ -38,5 +38,14 @@ public enum LicenseState {
      * changes to {@link #ENABLED}, otherwise
      * remains unchanged
      */
-    DISABLED
+    DISABLED;
+
+    /**
+     * Determine if the license should be treated as active.
+     *
+     * @return {@code true} if it is not {@link #DISABLED}.
+     */
+    public boolean isActive() {
+        return this != DISABLED;
+    }
 }

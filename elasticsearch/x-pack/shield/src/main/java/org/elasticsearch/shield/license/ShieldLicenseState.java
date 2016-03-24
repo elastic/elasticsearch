@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.license;
 
-import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee.Status;
 
@@ -24,7 +23,7 @@ public class ShieldLicenseState {
      * @return true if the license allows for security features to be enabled (authc, authz, ip filter, audit, etc)
      */
     public boolean securityEnabled() {
-        return status.getMode() != OperationMode.BASIC;
+        return status.getMode().isPaid();
     }
 
     /**
@@ -41,16 +40,14 @@ public class ShieldLicenseState {
      * @return true if the license enables DLS and FLS
      */
     public boolean documentAndFieldLevelSecurityEnabled() {
-        Status status = this.status;
-        return status.getMode() == OperationMode.PLATINUM || status.getMode() == OperationMode.TRIAL;
+        return status.getMode().allFeaturesEnabled();
     }
 
     /**
      * @return true if the license enables the use of custom authentication realms
      */
     public boolean customRealmsEnabled() {
-        Status status = this.status;
-        return status.getMode() == OperationMode.PLATINUM || status.getMode() == OperationMode.TRIAL;
+        return status.getMode().allFeaturesEnabled();
     }
 
     void updateStatus(Status status) {

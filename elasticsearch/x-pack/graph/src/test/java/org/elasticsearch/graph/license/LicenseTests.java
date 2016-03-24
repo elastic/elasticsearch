@@ -8,31 +8,29 @@ package org.elasticsearch.graph.license;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-public class LicenseTests extends ESTestCase {
+public class LicenseTests extends AbstractLicenseeTestCase {
 
     private SimpleLicenseeRegistry licenseeRegistry = new SimpleLicenseeRegistry();
 
     public void testPlatinumTrialLicenseCanDoEverything() throws Exception {
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
 
         assertLicensePlatinumTrialBehaviour(graphLicensee);
     }
 
-    public void testBasicLicenseIsDisabled() throws Exception {
-        licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
+    public void testFreeLicenseIsDisabled() throws Exception {
+        licenseeRegistry.setOperationMode(randomFreeMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
 
@@ -40,7 +38,7 @@ public class LicenseTests extends ESTestCase {
     }
 
     public void testNoLicenseDoesNotWork() {
-        licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
+        licenseeRegistry.setOperationMode(randomFreeMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
         licenseeRegistry.disable();
@@ -49,8 +47,7 @@ public class LicenseTests extends ESTestCase {
     }
 
     public void testExpiredPlatinumTrialLicenseIsRestricted() throws Exception {
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
         licenseeRegistry.disable();
@@ -58,33 +55,30 @@ public class LicenseTests extends ESTestCase {
         assertLicenseBasicOrGoldOrNoneOrExpiredBehaviour(graphLicensee);
     }
 
-    public void testUpgradingFromBasicLicenseWorks() {
-        licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
+    public void testUpgradingFromFreeLicenseWorks() {
+        licenseeRegistry.setOperationMode(randomFreeMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
 
         assertLicenseBasicOrGoldOrNoneOrExpiredBehaviour(graphLicensee);
 
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         assertLicensePlatinumTrialBehaviour(graphLicensee);
     }
 
-    public void testDowngradingToBasicLicenseWorks() {
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+    public void testDowngradingToFreeLicenseWorks() {
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
 
         assertLicensePlatinumTrialBehaviour(graphLicensee);
 
-        licenseeRegistry.setOperationMode(License.OperationMode.BASIC);
+        licenseeRegistry.setOperationMode(randomFreeMode());
         assertLicenseBasicOrGoldOrNoneOrExpiredBehaviour(graphLicensee);
     }
     
     public void testDowngradingToGoldLicenseWorks() {
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
 
@@ -95,25 +89,23 @@ public class LicenseTests extends ESTestCase {
     }    
 
     public void testUpgradingExpiredLicenseWorks() {
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         GraphLicensee graphLicensee = new GraphLicensee(Settings.EMPTY, licenseeRegistry);
         licenseeRegistry.register(graphLicensee);
         licenseeRegistry.disable();
 
         assertLicenseBasicOrGoldOrNoneOrExpiredBehaviour(graphLicensee);
 
-        licenseeRegistry.setOperationMode(
-                randomFrom(License.OperationMode.PLATINUM, License.OperationMode.TRIAL));
+        licenseeRegistry.setOperationMode(randomAllFeaturesMode());
         assertLicensePlatinumTrialBehaviour(graphLicensee);
     }
 
     private void assertLicensePlatinumTrialBehaviour(GraphLicensee graphLicensee) {
-        assertThat("Expected graph exploration to be allowed", graphLicensee.isGraphExploreAllowed(), is(true));
+        assertThat("Expected graph exploration to be allowed", graphLicensee.isGraphExploreEnabled(), is(true));
     }
 
     private void assertLicenseBasicOrGoldOrNoneOrExpiredBehaviour(GraphLicensee graphLicensee) {
-        assertThat("Expected graph exploration not to be allowed", graphLicensee.isGraphExploreAllowed(), is(false));
+        assertThat("Expected graph exploration not to be allowed", graphLicensee.isGraphExploreEnabled(), is(false));
     }
 
     public static class SimpleLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {
@@ -132,13 +124,13 @@ public class LicenseTests extends ESTestCase {
 
         public void enable() {
             for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+                licensee.onChange(new Licensee.Status(operationMode, randomActiveState()));
             }
         }
 
         public void disable() {
             for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
+                licensee.onChange(new Licensee.Status(operationMode, randomInactiveState()));
             }
         }
 

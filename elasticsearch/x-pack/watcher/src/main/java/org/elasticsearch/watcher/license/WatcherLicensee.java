@@ -14,10 +14,6 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.watcher.Watcher;
 
-import static org.elasticsearch.license.core.License.OperationMode.GOLD;
-import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;
-import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
-
 public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> {
 
     public static final String ID = Watcher.NAME;
@@ -40,13 +36,8 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
     public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
         switch (newLicense.operationMode()) {
             case BASIC:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case GOLD:
-                        case PLATINUM:
-                            return new String[] { "Watcher will be disabled" };
-                    }
+                if (currentLicense != null && currentLicense.operationMode().isPaid()) {
+                    return new String[] { "Watcher will be disabled" };
                 }
                 break;
         }
@@ -66,9 +57,9 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
     }
 
     public boolean isWatcherTransportActionAllowed() {
+        // status is volatile, so a local variable is used for a consistent view
         Status localStatus = status;
-        boolean isLicenseStateActive = localStatus.getLicenseState() != LicenseState.DISABLED;
-        License.OperationMode operationMode = localStatus.getMode();
-        return isLicenseStateActive && (operationMode == TRIAL || operationMode == GOLD || operationMode == PLATINUM);
+
+        return localStatus.getLicenseState().isActive() && localStatus.getMode().isPaid();
     }
 }

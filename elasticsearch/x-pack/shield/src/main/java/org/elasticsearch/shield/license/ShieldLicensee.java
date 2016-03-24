@@ -48,28 +48,19 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
     public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
         switch (newLicense.operationMode()) {
             case BASIC:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case GOLD:
-                        case PLATINUM:
-                            return new String[]{"The following Shield functionality will be disabled: authentication, authorization, ip " +
-                                    "filtering, auditing, SSL will be disabled on node restart. Please restart your node after applying " +
-                                    "the license."};
-                    }
+                if (currentLicense != null && currentLicense.operationMode().isPaid()) {
+                    return new String[]{"The following Shield functionality will be disabled: authentication, authorization, ip " +
+                            "filtering, auditing, SSL will be disabled on node restart. Please restart your node after applying " +
+                            "the license."};
                 }
                 break;
             case GOLD:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case BASIC:
-                        case PLATINUM:
-                            return new String[]{
-                                    "Field and document level access control will be disabled",
-                                    "Custom realms will be ignored"
-                            };
-                    }
+                // Note: If we're upgrading from a non-paid license, then we do not need to inform them of anything
+                if (currentLicense != null && currentLicense.operationMode().isPaid()) {
+                    return new String[]{
+                            "Field and document level access control will be disabled",
+                            "Custom realms will be ignored"
+                    };
                 }
                 break;
         }

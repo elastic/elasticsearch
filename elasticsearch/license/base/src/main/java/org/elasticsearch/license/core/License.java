@@ -73,11 +73,11 @@ public class License implements ToXContent {
     private final OperationMode operationMode;
 
     /**
-     * Decouples operation mode of a license
-     * from the license type value
+     * Decouples operation mode of a license from the license type value.
+     * <p>
+     * Note: The mode indicates features that should be made available, but it does not indicate whether the license is active!
      */
     public enum OperationMode {
-        NONE,
         TRIAL,
         BASIC,
         GOLD,
@@ -101,6 +101,30 @@ public class License implements ToXContent {
                 default:
                     throw new IllegalArgumentException("unknown type [" + type + "]");
             }
+        }
+
+        /**
+         * Determine if the operation mode should be treated like a paid license.
+         * <p>
+         * This should be used for licenses that do not tier features, but that require a paid license.
+         * <p>
+         * Note: This does not mean that the license state is enabled!
+         *
+         * @return {@code true} if the license is <em>not</em> {@link #BASIC}.
+         */
+        public boolean isPaid() {
+            return this != BASIC;
+        }
+
+        /**
+         * Determine if the current operation mode unlocks all features.
+         * <p>
+         * Note: This does not mean that the license state is enabled!
+         *
+         * @return {@code true} if the license is either {@link #TRIAL} or {@link #PLATINUM}.
+         */
+        public boolean allFeaturesEnabled() {
+            return this == TRIAL || this == PLATINUM;
         }
     }
 

@@ -10,12 +10,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.graph.Graph;
-
-import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
-import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;;
 
 public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
 
@@ -35,25 +31,17 @@ public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
 
     @Override
     public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-        switch (newLicense.operationMode()) {
-            case BASIC:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case PLATINUM:
-                            return new String[] { "Graph will be disabled" };
-                    }
-                }
-                break;
+        if (newLicense.operationMode().allFeaturesEnabled() == false) {
+            if (currentLicense != null && currentLicense.operationMode().allFeaturesEnabled()) {
+                return new String[] { "Graph will be disabled" };
+            }
         }
         return Strings.EMPTY_ARRAY;
     }
 
-
-    public boolean isGraphExploreAllowed() {     
+    public boolean isGraphExploreEnabled() {
+        // status is volatile
         Status localStatus = status;
-        boolean isLicenseStateActive = localStatus.getLicenseState() != LicenseState.DISABLED;
-        License.OperationMode operationMode = localStatus.getMode();
-        return isLicenseStateActive && (operationMode == TRIAL || operationMode == PLATINUM);
+        return localStatus.getLicenseState().isActive() && localStatus.getMode().allFeaturesEnabled();
     }
 }

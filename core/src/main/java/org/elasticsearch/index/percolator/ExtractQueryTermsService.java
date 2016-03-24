@@ -23,6 +23,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -92,10 +93,17 @@ public final class ExtractQueryTermsService {
      * an UnsupportedQueryException is thrown.
      */
     static Set<Term> extractQueryTerms(Query query) {
-        // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
         // TODO: add support for span queries
         if (query instanceof TermQuery) {
             return Collections.singleton(((TermQuery) query).getTerm());
+        } else if (query instanceof TermsQuery) {
+            Set<Term> terms = new HashSet<>();
+            TermsQuery termsQuery = (TermsQuery) query;
+            PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
+            for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
+                terms.add(new Term(iterator.field(), term));
+            }
+            return  terms;
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {

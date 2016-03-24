@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.ShieldTemplateService;
@@ -385,5 +386,15 @@ public class ESNativeTests extends NativeRealmIntegTestCase {
                         Collections.singletonMap("Authorization",basicAuthHeaderValue("joe", new SecuredString("changeme2".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertFalse(response.isTimedOut());
+    }
+
+    public void testCannotCreateUserWithShortPassword() throws Exception {
+        SecurityClient client = securityClient();
+        try {
+            client.preparePutUser("joe", randomAsciiOfLengthBetween(0, 5).toCharArray(), "admin_role").get();
+            fail("cannot create a user without a password < 6 characters");
+        } catch (ValidationException v) {
+            assertThat(v.getMessage().contains("password"), is(true));
+        }
     }
 }

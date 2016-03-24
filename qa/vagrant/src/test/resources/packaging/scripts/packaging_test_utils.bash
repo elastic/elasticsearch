@@ -385,6 +385,10 @@ wait_for_elasticsearch_status() {
     local desiredStatus=${1:-green}
     local index=$2
 
+    if [ -f /var/log/elasitcsearch/elasticsearch.log ]; then
+      cat /var/log/elasticsearch/elasticsearch.log >&3
+    fi
+
     echo "Making sure elasticsearch is up..."
     wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
           echo "Looks like elasticsearch never started. Here is its log:"
@@ -394,6 +398,7 @@ wait_for_elasticsearch_status() {
               echo "The elasticsearch log doesn't exist. Maybe /var/log/messages has something:"
               tail -n20 /var/log/messages
           fi
+          cat /var/log/elasticsearch/elasticsearch.log >&3
           false
     }
 
@@ -408,6 +413,7 @@ wait_for_elasticsearch_status() {
         echo "Connected"
     else
         echo "Unable to connect to Elastisearch"
+        cat /var/log/elasticsearch/elasticsearch.log >&3
         false
     fi
 

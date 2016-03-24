@@ -42,6 +42,7 @@ setup() {
 @test "[UPGRADE] install old version" {
     clean_before_test
     install_package -v $(cat upgrade_from_version)
+    perl -p -i -e 's/es.logger.level: INFO/es.logger.level: DEBUG/' /etc/elasticsearch/logging.yml
 }
 
 @test "[UPGRADE] start old version" {
@@ -80,6 +81,7 @@ setup() {
 
 @test "[UPGRADE] install version under test" {
     install_package -u
+    perl -p -i -e 's/es.logger.level: INFO/es.logger.level: DEBUG/' /etc/elasticsearch/logging.yml
 }
 
 @test "[UPGRADE] start version under test" {

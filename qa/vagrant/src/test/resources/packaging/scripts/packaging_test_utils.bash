@@ -390,7 +390,7 @@ wait_for_elasticsearch_status() {
     fi
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200/_cluster/health || {
           echo "Looks like elasticsearch never started. Here is its log:"
           if [ -e "$ESLOG/elasticsearch.log" ]; then
               cat "$ESLOG/elasticsearch.log"

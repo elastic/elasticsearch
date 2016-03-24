@@ -281,8 +281,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
-            String roles;
-            if (node.getRoles().size() == 0) {
+            final String roles;
+            if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
                 roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());

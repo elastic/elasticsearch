@@ -86,4 +86,10 @@ public class YamlSettingsLoaderTests extends ESTestCase {
             assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [2], column number [6], previous value [bar], current value [baz]"));
         }
     }
+
+    public void testNullValuedSettingThrowsException() {
+        final String yaml = "foo:";
+        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new YamlSettingsLoader(false).load(yaml));
+        assertThat(e.toString(), containsString("null-valued setting found for key [foo] found at line number [1], column number [5]"));
+    }
 }

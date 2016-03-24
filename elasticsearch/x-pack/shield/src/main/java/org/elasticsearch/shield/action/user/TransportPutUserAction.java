@@ -11,18 +11,18 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
-    private final ESNativeUsersStore usersStore;
+    private final NativeUsersStore usersStore;
 
     @Inject
     public TransportPutUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                  ESNativeUsersStore usersStore, TransportService transportService) {
+                                  NativeUsersStore usersStore, TransportService transportService) {
         super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutUserRequest::new);
         this.usersStore = usersStore;
     }

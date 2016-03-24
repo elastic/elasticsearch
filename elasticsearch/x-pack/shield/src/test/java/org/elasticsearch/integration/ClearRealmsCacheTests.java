@@ -245,7 +245,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
         List<Realm> realms = new ArrayList<>();
         for (Realms nodeRealms : internalCluster().getInstances(Realms.class)) {
-            realms.add(nodeRealms.realm("esusers"));
+            realms.add(nodeRealms.realm("file"));
         }
 
         // we authenticate each user on each of the realms to make sure they're all cached

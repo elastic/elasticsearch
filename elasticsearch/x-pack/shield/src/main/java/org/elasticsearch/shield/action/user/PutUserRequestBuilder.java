@@ -49,7 +49,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
 
     public PutUserRequestBuilder password(@Nullable char[] password) {
         if (password != null) {
-            Validation.Error error = Validation.ESUsers.validatePassword(password);
+            Validation.Error error = Validation.Users.validatePassword(password);
             if (error != null) {
                 ValidationException validationException = new ValidationException();
                 validationException.addValidationError(error.toString());

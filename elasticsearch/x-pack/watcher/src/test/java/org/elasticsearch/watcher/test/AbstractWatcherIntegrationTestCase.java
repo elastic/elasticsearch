@@ -27,7 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -709,10 +709,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 Path folder = createTempDir().resolve("watcher_shield");
                 Files.createDirectories(folder);
                 return builder.put("shield.enabled", true)
-                        .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                        .put("shield.authc.realms.esusers.order", 0)
-                        .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                        .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put("shield.authc.realms.file.type", FileRealm.TYPE)
+                        .put("shield.authc.realms.file.order", 0)
+                        .put("shield.authc.realms.file.files.users", writeFile(folder, "users", USERS))
+                        .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)

@@ -81,7 +81,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         message = new InternalMessage();
         restRequest = new FakeRestRequest();
         firstRealm = mock(Realm.class);
-        when(firstRealm.type()).thenReturn("esusers");
+        when(firstRealm.type()).thenReturn("file");
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn("second");
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
@@ -154,7 +154,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
         assertThat(result, is(user));
-        verify(auditTrail).authenticationFailed("esusers", token, "_action", message);
+        verify(auditTrail).authenticationFailed("file", token, "_action", message);
         User user1 = threadContext.getTransient(InternalAuthenticationService.USER_KEY);
         assertThat(user1, notNullValue());
         assertThat(user1, sameInstance(user));

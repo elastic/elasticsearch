@@ -5,5 +5,5 @@ rem or more contributor license agreements. Licensed under the Elastic License;
 rem you may not use this file except in compliance with the Elastic License.
 
 PUSHD "%~dp0"
-CALL "%~dp0.in.bat" org.elasticsearch.shield.authc.esusers.tool.ESUsersTool %*
+CALL "%~dp0.in.bat" org.elasticsearch.shield.authc.file.tool.UsersTool %*
 POPD

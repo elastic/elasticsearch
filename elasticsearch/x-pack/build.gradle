@@ -130,7 +130,7 @@ integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
-    setupCommand 'setupDummyUser', 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupDummyUser', 'bin/xpack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         ant.get(src: "http://${node.httpUri()}",

@@ -84,7 +84,7 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
 
-                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.file.type", "file")
 
                 // ldap realm filtering
                 .put("shield.authc.realms.ldap1.type", "ldap")

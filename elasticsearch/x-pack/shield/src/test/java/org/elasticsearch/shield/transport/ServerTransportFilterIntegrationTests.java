@@ -15,10 +15,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.BeforeClass;
@@ -119,10 +118,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
-                .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                .put("shield.authc.realms.esusers.order", 0)
-                .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authc.realms.file.type", FileRealm.TYPE)
+                .put("shield.authc.realms.file.order", 0)
+                .put("shield.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")

@@ -14,7 +14,7 @@ public final class Validation {
 
     private static final Pattern COMMON_NAME_PATTERN = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_@\\-\\$\\.]{0,29}");
 
-    public static final class ESUsers {
+    public static final class Users {
 
         private static final int MIN_PASSWD_LENGTH = 6;
 

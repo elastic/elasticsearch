@@ -19,7 +19,7 @@ integTest {
       can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
     ].each { String user, String role ->
       setupCommand 'setupUser#' + user,
-                   'bin/xpack/esusers', 'useradd', user, '-p', 'changeme', '-r', role
+                   'bin/xpack/users', 'useradd', user, '-p', 'changeme', '-r', role
     }
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')

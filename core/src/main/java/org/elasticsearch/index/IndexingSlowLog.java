@@ -136,7 +136,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
 
-    public void postIndex(Engine.Index index) {
+    public void postIndex(Engine.Index index, boolean created) {
         final long took = index.endTime() - index.startTime();
         postIndexing(index.parsedDoc(), took);
     }

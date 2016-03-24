@@ -468,7 +468,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw ex;
         }
 
-        indexingOperationListeners.postIndex(index);
+        indexingOperationListeners.postIndex(index, created);
 
         return created;
     }

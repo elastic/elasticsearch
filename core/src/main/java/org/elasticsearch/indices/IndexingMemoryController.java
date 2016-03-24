@@ -210,13 +210,13 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index) {
-        bytesWritten(index.getTranslogLocation().size);        
+    public void postIndex(Engine.Index index, boolean created) {
+        bytesWritten(index.getTranslogLocation().size);
     }
 
     @Override
     public void postDelete(Engine.Delete delete) {
-        bytesWritten(delete.getTranslogLocation().size);        
+        bytesWritten(delete.getTranslogLocation().size);
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -202,6 +203,28 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
           }
     }
 
+    public void testReverseOptionFails() throws IOException {
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"reverse\" : true\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.reset(itemParser);
+
+        try {
+          GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, "");
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ParsingException e) {
+            assertEquals("Sort option [reverse] no longer supported.", e.getMessage());
+        }
+    }
+    
     public void testSortModeSumIsRejectedInJSON() throws IOException {
         String json = "{\n" +
                 "  \"testname\" : [ {\n" +
@@ -210,7 +233,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"reverse\" : true,\n" +
                 "  \"mode\" : \"SUM\",\n" +
                 "  \"coerce\" : false,\n" +
                 "  \"ignore_malformed\" : false\n" +

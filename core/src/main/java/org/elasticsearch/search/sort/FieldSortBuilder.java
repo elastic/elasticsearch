@@ -372,14 +372,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     } else if ("desc".equals(sortOrder)) {
                         order = SortOrder.DESC;
                     } else {
-                        throw new IllegalStateException("Sort order " + sortOrder + " not supported.");
+                        throw new ParsingException(parser.getTokenLocation(), "Sort order [{}] not supported.", sortOrder);
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
                     unmappedType = parser.text();
                 } else {
-                    throw new IllegalArgumentException("Option " + currentFieldName + " not supported.");
+                    throw new ParsingException(parser.getTokenLocation(), "Option [{}] not supported.", currentFieldName);
                 }
             }
         }

@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -72,6 +73,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
+    public static final ParseField REVERSE_FORBIDDEN = new ParseField("reverse");
 
     public static final GeoDistanceSortBuilder PROTOTYPE = new GeoDistanceSortBuilder("_na_", -1, -1);
 
@@ -465,6 +467,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     sortMode = SortMode.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
+                } else if (parseFieldMatcher.match(currentName, REVERSE_FORBIDDEN)) {
+                    // explicitly filter for reverse in json: used to be a valid sort option, forbidden now,
+                    // if not filtered here it will be treated as a reference to a field in the index with
+                    // geo coordinates given as geohash string
+                    throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Sort option [{}] no longer supported.",
+                            REVERSE_FORBIDDEN.getPreferredName());
                 } else {
                     GeoPoint point = new GeoPoint();
                     point.resetFromString(parser.text());

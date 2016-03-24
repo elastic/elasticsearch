@@ -49,22 +49,16 @@ public class JsonSettingsLoaderTests extends ESTestCase {
     }
 
     public void testDuplicateKeysThrowsException() {
-        String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
-        try {
-            settingsBuilder()
-                    .loadFromSource(json)
-                    .build();
-            fail("expected exception");
-        } catch (SettingsException e) {
-            assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
-            assertThat(
-                    e.toString(),
-                    containsString("duplicate settings key [foo] " +
-                            "found at line number [1], " +
-                            "column number [20], " +
-                            "previous value [bar], " +
-                            "current value [baz]"));
-        }
+        final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
+        final SettingsException e = expectThrows(SettingsException.class, () -> settingsBuilder().loadFromSource(json).build());
+        assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
+        assertThat(
+                e.toString(),
+                containsString("duplicate settings key [foo] " +
+                        "found at line number [1], " +
+                        "column number [20], " +
+                        "previous value [bar], " +
+                        "current value [baz]"));
     }
 
     public void testNullValuedSettingThrowsException() {

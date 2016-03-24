@@ -212,7 +212,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            fromNode = DiscoveryNode.readNode(in);
+            fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = IndexMetaData.Builder.readFrom(in);

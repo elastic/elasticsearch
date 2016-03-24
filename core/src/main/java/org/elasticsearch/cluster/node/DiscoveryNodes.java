@@ -599,7 +599,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
-    public DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
+    private DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         Builder builder = new Builder();
         if (in.readBoolean()) {
             builder.masterNodeId(in.readString());
@@ -609,7 +609,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            DiscoveryNode node = DiscoveryNode.readNode(in);
+            DiscoveryNode node = new DiscoveryNode(in);
             if (localNode != null && node.id().equals(localNode.id())) {
                 // reuse the same instance of our address and local node id for faster equality
                 node = localNode;

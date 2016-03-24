@@ -73,7 +73,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
     }
 
     public TaskInfo(StreamInput in) throws IOException {
-        node = DiscoveryNode.readNode(in);
+        node = new DiscoveryNode(in);
         taskId = new TaskId(node.getId(), in.readLong());
         type = in.readString();
         action = in.readString();

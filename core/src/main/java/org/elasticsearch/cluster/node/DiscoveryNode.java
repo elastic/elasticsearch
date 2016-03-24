@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -48,8 +47,6 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  * A discovery node represents a node that is part of the cluster.
  */
 public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
-
-    private static final DiscoveryNode PROTOTYPE = new DiscoveryNode("prototype", DummyTransportAddress.INSTANCE, Version.CURRENT);
 
     public static boolean localNode(Settings settings) {
         if (Node.NODE_LOCAL_SETTING.exists(settings)) {
@@ -94,6 +91,22 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final ImmutableOpenMap<String, String> attributes;
     private final Version version;
     private final Set<Role> roles;
+
+    public DiscoveryNode(StreamInput in) throws IOException {
+        this.nodeName = in.readString().intern();
+        this.nodeId = in.readString().intern();
+        this.hostName = in.readString().intern();
+        this.hostAddress = in.readString().intern();
+        this.address = TransportAddressSerializers.addressFromStream(in);
+        int size = in.readVInt();
+        ImmutableOpenMap.Builder<String, String> attributesBuilder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            attributesBuilder.put(in.readString().intern(), in.readString().intern());
+        }
+        this.attributes = attributesBuilder.build();
+        this.version = Version.readVersion(in);
+        this.roles = resolveRoles(this.attributes);
+    }
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -335,25 +348,9 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return this.version;
     }
 
-    public static DiscoveryNode readNode(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
     @Override
     public DiscoveryNode readFrom(StreamInput in) throws IOException {
-        String nodeName = in.readString().intern();
-        String nodeId = in.readString().intern();
-        String hostName = in.readString().intern();
-        String hostAddress = in.readString().intern();
-        TransportAddress address = TransportAddressSerializers.addressFromStream(in);
-        int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, String> attributesBuilder = ImmutableOpenMap.builder(size);
-        for (int i = 0; i < size; i++) {
-            attributesBuilder.put(in.readString().intern(), in.readString().intern());
-        }
-        ImmutableOpenMap<String, String> attributes = attributesBuilder.build();
-        Version version = Version.readVersion(in);
-        return new DiscoveryNode(nodeName, nodeId, hostName, hostAddress, address, attributes, version);
+        return new DiscoveryNode(in);
     }
 
     @Override

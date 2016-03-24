@@ -418,7 +418,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardActive = in.readBoolean();
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override

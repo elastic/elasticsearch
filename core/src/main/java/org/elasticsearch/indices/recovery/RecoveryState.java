@@ -270,9 +270,9 @@ public class RecoveryState implements ToXContent, Streamable {
         stage = Stage.fromId(in.readByte());
         shardId = ShardId.readShardId(in);
         restoreSource = RestoreSource.readOptionalRestoreSource(in);
-        targetNode = DiscoveryNode.readNode(in);
+        targetNode = new DiscoveryNode(in);
         if (in.readBoolean()) {
-            sourceNode = DiscoveryNode.readNode(in);
+            sourceNode = new DiscoveryNode(in);
         }
         index.readFrom(in);
         translog.readFrom(in);

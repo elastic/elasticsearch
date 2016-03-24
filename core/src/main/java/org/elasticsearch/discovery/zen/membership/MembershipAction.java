@@ -121,7 +121,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override
@@ -204,7 +204,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override

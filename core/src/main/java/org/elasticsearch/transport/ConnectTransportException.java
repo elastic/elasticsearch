@@ -52,7 +52,7 @@ public class ConnectTransportException extends ActionTransportException {
     public ConnectTransportException(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         } else {
             node = null;
         }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.ip;
 import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -267,10 +268,16 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        public FieldStats stats(IndexReader reader) throws IOException {
+            int maxDoc = reader.maxDoc();
+            Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
+            if (terms == null) {
+                return null;
+            }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);
-            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue);
+            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(),
+                    terms.getSumTotalTermFreq(), minValue, maxValue);
         }
 
         @Override

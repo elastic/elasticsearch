@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
@@ -95,8 +96,8 @@ public class QueryShardContext extends QueryRewriteContext {
     boolean isFilter; // pkg private for testing
 
     public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache) {
-        super(indexSettings, scriptService, indicesQueriesRegistry);
+                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache, IndexReader reader) {
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, reader);
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -109,14 +110,8 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache);
+        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache, source.reader);
         this.types = source.getTypes();
-    }
-
-
-    @Override
-    public QueryShardContext clone() {
-        return new QueryShardContext(indexSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache);
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
@@ -143,10 +138,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public AnalysisService getAnalysisService() {
         return mapperService.analysisService();
-    }
-
-    public MapperService getMapperService() {
-        return mapperService;
     }
 
     public PercolatorQueryCache getPercolatorQueryCache() {

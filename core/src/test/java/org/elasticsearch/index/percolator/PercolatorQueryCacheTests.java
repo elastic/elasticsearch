@@ -117,7 +117,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 MapperService.MergeReason.MAPPING_UPDATE, false);
         cache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
         queryShardContext = new QueryShardContext(idxSettings, null, null, mapperService, similarityService, null,
-                    indicesQueriesRegistry, cache);
+                    indicesQueriesRegistry, cache, null);
     }
 
     public void testLoadQueries() throws Exception {

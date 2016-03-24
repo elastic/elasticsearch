@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -30,8 +31,8 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
 
@@ -254,34 +255,47 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         return NAME;
     }
 
+    // Overridable for testing only
+    protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+        IndexReader reader = queryRewriteContext.getIndexReader();
+        // If the reader is null we are not on the shard and cannot
+        // rewrite so just pretend there is an intersection so that the rewrite is a noop
+        if (reader == null) {
+            return MappedFieldType.Relation.INTERSECTS;
+        }
+        final MapperService mapperService = queryRewriteContext.getMapperService();
+        final MappedFieldType fieldType = mapperService.fullName(fieldName);
+        if (fieldType == null) {
+            // no field means we have no values
+            return MappedFieldType.Relation.DISJOINT;
+        } else {
+            DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
+            return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower, includeUpper, timeZone, dateMathParser);
+        }
+    }
+
     @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        FieldStatsProvider fieldStatsProvider = queryRewriteContext.getFieldStatsProvider();
-        // If the fieldStatsProvider is null we are not on the shard and cannot
-        // rewrite so just return without rewriting
-        if (fieldStatsProvider != null) {
-            DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
-            FieldStatsProvider.Relation relation = fieldStatsProvider.isFieldWithinQuery(fieldName, from, to, includeLower, includeUpper,
-                    timeZone, dateMathParser);
-            switch (relation) {
-            case DISJOINT:
-                return new MatchNoneQueryBuilder();
-            case WITHIN:
-                if (from != null || to != null) {
-                    RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
-                    newRangeQuery.from(null);
-                    newRangeQuery.to(null);
-                    newRangeQuery.format = format;
-                    newRangeQuery.timeZone = timeZone;
-                    return newRangeQuery;
-                } else {
-                    return this;
-                }
-            case INTERSECTS:
-                break;
+        final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
+        switch (relation) {
+        case DISJOINT:
+            return new MatchNoneQueryBuilder();
+        case WITHIN:
+            if (from != null || to != null) {
+                RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                newRangeQuery.from(null);
+                newRangeQuery.to(null);
+                newRangeQuery.format = format;
+                newRangeQuery.timeZone = timeZone;
+                return newRangeQuery;
+            } else {
+                return this;
             }
+        case INTERSECTS:
+            return this;
+        default:
+            throw new AssertionError();
         }
-        return this;
     }
 
     @Override

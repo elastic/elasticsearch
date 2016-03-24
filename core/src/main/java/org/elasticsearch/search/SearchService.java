@@ -48,7 +48,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
@@ -552,7 +551,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 indexService,
                 indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
-        context.getQueryShardContext().setFieldStatsProvider(new FieldStatsProvider(engineSearcher, indexService.mapperService()));
         SearchContext.setCurrent(context);
         request.rewrite(context.getQueryShardContext());
         // reset that we have used nowInMillis from the context since it may

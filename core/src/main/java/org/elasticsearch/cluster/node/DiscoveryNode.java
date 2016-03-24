@@ -234,7 +234,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
                 roles.add(role);
             }
         }
-        return roles;
+        return Collections.unmodifiableSet(roles);
     }
 
     /**

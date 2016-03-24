@@ -23,10 +23,7 @@ import java.io.IOException;
 /**
  * Implementers can be read from {@linkplain StreamInput} by calling their {@link #readFrom(StreamInput)} method.
  *
- * It is common for implementers of this interface to declare a <code>public static final</code> instance of themselves named PROTOTYPE so
- * users can call {@linkplain #readFrom(StreamInput)} on it. It is also fairly typical for readFrom to be implemented as a method that just
- * calls a constructor that takes {@linkplain StreamInput} as a parameter. This allows the fields in the implementer to be
- * <code>final</code>.
+ * Implementers of this interface that also implement {@link Writeable} should see advice there on how to do so.
  */
 public interface StreamableReader<T> {
     /**

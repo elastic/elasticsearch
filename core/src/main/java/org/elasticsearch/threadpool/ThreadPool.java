@@ -82,7 +82,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         public static final String INDEX = "index";
         public static final String BULK = "bulk";
         public static final String SEARCH = "search";
-        public static final String SUGGEST = "suggest";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
@@ -139,7 +138,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         map.put(Names.INDEX, ThreadPoolType.FIXED);
         map.put(Names.BULK, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.FIXED);
-        map.put(Names.SUGGEST, ThreadPoolType.FIXED);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -227,7 +225,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.BULK).size(availableProcessors).queueSize(50));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.GET).size(availableProcessors).queueSize(1000));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.SEARCH).size(((availableProcessors * 3) / 2) + 1).queueSize(1000));
-        add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.SUGGEST).size(availableProcessors).queueSize(1000));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.MANAGEMENT).size(5).keepAlive("5m"));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side

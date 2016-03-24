@@ -36,10 +36,10 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements SortBuilderParser<ScoreSortBuilder> {
+public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
-    private static final String NAME = "_score";
-    static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
+    public static final String NAME = "_score";
+    public static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
     private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
@@ -53,8 +53,10 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
         builder.field(ORDER_FIELD.getPreferredName(), order);
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -88,6 +90,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
         return result;
     }
 
+    @Override
     public SortField build(QueryShardContext context) {
         if (order == SortOrder.DESC) {
             return SORT_SCORE;

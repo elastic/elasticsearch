@@ -64,10 +64,10 @@ import java.util.Objects;
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
-public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements SortBuilderParser<ScriptSortBuilder> {
+public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
-    private static final String NAME = "_script";
-    static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);
+    public static final String NAME = "_script";
+    public static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
@@ -179,6 +179,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
         builder.field(SCRIPT_FIELD.getPreferredName(), script);
         builder.field(TYPE_FIELD.getPreferredName(), type);
@@ -192,6 +193,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         if (nestedFilter != null) {
             builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, builderParams);
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -38,6 +39,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected GeoDistanceSortBuilder createTestItem() {
+        return randomGeoDistanceSortBuilder();
+    }
+
+    public static GeoDistanceSortBuilder randomGeoDistanceSortBuilder() {
         String fieldName = randomAsciiOfLengthBetween(1, 10);
         GeoDistanceSortBuilder result = null;
 
@@ -70,7 +75,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(result.unit()));
         }
         if (randomBoolean()) {
-            result.order(RandomSortDataGenerator.order(result.order()));
+            result.order(RandomSortDataGenerator.order(null));
         }
         if (randomBoolean()) {
             result.sortMode(mode(result.sortMode()));
@@ -176,6 +181,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             break;
         }
         return result;
+    }
+
+    @Override
+    protected void sortFieldAssertions(GeoDistanceSortBuilder builder, SortField sortField) throws IOException {
+        assertEquals(SortField.Type.CUSTOM, sortField.getType());
+        assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
+        assertEquals(builder.fieldName(), sortField.getField());
     }
 
     public void testSortModeSumIsRejectedInSetter() {

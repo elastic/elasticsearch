@@ -49,7 +49,6 @@ import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
-import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -370,10 +369,9 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());
 
-            SuggestStats suggestStats = indicesStats == null ? null : indicesStats.getSuggest();
-            table.addCell(suggestStats == null ? null : suggestStats.getCurrent());
-            table.addCell(suggestStats == null ? null : suggestStats.getTime());
-            table.addCell(suggestStats == null ? null : suggestStats.getCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
 
             table.endRow();
         }

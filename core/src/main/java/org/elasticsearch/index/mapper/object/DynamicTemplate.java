@@ -42,11 +42,19 @@ public class DynamicTemplate implements ToXContent {
     public static enum MatchType {
         SIMPLE {
             @Override
+            public boolean matches(String pattern, String value) {
+                return Regex.simpleMatch(pattern, value);
+            }
+            @Override
             public String toString() {
                 return "simple";
             }
         },
         REGEX {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return value.matches(pattern);
+            }
             @Override
             public String toString() {
                 return "regex";
@@ -61,6 +69,9 @@ public class DynamicTemplate implements ToXContent {
             }
             throw new IllegalArgumentException("No matching pattern matched on [" + value + "]");
         }
+
+        /** Whether {@code value} matches {@code regex}. */
+        public abstract boolean matches(String regex, String value);
     }
 
     public static DynamicTemplate parse(String name, Map<String, Object> conf,
@@ -89,7 +100,7 @@ public class DynamicTemplate implements ToXContent {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
                 mapping = (Map<String, Object>) entry.getValue();
-            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0)) {
+            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
                 // unknown parameters were ignored before but still carried through serialization
                 // so we need to ignore them at parsing time for old indices
                 throw new IllegalArgumentException("Illegal dynamic template parameter: [" + propName + "]");
@@ -137,23 +148,23 @@ public class DynamicTemplate implements ToXContent {
     }
 
     public boolean match(ContentPath path, String name, String dynamicType) {
-        if (pathMatch != null && !patternMatch(pathMatch, path.pathAsText(name))) {
+        if (pathMatch != null && !matchType.matches(pathMatch, path.pathAsText(name))) {
             return false;
         }
-        if (match != null && !patternMatch(match, name)) {
+        if (match != null && !matchType.matches(match, name)) {
             return false;
         }
-        if (pathUnmatch != null && patternMatch(pathUnmatch, path.pathAsText(name))) {
+        if (pathUnmatch != null && matchType.matches(pathUnmatch, path.pathAsText(name))) {
             return false;
         }
-        if (unmatch != null && patternMatch(unmatch, name)) {
+        if (unmatch != null && matchType.matches(unmatch, name)) {
             return false;
         }
         if (matchMappingType != null) {
             if (dynamicType == null) {
                 return false;
             }
-            if (!patternMatch(matchMappingType, dynamicType)) {
+            if (!matchType.matches(matchMappingType, dynamicType)) {
                 return false;
             }
         }
@@ -185,13 +196,6 @@ public class DynamicTemplate implements ToXContent {
         }
         return type;
      }
-
-    private boolean patternMatch(String pattern, String str) {
-        if (matchType == MatchType.SIMPLE) {
-            return Regex.simpleMatch(pattern, str);
-        }
-        return str.matches(pattern);
-    }
 
     public Map<String, Object> mappingForName(String name, String dynamicType) {
         return processMap(mapping, name, dynamicType);

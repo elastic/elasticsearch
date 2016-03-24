@@ -140,16 +140,6 @@
 
   - do:
       cat.thread_pool:
-          h: id,suggest.type,suggest.active,suggest.size,suggest.queue,suggest.queueSize,suggest.rejected,suggest.largest,suggest.completed,suggest.min,suggest.max,suggest.keepAlive
-          v: true
-
-  - match:
-      $body: |
-               /^  id  \s+  suggest.type             \s+  suggest.active  \s+  suggest.size  \s+  suggest.queue  \s+  suggest.queueSize  \s+  suggest.rejected  \s+  suggest.largest  \s+  suggest.completed  \s+  suggest.min  \s+  suggest.max  \s+  suggest.keepAlive    \n
-                  (\S+ \s+  (cached|fixed|scaling)?  \s+             \d+  \s+           \d+  \s+            \d+  \s+                \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+          \d*  \s+          \d*  \s+                \S*    \n)+  $/
-
-  - do:
-      cat.thread_pool:
           h: id,warmer.type,warmer.active,warmer.size,warmer.queue,warmer.queueSize,warmer.rejected,warmer.largest,warmer.completed,warmer.min,warmer.max,warmer.keepAlive
           v: true
 

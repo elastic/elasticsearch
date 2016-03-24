@@ -22,6 +22,25 @@ can be replaced with
 client.prepareSearch(indices).setSource(new SearchSourceBuilder().size(0).query(query)).get();
 -----
 
+==== Suggest api has been removed
+
+The suggest api has been removed from the Java api, use the suggest option in search api, it has been optimized
+for suggest-only request.
+
+The following call
+
+[source,java]
+-----
+client.prepareSuggest(indices).addSuggestion("foo", SuggestBuilders.completionSuggestion("field").text("s")).get();
+-----
+
+can be replaced with
+
+[source,java]
+-----
+client.prepareSearch(indices).suggest(new SuggestBuilder().addSuggestion("foo", SuggestBuilders.completionSuggestion("field").text("s"))).get();
+-----
+
 ==== Elasticsearch will no longer detect logging implementations
 
 Elasticsearch now logs only to log4j 1.2. Previously if log4j wasn't on the
@@ -280,3 +299,8 @@ requests can now be validated at call time which results in much clearer errors.
 ==== ExplainRequestBuilder
 
 The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder<?>)`
+
+=== ClusterStatsResponse
+
+Removed the `getMemoryAvailable` method from `OsStats`, which could be previously accessed calling
+`clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`.

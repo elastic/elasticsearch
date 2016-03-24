@@ -33,7 +33,7 @@ public interface QueryParser<QB extends QueryBuilder<QB>> {
     String[] names();
 
     /**
-     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryShardContext}
+     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
      * in {@link org.elasticsearch.common.xcontent.XContent} format
      *
      * @param parseContext

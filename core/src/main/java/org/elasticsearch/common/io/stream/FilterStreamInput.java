@@ -60,6 +60,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public int available() throws IOException {
+        return delegate.available();
+    }
+
+    @Override
     public Version getVersion() {
         return delegate.getVersion();
     }

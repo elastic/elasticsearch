@@ -76,6 +76,30 @@ public class ElasticsearchCliTests extends ESTestCase {
         runTest(expectedStatus, false, outputConsumer, (foreground, pidFile, esSettings) -> {}, args);
     }
 
+    public void testPositionalArgs() throws Exception {
+        runTest(
+            ExitCodes.USAGE,
+            false,
+            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
+            (foreground, pidFile, esSettings) -> {},
+            "foo"
+        );
+        runTest(
+            ExitCodes.USAGE,
+            false,
+            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo, bar]")),
+            (foreground, pidFile, esSettings) -> {},
+            "foo", "bar"
+        );
+        runTest(
+            ExitCodes.USAGE,
+            false,
+            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
+            (foreground, pidFile, esSettings) -> {},
+            "-E", "something", "foo", "-E", "somethingelse"
+        );
+    }
+
     public void testThatPidFileCanBeConfigured() throws Exception {
         runPidFileTest(ExitCodes.USAGE, false, output -> assertThat(output, containsString("Option p/pidfile requires an argument")), "-p");
         runPidFileTest(ExitCodes.OK, true, output -> {}, "-p", "/tmp/pid");

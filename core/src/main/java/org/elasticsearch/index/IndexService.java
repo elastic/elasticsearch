@@ -780,7 +780,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
 
         @Override
-        public void close() {
+        public synchronized void close() {
             if (closed.compareAndSet(false, true)) {
                 FutureUtils.cancel(scheduledFuture);
                 scheduledFuture = null;

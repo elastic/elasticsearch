@@ -523,6 +523,28 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, ByteSizeValue minValue, ByteSizeValue maxValue,
+                                                         Property... properties) {
+        return byteSizeSetting(key, (s) -> value.toString(), minValue, maxValue, properties);
+    }
+
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue,
+                                                         ByteSizeValue minValue, ByteSizeValue maxValue,
+                                                         Property... properties) {
+        return new Setting<>(key, defaultValue, (s) -> parseByteSize(s, minValue, maxValue, key), properties);
+    }
+
+    public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
+        ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
+        if (value.bytes() < minValue.bytes()) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        if (value.bytes() > maxValue.bytes()) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be =< " + maxValue);
+        }
+        return value;
+    }
+
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }

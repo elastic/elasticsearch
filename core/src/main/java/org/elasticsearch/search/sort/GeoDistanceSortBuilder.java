@@ -60,8 +60,9 @@ import java.util.Objects;
 /**
  * A geo distance based sorting on a geo point like field.
  */
-public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> implements SortBuilderParser<GeoDistanceSortBuilder> {
+public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
     public static final String NAME = "_geo_distance";
+    public static final String ALTERNATIVE_NAME = "_geoDistance";
     public static final boolean DEFAULT_COERCE = false;
     public static final boolean DEFAULT_IGNORE_MALFORMED = false;
     public static final ParseField UNIT_FIELD = new ParseField("unit");
@@ -73,7 +74,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
 
-    static final GeoDistanceSortBuilder PROTOTYPE = new GeoDistanceSortBuilder("", -1, -1);
+    public static final GeoDistanceSortBuilder PROTOTYPE = new GeoDistanceSortBuilder("_na_", -1, -1);
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -299,6 +300,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
 
         builder.startArray(fieldName);
@@ -324,6 +326,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         builder.field(COERCE_FIELD.getPreferredName(), coerce);
         builder.field(IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
 
+        builder.endObject();
         builder.endObject();
         return builder;
     }

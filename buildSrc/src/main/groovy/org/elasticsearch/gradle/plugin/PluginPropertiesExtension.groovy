@@ -39,9 +39,6 @@ class PluginPropertiesExtension {
     @Input
     String classname
 
-    @Input
-    boolean isolated = true
-
     PluginPropertiesExtension(Project project) {
         name = project.name
         version = project.version

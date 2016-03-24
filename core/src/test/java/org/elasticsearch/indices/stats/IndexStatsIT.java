@@ -61,6 +61,7 @@ import java.util.Random;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.PROTO;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -575,6 +576,10 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse stats = builder.execute().actionGet();
         for (Flag flag : values) {
+            if (flag == Flag.Suggest) {
+                // suggest flag is unused
+                continue;
+            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -610,6 +615,10 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         for (Flag flag : EnumSet.complementOf(flags)) { // check the complement
+            if (flag == Flag.Suggest) {
+                // suggest flag is unused
+                continue;
+            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -914,8 +923,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Translog:
                 builder.setTranslog(set);
                 break;
-            case Suggest:
-                builder.setSuggest(set);
+            case Suggest: // unused
                 break;
             case RequestCache:
                 builder.setRequestCache(set);
@@ -961,8 +969,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getSegments() != null;
             case Translog:
                 return response.getTranslog() != null;
-            case Suggest:
-                return response.getSuggest() != null;
+            case Suggest: // unused
+                return true;
             case RequestCache:
                 return response.getRequestCache() != null;
             case Recovery:

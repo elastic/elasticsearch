@@ -19,14 +19,15 @@
 
 package org.elasticsearch.rest.action.suggest;
 
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,6 +42,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -73,28 +75,29 @@ public class RestSuggestAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
-        SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
+        final SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
+        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         if (RestActions.hasBodyContent(request)) {
             final BytesReference sourceBytes = RestActions.getRestContent(request);
             try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
                 final QueryParseContext context = new QueryParseContext(queryRegistry);
                 context.reset(parser);
                 context.parseFieldMatcher(parseFieldMatcher);
-                suggestRequest.suggest(SuggestBuilder.fromXContent(context, suggesters));
+                searchRequest.source().suggest(SuggestBuilder.fromXContent(context, suggesters));
             }
         } else {
             throw new IllegalArgumentException("no content or source provided to execute suggestion");
         }
-        suggestRequest.routing(request.param("routing"));
-        suggestRequest.preference(request.param("preference"));
-
-        client.suggest(suggestRequest, new RestBuilderListener<SuggestResponse>(channel) {
+        searchRequest.routing(request.param("routing"));
+        searchRequest.preference(request.param("preference"));
+        client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
-            public RestResponse buildResponse(SuggestResponse response, XContentBuilder builder) throws Exception {
-                RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(), response.getTotalShards(), response.getShardFailures());
+            public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
+                RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(),
+                    response.getTotalShards(), response.getShardFailures());
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
+                buildBroadcastShardsHeader(builder, request, response.getTotalShards(),
+                    response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
                 Suggest suggest = response.getSuggest();
                 if (suggest != null) {
                     suggest.toInnerXContent(builder, request);

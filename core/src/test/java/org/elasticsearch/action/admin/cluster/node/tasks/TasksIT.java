@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -59,6 +60,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -118,9 +120,9 @@ public class TasksIT extends ESIntegTestCase {
 
         // Verify that one of these tasks is a parent of another task
         if (tasks.get(0).getParentTaskId().isSet()) {
-            assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
-        } else {
             assertParentTask(Collections.singletonList(tasks.get(0)), tasks.get(1));
+        } else {
+            assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
         }
     }
 
@@ -406,6 +408,17 @@ public class TasksIT extends ESIntegTestCase {
         assertThat(waitResponseFuture.get().getTasks(), emptyCollectionOf(TaskInfo.class));
     }
 
+    public void testTasksWaitForAllTask() throws Exception {
+        // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
+        ListTasksResponse response = client().admin().cluster().prepareListTasks().setWaitForCompletion(true)
+            .setTimeout(timeValueSeconds(10)).get();
+
+        // It should finish quickly and without complaint and list the list tasks themselves
+        assertThat(response.getNodeFailures(), emptyCollectionOf(FailedNodeException.class));
+        assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
+        assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
+    }
+
     @Override
     public void tearDown() throws Exception {
         for (Map.Entry<Tuple<String, String>, RecordingTaskManagerListener> entry : listeners.entrySet()) {
@@ -474,7 +487,7 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void assertParentTask(List<TaskInfo> tasks, TaskInfo parentTask) {
         for (TaskInfo task : tasks) {
-            assertFalse(task.getParentTaskId().isSet());
+            assertTrue(task.getParentTaskId().isSet());
             assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
             assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
             assertEquals(parentTask.getId(), task.getParentTaskId().getId());

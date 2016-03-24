@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
@@ -40,11 +41,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     @Override
     protected ScriptSortBuilder createTestItem() {
+        return randomScriptSortBuilder();
+    }
+
+    public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
-                builder.order(RandomSortDataGenerator.order(builder.order()));
+                builder.order(RandomSortDataGenerator.order(null));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {
@@ -117,8 +122,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         return result;
     }
 
-    @Rule
-    public ExpectedException exceptionRule = ExpectedException.none();
+    @Override
+    protected void sortFieldAssertions(ScriptSortBuilder builder, SortField sortField) throws IOException {
+        assertEquals(SortField.Type.CUSTOM, sortField.getType());
+        assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
+    }
 
     public void testScriptSortType() {
         // we rely on these ordinals in serialization, so changing them breaks bwc.
@@ -135,6 +143,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
     }
+
+    @Rule
+    public ExpectedException exceptionRule = ExpectedException.none();
 
     public void testScriptSortTypeNull() {
         exceptionRule.expect(NullPointerException.class);

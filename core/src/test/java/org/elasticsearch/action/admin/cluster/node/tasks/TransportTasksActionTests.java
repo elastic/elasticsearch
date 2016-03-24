@@ -604,7 +604,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
                     logger.info("Task action on node {}", node);
-                    if (failTaskOnNode == node && task.getParentTaskId().isSet() == false) {
+                    if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
                         logger.info("Failing on node {}", node);
                         throw new RuntimeException("Task level failure");
                     }

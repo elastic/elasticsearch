@@ -265,7 +265,7 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("fielddata")
                     && propNode instanceof Map
-                    && parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+                    && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                 // ignore for bw compat
                 iterator.remove();
             } else if (propName.equals("copy_to")) {

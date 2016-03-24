@@ -849,7 +849,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         List<ZenPing.PingResponse> pingResponses = new ArrayList<>();
         for (ZenPing.PingResponse pingResponse : fullPingResponses) {
             DiscoveryNode node = pingResponse.node();
-            //nocommit we should rename this and its setting, also we ignore node.ingest, but maybe it's ok here
+            //TODO we should rename this and its setting, also we ignore node.ingest, but maybe it's ok here
             if (masterElectionFilterClientNodes && node.masterNode() == false && node.dataNode() == false) {
                 // filter out nodes that don't hold data and are not master eligible
             } else if (masterElectionFilterDataNodes && node.masterNode() == false && node.dataNode()) {

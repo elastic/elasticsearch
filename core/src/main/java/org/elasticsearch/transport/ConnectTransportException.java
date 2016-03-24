@@ -51,22 +51,13 @@ public class ConnectTransportException extends ActionTransportException {
 
     public ConnectTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            node = new DiscoveryNode(in);
-        } else {
-            node = null;
-        }
+        node = in.readOptionalWritable(DiscoveryNode::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (node == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            node.writeTo(out);
-        }
+        out.writeOptionalWriteable(node);
     }
 
     public DiscoveryNode node() {

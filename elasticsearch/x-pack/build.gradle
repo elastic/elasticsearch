@@ -1,6 +1,8 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
 
+group 'org.elasticsearch.plugin'
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'xpack'

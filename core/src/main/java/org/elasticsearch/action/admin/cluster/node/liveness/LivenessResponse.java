@@ -48,7 +48,7 @@ public final class LivenessResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = ClusterName.readClusterName(in);
-        in.readOptionalWritable(DiscoveryNode::new);
+        node = in.readOptionalWriteable(DiscoveryNode::new);
     }
 
     @Override

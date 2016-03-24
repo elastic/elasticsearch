@@ -110,7 +110,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             status = ClusterHealthStatus.fromValue(in.readByte());
         }
         clusterUUID = in.readString();
-        nodesStats = ClusterStatsNodes.readNodeStats(in);
+        nodesStats = new ClusterStatsNodes(in);
         indicesStats = ClusterStatsIndices.readIndicesStats(in);
     }
 

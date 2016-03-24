@@ -286,6 +286,7 @@ public class SearchModule extends AbstractModule {
 
         registerBuiltinFunctionScoreParsers();
         registerBuiltinQueryParsers();
+        registerBuiltinRescorers();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -350,7 +351,6 @@ public class SearchModule extends AbstractModule {
         configureSuggesters();
         configureFetchSubPhase();
         configureShapes();
-        configureRescorers();
         configureSorts();
     }
 
@@ -491,8 +491,8 @@ public class SearchModule extends AbstractModule {
         }
     }
 
-    private void configureRescorers() {
-        namedWriteableRegistry.registerPrototype(RescoreBuilder.class, QueryRescorerBuilder.PROTOTYPE);
+    private void registerBuiltinRescorers() {
+        namedWriteableRegistry.register(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new);
     }
 
     private void configureSorts() {

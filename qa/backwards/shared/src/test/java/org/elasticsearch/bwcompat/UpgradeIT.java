@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -42,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)   // test scope since we set cluster wide settings
+@TestLogging("level:DEBUG") // hack to enable root level debug logic. TODO fix to be "_root:DEBUG"
 public class UpgradeIT extends ESBackcompatTestCase {
 
     @BeforeClass

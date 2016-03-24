@@ -82,13 +82,18 @@ The `index.analysis.analyzer.default_index` analyzer is not supported anymore.
 If you wish to change the analyzer to use for indexing, change the
 `index.analysis.analyzer.default` analyzer instead.
 
-==== Ping timeout settings
+==== Ping settings
 
 Previously, there were three settings for the ping timeout:
 `discovery.zen.initial_ping_timeout`, `discovery.zen.ping.timeout` and
 `discovery.zen.ping_timeout`. The former two have been removed and the only
 setting key for the ping timeout is now `discovery.zen.ping_timeout`. The
 default value for ping timeouts remains at three seconds.
+
+
+`discovery.zen.master_election.filter_client` and `discovery.zen.master_election.filter_data` have
+been removed in favor of the new `discovery.zen.master_election.ignore_non_master_pings`. This setting control how ping responses
+are interpreted during master election and should be used with care and only in extreme cases. See documentation for details.
 
 ==== Recovery settings
 

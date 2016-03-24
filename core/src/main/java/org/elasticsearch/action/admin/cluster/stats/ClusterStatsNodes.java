@@ -87,7 +87,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
                 continue;
             }
 
-            os.addNodeInfo(nodeResponse.nodeInfo());
+            os.addNodeInfoStats(nodeResponse.nodeInfo(), nodeResponse.nodeStats());
             if (nodeResponse.nodeStats().getFs() != null) {
                 fs.add(nodeResponse.nodeStats().getFs().total());
             }
@@ -309,12 +309,15 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             names = new ObjectIntHashMap<>();
         }
 
-        public void addNodeInfo(NodeInfo nodeInfo) {
+        public void addNodeInfoStats(NodeInfo nodeInfo, NodeStats nodeStats) {
             availableProcessors += nodeInfo.getOs().getAvailableProcessors();
             allocatedProcessors += nodeInfo.getOs().getAllocatedProcessors();
 
             if (nodeInfo.getOs().getName() != null) {
                 names.addTo(nodeInfo.getOs().getName(), 1);
+            }
+            if (nodeStats.getOs() != null && nodeStats.getOs().getMem() != null) {
+                availableMemory += nodeStats.getOs().getMem().getFree().bytes();
             }
         }
 

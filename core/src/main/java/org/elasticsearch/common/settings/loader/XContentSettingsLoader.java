@@ -38,6 +38,12 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
 
     public abstract XContentType contentType();
 
+    private final boolean guardAgainstNullValuedSettings;
+
+    XContentSettingsLoader(boolean guardAgainstNullValuedSettings) {
+        this.guardAgainstNullValuedSettings = guardAgainstNullValuedSettings;
+    }
+
     @Override
     public Map<String, String> load(String source) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(contentType()).createParser(source)) {
@@ -153,6 +159,16 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
                     currentValue
             );
         }
+
+        if (guardAgainstNullValuedSettings && currentValue == null) {
+            throw new ElasticsearchParseException(
+                    "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
+                    key,
+                    parser.getTokenLocation().lineNumber,
+                    parser.getTokenLocation().columnNumber
+            );
+        }
+
         settings.put(key, currentValue);
     }
 }

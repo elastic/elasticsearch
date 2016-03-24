@@ -27,6 +27,10 @@ import org.elasticsearch.common.xcontent.XContentType;
  */
 public class JsonSettingsLoader extends XContentSettingsLoader {
 
+    public JsonSettingsLoader(boolean guardAgainstNullValuedSettings) {
+        super(guardAgainstNullValuedSettings);
+    }
+
     @Override
     public XContentType contentType() {
         return XContentType.JSON;

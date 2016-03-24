@@ -45,6 +45,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -194,6 +198,8 @@ public class PercolatorQueryTests extends ESTestCase {
                 query = new WildcardQuery(new Term("field", id + "*"));
             } else if (randomBoolean()) {
                 query = new CustomQuery(new Term("field", id + "*"));
+            } else if (randomBoolean()) {
+                query = new SpanTermQuery(new Term("field", id));
             } else {
                 query = new TermQuery(new Term("field", id));
             }
@@ -222,6 +228,27 @@ public class PercolatorQueryTests extends ESTestCase {
         BlendedTermQuery blendedTermQuery = BlendedTermQuery.booleanBlendedQuery(new Term[]{new Term("field", "quick"),
                 new Term("field", "brown"), new Term("field", "fox")}, false);
         addPercolatorQuery("_id2", blendedTermQuery);
+
+        SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "quick")))
+                .addClause(new SpanTermQuery(new Term("field", "brown")))
+                .addClause(new SpanTermQuery(new Term("field", "fox")))
+                .build();
+        addPercolatorQuery("_id3", spanNearQuery);
+
+        SpanNearQuery spanNearQuery2 = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "the")))
+                .addClause(new SpanTermQuery(new Term("field", "lazy")))
+                .addClause(new SpanTermQuery(new Term("field", "doc")))
+                .build();
+        SpanOrQuery spanOrQuery = new SpanOrQuery(
+                spanNearQuery,
+                spanNearQuery2
+        );
+        addPercolatorQuery("_id4", spanOrQuery);
+
+        SpanNotQuery spanNotQuery = new SpanNotQuery(spanNearQuery, spanNearQuery);
+        addPercolatorQuery("_id5", spanNotQuery);
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);

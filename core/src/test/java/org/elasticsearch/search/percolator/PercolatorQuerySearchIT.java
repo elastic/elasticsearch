@@ -33,6 +33,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.percolatorQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -99,6 +102,44 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .setSource(jsonBuilder().startObject().field("query", multiMatchQuery("quick brown fox", "field1", "field2")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).endObject())
                 .get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
+                .setSource(jsonBuilder().startObject().field("query",
+                        spanNearQuery(spanTermQuery("field1", "quick"), 0)
+                                .clause(spanTermQuery("field1", "brown"))
+                                .clause(spanTermQuery("field1", "fox"))
+                                .inOrder(true)
+                ).endObject())
+                .get();
+        client().admin().indices().prepareRefresh().get();
+
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
+                .setSource(jsonBuilder().startObject().field("query",
+                        spanNotQuery(
+                                spanNearQuery(spanTermQuery("field1", "quick"), 0)
+                                        .clause(spanTermQuery("field1", "brown"))
+                                        .clause(spanTermQuery("field1", "fox"))
+                                        .inOrder(true),
+                                spanNearQuery(spanTermQuery("field1", "the"), 0)
+                                        .clause(spanTermQuery("field1", "lazy"))
+                                        .clause(spanTermQuery("field1", "dog"))
+                                        .inOrder(true)).dist(2)
+                ).endObject())
+                .get();
+
+        // doesn't match
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "5")
+                .setSource(jsonBuilder().startObject().field("query",
+                        spanNotQuery(
+                                spanNearQuery(spanTermQuery("field1", "quick"), 0)
+                                        .clause(spanTermQuery("field1", "brown"))
+                                        .clause(spanTermQuery("field1", "fox"))
+                                        .inOrder(true),
+                                spanNearQuery(spanTermQuery("field1", "the"), 0)
+                                        .clause(spanTermQuery("field1", "lazy"))
+                                        .clause(spanTermQuery("field1", "dog"))
+                                        .inOrder(true)).dist(3)
+                ).endObject())
+                .get();
         client().admin().indices().prepareRefresh().get();
 
         BytesReference source = jsonBuilder().startObject()
@@ -108,9 +149,11 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         SearchResponse response = client().prepareSearch()
                 .setQuery(percolatorQuery("type", source))
                 .get();
-        assertHitCount(response, 2);
+        assertHitCount(response, 4);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(3).getId(), equalTo("4"));
     }
 
     public void testPercolatorQueryWithHighlighting() throws Exception {

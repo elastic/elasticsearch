@@ -128,9 +128,6 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(S3Repository.Repositories.STORAGE_CLASS_SETTING);
         settingsModule.registerSetting(S3Repository.Repositories.CANNED_ACL_SETTING);
         settingsModule.registerSetting(S3Repository.Repositories.BASE_PATH_SETTING);
-        settingsModule.registerSetting(S3Repository.Repositories.CLIENT_PRIVATE_KEY);
-        settingsModule.registerSetting(S3Repository.Repositories.CLIENT_PUBLIC_KEY);
-        settingsModule.registerSetting(S3Repository.Repositories.CLIENT_SYMMETRIC_KEY);
 
         // Register S3 single repository settings
         settingsModule.registerSetting(S3Repository.Repository.KEY_SETTING);
@@ -147,9 +144,6 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(S3Repository.Repository.STORAGE_CLASS_SETTING);
         settingsModule.registerSetting(S3Repository.Repository.CANNED_ACL_SETTING);
         settingsModule.registerSetting(S3Repository.Repository.BASE_PATH_SETTING);
-        settingsModule.registerSetting(S3Repository.Repository.CLIENT_PRIVATE_KEY);
-        settingsModule.registerSetting(S3Repository.Repository.CLIENT_PUBLIC_KEY);
-        settingsModule.registerSetting(S3Repository.Repository.CLIENT_SYMMETRIC_KEY);
     }
 
     /**

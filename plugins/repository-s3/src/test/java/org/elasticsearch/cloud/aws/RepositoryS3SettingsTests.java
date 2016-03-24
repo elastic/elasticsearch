@@ -97,7 +97,6 @@ public class RepositoryS3SettingsTests extends ESTestCase {
         .put(Repository.STORAGE_CLASS_SETTING.getKey(), "repository-class")
         .put(Repository.CANNED_ACL_SETTING.getKey(), "repository-acl")
         .put(Repository.BASE_PATH_SETTING.getKey(), "repository-basepath")
-
         .build();
 
     /**
@@ -126,9 +125,6 @@ public class RepositoryS3SettingsTests extends ESTestCase {
         assertThat(getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING), isEmptyString());
         assertThat(getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING), isEmptyString());
         assertThat(getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING), isEmptyString());
-        assertThat(getValue(repositorySettings, Repository.CLIENT_SYMMETRIC_KEY, Repositories.CLIENT_SYMMETRIC_KEY), isEmptyString());
-        assertThat(getValue(repositorySettings, Repository.CLIENT_PRIVATE_KEY, Repositories.CLIENT_PRIVATE_KEY), isEmptyString());
-        assertThat(getValue(repositorySettings, Repository.CLIENT_PUBLIC_KEY, Repositories.CLIENT_PUBLIC_KEY), isEmptyString());
     }
 
     /**
@@ -157,9 +153,6 @@ public class RepositoryS3SettingsTests extends ESTestCase {
         assertThat(getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING), isEmptyString());
         assertThat(getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING), isEmptyString());
         assertThat(getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING), isEmptyString());
-        assertThat(getValue(repositorySettings, Repository.CLIENT_SYMMETRIC_KEY, Repositories.CLIENT_SYMMETRIC_KEY), isEmptyString());
-        assertThat(getValue(repositorySettings, Repository.CLIENT_PRIVATE_KEY, Repositories.CLIENT_PRIVATE_KEY), isEmptyString());
-        assertThat(getValue(repositorySettings, Repository.CLIENT_PUBLIC_KEY, Repositories.CLIENT_PUBLIC_KEY), isEmptyString());
     }
 
     /**
@@ -336,7 +329,6 @@ public class RepositoryS3SettingsTests extends ESTestCase {
 
     private void internalTestInvalidChunkBufferSizeSettings(ByteSizeValue buffer, ByteSizeValue chunk, String expectedMessage)
         throws IOException {
-
         Settings nodeSettings = buildSettings(AWS, S3, REPOSITORIES);
         RepositorySettings s3RepositorySettings =  new RepositorySettings(nodeSettings, Settings.builder()
             .put(Repository.BUFFER_SIZE_SETTING.getKey(), buffer)

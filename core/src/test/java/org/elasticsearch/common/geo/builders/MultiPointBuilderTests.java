@@ -20,29 +20,20 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
+import java.util.List;
 
 public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPointBuilder> {
 
     public void testInvalidBuilderException() {
-        try {
-            new MultiPointBuilder(null);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
-        }
-
-        try {
-            new MultiPointBuilder(new CoordinatesBuilder().build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MultiPointBuilder((List<Coordinate>) null));
+        assertEquals("cannot create point collection with empty set of points", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new MultiPointBuilder(new CoordinatesBuilder().build()));
+        assertEquals("cannot create point collection with empty set of points", e.getMessage());
 
         // one point is minimum
         new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build());

@@ -154,7 +154,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         fieldName = in.readString();
         points.addAll((List<GeoPoint>) in.readGenericValue());
         geoDistance = GeoDistance.readGeoDistanceFrom(in);
-        unit = DistanceUnit.readDistanceUnit(in);
+        unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedFilter = in.readOptionalQuery();

@@ -287,22 +287,41 @@ mvn test -Pdev
 
 Backwards compatibility tests now run automatically as part of the qa
 submodule, including resolving their dependencies using maven. You can run just
-those tests like so:
+those tests like so against a specific backwards version:
 
 ---------------------------------------------------------------------------
-mvn verify -pl qa/backwards
+mvn verify -Pdev -Dskip.unit.tests -pl org.elasticsearch.qa.backwards:2.0
 ---------------------------------------------------------------------------
 
-Or run the tests against a specific backwards version like so:
+All other options are the same as in core. For example:
 
 ---------------------------------------------------------------------------
-mvn verify -pl qa/backwards/2.0.0
+mvn verify -Pdev -Dskip.unit.tests -pl org.elasticsearch.qa.backwards:2.0 -Dtests.class=org.elasticsearch.bwcompat.BasicBackwardsCompatibilityIT -Dtests.method="testIndexAndSearch"
 ---------------------------------------------------------------------------
+
+runs only BasicBackwardsCompatibilityIT.testIndexAndSearch.
 
 When a new version of Elasticsearch is released all versions of Elasticsearch
 that should be backwards compatible with that version should grow a submodule
-of the same name as the version. This should be as simple as copying the 2.0.0
-submodule and changing 2.0.0 to the newly released version.
+of the same name as the version. This should be as simple as copying the 2.0
+submodule and changing 2.0 to the newly released version.
+
+The backwards compatibility tests all run the test suite from qa/backwards/shared .
+This test suite is pulled from the last build. If you want to change a test and then run the
+tests with the change, run
+
+---------------------------------------------------------------------------
+mvn package -DskipTests -pl org.elasticsearch.qa.backwards:shared
+---------------------------------------------------------------------------
+
+before re-running the test.
+
+Elasticsearch is pulled from the maven reop. If you change something in core and want to test again you need to install core before
+re-running the tests:
+
+---------------------------------------------------------------------------
+mvn package -DskipTests -pl org.elasticsearch:elasticsearch
+---------------------------------------------------------------------------
 
 == Testing scripts
 

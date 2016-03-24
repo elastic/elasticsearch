@@ -219,7 +219,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            if (indexCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
                 // add doc values by default to keyword (boolean, numerics, etc.) fields
                 return fieldType.tokenized() == false;
             } else {
@@ -229,7 +229,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
-            if (context.indexCreatedVersion().before(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().before(Version.V_5_0_0_alpha1)) {
                 fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
             }
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
@@ -289,7 +289,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (!customBoost()
                         // don't set boosts eg. on dv fields
                         && field.fieldType().indexOptions() != IndexOptions.NONE
-                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

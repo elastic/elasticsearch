@@ -261,7 +261,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                     context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Byte objValue = fieldType().nullValue();
@@ -294,7 +294,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomByteNumericField field = new CustomByteNumericField(value, fieldType());
-            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 field.setBoost(boost);
             }
             fields.add(field);

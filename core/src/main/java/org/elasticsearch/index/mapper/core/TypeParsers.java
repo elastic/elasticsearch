@@ -250,7 +250,7 @@ public class TypeParsers {
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
-            } else if (parserContext.indexVersionCreated().before(Version.V_5_0_0)
+            } else if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)
                     && parseNorms(builder, propName, propNode, parserContext)) {
                 iterator.remove();
             } else if (propName.equals("index_options")) {
@@ -434,7 +434,7 @@ public class TypeParsers {
     }
 
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        if (parserContext.indexVersionCreated().before(Version.V_5_0_0) && "default".equals(value)) {
+        if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1) && "default".equals(value)) {
             // "default" similarity has been renamed into "classic" in 3.x.
             value = SimilarityService.DEFAULT_SIMILARITY;
         }

@@ -488,7 +488,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 dateAsString = parser.text();
             } else if (token == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -523,7 +523,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         if (value != null) {
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
-                if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                     field.setBoost(boost);
                 }
                 fields.add(field);

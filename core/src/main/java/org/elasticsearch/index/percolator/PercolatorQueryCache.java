@@ -29,7 +29,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -37,11 +36,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -143,7 +140,7 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
         }
 
         IntObjectHashMap<Query> queries = new IntObjectHashMap<>();
-        boolean legacyLoading = indexVersionCreated.before(Version.V_5_0_0);
+        boolean legacyLoading = indexVersionCreated.before(Version.V_5_0_0_alpha1);
         PostingsEnum postings = leafReader.postings(new Term(TypeFieldMapper.NAME, PercolatorFieldMapper.TYPE_NAME), PostingsEnum.NONE);
         if (postings != null) {
             if (legacyLoading) {

@@ -100,7 +100,7 @@ public class DynamicTemplate implements ToXContent {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
                 mapping = (Map<String, Object>) entry.getValue();
-            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0)) {
+            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
                 // unknown parameters were ignored before but still carried through serialization
                 // so we need to ignore them at parsing time for old indices
                 throw new IllegalArgumentException("Illegal dynamic template parameter: [" + propName + "]");
